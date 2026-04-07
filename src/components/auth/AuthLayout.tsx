@@ -28,10 +28,10 @@ function AuthLayout({ title, description, children }: AuthLayoutProps) {
           <div className="absolute bottom-[8%] right-[10%] h-64 w-64 rounded-full bg-amber-200/40 blur-3xl" />
         </div>
 
-        <section className="relative hidden w-[54%] flex-col justify-between border-r border-slate-200/70 px-10 py-10 lg:flex xl:px-16 xl:py-14">
+        <section className="relative hidden w-[54%] flex-col justify-between xl:my-auto border-r border-slate-200/70 px-10 py-10 lg:flex xl:px-16 xl:py-14">
           <div>
             <div className="inline-flex items-center gap-3 rounded-full border border-slate-300/70 bg-white/70 px-4 py-2 shadow-[0_8px_30px_rgba(15,23,42,0.08)] backdrop-blur">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full  text-sm font-semibold tracking-[0.3em] text-white">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold tracking-[0.3em] text-white">
                 <img src="/tristate-metadata-logo.png" />
               </div>
               <div>

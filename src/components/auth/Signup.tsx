@@ -1,8 +1,9 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
-import { signUp } from "../services/operations/auth";
+import { signUp } from "../../services/operations/auth";
 import AuthLayout from "./AuthLayout";
+import { useNavigate } from "react-router-dom";
 
 type SignupFormData = {
   firstName: string;
@@ -50,6 +51,7 @@ function Signup() {
     }));
   }
 
+  const navigate = useNavigate();
   async function handleSignUp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -84,6 +86,8 @@ function Signup() {
         id: loadingToast,
       });
       setFormData(initialFormData);
+
+      navigate("/login");
     } catch (error) {
       const message =
         error instanceof Error
@@ -232,21 +236,21 @@ function Signup() {
             Secure
           </span>
         </div>*/}
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-950 px-4 py-4 text-sm font-semibold uppercase tracking-[0.25em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-500"
+        >
+          {isSubmitting ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              Creating...
+            </>
+          ) : (
+            "Create workspace"
+          )}
+        </button>
       </form>
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-950 px-4 py-4 text-sm font-semibold uppercase tracking-[0.25em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-500"
-      >
-        {isSubmitting ? (
-          <>
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            Creating...
-          </>
-        ) : (
-          "Create workspace"
-        )}
-      </button>
 
       <p className="mt-6 text-center text-sm text-slate-500">
         Already have an account?{" "}

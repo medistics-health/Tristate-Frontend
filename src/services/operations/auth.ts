@@ -3,7 +3,7 @@ import { apiConnector } from "../apiConnector";
 import { authEnpoints } from "../apis";
 import type { LoginPayload, SignupPayload } from "../types";
 
-const { LOGIN, SIGNUP } = authEnpoints;
+const { LOGIN, SIGNUP, AUTHME, LOGOUT } = authEnpoints;
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError(error)) {
@@ -65,5 +65,32 @@ export async function login({ userName, password }: LoginPayload) {
     return response.data;
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to sign you in."));
+  }
+}
+
+export async function authMe() {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: AUTHME,
+      credentials: true,
+    });
+    return response.status;
+  } catch (Err) {
+    return Err;
+  }
+}
+
+export async function logout() {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: LOGOUT,
+      credentials: true,
+    });
+
+    return response.status;
+  } catch (Err) {
+    return Err;
   }
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { Link } from "react-router-dom";
-import { login } from "../services/operations/auth";
+import { Link, useNavigate } from "react-router-dom";
+import { login } from "../../services/operations/auth";
 import AuthLayout from "./AuthLayout";
 
 type LoginFormData = {
@@ -17,12 +17,11 @@ const initialFormData: LoginFormData = {
 };
 
 function Login() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleChange(
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) {
+  function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     const { name, value, type, checked } = event.target;
 
     setFormData((current) => ({
@@ -51,6 +50,7 @@ function Login() {
       toast.success(response.message ?? "Signed in successfully.", {
         id: loadingToast,
       });
+      navigate("/purchase-orders/unpaid-pos");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to sign you in.";
@@ -81,7 +81,7 @@ function Login() {
         </Link>
       </div>
 
-      <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-slate-700">
             Username or email
