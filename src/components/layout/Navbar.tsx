@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { logout } from "../../services/operations/auth";
 import toast from "react-hot-toast";
 
-type NavbarAction = {
+export type NavbarAction = {
   label: string;
   muted?: boolean;
   icon?: ReactNode;
@@ -56,7 +56,7 @@ function Navbar({
   title,
   icon = <DefaultDocumentIcon />,
   actions = [
-    { label: "+ New record" },
+    // { label: "+ New record" },
     // { label: "Ctrl K", muted: true },
     {
       icon: <LogOut className="h-4 w-6" />,

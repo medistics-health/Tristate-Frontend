@@ -24,18 +24,12 @@ type SidebarProps = {
   activeSubItem?: string;
 };
 
-const quickItems: SidebarSectionItem[] = [
-  { label: "Search" },
-  { label: "Ask AI" },
-  { label: "Settings" },
-];
-
 const sidebarSections: SidebarSection[] = [
   {
     label: "Workspace",
 
     items: [
-      { label: "Dashboards" },
+      { label: "Dashboards", to: "/dashboard" },
 
       // { label: "Survey results" },
     ],
@@ -52,22 +46,21 @@ const sidebarSections: SidebarSection[] = [
           { label: "Unpaid POs", to: "/purchase-orders/unpaid-pos" },
         ],
       },
-
       {
         label: "Invoice Line Items",
         items: [
           {
             label: "All Invoice Line Items",
-            to: "/service/all-invoice-line-items",
+            to: "/invoice/all-invoice-line-items",
           },
-          { label: "All Line Items", to: "/service/all-line-items" },
+          { label: "All Line Items", to: "/invoice/all-line-items" },
         ],
       },
       {
         label: "Services",
         items: [
           { label: "All Services", to: "/service/all-services" },
-          { label: "Service Catalog", to: "/service/service-catalog" },
+          { label: "Service Catalog", to: "/service/service-catalogs" },
           { label: "Active Services", to: "/service/active-services" },
         ],
       },
@@ -125,8 +118,8 @@ const sidebarSections: SidebarSection[] = [
           { label: "All Practice", to: "/practice/all-practices" },
           { label: "Pipeline Board", to: "/practice/pipeline" },
           { label: "Active Practices", to: "/practice/active-practice" },
-          { label: "Prospects", to: "/practice/active-practice" },
-          { label: "Reminfers Due", to: "/practice/active-practice" },
+          { label: "Prospects", to: "/practice/prospects" },
+          { label: "Reminders Due", to: "/practice/reminder-dues" },
         ],
       },
     ],

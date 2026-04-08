@@ -1,0 +1,68 @@
+@layer base {
+  :root {
+    --app-font-sans: "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif;
+    --app-font-serif: Georgia, "Times New Roman", serif;
+    --app-bg: #fbfaf8;
+    --app-panel: #ffffff;
+    --app-panel-muted: #f7f5f1;
+    --app-border: #ece8e1;
+    --app-border-strong: #e4e0d8;
+    --app-text: #334155;
+    --app-text-strong: #0f172a;
+    --app-text-soft: #64748b;
+    --app-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    background: var(--app-bg);
+    color: var(--app-text);
+    font-family: var(--app-font-sans);
+    line-height: 1.45;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+  }
+}
+
+@layer utilities {
+  .font-app-sans {
+    font-family: var(--app-font-sans);
+  }
+
+  .font-app-serif {
+    font-family: var(--app-font-serif);
+  }
+
+  .app-panel {
+    background: var(--app-panel);
+    border: 1px solid var(--app-border);
+    box-shadow: var(--app-shadow-sm);
+  }
+
+  .app-panel-muted {
+    background: var(--app-panel-muted);
+    border: 1px solid var(--app-border);
+  }
+
+  .app-control {
+    border: 1px solid var(--app-border-strong);
+    background: var(--app-panel);
+    color: var(--app-text);
+    box-shadow: var(--app-shadow-sm);
+  }
+}

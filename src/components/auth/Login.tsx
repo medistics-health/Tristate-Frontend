@@ -50,7 +50,7 @@ function Login() {
       toast.success(response.message ?? "Signed in successfully.", {
         id: loadingToast,
       });
-      navigate("/purchase-orders/unpaid-pos");
+      navigate("/dashboard");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to sign you in.";

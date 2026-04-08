@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { authMe } from "../../services/operations/auth";
+import { Spinner } from "../layout/Spinner";
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const [loading, setLoading] = useState(true);
@@ -21,9 +22,12 @@ function ProtectedRoute({ children }: { children: JSX.Element }) {
     authenticateMe();
   }, []);
 
-  console.log(isAuth);
-
-  if (loading) return <div>Loading...</div>;
+  if (loading)
+    return (
+      <div>
+        <Spinner />
+      </div>
+    );
 
   return isAuth ? children : <Navigate to="/login" />;
 }

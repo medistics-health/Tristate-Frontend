@@ -35,20 +35,20 @@ function AuthLayout({ title, description, children }: AuthLayoutProps) {
                 <img src="/tristate-metadata-logo.png" />
               </div>
               <div>
-                <p className="font-['Trebuchet_MS','Segoe_UI',sans-serif] text-xs uppercase tracking-[0.35em] text-slate-500">
+                <p className="font-app-sans text-xs uppercase tracking-[0.35em] text-slate-500">
                   Tristate MSO
                 </p>
-                <p className="font-['Georgia',serif] text-lg text-slate-950">
+                <p className="font-app-sans text-lg font-semibold text-slate-950">
                   Practice Operations CRM
                 </p>
               </div>
             </div>
 
             <div className="mt-20 max-w-2xl">
-              <p className="font-['Trebuchet_MS','Segoe_UI',sans-serif] text-sm uppercase tracking-[0.45em] text-slate-500">
+              <p className="font-app-sans text-sm uppercase tracking-[0.45em] text-slate-500">
                 Healthcare operations, simplified
               </p>
-              <h1 className="mt-6 font-['Georgia',serif] text-6xl leading-[1.05] tracking-[-0.04em] text-slate-950">
+              <h1 className="font-app-sans mt-6 text-6xl font-semibold leading-[1.05] tracking-[-0.04em] text-slate-950">
                 Keep every patient touchpoint moving from first call to final
                 claim.
               </h1>
@@ -98,10 +98,10 @@ function AuthLayout({ title, description, children }: AuthLayoutProps) {
           <div className="w-full max-w-[540px] rounded-[32px] border border-white/70 bg-white/80 p-4 shadow-[0_30px_80px_rgba(15,23,42,0.14)] backdrop-blur sm:p-6">
             <div className="rounded-[28px] bg-[linear-gradient(180deg,_rgba(255,255,255,0.92)_0%,_rgba(245,248,252,0.95)_100%)] p-6 sm:p-8">
               <div>
-                <p className="font-['Trebuchet_MS','Segoe_UI',sans-serif] text-xs uppercase tracking-[0.35em] text-slate-500">
+                <p className="font-app-sans text-xs uppercase tracking-[0.35em] text-slate-500">
                   Welcome
                 </p>
-                <h2 className="mt-3 font-['Georgia',serif] text-4xl tracking-[-0.04em] text-slate-950">
+                <h2 className="font-app-sans mt-3 text-4xl font-semibold tracking-[-0.04em] text-slate-950">
                   {title}
                 </h2>
                 {/*<p className="mt-4 text-sm leading-7 text-slate-600">
