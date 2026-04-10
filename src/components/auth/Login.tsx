@@ -40,12 +40,13 @@ function Login() {
       toast.error("Enter both username and password.");
       return;
     }
+    const identifier = userName;
 
     setIsSubmitting(true);
     const loadingToast = toast.loading("Signing you in...");
 
     try {
-      const response = await login({ userName, password });
+      const response = await login({ identifier, password });
 
       toast.success(response.message ?? "Signed in successfully.", {
         id: loadingToast,
@@ -98,7 +99,7 @@ function Login() {
         </label>
 
         <label className="block">
-          <div className="mb-2 flex items-center justify-between gap-4">
+          {/*<div className="mb-2 flex items-center justify-between gap-4">
             <span className="text-sm font-medium text-slate-700">Password</span>
             <button
               type="button"
@@ -106,7 +107,7 @@ function Login() {
             >
               Forgot password?
             </button>
-          </div>
+          </div>*/}
           <input
             type="password"
             name="password"

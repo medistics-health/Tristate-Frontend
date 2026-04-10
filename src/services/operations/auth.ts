@@ -50,13 +50,13 @@ export async function signUp({
   }
 }
 
-export async function login({ userName, password }: LoginPayload) {
+export async function login({ identifier, password }: LoginPayload) {
   try {
     const response = await apiConnector({
       method: "POST",
       url: LOGIN,
       body: {
-        userName,
+        identifier,
         password,
       },
       credentials: true,

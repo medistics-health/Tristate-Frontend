@@ -3,14 +3,17 @@ import {
   ChevronDown,
   ChevronLeft,
   Circle,
+  ExternalLink,
   Home,
   LayoutList,
-  Pencil,
+  MoreHorizontal,
   Plus,
+  RotateCcw,
   Sparkles,
+  Trash2,
   UserCircle2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import AppLayout from "../layout/AppLayout";
 import type { NavbarAction } from "../layout/Navbar";
 
@@ -43,9 +46,9 @@ type AuditListViewProps = {
 };
 
 const detailTabs = [
-  { id: "home", label: "Home" },
-  { id: "tasks", label: "Tasks" },
-  { id: "more", label: "+2 More" },
+  { id: "home", label: "Home", icon: <Home className="h-4 w-4" /> },
+  { id: "tasks", label: "Tasks", icon: <CheckSquare className="h-4 w-4" /> },
+  { id: "more", label: "+2 More", icon: null },
 ] as const;
 
 const statusBadgeClassNames: Record<AuditRecordStatus, string> = {
@@ -76,13 +79,40 @@ function formatStatusLabel(status: AuditRecordStatus) {
   return status.replace(/-/g, " ").toUpperCase();
 }
 
+function AvatarPill({ name }: { name: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-slate-700">
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#fff1bd] text-[11px] text-[#b78800]">
+        {name.charAt(0)}
+      </span>
+      {name}
+    </span>
+  );
+}
+
 function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
   const [records, setRecords] = useState(initialRecords);
-  const [selectedAuditId, setSelectedAuditId] = useState(initialRecords[0]?.id ?? "");
-  const [activeTab, setActiveTab] = useState<(typeof detailTabs)[number]["id"]>("home");
+  const [selectedAuditId, setSelectedAuditId] = useState<string | null>(
+    initialRecords[0]?.id ?? null,
+  );
+  const [activeTab, setActiveTab] =
+    useState<(typeof detailTabs)[number]["id"]>("home");
   const [showDetailPanel, setShowDetailPanel] = useState(true);
   const [showOnlyOpenRecords, setShowOnlyOpenRecords] = useState(false);
   const [sortNewestFirst, setSortNewestFirst] = useState(true);
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowOptionsMenu(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   const visibleRecords = useMemo(() => {
     const filtered = showOnlyOpenRecords
@@ -96,18 +126,19 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
     );
   }, [records, showOnlyOpenRecords, sortNewestFirst]);
 
-  const selectedAudit =
-    visibleRecords.find((record) => record.id === selectedAuditId) ??
-    records.find((record) => record.id === selectedAuditId) ??
-    visibleRecords[0] ??
-    null;
+  const selectedAudit = useMemo(
+    () => records.find((record) => record.id === selectedAuditId) || null,
+    [records, selectedAuditId],
+  );
 
   function upsertSelectedAudit(
     auditId: string,
     updater: (record: AuditRecord) => AuditRecord,
   ) {
     setRecords((current) =>
-      current.map((record) => (record.id === auditId ? updater(record) : record)),
+      current.map((record) =>
+        record.id === auditId ? updater(record) : record,
+      ),
     );
   }
 
@@ -140,10 +171,6 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
       icon: <Plus className="h-4 w-4" />,
       onClick: createAudit,
     },
-    {
-      label: "Ctrl K",
-      muted: true,
-    },
   ];
 
   return (
@@ -155,7 +182,7 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
       navbarActions={navbarActions}
     >
       <div className="flex h-full gap-2">
-        <section className="app-panel min-w-0 flex-1 overflow-hidden rounded-2xl">
+        <section className="app-panel min-w-0 flex-1 overflow-hidden rounded-2xl bg-white">
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <button
               type="button"
@@ -191,17 +218,14 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
 
           <div className="min-h-0 overflow-auto">
             <div className="min-w-[900px]">
-              <div className="grid grid-cols-[42px_minmax(0,1fr)] border-b border-[#f0ece6] text-slate-400">
+              <div className="grid grid-cols-[42px_minmax(0,1fr)] border-b border-[#f0ece6] bg-white text-[14px] text-slate-400">
                 <div className="flex items-center justify-center border-r border-[#f0ece6] py-2.5">
-                  <button
-                    type="button"
-                    onClick={createAudit}
-                    className="inline-flex h-4 w-4 items-center justify-center"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
+                  <Plus className="h-3.5 w-3.5" />
                 </div>
-                <div />
+                <div className="flex items-center gap-2 px-4 py-2.5 border-r border-[#f0ece6]">
+                  <span>Abc</span>
+                  <span>Title</span>
+                </div>
               </div>
 
               {visibleRecords.map((record) => {
@@ -210,7 +234,7 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
                 return (
                   <div
                     key={record.id}
-                    className={`grid grid-cols-[42px_minmax(0,1fr)] border-b border-[#f0ece6] ${
+                    className={`grid grid-cols-[42px_minmax(0,1fr)] border-b border-[#f0ece6] text-[14px] ${
                       isSelected ? "bg-[#fcfbf9]" : "bg-white"
                     }`}
                   >
@@ -235,12 +259,15 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
                         setSelectedAuditId(record.id);
                         setShowDetailPanel(true);
                       }}
-                      className="flex min-h-[38px] items-center px-4 text-left"
+                      className="flex min-h-[44px] items-center gap-2 border-r border-[#f0ece6] px-4 text-left"
                     >
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#f7f5f1] text-[11px] text-slate-300">
+                        -
+                      </span>
                       <span
-                        className={`text-[14px] ${
+                        className={
                           record.title ? "text-slate-600" : "text-slate-300"
-                        }`}
+                        }
                       >
                         {record.title || "Untitled"}
                       </span>
@@ -252,7 +279,7 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
               <button
                 type="button"
                 onClick={createAudit}
-                className="flex min-h-[38px] w-full items-center gap-3 border-b border-[#f0ece6] px-4 text-[14px] text-slate-400"
+                className="flex min-h-[44px] w-full items-center gap-3 border-b border-[#f0ece6] px-4 text-[14px] text-slate-400"
               >
                 <Plus className="h-4 w-4" />
                 Add New
@@ -262,12 +289,12 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
         </section>
 
         {showDetailPanel && selectedAudit ? (
-          <aside className="app-panel flex w-[340px] flex-col overflow-hidden rounded-2xl">
+          <aside className="app-panel relative flex w-[340px] flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
             <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
               <button
                 type="button"
                 onClick={() => setShowDetailPanel(false)}
-                className="text-slate-400"
+                className="text-slate-400 hover:text-slate-600"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -287,21 +314,15 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
                   }));
                 }}
                 placeholder="Name"
-                className="min-w-0 flex-1 rounded-md border border-[#9cb1f6] bg-white px-1.5 py-0.5 text-[14px] text-slate-700 outline-none placeholder:text-slate-400"
+                className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[14px] font-medium text-slate-700 outline-none focus:border-[#9cb1f6] focus:bg-white"
               />
-              <span className="text-[13px] text-slate-400">{selectedAudit.createdAt}</span>
+              <span className="text-[13px] text-slate-400">Now</span>
               <Sparkles className="h-4 w-4 text-slate-400" />
             </div>
 
             <div className="flex items-center gap-5 border-b border-[#f0ece6] px-4 pt-3">
               {detailTabs.map((tab) => {
                 const isActive = tab.id === activeTab;
-                const icon =
-                  tab.id === "home" ? (
-                    <Home className="h-4 w-4" />
-                  ) : tab.id === "tasks" ? (
-                    <CheckSquare className="h-4 w-4" />
-                  ) : null;
 
                 return (
                   <button
@@ -314,9 +335,11 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
                         : "border-transparent text-slate-400"
                     }`}
                   >
-                    {icon}
+                    {tab.icon}
                     {tab.label}
-                    {tab.id === "more" ? <ChevronDown className="h-3.5 w-3.5" /> : null}
+                    {tab.id === "more" ? (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    ) : null}
                   </button>
                 );
               })}
@@ -335,15 +358,14 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
                   <Circle className="h-3.5 w-3.5" />
                   <span>Created by</span>
                 </div>
-                <div className="inline-flex items-center gap-2 text-slate-700">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#fff1bd] text-[11px] text-[#b78800]">
-                    S
-                  </span>
-                  {selectedAudit.createdBy}
+                <div>
+                  <AvatarPill name={selectedAudit.createdBy} />
                 </div>
 
                 <div className="text-slate-400">Overall Score</div>
-                <div className="text-slate-400">{selectedAudit.overallScore}</div>
+                <div className="text-slate-400">
+                  {selectedAudit.overallScore}
+                </div>
 
                 <div className="text-slate-400">Status</div>
                 <div>
@@ -354,7 +376,7 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
                   </span>
                 </div>
 
-                <div className="truncate text-slate-400">Suggested ...</div>
+                <div className="truncate text-slate-400">Suggested Service</div>
                 <div>
                   <span className="inline-flex rounded-md bg-[#f7f5f1] px-2 py-0.5 text-slate-400">
                     {selectedAudit.suggestedService}
@@ -368,39 +390,81 @@ function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
                   <UserCircle2 className="h-3.5 w-3.5" />
                   <span>Updated by</span>
                 </div>
-                <div className="inline-flex items-center gap-2 text-slate-700">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#fff1bd] text-[11px] text-[#b78800]">
-                    S
-                  </span>
-                  {selectedAudit.updatedBy}
+                <div>
+                  <AvatarPill name={selectedAudit.updatedBy} />
                 </div>
               </div>
 
               <div className="px-4 py-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="text-[13px] font-medium text-slate-700">Practice</p>
-                  <Pencil className="h-4 w-4 text-slate-300" />
+                  <p className="text-[13px] font-medium text-slate-700">
+                    Practice
+                  </p>
                 </div>
                 <div className="min-h-[260px] rounded-xl border border-dashed border-[#ece8e1] bg-white p-3 text-[13px] text-slate-500">
-                  {selectedAudit.practice}
+                  {selectedAudit.practice || "No practice associated."}
                 </div>
               </div>
             </div>
 
             <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+              <div className="relative" ref={menuRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowOptionsMenu((current) => !current)}
+                  className="rounded-md border border-[#9cb1f6] px-3 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+                >
+                  Options
+                </button>
+
+                {showOptionsMenu ? (
+                  <div className="absolute bottom-[calc(100%+8px)] left-0 w-[205px] rounded-xl border border-[#ece8e1] bg-white p-2 shadow-[0_8px_32px_rgba(15,23,42,0.12)] z-20">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRecords((current) =>
+                          current.filter((r) => r.id !== selectedAudit.id),
+                        );
+                        setShowDetailPanel(false);
+                        setShowOptionsMenu(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete record
+                    </button>
+                    <button
+                      type="button"
+                      className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Restore record
+                    </button>
+                    <button
+                      type="button"
+                      className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Export
+                    </button>
+                  </div>
+                ) : null}
+              </div>
               <button
                 type="button"
-                className="rounded-md border border-[#ece8e1] px-3 py-2 text-[13px] font-medium text-slate-600"
+                className="rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
               >
-                Options | Ctrl O
-              </button>
-              <button
-                type="button"
-                className="rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white"
-              >
-                Open | Ctrl Enter
+                Open
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowOptionsMenu((current) => !current)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
           </aside>
         ) : null}
       </div>

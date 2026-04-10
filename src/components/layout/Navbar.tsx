@@ -1,4 +1,4 @@
-import { LogOut } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import type { ReactNode } from "react";
 import { logout } from "../../services/operations/auth";
 import toast from "react-hot-toast";
@@ -14,6 +14,7 @@ type NavbarProps = {
   title: string;
   icon?: ReactNode;
   actions?: NavbarAction[];
+  onMenuClick?: () => void;
 };
 
 function DefaultDocumentIcon() {
@@ -52,34 +53,48 @@ async function handleLogout() {
   }
 }
 
+export const LOGOUT_ACTION: NavbarAction = {
+  icon: <LogOut className="h-4 w-4 mr-2" />,
+  label: "Logout",
+  onClick: handleLogout,
+};
+
 function Navbar({
   title,
   icon = <DefaultDocumentIcon />,
-  actions = [
-    // { label: "+ New record" },
-    // { label: "Ctrl K", muted: true },
-    {
-      icon: <LogOut className="h-4 w-6" />,
-      label: "Logout",
-      onClick: () => {
-        handleLogout();
-      },
-    },
-  ],
+  actions = [LOGOUT_ACTION],
+  onMenuClick,
 }: NavbarProps) {
+  // Ensure logout is always at the end if actions are provided manually but logout is missing
+  const finalActions = [...actions];
+  if (!finalActions.some((a) => a.label === "Logout")) {
+    finalActions.push(LOGOUT_ACTION);
+  }
+
   return (
-    <header className="flex h-15 items-center border-b border-[#ece8e1] bg-[#fbfaf8] px-5">
-      <div className="flex min-w-0 items-center gap-2 text-[15px] font-medium text-slate-800">
-        {icon}
-        {title}
+    <header className="flex h-15 items-center border-b border-[#ece8e1] bg-[#fbfaf8] px-5 font-app-sans w-full">
+      <div className="flex min-w-0 items-center gap-3 text-[15px] font-medium text-slate-800">
+        {onMenuClick && (
+          <button
+            type="button"
+            className="lg:hidden h-9 w-9 flex items-center justify-center rounded-md border border-[#e4e0d8] bg-white text-slate-600 shadow-sm mr-1"
+            onClick={onMenuClick}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
+        <span className="flex items-center gap-2 truncate">
+          {icon}
+          {title}
+        </span>
       </div>
 
-      <div className="ml-auto flex items-center gap-4">
-        {actions.map((action) => (
+      <div className="ml-auto flex items-center gap-4 shrink-0">
+        {finalActions.map((action) => (
           <button
             key={action.label}
             onClick={action.onClick}
-            className={`rounded-md border border-[#e4e0d8] bg-white px-3 cursor-pointer flex items-center py-1.5 text-[14px] shadow-sm ${
+            className={`rounded-md border border-[#e4e0d8] bg-white px-3 cursor-pointer flex items-center py-1.5 text-[14px] shadow-sm transition-colors hover:bg-slate-50 ${
               action.muted ? "text-slate-500" : "text-slate-700"
             }`}
           >

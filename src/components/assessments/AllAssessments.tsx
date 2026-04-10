@@ -223,10 +223,6 @@ function AssessmentsPage() {
       icon: <Plus className="h-4 w-4" />,
       onClick: createAssessment,
     },
-    {
-      label: "Ctrl K",
-      muted: true,
-    },
   ];
 
   return (

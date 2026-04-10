@@ -11,7 +11,9 @@ import {
   CircleDollarSign,
   FileText,
   LayoutGrid,
+  UserCircle2,
   Circle,
+  Plus,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
@@ -20,21 +22,25 @@ import {
   DetailSidePanel,
   getStandardNavbarActions,
   type DetailTabId,
-} from "../shared/PageComponents";
-import { Plus } from "lucide-react";
+} from "./PageComponents";
+import {
+  buildMetricTableRow,
+  parseDueIn,
+  type MetricTableRow,
+} from "./tablePageUtils";
 
-type UnpaidPurchaseOrderRow = {
-  id: string;
-  name: string;
-  vendor: string;
-  amount: string;
-  dueIn: string;
-  createdBy: string;
+type MetricFilterTablePageProps = {
+  title: string;
+  activeModule: string;
+  activeSubItem: string;
+  tableHeading: string;
+  rowIdPrefix: string;
+  initialRows?: MetricTableRow[];
 };
 
-const initialRows: UnpaidPurchaseOrderRow[] = [
+const defaultRows = [
   {
-    id: "unpaid-1",
+    id: "seed-1",
     name: "PO-001",
     vendor: "TriState Imaging Supply",
     amount: "$12,500",
@@ -42,7 +48,7 @@ const initialRows: UnpaidPurchaseOrderRow[] = [
     createdBy: "Siddhi Gajjar",
   },
   {
-    id: "unpaid-2",
+    id: "seed-2",
     name: "PO-002",
     vendor: "Metro Diagnostics",
     amount: "$4,860",
@@ -51,13 +57,20 @@ const initialRows: UnpaidPurchaseOrderRow[] = [
   },
 ];
 
-function parseDueIn(value: string) {
-  const amount = Number(value.split(" ")[0]);
-  return Number.isNaN(amount) ? 0 : amount;
-}
-
-function PurchaseOrdersPage() {
-  const [rows, setRows] = useState(initialRows);
+function MetricFilterTablePage({
+  title,
+  activeModule,
+  activeSubItem,
+  tableHeading,
+  rowIdPrefix,
+  initialRows = defaultRows,
+}: MetricFilterTablePageProps) {
+  const [rows, setRows] = useState(
+    initialRows.map((row, index) => ({
+      ...row,
+      id: `${rowIdPrefix}-${index + 1}`,
+    })),
+  );
   const [sorting, setSorting] = useState<SortingState>([
     { id: "dueIn", desc: false },
   ]);
@@ -71,7 +84,7 @@ function PurchaseOrdersPage() {
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
-    [rows, selectedRowId],
+    [rows, selectedRowId]
   );
 
   const filteredRows = useMemo(
@@ -82,7 +95,7 @@ function PurchaseOrdersPage() {
     [rows, showOnlyHighValue],
   );
 
-  const columns = useMemo<ColumnDef<UnpaidPurchaseOrderRow>[]>(
+  const columns = useMemo<ColumnDef<MetricTableRow>[]>(
     () => [
       {
         id: "select",
@@ -96,9 +109,7 @@ function PurchaseOrdersPage() {
             onChange={(event) =>
               setSelectedIds(
                 event.target.checked
-                  ? Object.fromEntries(
-                      filteredRows.map((row) => [row.id, true]),
-                    )
+                  ? Object.fromEntries(filteredRows.map((row) => [row.id, true]))
                   : {},
               )
             }
@@ -180,11 +191,19 @@ function PurchaseOrdersPage() {
         accessorFn: (row) => row.createdBy,
         header: () => (
           <div className="flex items-center gap-2">
+            <UserCircle2 className="h-3.5 w-3.5 text-slate-400" />
             <span>Created by</span>
           </div>
         ),
         cell: ({ row }) => <AvatarPill name={row.original.createdBy} />,
         size: 170,
+      },
+      {
+        id: "add",
+        header: () => <span>+</span>,
+        cell: () => null,
+        enableSorting: false,
+        size: 44,
       },
     ],
     [filteredRows, selectedIds],
@@ -205,34 +224,27 @@ function PurchaseOrdersPage() {
     enableSortingRemoval: false,
   });
 
-  function addPurchaseOrder() {
-    const nextId = `unpaid-${rows.length + 1}`;
-    const newRow = {
-      id: nextId,
-      name: `PO-00${rows.length + 1}`,
-      vendor: "New Vendor",
-      amount: "$6,000",
-      dueIn: "7 days",
-      createdBy: "Siddhi Gajjar",
-    };
+  function addRow() {
+    const nextIndex = rows.length + 1;
+    const newRow = buildMetricTableRow(rowIdPrefix, nextIndex);
     setRows((current) => [newRow, ...current]);
-    setSelectedRowId(nextId);
+    setSelectedRowId(newRow.id);
     setShowDetailPanel(true);
   }
 
   return (
     <AppLayout
-      title="Purchase Orders"
-      activeModule="Purchase Orders"
-      activeSubItem="Unpaid POs"
+      title={title}
+      activeModule={activeModule}
+      activeSubItem={activeSubItem}
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
-      navbarActions={getStandardNavbarActions(addPurchaseOrder)}
+      navbarActions={getStandardNavbarActions(addRow)}
     >
-      <div className="flex h-full gap-2 font-app-sans">
-        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+      <div className="flex h-full gap-2">
+        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
           <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
             <span className="text-[15px] font-medium text-slate-700">
-              Unpaid POs
+              {tableHeading}
             </span>
             <span className="text-[14px] text-slate-400">
               . {table.getRowModel().rows.length}
@@ -299,9 +311,7 @@ function PurchaseOrdersPage() {
                         key={header.id}
                         className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
                         style={{
-                          width: header.getSize()
-                            ? `${header.getSize()}px`
-                            : undefined,
+                          width: header.getSize() ? `${header.getSize()}px` : undefined,
                         }}
                       >
                         {header.isPlaceholder ? null : (
@@ -329,101 +339,98 @@ function PurchaseOrdersPage() {
               </thead>
               <tbody>
                 {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className={
-                      selectedRowId === row.original.id
-                        ? "bg-[#fcfbf9]"
-                        : "bg-white"
-                    }
-                  >
+                  <tr key={row.id} className={selectedRowId === row.original.id ? "bg-[#fcfbf9]" : "bg-white"}>
                     {row.getVisibleCells().map((cell) => (
                       <td
                         key={cell.id}
                         className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
                       >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}
                   </tr>
                 ))}
+
+                <tr>
+                  <td
+                    colSpan={table.getVisibleLeafColumns().length}
+                    className="border-b border-[#f4f1ec] px-4 py-2 text-[13px] text-slate-400"
+                  >
+                    <button
+                      type="button"
+                      onClick={addRow}
+                      className="inline-flex items-center gap-2"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add New
+                    </button>
+                  </td>
+                </tr>
               </tbody>
             </table>
-
-            <div className="border-b border-[#f4f1ec] px-4 py-2 text-[13px] text-slate-400">
-              <button
-                type="button"
-                onClick={addPurchaseOrder}
-                className="inline-flex items-center gap-2"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add New
-              </button>
-            </div>
           </div>
         </div>
 
-        {selectedRow && (
-          <DetailSidePanel
-            isOpen={showDetailPanel}
-            onClose={() => setShowDetailPanel(false)}
-            title={selectedRow.name}
-            onTitleChange={(newTitle) => {
+        <DetailSidePanel
+          isOpen={showDetailPanel && !!selectedRow}
+          onClose={() => setShowDetailPanel(false)}
+          title={selectedRow?.name || ""}
+          onTitleChange={(newName) => {
+            if (selectedRow) {
               setRows((current) =>
                 current.map((row) =>
-                  row.id === selectedRow.id ? { ...row, name: newTitle } : row,
+                  row.id === selectedRow.id ? { ...row, name: newName } : row,
                 ),
               );
-            }}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onDelete={() => {
+            }
+          }}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onDelete={() => {
+            if (selectedRow) {
               setRows((current) =>
                 current.filter((r) => r.id !== selectedRow.id),
               );
               setShowDetailPanel(false);
-            }}
-            metadata={[
-              {
-                label: (
-                  <>
-                    <Circle className="h-3.5 w-3.5" />
-                    <span>Created by</span>
-                  </>
-                ),
-                value: <AvatarPill name={selectedRow.createdBy} />,
-              },
-              {
-                label: (
-                  <>
-                    <CircleDollarSign className="h-3.5 w-3.5" />
-                    <span>Amount</span>
-                  </>
-                ),
-                value: selectedRow.amount,
-              },
-              {
-                label: "Vendor",
-                value: selectedRow.vendor,
-              },
-              {
-                label: (
-                  <>
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    <span>Due in</span>
-                  </>
-                ),
-                value: selectedRow.dueIn,
-              },
-            ]}
-          />
-        )}
+            }
+          }}
+          metadata={[
+            {
+              label: (
+                <>
+                  <Circle className="h-3.5 w-3.5" />
+                  <span>Created by</span>
+                </>
+              ),
+              value: <AvatarPill name={selectedRow?.createdBy || ""} />,
+            },
+            {
+              label: (
+                <>
+                  <CircleDollarSign className="h-3.5 w-3.5" />
+                  <span>Amount</span>
+                </>
+              ),
+              value: selectedRow?.amount,
+            },
+            {
+              label: <span className="text-slate-400">Vendor</span>,
+              value: selectedRow?.vendor,
+            },
+            {
+              label: (
+                <>
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  <span>Due in</span>
+                </>
+              ),
+              value: selectedRow?.dueIn,
+            },
+          ]}
+        />
       </div>
     </AppLayout>
   );
 }
 
-export default PurchaseOrdersPage;
+export default MetricFilterTablePage;

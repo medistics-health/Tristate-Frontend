@@ -126,8 +126,16 @@ const sidebarSections: SidebarSection[] = [
   },
   {
     items: [
-      { label: "Deal", icon: <Backpack className="h-3 w-3" /> },
-      { label: "Contact", icon: <Contact className="h-3 w-3" /> },
+      {
+        label: "Deal",
+        icon: <Backpack className="h-3 w-3" />,
+        to: "/deal/all-deals",
+      },
+      {
+        label: "Contact",
+        icon: <Contact className="h-3 w-3" />,
+        to: "/contact/all-contacts",
+      },
     ],
   },
 ];
@@ -259,7 +267,7 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
   }
 
   return (
-    <aside className="hidden h-full w-64 border-r border-[#ece8e1] bg-[#f8f7f5] lg:flex lg:flex-col">
+    <aside className="h-full w-64 border-r border-[#ece8e1] bg-[#f8f7f5] flex flex-col">
       <div className="flex items-center gap-3 px-4 py-4">
         <div className="flex h-6 w-6 items-center justify-center">
           <img src="/tristate-metadata-logo.png" className="h-5 w-5" />

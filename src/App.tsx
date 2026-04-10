@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import Login from "./components/auth/Login";
 import Signup from "./components/auth/Signup";
-import AgreementsPage from "./components/agreements/all-agreements/AgreementsPage";
+import AllAgreementsPage from "./components/agreements/all-agreements/AllAgreements";
 import AllPracticeAuditsPage from "./components/audits/AllPracticeAudits";
 import Audits from "./components/audits/Audits";
 import AuditStatusBoard from "./components/audits/AuditStatusBoard";
@@ -31,6 +31,8 @@ import ActivePracticesPage from "./components/practices/ActivePractices";
 import ProspectsPage from "./components/practices/Prospects";
 import ReminderDuePage from "./components/practices/RemindersDue";
 import OverdueInvoicePage from "./components/invoices/OverdueInvoices";
+import DealsPage from "./components/deal/Deals";
+import ContactsPage from "./components/contact/Contacts";
 
 function App() {
   return (
@@ -114,7 +116,7 @@ function App() {
         path="/agreements/all-agreements"
         element={
           <ProtectedRoute>
-            <AgreementsPage />
+            <AllAgreementsPage />
           </ProtectedRoute>
         }
       />
@@ -301,6 +303,22 @@ function App() {
         element={
           <ProtectedRoute>
             <ReminderDuePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/deal/all-deals"
+        element={
+          <ProtectedRoute>
+            <DealsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/contact/all-contacts"
+        element={
+          <ProtectedRoute>
+            <ContactsPage />
           </ProtectedRoute>
         }
       />
