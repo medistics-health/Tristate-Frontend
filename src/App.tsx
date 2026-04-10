@@ -32,7 +32,8 @@ import ProspectsPage from "./components/practices/Prospects";
 import ReminderDuePage from "./components/practices/RemindersDue";
 import OverdueInvoicePage from "./components/invoices/OverdueInvoices";
 import DealsPage from "./components/deal/Deals";
-import ContactsPage from "./components/contact/Contacts";
+import PersonsPage from "./components/contact/Persons";
+import AllCompaniesPage from "./components/companies/AllCompanies";
 
 function App() {
   return (
@@ -315,10 +316,18 @@ function App() {
         }
       />
       <Route
-        path="/contact/all-contacts"
+        path="/person/all-persons"
         element={
           <ProtectedRoute>
-            <ContactsPage />
+            <PersonsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/company/all-companies"
+        element={
+          <ProtectedRoute>
+            <AllCompaniesPage />
           </ProtectedRoute>
         }
       />

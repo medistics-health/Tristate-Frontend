@@ -12,84 +12,72 @@ import {
   FileText,
   LayoutGrid,
   SlidersHorizontal,
-  UserCircle2,
   Circle,
   Plus,
   Building2,
-  MapPin,
-  Tag,
   X,
   Pencil,
   Save,
-  Users,
-  Backpack,
+  Mail,
+  Phone,
+  UserCircle,
+  Shield,
+  Star,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
-import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
+import { getStandardNavbarActions } from "../shared/PageComponents";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
-import type {
-  PracticeCellValue,
-  PracticeRow,
-  PracticeUserValue,
-  PracticeViewData,
-} from "./types";
+import type { PersonCellValue, PersonRow, PersonViewData } from "./types";
 import {
-  createPracticeApi,
-  deletePracticeApi,
-  getPracticesView,
-  updatePracticeApi,
-} from "../../services/operations/practices";
-import { getAllCompanies } from "../../services/operations/companies";
-import type { Company } from "../companies/types";
+  createPersonApi,
+  deletePersonApi,
+  getPersonsView,
+  updatePersonApi,
+} from "../../services/operations/persons";
+import { getAllPractices } from "../../services/operations/practices";
+import type { Practice } from "../practices/types";
 import toast from "react-hot-toast";
 
-function isUserValue(value: PracticeCellValue): value is PracticeUserValue {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "name" in value &&
-    "initials" in value
-  );
-}
-
-function getCellDisplayValue(value: PracticeCellValue): string {
+function getCellDisplayValue(value: PersonCellValue): string {
   if (value === null || value === undefined) return "-";
-  if (typeof value === "number") return value.toLocaleString();
-  if (isUserValue(value)) return value.name;
   return String(value);
 }
 
-type PracticeFormData = {
-  name: string;
-  status: string;
-  region: string;
-  source: string;
-  bucket: string;
-  companyId: string;
+type PersonFormData = {
+  firstName: string;
+  lastName: string;
+  role: string;
+  influence: string;
+  email: string;
+  phone: string;
+  practiceId: string;
 };
 
-const initialFormData: PracticeFormData = {
-  name: "",
-  status: "LEAD",
-  region: "",
-  source: "DIRECT",
-  bucket: "",
-  companyId: "",
+const initialFormData: PersonFormData = {
+  firstName: "",
+  lastName: "",
+  role: "ADMIN",
+  influence: "MEDIUM",
+  email: "",
+  phone: "",
+  practiceId: "",
 };
 
-const statusOptions = ["LEAD", "ACTIVE", "INACTIVE", "CLOSED"];
-const sourceOptions = [
-  "DIRECT",
-  "REFERRAL",
-  "CHANNEL_PARTNER",
-  "OUTBOUND",
-  "INBOUND",
+const roleOptions = [
+  "OWNER",
+  "ADMIN",
+  "FINANCE",
+  "OPERATIONS",
+  "CLINICAL",
+  "PROCUREMENT",
+  "OTHER",
 ];
+const influenceOptions = ["LOW", "MEDIUM", "HIGH", "DECISION_MAKER"];
 
-export default function AllPracticePage() {
-  const [viewData, setViewData] = useState<PracticeViewData | null>(null);
-  const [rows, setRows] = useState<PracticeRow[]>([]);
+export default function PersonsPage() {
+  const [viewData, setViewData] = useState<PersonViewData | null>(null);
+  const [rows, setRows] = useState<PersonRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewId, setViewId] = useState("all");
@@ -103,12 +91,12 @@ export default function AllPracticePage() {
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [formData, setFormData] = useState<PracticeFormData>(initialFormData);
+  const [formData, setFormData] = useState<PersonFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [practices, setPractices] = useState<Practice[]>([]);
+  const [practicesLoading, setPracticesLoading] = useState(false);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
@@ -120,7 +108,7 @@ export default function AllPracticePage() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getPracticesView();
+        const data = await getPersonsView();
         setViewData(data);
         setRows(data.rows);
         const visibility: Record<string, boolean> = {};
@@ -130,7 +118,7 @@ export default function AllPracticePage() {
         setColumnVisibility(visibility);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Failed to load practices";
+          err instanceof Error ? err.message : "Failed to load persons";
         setError(message);
         toast.error(message);
       } finally {
@@ -144,12 +132,13 @@ export default function AllPracticePage() {
     if (selectedRow && !showCreateForm) {
       const values = selectedRow.values;
       setFormData({
-        name: String(values.name || ""),
-        status: String(values.status || "LEAD"),
-        region: String(values.region || ""),
-        source: String(values.source || "DIRECT"),
-        bucket: String(values.bucket || ""),
-        companyId: String(values.companyId || ""),
+        firstName: String(values.firstName || ""),
+        lastName: String(values.lastName || ""),
+        role: String(values.role || "ADMIN"),
+        influence: String(values.influence || "MEDIUM"),
+        email: String(values.email || ""),
+        phone: String(values.phone || ""),
+        practiceId: String(values.practiceId || ""),
       });
       setIsEditing(false);
     }
@@ -160,8 +149,8 @@ export default function AllPracticePage() {
     return viewData.fields.filter((f) => columnVisibility[f.id] !== false);
   }, [viewData, columnVisibility]);
 
-  const columns = useMemo<ColumnDef<PracticeRow>[]>(() => {
-    const cols: ColumnDef<PracticeRow>[] = [
+  const columns = useMemo<ColumnDef<PersonRow>[]>(() => {
+    const cols: ColumnDef<PersonRow>[] = [
       {
         id: "select",
         header: () => (
@@ -198,25 +187,21 @@ export default function AllPracticePage() {
       },
       ...visibleFields.map((field) => {
         const iconMap: Record<string, React.ReactNode> = {
-          name: <FileText className="h-3.5 w-3.5 text-slate-400" />,
-          status: <Circle className="h-3.5 w-3.5 text-slate-400" />,
-          region: <MapPin className="h-3.5 w-3.5 text-slate-400" />,
-          source: <Tag className="h-3.5 w-3.5 text-slate-400" />,
-          bucket: <Tag className="h-3.5 w-3.5 text-slate-400" />,
-          companyName: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
-          personsCount: <Users className="h-3.5 w-3.5 text-slate-400" />,
-          dealsCount: <Backpack className="h-3.5 w-3.5 text-slate-400" />,
+          fullName: <UserCircle className="h-3.5 w-3.5 text-slate-400" />,
+          role: <Shield className="h-3.5 w-3.5 text-slate-400" />,
+          influence: <Star className="h-3.5 w-3.5 text-slate-400" />,
+          email: <Mail className="h-3.5 w-3.5 text-slate-400" />,
+          phone: <Phone className="h-3.5 w-3.5 text-slate-400" />,
+          practiceName: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
           creationDate: <CalendarDays className="h-3.5 w-3.5 text-slate-400" />,
           lastUpdate: (
             <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
           ),
-          createdBy: <Circle className="h-3.5 w-3.5 text-slate-400" />,
-          updatedBy: <UserCircle2 className="h-3.5 w-3.5 text-slate-400" />,
         };
 
         return {
           id: field.id,
-          accessorFn: (row: PracticeRow) =>
+          accessorFn: (row: PersonRow) =>
             getCellDisplayValue(row.values[field.id]),
           header: () => (
             <div className="flex items-center gap-2">
@@ -226,48 +211,57 @@ export default function AllPracticePage() {
               <span>{field.label}</span>
             </div>
           ),
-          cell: ({ row }: { row: { original: PracticeRow } }) => {
+          cell: ({ row }: { row: { original: PersonRow } }) => {
             const value = row.original.values[field.id];
-            if (isUserValue(value)) {
-              return <AvatarPill name={value.name} />;
-            }
-            if (field.id === "status") {
-              const statusColors: Record<string, string> = {
-                LEAD: "bg-yellow-100 text-yellow-700",
-                ACTIVE: "bg-green-100 text-green-700",
-                INACTIVE: "bg-gray-100 text-gray-700",
-                CLOSED: "bg-red-100 text-red-700",
+            if (field.id === "role") {
+              const roleColors: Record<string, string> = {
+                OWNER: "bg-purple-100 text-purple-700",
+                ADMIN: "bg-blue-100 text-blue-700",
+                FINANCE: "bg-green-100 text-green-700",
+                OPERATIONS: "bg-orange-100 text-orange-700",
+                CLINICAL: "bg-cyan-100 text-cyan-700",
+                PROCUREMENT: "bg-yellow-100 text-yellow-700",
+                OTHER: "bg-gray-100 text-gray-700",
               };
               return (
                 <span
-                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[String(value)] || ""}`}
+                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${roleColors[String(value)] || ""}`}
                 >
                   {String(value)}
                 </span>
               );
             }
-            if (field.id === "source") {
-              const sourceColors: Record<string, string> = {
-                DIRECT: "bg-blue-100 text-blue-700",
-                REFERRAL: "bg-purple-100 text-purple-700",
-                CHANNEL_PARTNER: "bg-orange-100 text-orange-700",
-                OUTBOUND: "bg-cyan-100 text-cyan-700",
-                INBOUND: "bg-pink-100 text-pink-700",
+            if (field.id === "influence") {
+              const influenceColors: Record<string, string> = {
+                LOW: "bg-gray-100 text-gray-700",
+                MEDIUM: "bg-blue-100 text-blue-700",
+                HIGH: "bg-green-100 text-green-700",
+                DECISION_MAKER: "bg-purple-100 text-purple-700",
               };
               const displayValue = String(value).replace("_", " ");
               return (
                 <span
-                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${sourceColors[String(value)] || ""}`}
+                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${influenceColors[String(value)] || ""}`}
                 >
                   {displayValue}
                 </span>
+              );
+            }
+            if (field.id === "email" && value) {
+              return (
+                <a
+                  href={`mailto:${value}`}
+                  className="text-[#4f63ea] hover:underline"
+                >
+                  {String(value)}
+                </a>
               );
             }
             return (
               <span className="truncate">{getCellDisplayValue(value)}</span>
             );
           },
-          size: field.id === "name" ? 220 : 160,
+          size: field.id === "fullName" ? 200 : 150,
         };
       }),
       {
@@ -296,15 +290,15 @@ export default function AllPracticePage() {
     setShowCreateForm(true);
     setShowDetailPanel(false);
 
-    if (companies.length === 0) {
-      setCompaniesLoading(true);
+    if (practices.length === 0) {
+      setPracticesLoading(true);
       try {
-        const companyList = await getAllCompanies();
-        setCompanies(companyList);
+        const practiceList = await getAllPractices();
+        setPractices(practiceList);
       } catch (err) {
-        console.error("Failed to load companies:", err);
+        console.error("Failed to load practices:", err);
       } finally {
-        setCompaniesLoading(false);
+        setPracticesLoading(false);
       }
     }
   }
@@ -327,122 +321,112 @@ export default function AllPracticePage() {
     setFormData(initialFormData);
   }
 
-  useEffect(() => {
-    if (isEditing && companies.length === 0) {
-      setCompaniesLoading(true);
-      getAllCompanies()
-        .then(setCompanies)
-        .catch((err) => console.error("Failed to load companies:", err))
-        .finally(() => setCompaniesLoading(false));
-    }
-  }, [isEditing]);
-
-  function handleFormChange(field: keyof PracticeFormData, value: string) {
+  function handleFormChange(field: keyof PersonFormData, value: string) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }
 
-  async function handleCreatePractice(e: React.FormEvent) {
+  useEffect(() => {
+    if (isEditing && practices.length === 0) {
+      setPracticesLoading(true);
+      getAllPractices()
+        .then(setPractices)
+        .catch((err) => console.error("Failed to load practices:", err))
+        .finally(() => setPracticesLoading(false));
+    }
+  }, [isEditing]);
+
+  async function handleCreatePerson(e: React.FormEvent) {
     e.preventDefault();
-    if (!formData.name.trim()) {
-      toast.error("Practice name is required");
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      toast.error("First name and last name are required");
+      return;
+    }
+    if (!formData.practiceId) {
+      toast.error("Please select a practice");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const practiceData = {
-        name: formData.name.trim(),
-        status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
-        region: formData.region.trim(),
-        source: formData.source as
-          | "DIRECT"
-          | "REFERRAL"
-          | "CHANNEL_PARTNER"
-          | "OUTBOUND"
-          | "INBOUND",
-        bucket: formData.bucket
-          ? formData.bucket
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [],
-        companyId: formData.companyId.trim() || undefined,
+      const personData = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        role: formData.role as PersonFormData["role"],
+        influence: formData.influence as PersonFormData["influence"],
+        email: formData.email.trim() || undefined,
+        phone: formData.phone.trim() || undefined,
+        practiceId: formData.practiceId,
       };
 
-      const newPractice = await createPracticeApi(practiceData);
-      const data = await getPracticesView();
-      // setRows((current) => [newPractice, ...current]);
-      setRows(data.rows);
+      await createPersonApi(personData);
+      const allPersonsAfterCreate = await getPersonsView();
+
+      // setRows((current) => [newPerson, ...current]);
+      setRows(allPersonsAfterCreate.rows);
       closeCreateForm();
-      toast.success("Practice created successfully");
+      toast.success("Person created successfully");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to create practice";
+        err instanceof Error ? err.message : "Failed to create person";
       toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  async function handleUpdatePractice(e: React.FormEvent) {
+  async function handleUpdatePerson(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedRow || !formData.name.trim()) {
-      toast.error("Practice name is required");
+    if (
+      !selectedRow ||
+      !formData.firstName.trim() ||
+      !formData.lastName.trim()
+    ) {
+      toast.error("First name and last name are required");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const practiceData = {
-        name: formData.name.trim(),
-        status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
-        region: formData.region.trim(),
-        source: formData.source as
-          | "DIRECT"
-          | "REFERRAL"
-          | "CHANNEL_PARTNER"
-          | "OUTBOUND"
-          | "INBOUND",
-        bucket: formData.bucket
-          ? formData.bucket
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [],
-        companyId: formData.companyId.trim() || undefined,
+      const personData = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        role: formData.role as PersonFormData["role"],
+        influence: formData.influence as PersonFormData["influence"],
+        email: formData.email.trim() || undefined,
+        phone: formData.phone.trim() || undefined,
       };
 
-      const updated = await updatePracticeApi(selectedRow.id, practiceData);
+      const updated = await updatePersonApi(selectedRow.id, personData);
       setRows((current) =>
         current.map((row) => (row.id === selectedRow.id ? updated : row)),
       );
       setIsEditing(false);
-      toast.success("Practice updated successfully");
+      toast.success("Person updated successfully");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to update practice";
+        err instanceof Error ? err.message : "Failed to update person";
       toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  async function handleDeletePractice() {
+  async function handleDeletePerson() {
     if (!selectedRow) return;
 
-    if (!window.confirm("Are you sure you want to delete this practice?")) {
+    if (!window.confirm("Are you sure you want to delete this person?")) {
       return;
     }
 
     setIsDeleting(true);
     try {
-      await deletePracticeApi(selectedRow.id);
+      await deletePersonApi(selectedRow.id);
       setRows((current) => current.filter((row) => row.id !== selectedRow.id));
       closeDetailPanel();
-      toast.success("Practice deleted successfully");
+      toast.success("Person deleted successfully");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to delete practice";
+        err instanceof Error ? err.message : "Failed to delete person";
       toast.error(message);
     } finally {
       setIsDeleting(false);
@@ -452,7 +436,7 @@ export default function AllPracticePage() {
   const views = [
     {
       id: "all",
-      label: "All Practices",
+      label: "All Persons",
       sort: [{ id: "creationDate", desc: true }] as SortingState,
     },
     {
@@ -468,58 +452,6 @@ export default function AllPracticePage() {
     setSorting(nextView.sort);
   }
 
-  const getDetailMetadata = () => {
-    if (!selectedRow) return [];
-    const values = selectedRow.values;
-    const metadata: { label: React.ReactNode; value: React.ReactNode }[] = [];
-
-    if (isUserValue(values.createdBy)) {
-      metadata.push({
-        label: (
-          <>
-            <Circle className="h-3.5 w-3.5" />
-            <span>Created by</span>
-          </>
-        ),
-        value: <AvatarPill name={values.createdBy.name} />,
-      });
-    }
-
-    metadata.push({
-      label: (
-        <>
-          <CalendarDays className="h-3.5 w-3.5" />
-          <span>Creation date</span>
-        </>
-      ),
-      value: getCellDisplayValue(values.creationDate),
-    });
-
-    metadata.push({
-      label: (
-        <>
-          <CalendarDays className="h-3.5 w-3.5" />
-          <span>Last update</span>
-        </>
-      ),
-      value: getCellDisplayValue(values.lastUpdate),
-    });
-
-    if (isUserValue(values.updatedBy)) {
-      metadata.push({
-        label: (
-          <>
-            <UserCircle2 className="h-3.5 w-3.5" />
-            <span>Updated by</span>
-          </>
-        ),
-        value: <AvatarPill name={values.updatedBy.name} />,
-      });
-    }
-
-    return metadata;
-  };
-
   const renderDetailView = () => {
     if (!selectedRow) return null;
     const values = selectedRow.values;
@@ -528,7 +460,7 @@ export default function AllPracticePage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-[13px] font-medium text-slate-700">
-            Practice Details
+            Person Details
           </h3>
           <button
             type="button"
@@ -544,64 +476,75 @@ export default function AllPracticePage() {
           <div className="flex items-center gap-2 text-[13px]">
             <span className="w-24 text-slate-400">Name:</span>
             <span className="font-medium text-slate-700">
-              {String(values.name || "-")}
+              {String(values.firstName || "")} {String(values.lastName || "")}
             </span>
           </div>
 
           <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Status:</span>
+            <span className="w-24 text-slate-400">Role:</span>
             <span
               className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                String(values.status) === "ACTIVE"
-                  ? "bg-green-100 text-green-700"
-                  : String(values.status) === "LEAD"
-                    ? "bg-yellow-100 text-yellow-700"
-                    : String(values.status) === "INACTIVE"
-                      ? "bg-gray-100 text-gray-700"
-                      : "bg-red-100 text-red-700"
+                String(values.role) === "OWNER"
+                  ? "bg-purple-100 text-purple-700"
+                  : String(values.role) === "ADMIN"
+                    ? "bg-blue-100 text-blue-700"
+                    : String(values.role) === "FINANCE"
+                      ? "bg-green-100 text-green-700"
+                      : String(values.role) === "OPERATIONS"
+                        ? "bg-orange-100 text-orange-700"
+                        : String(values.role) === "CLINICAL"
+                          ? "bg-cyan-100 text-cyan-700"
+                          : String(values.role) === "PROCUREMENT"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-gray-100 text-gray-700"
               }`}
             >
-              {String(values.status || "-")}
+              {String(values.role || "-")}
             </span>
           </div>
 
           <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Region:</span>
-            <span className="text-slate-700">
-              {String(values.region || "-")}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Source:</span>
+            <span className="w-24 text-slate-400">Influence:</span>
             <span
               className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                String(values.source) === "DIRECT"
-                  ? "bg-blue-100 text-blue-700"
-                  : String(values.source) === "REFERRAL"
-                    ? "bg-purple-100 text-purple-700"
-                    : String(values.source) === "CHANNEL_PARTNER"
-                      ? "bg-orange-100 text-orange-700"
-                      : String(values.source) === "OUTBOUND"
-                        ? "bg-cyan-100 text-cyan-700"
-                        : "bg-pink-100 text-pink-700"
+                String(values.influence) === "LOW"
+                  ? "bg-gray-100 text-gray-700"
+                  : String(values.influence) === "MEDIUM"
+                    ? "bg-blue-100 text-blue-700"
+                    : String(values.influence) === "HIGH"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-purple-100 text-purple-700"
               }`}
             >
-              {String(values.source || "-").replace("_", " ")}
+              {String(values.influence || "-").replace("_", " ")}
             </span>
           </div>
 
           <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Bucket:</span>
+            <span className="w-24 text-slate-400">Email:</span>
+            {values.email ? (
+              <a
+                href={`mailto:${values.email}`}
+                className="text-[#4f63ea] hover:underline"
+              >
+                {String(values.email)}
+              </a>
+            ) : (
+              <span className="text-slate-700">-</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-[13px]">
+            <span className="w-24 text-slate-400">Phone:</span>
             <span className="text-slate-700">
-              {String(values.bucket || "-")}
+              {String(values.phone || "-")}
             </span>
           </div>
 
           <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Company:</span>
+            <span className="w-24 text-slate-400">Practice:</span>
             <span className="text-slate-700">
-              {String(values.companyName || "-")}
+              {String(values.practiceName || "-")}
             </span>
           </div>
         </div>
@@ -609,11 +552,11 @@ export default function AllPracticePage() {
         <div className="border-t border-[#f0ece6] pt-4">
           <button
             type="button"
-            onClick={handleDeletePractice}
+            onClick={handleDeletePerson}
             disabled={isDeleting}
             className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
           >
-            {isDeleting ? "Deleting..." : "Delete Practice"}
+            {isDeleting ? "Deleting..." : "Delete Person"}
           </button>
         </div>
       </div>
@@ -624,7 +567,7 @@ export default function AllPracticePage() {
     if (!selectedRow) return null;
 
     return (
-      <form onSubmit={handleUpdatePractice} className="space-y-4">
+      <form onSubmit={handleUpdatePerson} className="space-y-4">
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
@@ -643,45 +586,29 @@ export default function AllPracticePage() {
           </button>
         </div>
 
-        <div>
-          <label className="mb-1 block text-[12px] font-medium text-slate-600">
-            Practice Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={formData.name}
-            onChange={(e) => handleFormChange("name", e.target.value)}
-            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            required
-          />
-        </div>
-
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Status
-            </label>
-            <select
-              value={formData.status}
-              onChange={(e) => handleFormChange("status", e.target.value)}
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            >
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Region
+              First Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
-              value={formData.region}
-              onChange={(e) => handleFormChange("region", e.target.value)}
+              value={formData.firstName}
+              onChange={(e) => handleFormChange("firstName", e.target.value)}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[12px] font-medium text-slate-600">
+              Last Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.lastName}
+              onChange={(e) => handleFormChange("lastName", e.target.value)}
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+              required
             />
           </div>
         </div>
@@ -689,56 +616,61 @@ export default function AllPracticePage() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Source
+              Role
             </label>
             <select
-              value={formData.source}
-              onChange={(e) => handleFormChange("source", e.target.value)}
+              value={formData.role}
+              onChange={(e) => handleFormChange("role", e.target.value)}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             >
-              {sourceOptions.map((source) => (
-                <option key={source} value={source}>
-                  {source.replace("_", " ")}
+              {roleOptions.map((role) => (
+                <option key={role} value={role}>
+                  {role}
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Bucket
+              Influence
             </label>
-            <input
-              type="text"
-              value={formData.bucket}
-              onChange={(e) => handleFormChange("bucket", e.target.value)}
-              placeholder="Comma-separated"
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-[12px] font-medium text-slate-600">
-            Company
-          </label>
-          {companiesLoading ? (
-            <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[12px] text-slate-400">
-              Loading...
-            </div>
-          ) : (
             <select
-              value={formData.companyId}
-              onChange={(e) => handleFormChange("companyId", e.target.value)}
+              value={formData.influence}
+              onChange={(e) => handleFormChange("influence", e.target.value)}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             >
-              <option value="">-- Select a Company --</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.name}
+              {influenceOptions.map((influence) => (
+                <option key={influence} value={influence}>
+                  {influence.replace("_", " ")}
                 </option>
               ))}
             </select>
-          )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-[12px] font-medium text-slate-600">
+              Email
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => handleFormChange("email", e.target.value)}
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[12px] font-medium text-slate-600">
+              Phone
+            </label>
+            <input
+              type="text"
+              value={formData.phone}
+              onChange={(e) => handleFormChange("phone", e.target.value)}
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            />
+          </div>
         </div>
       </form>
     );
@@ -747,12 +679,12 @@ export default function AllPracticePage() {
   if (isLoading) {
     return (
       <AppLayout
-        title="Practices"
-        activeModule="Practices"
-        activeSubItem="All Practices"
+        title="Persons"
+        activeModule="Persons"
+        activeSubItem="All Persons"
       >
         <div className="flex h-full items-center justify-center">
-          <div className="text-slate-400">Loading practices...</div>
+          <div className="text-slate-400">Loading persons...</div>
         </div>
       </AppLayout>
     );
@@ -761,9 +693,9 @@ export default function AllPracticePage() {
   if (error && rows.length === 0) {
     return (
       <AppLayout
-        title="Practices"
-        activeModule="Practices"
-        activeSubItem="All Practices"
+        title="Persons"
+        activeModule="Persons"
+        activeSubItem="All Persons"
       >
         <div className="flex h-full flex-col items-center justify-center gap-4">
           <div className="text-red-500">{error}</div>
@@ -781,10 +713,10 @@ export default function AllPracticePage() {
 
   return (
     <AppLayout
-      title="Practices"
-      activeModule="Practices"
-      activeSubItem="All Practices"
-      navbarIcon={<Building2 className="h-4 w-4 text-slate-500" />}
+      title="Persons"
+      activeModule="Persons"
+      activeSubItem="All Persons"
+      navbarIcon={<UserCircle className="h-4 w-4 text-slate-500" />}
       navbarActions={getStandardNavbarActions(openCreateForm)}
     >
       <div className="flex h-full gap-2">
@@ -889,10 +821,10 @@ export default function AllPracticePage() {
                 <div className="flex max-w-md flex-col items-center px-6 text-center">
                   <EmptyStateIllustration />
                   <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    Add your first Practice
+                    Add your first Person
                   </h2>
                   <p className="mt-2 text-[14px] text-slate-400">
-                    Use our API or add your first Practice manually
+                    Use our API or add your first Person manually
                   </p>
                   <button
                     type="button"
@@ -900,7 +832,7 @@ export default function AllPracticePage() {
                     className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Add a Practice
+                    Add a Person
                   </button>
                 </div>
               </div>
@@ -931,7 +863,8 @@ export default function AllPracticePage() {
               </button>
               <Circle className="h-4 w-4 text-slate-300" />
               <h2 className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
-                {String(selectedRow.values.name || "Practice")}
+                {String(selectedRow.values.firstName || "")}{" "}
+                {String(selectedRow.values.lastName || "")}
               </h2>
             </div>
 
@@ -945,7 +878,7 @@ export default function AllPracticePage() {
           <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
               <h2 className="text-[15px] font-semibold text-slate-700">
-                Create Practice
+                Create Person
               </h2>
               <button
                 type="button"
@@ -957,55 +890,39 @@ export default function AllPracticePage() {
             </div>
 
             <form
-              onSubmit={handleCreatePractice}
+              onSubmit={handleCreatePerson}
               className="flex-1 overflow-auto p-4"
             >
               <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Practice Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => handleFormChange("name", e.target.value)}
-                    placeholder="Enter practice name"
-                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    required
-                  />
-                </div>
-
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Status
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) =>
-                        handleFormChange("status", e.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    >
-                      {statusOptions.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Region
+                      First Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
-                      value={formData.region}
+                      value={formData.firstName}
                       onChange={(e) =>
-                        handleFormChange("region", e.target.value)
+                        handleFormChange("firstName", e.target.value)
                       }
-                      placeholder="e.g. Northeast"
+                      placeholder="John"
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Last Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.lastName}
+                      onChange={(e) =>
+                        handleFormChange("lastName", e.target.value)
+                      }
+                      placeholder="Doe"
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      required
                     />
                   </div>
                 </div>
@@ -1013,33 +930,66 @@ export default function AllPracticePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Source
+                      Role
                     </label>
                     <select
-                      value={formData.source}
-                      onChange={(e) =>
-                        handleFormChange("source", e.target.value)
-                      }
+                      value={formData.role}
+                      onChange={(e) => handleFormChange("role", e.target.value)}
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     >
-                      {sourceOptions.map((source) => (
-                        <option key={source} value={source}>
-                          {source.replace("_", " ")}
+                      {roleOptions.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
                         </option>
                       ))}
                     </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Bucket
+                      Influence
+                    </label>
+                    <select
+                      value={formData.influence}
+                      onChange={(e) =>
+                        handleFormChange("influence", e.target.value)
+                      }
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    >
+                      {influenceOptions.map((influence) => (
+                        <option key={influence} value={influence}>
+                          {influence.replace("_", " ")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) =>
+                        handleFormChange("email", e.target.value)
+                      }
+                      placeholder="john@example.com"
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Phone
                     </label>
                     <input
                       type="text"
-                      value={formData.bucket}
+                      value={formData.phone}
                       onChange={(e) =>
-                        handleFormChange("bucket", e.target.value)
+                        handleFormChange("phone", e.target.value)
                       }
-                      placeholder="Comma-separated"
+                      placeholder="+1 (555) 123-4567"
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>
@@ -1047,24 +997,25 @@ export default function AllPracticePage() {
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Company
+                    Practice <span className="text-red-500">*</span>
                   </label>
-                  {companiesLoading ? (
+                  {practicesLoading ? (
                     <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
-                      Loading companies...
+                      Loading practices...
                     </div>
                   ) : (
                     <select
-                      value={formData.companyId}
+                      value={formData.practiceId}
                       onChange={(e) =>
-                        handleFormChange("companyId", e.target.value)
+                        handleFormChange("practiceId", e.target.value)
                       }
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      required
                     >
-                      <option value="">-- Select a Company --</option>
-                      {companies.map((company) => (
-                        <option key={company.id} value={company.id}>
-                          {company.name}
+                      <option value="">-- Select a Practice --</option>
+                      {practices.map((practice) => (
+                        <option key={practice.id} value={practice.id}>
+                          {practice.name}
                         </option>
                       ))}
                     </select>
@@ -1085,7 +1036,7 @@ export default function AllPracticePage() {
                   disabled={isSubmitting}
                   className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
                 >
-                  {isSubmitting ? "Creating..." : "Create Practice"}
+                  {isSubmitting ? "Creating..." : "Create Person"}
                 </button>
               </div>
             </form>

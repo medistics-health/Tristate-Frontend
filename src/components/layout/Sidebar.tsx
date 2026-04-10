@@ -1,4 +1,4 @@
-import { Backpack, Contact } from "lucide-react";
+import { Backpack, User, Building2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -132,9 +132,14 @@ const sidebarSections: SidebarSection[] = [
         to: "/deal/all-deals",
       },
       {
-        label: "Contact",
-        icon: <Contact className="h-3 w-3" />,
-        to: "/contact/all-contacts",
+        label: "Person",
+        icon: <User className="h-3 w-3" />,
+        to: "/person/all-persons",
+      },
+      {
+        label: "Company",
+        icon: <Building2 className="h-3 w-3" />,
+        to: "/company/all-companies",
       },
     ],
   },
