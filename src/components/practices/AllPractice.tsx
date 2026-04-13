@@ -39,6 +39,7 @@ import {
   deletePracticeApi,
   getPracticesView,
   updatePracticeApi,
+  type PracticeQueryParams,
 } from "../../services/operations/practices";
 import { getAllCompanies } from "../../services/operations/companies";
 import type { Company } from "../companies/types";
@@ -109,20 +110,57 @@ export default function AllPracticePage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "",
+    region: "",
+    source: "",
+    companyId: "",
+  });
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
     [rows, selectedRowId],
   );
 
+  const whenToSearch = filters.search.length > 3 || filters.search.length === 0;
+  const whenToSearchRegion =
+    filters.region.length >= 2 || filters.region.length === 0;
+
+  const disableMe =
+    !filters.search &&
+    !filters.status &&
+    !filters.region &&
+    !filters.source &&
+    !filters.companyId;
+
   useEffect(() => {
     async function loadData() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getPracticesView();
+        const params: PracticeQueryParams = {
+          page: pagination.page,
+          limit: pagination.limit,
+          ...(filters.search && { search: filters.search }),
+          ...(filters.status && { status: filters.status }),
+          ...(filters.region && { region: filters.region }),
+          ...(filters.source && { source: filters.source }),
+          ...(filters.companyId && { companyId: filters.companyId }),
+          sortBy: sorting[0]?.id || "createdAt",
+          sortOrder: sorting[0]?.desc ? "desc" : "asc",
+        };
+        const data = await getPracticesView(params);
         setViewData(data);
         setRows(data.rows);
+        setPagination(data.pagination);
         const visibility: Record<string, boolean> = {};
         data.fields.forEach((field) => {
           visibility[field.id] = field.visible;
@@ -137,8 +175,14 @@ export default function AllPracticePage() {
         setIsLoading(false);
       }
     }
-    loadData();
-  }, []);
+    if (whenToSearch && whenToSearchRegion) {
+      loadData();
+    }
+  }, [pagination.page, pagination.limit, sorting, filters]);
+
+  // useEffect(() => {
+  //   setPagination((prev) => ({ ...prev, page: 1 }));
+  // }, [filters]);
 
   useEffect(() => {
     if (selectedRow && !showCreateForm) {
@@ -337,6 +381,16 @@ export default function AllPracticePage() {
     }
   }, [isEditing]);
 
+  useEffect(() => {
+    if (showFilterPanel && companies.length === 0) {
+      setCompaniesLoading(true);
+      getAllCompanies()
+        .then(setCompanies)
+        .catch((err) => console.error("Failed to load companies:", err))
+        .finally(() => setCompaniesLoading(false));
+    }
+  }, [showFilterPanel]);
+
   function handleFormChange(field: keyof PracticeFormData, value: string) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }
@@ -369,10 +423,14 @@ export default function AllPracticePage() {
         companyId: formData.companyId.trim() || undefined,
       };
 
-      const newPractice = await createPracticeApi(practiceData);
-      const data = await getPracticesView();
-      // setRows((current) => [newPractice, ...current]);
+      await createPracticeApi(practiceData);
+      const params: PracticeQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      const data = await getPracticesView(params);
       setRows(data.rows);
+      setPagination(data.pagination);
       closeCreateForm();
       toast.success("Practice created successfully");
     } catch (err) {
@@ -412,10 +470,14 @@ export default function AllPracticePage() {
         companyId: formData.companyId.trim() || undefined,
       };
 
-      const updated = await updatePracticeApi(selectedRow.id, practiceData);
-      setRows((current) =>
-        current.map((row) => (row.id === selectedRow.id ? updated : row)),
-      );
+      await updatePracticeApi(selectedRow.id, practiceData);
+      const params: PracticeQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      const data = await getPracticesView(params);
+      setRows(data.rows);
+      setPagination(data.pagination);
       setIsEditing(false);
       toast.success("Practice updated successfully");
     } catch (err) {
@@ -437,7 +499,13 @@ export default function AllPracticePage() {
     setIsDeleting(true);
     try {
       await deletePracticeApi(selectedRow.id);
-      setRows((current) => current.filter((row) => row.id !== selectedRow.id));
+      const params: PracticeQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      const data = await getPracticesView(params);
+      setRows(data.rows);
+      setPagination(data.pagination);
       closeDetailPanel();
       toast.success("Practice deleted successfully");
     } catch (err) {
@@ -792,22 +860,18 @@ export default function AllPracticePage() {
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <div className="relative">
               <LayoutGrid className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <select
-                value={viewId}
-                onChange={(e) => changeView(e.target.value)}
-                className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none"
-              >
-                {views.map((view) => (
-                  <option key={view.id} value={view.id}>
-                    {view.label}
-                  </option>
-                ))}
-              </select>
+              <div className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none">
+                All Practices
+              </div>
             </div>
 
             <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button type="button">Filter</button>
+              <button
+                type="button"
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
+              >
+                Filter
+              </button>
               <button
                 type="button"
                 onClick={() =>
@@ -820,9 +884,100 @@ export default function AllPracticePage() {
               >
                 Sort
               </button>
-              <button type="button">Columns</button>
+              {/*<button type="button">Columns</button>*/}
             </div>
           </div>
+
+          {showFilterPanel && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
+              <input
+                type="text"
+                placeholder="Search by name..."
+                value={filters.search}
+                onChange={(e) => {
+                  setFilters((prev) => ({ ...prev, search: e.target.value }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              />
+              <select
+                value={filters.status}
+                onChange={(e) => {
+                  setFilters((prev) => ({ ...prev, status: e.target.value }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              >
+                <option value="">All Statuses</option>
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Region..."
+                value={filters.region}
+                onChange={(e) => {
+                  setFilters((prev) => ({ ...prev, region: e.target.value }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              />
+              <select
+                value={filters.source}
+                onChange={(e) => {
+                  setFilters((prev) => ({ ...prev, source: e.target.value }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              >
+                <option value="">All Sources</option>
+                {sourceOptions.map((source) => (
+                  <option key={source} value={source}>
+                    {source}
+                  </option>
+                ))}
+              </select>
+              {companies.length > 0 && (
+                <select
+                  value={filters.companyId}
+                  onChange={(e) => {
+                    setFilters((prev) => ({
+                      ...prev,
+                      companyId: e.target.value,
+                    }));
+                    setPagination((prev) => ({ ...prev, page: 1 }));
+                  }}
+                  className="app-control rounded-md px-3 py-1.5 text-[13px]"
+                >
+                  <option value="">All Companies</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  setFilters({
+                    search: "",
+                    status: "",
+                    region: "",
+                    source: "",
+                    companyId: "",
+                  })
+                }
+                disabled={disableMe}
+                className="text-[13px] text-[#4f63ea] hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
 
           <div className="min-h-0 flex-1 overflow-auto">
             <table className="min-w-full border-separate border-spacing-0">
@@ -917,6 +1072,60 @@ export default function AllPracticePage() {
               </div>
             )}
           </div>
+
+          {rows.length > 0 && (
+            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
+              <div className="flex items-center gap-2 text-[13px] text-slate-500">
+                <span>
+                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+                  {Math.min(
+                    pagination.page * pagination.limit,
+                    pagination.total,
+                  )}{" "}
+                  of {pagination.total}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={pagination.page === 1}
+                  onClick={() =>
+                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
+                  }
+                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  Previous
+                </button>
+                {Array.from(
+                  { length: pagination.totalPages },
+                  (_, i) => i + 1,
+                ).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
+                    className={`rounded px-2 py-1 text-[13px] ${
+                      pagination.page === page
+                        ? "bg-[#4f63ea] text-white"
+                        : "text-slate-500 hover:bg-[#f0ece6]"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={pagination.page === pagination.totalPages}
+                  onClick={() =>
+                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
+                  }
+                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {showDetailPanel && selectedRow && (

@@ -1,10 +1,10 @@
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ?? "";
 
 export const authEnpoints = {
-  LOGIN: BACKEND_URL + "/api/v1/login",
-  SIGNUP: BACKEND_URL + "/api/v1/signup",
+  LOGIN: BACKEND_URL + "/api/v1/auth/login",
+  SIGNUP: BACKEND_URL + "/api/v1/auth/signup",
   AUTHME: BACKEND_URL + "/api/v1/auth/me",
-  LOGOUT: BACKEND_URL + "/api/v1/logout",
+  LOGOUT: BACKEND_URL + "/api/v1/auth/logout",
 };
 
 export const companyEndpoints = {
@@ -32,4 +32,13 @@ export const personEndpoints = {
   GET: (id: string) => BACKEND_URL + `/api/v1/persons/${id}`,
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/persons/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/persons/${id}`,
+};
+
+export const auditEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/audits",
+  LIST: BACKEND_URL + "/api/v1/audits",
+  CREATE: BACKEND_URL + "/api/v1/audits",
+  GET: (id: string) => BACKEND_URL + `/api/v1/audits/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/audits/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/audits/${id}`,
 };

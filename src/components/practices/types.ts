@@ -47,10 +47,18 @@ export type PracticeRow = {
   values: Record<string, PracticeCellValue | Record<string, string | undefined>>;
 };
 
+export type PaginationInfo = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
 export type PracticeViewData = {
   viewId: string;
   title: string;
   totalCount: number;
   fields: PracticeField[];
   rows: PracticeRow[];
+  pagination: PaginationInfo;
 };

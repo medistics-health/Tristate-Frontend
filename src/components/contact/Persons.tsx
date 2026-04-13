@@ -24,6 +24,7 @@ import {
   Shield,
   Star,
 } from "lucide-react";
+import type { PersonBody } from "../../components/contact/types";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { getStandardNavbarActions } from "../shared/PageComponents";
@@ -34,6 +35,7 @@ import {
   deletePersonApi,
   getPersonsView,
   updatePersonApi,
+  type PersonQueryParams,
 } from "../../services/operations/persons";
 import { getAllPractices } from "../../services/operations/practices";
 import type { Practice } from "../practices/types";
@@ -97,20 +99,52 @@ export default function PersonsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [practicesLoading, setPracticesLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+  const [filters, setFilters] = useState({
+    search: "",
+    role: "",
+    influence: "",
+    practiceId: "",
+  });
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
     [rows, selectedRowId],
   );
 
+  const whenToSearch = filters.search.length > 3 || filters.search.length === 0;
+
+  const disableMe =
+    !filters.search &&
+    !filters.role &&
+    !filters.influence &&
+    !filters.practiceId;
+
   useEffect(() => {
     async function loadData() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getPersonsView();
+        const params: PersonQueryParams = {
+          page: pagination.page,
+          limit: pagination.limit,
+          ...(filters.search && { search: filters.search }),
+          ...(filters.role && { role: filters.role }),
+          ...(filters.influence && { influence: filters.influence }),
+          ...(filters.practiceId && { practiceId: filters.practiceId }),
+          sortBy: sorting[0]?.id || "createdAt",
+          sortOrder: sorting[0]?.desc ? "desc" : "asc",
+        };
+        const data = await getPersonsView(params);
         setViewData(data);
         setRows(data.rows);
+        setPagination(data.pagination);
         const visibility: Record<string, boolean> = {};
         data.fields.forEach((field) => {
           visibility[field.id] = field.visible;
@@ -125,8 +159,14 @@ export default function PersonsPage() {
         setIsLoading(false);
       }
     }
-    loadData();
-  }, []);
+    if (whenToSearch) {
+      loadData();
+    }
+  }, [pagination.page, pagination.limit, sorting, filters]);
+
+  // useEffect(() => {
+  //   setPagination((prev) => ({ ...prev, page: 1 }));
+  // }, [filters]);
 
   useEffect(() => {
     if (selectedRow && !showCreateForm) {
@@ -335,6 +375,16 @@ export default function PersonsPage() {
     }
   }, [isEditing]);
 
+  useEffect(() => {
+    if (showFilterPanel && practices.length === 0) {
+      setPracticesLoading(true);
+      getAllPractices()
+        .then(setPractices)
+        .catch((err) => console.error("Failed to load practices:", err))
+        .finally(() => setPracticesLoading(false));
+    }
+  }, [showFilterPanel]);
+
   async function handleCreatePerson(e: React.FormEvent) {
     e.preventDefault();
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
@@ -348,21 +398,25 @@ export default function PersonsPage() {
 
     setIsSubmitting(true);
     try {
-      const personData = {
+      const personData: PersonBody = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        role: formData.role as PersonFormData["role"],
-        influence: formData.influence as PersonFormData["influence"],
+        role: formData.role as PersonBody["role"],
+        influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: formData.phone.trim() || undefined,
         practiceId: formData.practiceId,
       };
 
       await createPersonApi(personData);
-      const allPersonsAfterCreate = await getPersonsView();
+      const params: PersonQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      const allPersonsAfterCreate = await getPersonsView(params);
 
-      // setRows((current) => [newPerson, ...current]);
       setRows(allPersonsAfterCreate.rows);
+      setPagination(allPersonsAfterCreate.pagination);
       closeCreateForm();
       toast.success("Person created successfully");
     } catch (err) {
@@ -387,19 +441,23 @@ export default function PersonsPage() {
 
     setIsSubmitting(true);
     try {
-      const personData = {
+      const personData: Partial<PersonBody> = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        role: formData.role as PersonFormData["role"],
-        influence: formData.influence as PersonFormData["influence"],
+        role: formData.role as PersonBody["role"],
+        influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: formData.phone.trim() || undefined,
       };
 
-      const updated = await updatePersonApi(selectedRow.id, personData);
-      setRows((current) =>
-        current.map((row) => (row.id === selectedRow.id ? updated : row)),
-      );
+      await updatePersonApi(selectedRow.id, personData);
+      const params: PersonQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      const allPersonsAfterUpdate = await getPersonsView(params);
+      setRows(allPersonsAfterUpdate.rows);
+      setPagination(allPersonsAfterUpdate.pagination);
       setIsEditing(false);
       toast.success("Person updated successfully");
     } catch (err) {
@@ -421,7 +479,13 @@ export default function PersonsPage() {
     setIsDeleting(true);
     try {
       await deletePersonApi(selectedRow.id);
-      setRows((current) => current.filter((row) => row.id !== selectedRow.id));
+      const params: PersonQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      const data = await getPersonsView(params);
+      setRows(data.rows);
+      setPagination(data.pagination);
       closeDetailPanel();
       toast.success("Person deleted successfully");
     } catch (err) {
@@ -724,8 +788,11 @@ export default function PersonsPage() {
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <div className="relative">
               <LayoutGrid className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <select
+              {/*<ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />*/}
+              <div className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none">
+                All Persons
+              </div>
+              {/*<select
                 value={viewId}
                 onChange={(e) => changeView(e.target.value)}
                 className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none"
@@ -735,11 +802,16 @@ export default function PersonsPage() {
                     {view.label}
                   </option>
                 ))}
-              </select>
+              </select>*/}
             </div>
 
             <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button type="button">Filter</button>
+              <button
+                type="button"
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
+              >
+                Filters
+              </button>
               <button
                 type="button"
                 onClick={() =>
@@ -752,9 +824,92 @@ export default function PersonsPage() {
               >
                 Sort
               </button>
-              <button type="button">Columns</button>
+              {/*<button type="button">Columns</button>*/}
             </div>
           </div>
+
+          {showFilterPanel && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                value={filters.search}
+                onChange={(e) => {
+                  setFilters((prev) => ({ ...prev, search: e.target.value }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              />
+              <select
+                value={filters.role}
+                onChange={(e) => {
+                  setFilters((prev) => ({ ...prev, role: e.target.value }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              >
+                <option value="">All Roles</option>
+                {roleOptions.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filters.influence}
+                onChange={(e) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    influence: e.target.value,
+                  }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              >
+                <option value="">All Influence</option>
+                {influenceOptions.map((influence) => (
+                  <option key={influence} value={influence}>
+                    {influence.replace("_", " ")}
+                  </option>
+                ))}
+              </select>
+              {practices.length > 0 && (
+                <select
+                  value={filters.practiceId}
+                  onChange={(e) => {
+                    setFilters((prev) => ({
+                      ...prev,
+                      practiceId: e.target.value,
+                    }));
+                    setPagination((prev) => ({ ...prev, page: 1 }));
+                  }}
+                  className="app-control rounded-md px-3 py-1.5 text-[13px]"
+                >
+                  <option value="">All Practices</option>
+                  {practices.map((practice) => (
+                    <option key={practice.id} value={practice.id}>
+                      {practice.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  setFilters({
+                    search: "",
+                    role: "",
+                    influence: "",
+                    practiceId: "",
+                  })
+                }
+                disabled={disableMe}
+                className="text-[13px] text-[#4f63ea] hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
 
           <div className="min-h-0 flex-1 overflow-auto">
             <table className="min-w-full border-separate border-spacing-0">
@@ -849,6 +1004,60 @@ export default function PersonsPage() {
               </div>
             )}
           </div>
+
+          {rows.length > 0 && (
+            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
+              <div className="flex items-center gap-2 text-[13px] text-slate-500">
+                <span>
+                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+                  {Math.min(
+                    pagination.page * pagination.limit,
+                    pagination.total,
+                  )}{" "}
+                  of {pagination.total}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={pagination.page === 1}
+                  onClick={() =>
+                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
+                  }
+                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  Previous
+                </button>
+                {Array.from(
+                  { length: pagination.totalPages },
+                  (_, i) => i + 1,
+                ).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
+                    className={`rounded px-2 py-1 text-[13px] ${
+                      pagination.page === page
+                        ? "bg-[#4f63ea] text-white"
+                        : "text-slate-500 hover:bg-[#f0ece6]"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={pagination.page === pagination.totalPages}
+                  onClick={() =>
+                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
+                  }
+                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {showDetailPanel && selectedRow && (

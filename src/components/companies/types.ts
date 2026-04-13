@@ -65,10 +65,18 @@ export type CompanyRow = {
   values: Record<string, CompanyCellValue | Record<string, string | undefined>>;
 };
 
+export type PaginationInfo = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
 export type CompanyViewData = {
   viewId: string;
   title: string;
   totalCount: number;
   fields: CompanyField[];
   rows: CompanyRow[];
+  pagination: PaginationInfo;
 };

@@ -47,10 +47,18 @@ export type PersonRow = {
   values: Record<string, PersonCellValue>;
 };
 
+export type PaginationInfo = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
 export type PersonViewData = {
   viewId: string;
   title: string;
   totalCount: number;
   fields: PersonField[];
   rows: PersonRow[];
+  pagination: PaginationInfo;
 };

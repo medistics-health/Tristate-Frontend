@@ -49,20 +49,52 @@ const fields = [
   { id: "lastUpdate", label: "Last update", type: "text" as const, visible: false },
 ];
 
-export async function getPersonsView(): Promise<PersonViewData> {
+export type PersonQueryParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: string;
+  influence?: string;
+  practiceId?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+};
+
+export async function getPersonsView(params?: PersonQueryParams): Promise<PersonViewData> {
   try {
+    const queryString = new URLSearchParams();
+    if (params?.page) queryString.set("page", String(params.page));
+    if (params?.limit) queryString.set("limit", String(params.limit));
+    if (params?.search) queryString.set("search", params.search);
+    if (params?.role) queryString.set("role", params.role);
+    if (params?.influence) queryString.set("influence", params.influence);
+    if (params?.practiceId) queryString.set("practiceId", params.practiceId);
+    if (params?.sortBy) queryString.set("sortBy", params.sortBy);
+    if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
+
+    const url = queryString.toString() ? `${LIST}?${queryString.toString()}` : LIST;
+
     const response = await apiConnector({
       method: "GET",
-      url: LIST,
+      url,
       credentials: true,
     });
-    const { persons } = response.data as { persons: Person[] };
+    const { persons, pagination } = response.data as {
+      persons: Person[];
+      pagination: { totalRecords: number; totalPages: number; currentPage: number; limit: number };
+    };
     return {
       viewId: "person-view-001",
       title: "All Persons",
-      totalCount: persons.length,
+      totalCount: pagination.totalRecords,
       fields,
       rows: persons.map(personToRow),
+      pagination: {
+        page: pagination.currentPage,
+        limit: pagination.limit,
+        total: pagination.totalRecords,
+        totalPages: pagination.totalPages,
+      },
     };
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch persons."));

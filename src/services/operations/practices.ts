@@ -55,20 +55,54 @@ const fields = [
   { id: "updatedBy", label: "Updated by", type: "text" as const, visible: false },
 ];
 
-export async function getPracticesView(): Promise<PracticeViewData> {
+export type PracticeQueryParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  region?: string;
+  source?: string;
+  companyId?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+};
+
+export async function getPracticesView(params?: PracticeQueryParams): Promise<PracticeViewData> {
   try {
+    const queryString = new URLSearchParams();
+    if (params?.page) queryString.set("page", String(params.page));
+    if (params?.limit) queryString.set("limit", String(params.limit));
+    if (params?.search) queryString.set("search", params.search);
+    if (params?.status) queryString.set("status", params.status);
+    if (params?.region) queryString.set("region", params.region);
+    if (params?.source) queryString.set("source", params.source);
+    if (params?.companyId) queryString.set("companyId", params.companyId);
+    if (params?.sortBy) queryString.set("sortBy", params.sortBy);
+    if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
+
+    const url = queryString.toString() ? `${LIST}?${queryString.toString()}` : LIST;
+
     const response = await apiConnector({
       method: "GET",
-      url: LIST,
+      url,
       credentials: true,
     });
-    const { practices } = response.data as { practices: Practice[] };
+    const { practices, pagination } = response.data as {
+      practices: Practice[];
+      pagination: { totalRecords: number; totalPages: number; currentPage: number; limit: number };
+    };
     return {
       viewId: "practice-view-001",
       title: "All Practices",
-      totalCount: practices.length,
+      totalCount: pagination.totalRecords,
       fields,
       rows: practices.map(practiceToRow),
+      pagination: {
+        page: pagination.currentPage,
+        limit: pagination.limit,
+        total: pagination.totalRecords,
+        totalPages: pagination.totalPages,
+      },
     };
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch practices."));

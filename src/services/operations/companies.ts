@@ -2,7 +2,6 @@ import axios from "axios";
 import { apiConnector } from "../apiConnector";
 import { companyEndpoints } from "../apis";
 import type {
-  AddressBody,
   Company,
   CompanyBody,
   CompanyRow,
@@ -96,20 +95,50 @@ const fields = [
   },
 ];
 
-export async function getCompaniesView(): Promise<CompanyViewData> {
+export type CompanyQueryParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  industry?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+};
+
+export async function getCompaniesView(params?: CompanyQueryParams): Promise<CompanyViewData> {
   try {
+    const queryString = new URLSearchParams();
+    if (params?.page) queryString.set("page", String(params.page));
+    if (params?.limit) queryString.set("limit", String(params.limit));
+    if (params?.search) queryString.set("search", params.search);
+    if (params?.status) queryString.set("status", params.status);
+    if (params?.industry) queryString.set("industry", params.industry);
+    if (params?.sortBy) queryString.set("sortBy", params.sortBy);
+    if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
+
+    const url = queryString.toString() ? `${LIST}?${queryString.toString()}` : LIST;
+
     const response = await apiConnector({
       method: "GET",
-      url: LIST,
+      url,
       credentials: true,
     });
-    const { companies } = response.data as { companies: Company[] };
+    const { companies, pagination } = response.data as {
+      companies: Company[];
+      pagination: { totalRecords: number; totalPages: number; currentPage: number; limit: number };
+    };
     return {
       viewId: "company-view-001",
       title: "All Companies",
-      totalCount: companies.length,
+      totalCount: pagination.totalRecords,
       fields,
       rows: companies.map(companyToRow),
+      pagination: {
+        page: pagination.currentPage,
+        limit: pagination.limit,
+        total: pagination.totalRecords,
+        totalPages: pagination.totalPages,
+      },
     };
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch companies."));

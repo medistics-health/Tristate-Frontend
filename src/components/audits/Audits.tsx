@@ -1,486 +1,479 @@
 import {
-  CheckSquare,
   ChevronDown,
   ChevronLeft,
   Circle,
-  ExternalLink,
-  Home,
   LayoutList,
-  MoreHorizontal,
   Plus,
-  RotateCcw,
-  Sparkles,
   Trash2,
-  UserCircle2,
+  X,
 } from "lucide-react";
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import AppLayout from "../layout/AppLayout";
-import type { NavbarAction } from "../layout/Navbar";
-
-type AuditRecordStatus =
-  | "scheduled"
-  | "in-progress"
-  | "completed"
-  | "action-required"
-  | "closed";
-
-type AuditRecord = {
-  id: string;
-  title: string;
-  type: string;
-  createdBy: string;
-  createdAt: string;
-  overallScore: string;
-  status: AuditRecordStatus;
-  suggestedService: string;
-  lastUpdate: string;
-  updatedBy: string;
-  practice: string;
-  selected: boolean;
-  updatedAtValue: number;
-};
+import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import type { AuditRow } from "./types";
+import {
+  createAuditApi,
+  deleteAuditApi,
+  getAuditsView,
+} from "../../services/operations/audits";
+import { getAllPractices } from "../../services/operations/practices";
+import type { Practice } from "../practices/types";
+import toast from "react-hot-toast";
 
 type AuditListViewProps = {
   viewLabel: string;
   activeSubItem: string;
+  title: string;
+  showPracticeFilter?: boolean;
+  practiceId?: string;
 };
 
-const detailTabs = [
-  { id: "home", label: "Home", icon: <Home className="h-4 w-4" /> },
-  { id: "tasks", label: "Tasks", icon: <CheckSquare className="h-4 w-4" /> },
-  { id: "more", label: "+2 More", icon: null },
-] as const;
+const auditTypeOptions = ["COMPLIANCE", "SECURITY", "QUALITY", "FINANCIAL", "OPERATIONAL"];
 
-const statusBadgeClassNames: Record<AuditRecordStatus, string> = {
-  scheduled: "bg-[#e8f7ee] text-[#2ba36f]",
-  "in-progress": "bg-[#eef1ff] text-[#6b7de2]",
-  completed: "bg-[#fff1bd] text-[#b78800]",
-  "action-required": "bg-[#ffe8e8] text-[#ef5d5d]",
-  closed: "bg-[#f0e6ff] text-[#9b70dc]",
+const typeColors: Record<string, string> = {
+  COMPLIANCE: "bg-green-100 text-green-700",
+  SECURITY: "bg-red-100 text-red-700",
+  QUALITY: "bg-blue-100 text-blue-700",
+  FINANCIAL: "bg-yellow-100 text-yellow-700",
+  OPERATIONAL: "bg-purple-100 text-purple-700",
 };
 
-const initialRecords: AuditRecord[] = Array.from({ length: 8 }, (_, index) => ({
-  id: `audit-row-${index + 1}`,
-  title: "",
-  type: "COMPLIANCE",
-  createdBy: "Siddhi Gajjar",
-  createdAt: "Created now",
-  overallScore: "Overall Score",
-  status: index === 6 ? "in-progress" : index === 7 ? "closed" : "scheduled",
-  suggestedService: "Suggested Services",
-  lastUpdate: "Apr 8, 2026 2:57 PM",
-  updatedBy: "Siddhi Gajjar",
-  practice: "",
-  selected: false,
-  updatedAtValue: 202604081457 - index,
-}));
+function AuditListView({ viewLabel, activeSubItem, title, showPracticeFilter, practiceId }: AuditListViewProps) {
+  const [rows, setRows] = useState<AuditRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
+  const [filters, setFilters] = useState({ search: "", type: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [practices, setPractices] = useState<Practice[]>([]);
+  const [practicesLoading, setPracticesLoading] = useState(false);
 
-function formatStatusLabel(status: AuditRecordStatus) {
-  return status.replace(/-/g, " ").toUpperCase();
-}
+  const [formData, setFormData] = useState({
+    practiceId: practiceId || "",
+    type: "COMPLIANCE" as string,
+    score: "",
+    findings: "",
+    recommendations: "",
+  });
 
-function AvatarPill({ name }: { name: string }) {
-  return (
-    <span className="inline-flex items-center gap-2 text-slate-700">
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#fff1bd] text-[11px] text-[#b78800]">
-        {name.charAt(0)}
-      </span>
-      {name}
-    </span>
+  const selectedRow = useMemo(
+    () => rows.find((row) => row.id === selectedRowId) || null,
+    [rows, selectedRowId],
   );
-}
-
-function AuditListView({ viewLabel, activeSubItem }: AuditListViewProps) {
-  const [records, setRecords] = useState(initialRecords);
-  const [selectedAuditId, setSelectedAuditId] = useState<string | null>(
-    initialRecords[0]?.id ?? null,
-  );
-  const [activeTab, setActiveTab] =
-    useState<(typeof detailTabs)[number]["id"]>("home");
-  const [showDetailPanel, setShowDetailPanel] = useState(true);
-  const [showOnlyOpenRecords, setShowOnlyOpenRecords] = useState(false);
-  const [sortNewestFirst, setSortNewestFirst] = useState(true);
-  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    function handleOutsideClick(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowOptionsMenu(false);
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const params: Record<string, unknown> = {
+          page: pagination.page,
+          limit: pagination.limit,
+        };
+        if (filters.search) params.search = filters.search;
+        if (filters.type) params.type = filters.type;
+        if (showPracticeFilter && practiceId) params.practiceId = practiceId;
+        
+        const data = await getAuditsView(params as any);
+        setRows(data.rows);
+        setPagination(data.pagination);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to load audits";
+        setError(message);
+        toast.error(message);
+      } finally {
+        setIsLoading(false);
       }
     }
+    loadData();
+  }, [pagination.page, pagination.limit, filters, practiceId]);
 
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, []);
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, [filters]);
 
-  const visibleRecords = useMemo(() => {
-    const filtered = showOnlyOpenRecords
-      ? records.filter((record) => record.status !== "closed")
-      : records;
+  useEffect(() => {
+    if ((showCreateForm || showFilterPanel) && practices.length === 0) {
+      setPracticesLoading(true);
+      getAllPractices()
+        .then(setPractices)
+        .catch((err) => console.error("Failed to load practices:", err))
+        .finally(() => setPracticesLoading(false));
+    }
+  }, [showCreateForm, showFilterPanel]);
 
-    return [...filtered].sort((left, right) =>
-      sortNewestFirst
-        ? right.updatedAtValue - left.updatedAtValue
-        : left.updatedAtValue - right.updatedAtValue,
-    );
-  }, [records, showOnlyOpenRecords, sortNewestFirst]);
-
-  const selectedAudit = useMemo(
-    () => records.find((record) => record.id === selectedAuditId) || null,
-    [records, selectedAuditId],
-  );
-
-  function upsertSelectedAudit(
-    auditId: string,
-    updater: (record: AuditRecord) => AuditRecord,
-  ) {
-    setRecords((current) =>
-      current.map((record) =>
-        record.id === auditId ? updater(record) : record,
-      ),
-    );
-  }
-
-  function createAudit() {
-    const nextId = `audit-row-${records.length + 1}`;
-    const newRecord: AuditRecord = {
-      id: nextId,
-      title: "",
-      type: "COMPLIANCE",
-      createdBy: "Siddhi Gajjar",
-      createdAt: "Created now",
-      overallScore: "Overall Score",
-      status: "scheduled",
-      suggestedService: "Suggested Services",
-      lastUpdate: "Apr 8, 2026 2:57 PM",
-      updatedBy: "Siddhi Gajjar",
-      practice: "",
-      selected: false,
-      updatedAtValue: Date.now(),
-    };
-
-    setRecords((current) => [newRecord, ...current]);
-    setSelectedAuditId(nextId);
+  function handleRowClick(rowId: string) {
+    setSelectedRowId(rowId);
     setShowDetailPanel(true);
+    setShowCreateForm(false);
   }
 
-  const navbarActions: NavbarAction[] = [
+  function closeDetailPanel() {
+    setShowDetailPanel(false);
+    setSelectedRowId(null);
+  }
+
+  function openCreateForm() {
+    setFormData({
+      practiceId: practiceId || "",
+      type: "COMPLIANCE",
+      score: "",
+      findings: "",
+      recommendations: "",
+    });
+    setShowCreateForm(true);
+    setShowDetailPanel(false);
+  }
+
+  function closeCreateForm() {
+    setShowCreateForm(false);
+    setFormData({
+      practiceId: "",
+      type: "COMPLIANCE",
+      score: "",
+      findings: "",
+      recommendations: "",
+    });
+  }
+
+  async function handleCreateAudit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formData.practiceId) {
+      toast.error("Please select a practice");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const auditData = {
+        practiceId: formData.practiceId,
+        type: formData.type as any,
+        score: formData.score ? parseFloat(formData.score) : undefined,
+        findings: formData.findings ? JSON.parse(formData.findings) : {},
+        recommendations: formData.recommendations ? JSON.parse(formData.recommendations) : {},
+      };
+
+      await createAuditApi(auditData);
+      const data = await getAuditsView({ page: pagination.page, limit: pagination.limit });
+      setRows(data.rows);
+      setPagination(data.pagination);
+      closeCreateForm();
+      toast.success("Audit created successfully");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create audit";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteAudit() {
+    if (!selectedRow) return;
+
+    if (!window.confirm("Are you sure you want to delete this audit?")) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteAuditApi(selectedRow.id);
+      const data = await getAuditsView({ page: pagination.page, limit: pagination.limit });
+      setRows(data.rows);
+      setPagination(data.pagination);
+      closeDetailPanel();
+      toast.success("Audit deleted successfully");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete audit";
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  const navbarActions = [
     {
       label: "New record",
       icon: <Plus className="h-4 w-4" />,
-      onClick: createAudit,
+      onClick: openCreateForm,
     },
   ];
 
+  if (isLoading) {
+    return (
+      <AppLayout title={title} activeModule="Audits" activeSubItem={activeSubItem}>
+        <div className="flex h-full items-center justify-center">
+          <div className="text-slate-400">Loading audits...</div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error && rows.length === 0) {
+    return (
+      <AppLayout title={title} activeModule="Audits" activeSubItem={activeSubItem}>
+        <div className="flex h-full flex-col items-center justify-center gap-4">
+          <div className="text-red-500">{error}</div>
+          <button type="button" onClick={() => window.location.reload()} className="app-control rounded-md px-4 py-2 text-[14px] font-medium">
+            Retry
+          </button>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
-    <AppLayout
-      title="Practice Audits"
-      activeModule="Audits"
-      activeSubItem={activeSubItem}
-      navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
-    >
+    <AppLayout title={title} activeModule="Audits" activeSubItem={activeSubItem} navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />} navbarActions={navbarActions}>
       <div className="flex h-full gap-2">
         <section className="app-panel min-w-0 flex-1 overflow-hidden rounded-2xl bg-white">
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
+            <button type="button" className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700">
               <LayoutList className="h-3.5 w-3.5 text-slate-400" />
               <span>{viewLabel}</span>
-              <span className="text-slate-400">. {visibleRecords.length}</span>
+              <span className="text-slate-400">. {rows.length}</span>
               <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
             </button>
 
             <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowOnlyOpenRecords((current) => !current)}
-              >
-                Filter
-              </button>
-              <button
-                type="button"
-                onClick={() => setSortNewestFirst((current) => !current)}
-              >
-                Sort
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowDetailPanel((current) => !current)}
-              >
-                Options
-              </button>
+              <button type="button" onClick={() => setShowFilterPanel(!showFilterPanel)}>Filter</button>
+              <button type="button">Columns</button>
             </div>
           </div>
 
-          <div className="min-h-0 overflow-auto">
-            <div className="min-w-[900px]">
-              <div className="grid grid-cols-[42px_minmax(0,1fr)] border-b border-[#f0ece6] bg-white text-[14px] text-slate-400">
-                <div className="flex items-center justify-center border-r border-[#f0ece6] py-2.5">
-                  <Plus className="h-3.5 w-3.5" />
-                </div>
-                <div className="flex items-center gap-2 px-4 py-2.5 border-r border-[#f0ece6]">
-                  <span>Abc</span>
-                  <span>Title</span>
+          {showFilterPanel && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={filters.search}
+                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              />
+              <select
+                value={filters.type}
+                onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value }))}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              >
+                <option value="">All Types</option>
+                {auditTypeOptions.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+              <button type="button" onClick={() => setFilters({ search: "", type: "" })} className="text-[13px] text-[#4f63ea] hover:underline">Clear filters</button>
+            </div>
+          )}
+
+          <div className="min-h-0 flex-1 overflow-auto">
+            {rows.length === 0 ? (
+              <div className="relative flex min-h-[400px] items-center justify-center">
+                <div className="flex max-w-md flex-col items-center px-6 text-center">
+                  <EmptyStateIllustration />
+                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">No audits found</h2>
+                  <p className="mt-2 text-[14px] text-slate-400">Create your first audit to get started</p>
+                  <button type="button" onClick={openCreateForm} className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium">
+                    <Plus className="h-3.5 w-3.5" />
+                    Create Audit
+                  </button>
                 </div>
               </div>
-
-              {visibleRecords.map((record) => {
-                const isSelected = record.id === selectedAudit?.id;
-
-                return (
-                  <div
-                    key={record.id}
-                    className={`grid grid-cols-[42px_minmax(0,1fr)] border-b border-[#f0ece6] text-[14px] ${
-                      isSelected ? "bg-[#fcfbf9]" : "bg-white"
-                    }`}
-                  >
-                    <div className="flex items-center justify-center border-r border-[#f0ece6] py-3">
-                      <input
-                        type="checkbox"
-                        checked={record.selected}
-                        onChange={(event) => {
-                          const checked = event.target.checked;
-                          upsertSelectedAudit(record.id, (current) => ({
-                            ...current,
-                            selected: checked,
-                          }));
-                        }}
-                        className="h-4 w-4 rounded border-[#cfc8bb] text-[#4f63ea] focus:ring-[#4f63ea]"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedAuditId(record.id);
-                        setShowDetailPanel(true);
-                      }}
-                      className="flex min-h-[44px] items-center gap-2 border-r border-[#f0ece6] px-4 text-left"
-                    >
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#f7f5f1] text-[11px] text-slate-300">
-                        -
-                      </span>
-                      <span
-                        className={
-                          record.title ? "text-slate-600" : "text-slate-300"
-                        }
-                      >
-                        {record.title || "Untitled"}
-                      </span>
-                    </button>
-                  </div>
-                );
-              })}
-
-              <button
-                type="button"
-                onClick={createAudit}
-                className="flex min-h-[44px] w-full items-center gap-3 border-b border-[#f0ece6] px-4 text-[14px] text-slate-400"
-              >
-                <Plus className="h-4 w-4" />
-                Add New
-              </button>
-            </div>
+            ) : (
+              <table className="min-w-full border-separate border-spacing-0">
+                <thead className="sticky top-0 z-10 bg-white">
+                  <tr>
+                    <th className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400">Type</th>
+                    <th className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400">Score</th>
+                    <th className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400">Practice</th>
+                    <th className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400">Created</th>
+                    <th className="border-b border-[#f0ece6] px-3 py-2 text-left text-[13px] font-medium text-slate-400">Last Update</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const isSelected = row.id === selectedRowId;
+                    return (
+                      <tr key={row.id} onClick={() => handleRowClick(row.id)} className={`cursor-pointer ${isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}>
+                        <td className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${typeColors[String(row.values.type)] || ""}`}>
+                            {String(row.values.type)}
+                          </span>
+                        </td>
+                        <td className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600">{String(row.values.score || "-")}</td>
+                        <td className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600">{String(row.values.practiceName || "-")}</td>
+                        <td className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600">{String(row.values.creationDate)}</td>
+                        <td className="border-b border-[#f4f1ec] px-3 py-2 text-[13px] text-slate-600">{String(row.values.lastUpdate)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
+
+          {rows.length > 0 && (
+            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
+              <div className="text-[13px] text-slate-500">
+                Showing {(pagination.page - 1) * pagination.limit + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
+              </div>
+              <div className="flex items-center gap-1">
+                <button type="button" disabled={pagination.page === 1} onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))} className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50">Previous</button>
+                {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
+                  <button key={page} type="button" onClick={() => setPagination((prev) => ({ ...prev, page }))} className={`rounded px-2 py-1 text-[13px] ${pagination.page === page ? "bg-[#4f63ea] text-white" : "text-slate-500 hover:bg-[#f0ece6]"}`}>{page}</button>
+                ))}
+                <button type="button" disabled={pagination.page === pagination.totalPages} onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))} className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50">Next</button>
+              </div>
+            </div>
+          )}
         </section>
 
-        {showDetailPanel && selectedAudit ? (
-          <aside className="app-panel relative flex w-[340px] flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
+        {showDetailPanel && selectedRow && (
+          <aside className="app-panel relative flex w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
-              <button
-                type="button"
-                onClick={() => setShowDetailPanel(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
+              <button type="button" onClick={closeDetailPanel} className="text-slate-400 hover:text-slate-600">
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                className="rounded-md bg-[#f7f5f1] px-1.5 py-1 text-slate-300"
-              >
-                <Circle className="h-3.5 w-3.5" />
-              </button>
-              <input
-                value={selectedAudit.title}
-                onChange={(event) => {
-                  const nextTitle = event.target.value;
-                  upsertSelectedAudit(selectedAudit.id, (current) => ({
-                    ...current,
-                    title: nextTitle,
-                  }));
-                }}
-                placeholder="Name"
-                className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[14px] font-medium text-slate-700 outline-none focus:border-[#9cb1f6] focus:bg-white"
-              />
-              <span className="text-[13px] text-slate-400">Now</span>
-              <Sparkles className="h-4 w-4 text-slate-400" />
+              <Circle className="h-4 w-4 text-slate-300" />
+              <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">{String(selectedRow.values.type)} Audit</span>
             </div>
 
-            <div className="flex items-center gap-5 border-b border-[#f0ece6] px-4 pt-3">
-              {detailTabs.map((tab) => {
-                const isActive = tab.id === activeTab;
-
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`inline-flex items-center gap-2 border-b pb-3 text-[13px] font-medium ${
-                      isActive
-                        ? "border-slate-500 text-slate-700"
-                        : "border-transparent text-slate-400"
-                    }`}
-                  >
-                    {tab.icon}
-                    {tab.label}
-                    {tab.id === "more" ? (
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex-1 overflow-auto">
-              <div className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-[#f0ece6] px-4 py-4 text-[13px]">
-                <div className="text-slate-400">Type</div>
-                <div>
-                  <span className="inline-flex rounded-md bg-[#e8f7ee] px-2 py-0.5 text-[#2ba36f]">
-                    {selectedAudit.type}
+            <div className="flex-1 overflow-auto p-4">
+              <div className="space-y-3 text-[13px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Type</span>
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${typeColors[String(selectedRow.values.type)] || ""}`}>
+                    {String(selectedRow.values.type)}
                   </span>
                 </div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <Circle className="h-3.5 w-3.5" />
-                  <span>Created by</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Score</span>
+                  <span className="text-slate-700">{String(selectedRow.values.score ?? "-")}</span>
                 </div>
-                <div>
-                  <AvatarPill name={selectedAudit.createdBy} />
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Practice</span>
+                  <span className="text-slate-700">{String(selectedRow.values.practiceName || "-")}</span>
                 </div>
-
-                <div className="text-slate-400">Overall Score</div>
-                <div className="text-slate-400">
-                  {selectedAudit.overallScore}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Created</span>
+                  <span className="text-slate-700">{String(selectedRow.values.creationDate)}</span>
                 </div>
-
-                <div className="text-slate-400">Status</div>
-                <div>
-                  <span
-                    className={`inline-flex rounded-md px-2 py-0.5 ${statusBadgeClassNames[selectedAudit.status]}`}
-                  >
-                    {formatStatusLabel(selectedAudit.status)}
-                  </span>
-                </div>
-
-                <div className="truncate text-slate-400">Suggested Service</div>
-                <div>
-                  <span className="inline-flex rounded-md bg-[#f7f5f1] px-2 py-0.5 text-slate-400">
-                    {selectedAudit.suggestedService}
-                  </span>
-                </div>
-
-                <div className="text-slate-400">Last update</div>
-                <div className="text-slate-700">{selectedAudit.lastUpdate}</div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <UserCircle2 className="h-3.5 w-3.5" />
-                  <span>Updated by</span>
-                </div>
-                <div>
-                  <AvatarPill name={selectedAudit.updatedBy} />
-                </div>
-              </div>
-
-              <div className="px-4 py-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="text-[13px] font-medium text-slate-700">
-                    Practice
-                  </p>
-                </div>
-                <div className="min-h-[260px] rounded-xl border border-dashed border-[#ece8e1] bg-white p-3 text-[13px] text-slate-500">
-                  {selectedAudit.practice || "No practice associated."}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Last Update</span>
+                  <span className="text-slate-700">{String(selectedRow.values.lastUpdate)}</span>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-              <div className="relative" ref={menuRef}>
-                <button
-                  type="button"
-                  onClick={() => setShowOptionsMenu((current) => !current)}
-                  className="rounded-md border border-[#9cb1f6] px-3 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
-                >
-                  Options
-                </button>
-
-                {showOptionsMenu ? (
-                  <div className="absolute bottom-[calc(100%+8px)] left-0 w-[205px] rounded-xl border border-[#ece8e1] bg-white p-2 shadow-[0_8px_32px_rgba(15,23,42,0.12)] z-20">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRecords((current) =>
-                          current.filter((r) => r.id !== selectedAudit.id),
-                        );
-                        setShowDetailPanel(false);
-                        setShowOptionsMenu(false);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete record
-                    </button>
-                    <button
-                      type="button"
-                      className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      Restore record
-                    </button>
-                    <button
-                      type="button"
-                      className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      Export
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className="rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
-              >
+              <button type="button" onClick={handleDeleteAudit} disabled={isDeleting} className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700">
+                <Trash2 className="h-4 w-4" />
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+              <button type="button" className="rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]">
                 Open
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowOptionsMenu((current) => !current)}
-              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
           </aside>
-        ) : null}
+        )}
+
+        {showCreateForm && (
+          <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
+              <h2 className="text-[15px] font-semibold text-slate-700">Create Audit</h2>
+              <button type="button" onClick={closeCreateForm} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAudit} className="flex-1 overflow-auto p-4">
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">Practice <span className="text-red-500">*</span></label>
+                  {practicesLoading ? (
+                    <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">Loading...</div>
+                  ) : (
+                    <select
+                      value={formData.practiceId}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, practiceId: e.target.value }))}
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      required
+                    >
+                      <option value="">Select Practice</option>
+                      {practices.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">Type</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, type: e.target.value }))}
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  >
+                    {auditTypeOptions.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">Score</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.score}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, score: e.target.value }))}
+                    placeholder="0.00"
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">Findings (JSON)</label>
+                  <textarea
+                    value={formData.findings}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, findings: e.target.value }))}
+                    placeholder='{"key": "value"}'
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px] min-h-[80px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">Recommendations (JSON)</label>
+                  <textarea
+                    value={formData.recommendations}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, recommendations: e.target.value }))}
+                    placeholder='{"key": "value"}'
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px] min-h-[80px]"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">
+                <button type="button" onClick={closeCreateForm} className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]">
+                  Cancel
+                </button>
+                <button type="submit" disabled={isSubmitting} className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50">
+                  {isSubmitting ? "Creating..." : "Create"}
+                </button>
+              </div>
+            </form>
+          </aside>
+        )}
       </div>
     </AppLayout>
   );
 }
 
 export function AllPracticeAuditsPage() {
-  return (
-    <AuditListView
-      viewLabel="All Practice Aud..."
-      activeSubItem="All Practice Audits"
-    />
-  );
+  return <AuditListView viewLabel="All Practice Audits" activeSubItem="All Practice Audits" title="Practice Audits" showPracticeFilter />;
 }
 
 export default function Audits() {
-  return <AuditListView viewLabel="All Audits" activeSubItem="All Audits" />;
+  return <AuditListView viewLabel="All Audits" activeSubItem="All Audits" title="Audits" />;
 }

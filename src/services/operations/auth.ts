@@ -71,7 +71,7 @@ export async function login({ identifier, password }: LoginPayload) {
 export async function authMe() {
   try {
     const response = await apiConnector({
-      method: "POST",
+      method: "GET",
       url: AUTHME,
       credentials: true,
     });
