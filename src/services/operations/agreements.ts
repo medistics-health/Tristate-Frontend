@@ -1,4 +1,32 @@
+import axios from "axios";
+import { apiConnector } from "../apiConnector";
+import { agreementEndpoints } from "../apis";
 import type { AgreementsViewData } from "../../components/agreements/types";
+
+const { LIST } = agreementEndpoints;
+
+function getErrorMessage(error: unknown, fallbackMessage: string) {
+  if (axios.isAxiosError(error)) {
+    const apiMessage = (
+      error.response?.data as { message?: string } | undefined
+    )?.message;
+    return apiMessage ?? fallbackMessage;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallbackMessage;
+}
+
+export type AgreementOption = {
+  id: string;
+  practiceId: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  practice?: { id: string; name: string };
+};
 
 const agreementsViewMock: AgreementsViewData = {
   viewId: "5b2b90da-f741-47fe-8672-df3ec8359c2a",
@@ -127,4 +155,18 @@ const agreementsViewMock: AgreementsViewData = {
 export async function getAgreementsView() {
   await new Promise((resolve) => setTimeout(resolve, 150));
   return agreementsViewMock;
+}
+
+export async function getAllAgreements(): Promise<AgreementOption[]> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: `${LIST}?page=1&limit=100`,
+      credentials: true,
+    });
+    const { agreements } = response.data as { agreements: AgreementOption[] };
+    return agreements;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch agreements."));
+  }
 }

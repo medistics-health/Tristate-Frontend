@@ -35,10 +35,55 @@ export const personEndpoints = {
 };
 
 export const auditEndpoints = {
-  BASE: BACKEND_URL + "/api/v1/audits",
-  LIST: BACKEND_URL + "/api/v1/audits",
-  CREATE: BACKEND_URL + "/api/v1/audits",
+  BASE: BACKEND_URL + '/api/v1/audits',
+  LIST: BACKEND_URL + '/api/v1/audits',
+  CREATE: BACKEND_URL + '/api/v1/audits',
   GET: (id: string) => BACKEND_URL + `/api/v1/audits/${id}`,
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/audits/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/audits/${id}`,
+};
+
+export const serviceEndpoints = {
+  BASE: BACKEND_URL + '/api/v1/services',
+  LIST: BACKEND_URL + '/api/v1/services',
+  CREATE: BACKEND_URL + '/api/v1/services',
+  GET: (id: string) => BACKEND_URL + `/api/v1/services/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/services/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/services/${id}`,
+};
+
+export const purchaseOrderEndpoints = {
+  BASE: BACKEND_URL + '/api/v1/purchase-orders',
+  LIST: BACKEND_URL + '/api/v1/purchase-orders',
+  CREATE: BACKEND_URL + '/api/v1/purchase-orders',
+  GET: (id: string) => BACKEND_URL + `/api/v1/purchase-orders/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/purchase-orders/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/purchase-orders/${id}`,
+};
+
+export const vendorEndpoints = {
+  BASE: BACKEND_URL + '/api/v1/vendors',
+  LIST: BACKEND_URL + '/api/v1/vendors',
+  CREATE: BACKEND_URL + '/api/v1/vendors',
+  GET: (id: string) => BACKEND_URL + `/api/v1/vendors/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/vendors/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/vendors/${id}`,
+};
+
+export const invoiceEndpoints = {
+  BASE: BACKEND_URL + '/api/v1/invoices',
+  LIST: BACKEND_URL + '/api/v1/invoices',
+  CREATE: BACKEND_URL + '/api/v1/invoices',
+  GET: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
+};
+
+export const agreementEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/agreements",
+  LIST: BACKEND_URL + "/api/v1/agreements",
+  CREATE: BACKEND_URL + "/api/v1/agreements",
+  GET: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
 };

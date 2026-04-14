@@ -5,7 +5,7 @@ import AllAgreementsPage from "./components/agreements/all-agreements/AllAgreeme
 import AllPracticeAuditsPage from "./components/audits/AllPracticeAudits";
 import Audits from "./components/audits/Audits";
 import AuditStatusBoard from "./components/audits/AuditStatusBoard";
-import AllPurchaseOrdersPage from "./components/purchase-orders/AllPurchaseOrdersPage";
+import AllPurchaseOrdersPage from "./components/purchase-orders/AllPurchaseOrders";
 import PendingApprovalPage from "./components/purchase-orders/PendingApprovalPage";
 import PurchaseOrdersPage from "./components/purchase-orders/PurchaseOrdersPage";
 import PurchaseOrderStatusBoardPage from "./components/purchase-orders/PurchaseOrderStatusBoardPage";
