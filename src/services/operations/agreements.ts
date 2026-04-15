@@ -1,9 +1,8 @@
 import axios from "axios";
 import { apiConnector } from "../apiConnector";
 import { agreementEndpoints } from "../apis";
-import type { AgreementsViewData } from "../../components/agreements/types";
 
-const { LIST } = agreementEndpoints;
+const { LIST, CREATE, GET, UPDATE, DELETE } = agreementEndpoints;
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError(error)) {
@@ -28,145 +27,226 @@ export type AgreementOption = {
   practice?: { id: string; name: string };
 };
 
-const agreementsViewMock: AgreementsViewData = {
-  viewId: "5b2b90da-f741-47fe-8672-df3ec8359c2a",
-  title: "All Agreements",
-  totalCount: 3,
-  fields: [
-    { id: "name", label: "Name", type: "text", visible: true },
-    {
-      id: "creationDate",
-      label: "Creation date",
-      type: "date",
-      visible: true,
+function agreementToRow(agreement: Agreement): AgreementsRow {
+  return {
+    id: agreement.id,
+    values: {
+      id: agreement.id,
+      name: `${agreement.practice?.name || "Practice"} - ${agreement.type}`,
+      type: agreement.type,
+      status: agreement.status,
+      practiceName: agreement.practice?.name || "",
+      practiceId: agreement.practiceId || "",
+      dealName: agreement.deal?.name || "",
+      dealId: agreement.dealId || "",
+      effectiveDate: agreement.effectiveDate
+        ? new Date(agreement.effectiveDate).toLocaleDateString()
+        : "",
+      renewalDate: agreement.renewalDate
+        ? new Date(agreement.renewalDate).toLocaleDateString()
+        : "",
+      terminationDate: agreement.terminationDate
+        ? new Date(agreement.terminationDate).toLocaleDateString()
+        : "",
+      value: agreement.value?.toString() || "",
+      creationDate: new Date(agreement.createdAt).toLocaleString(),
+      lastUpdate: new Date(agreement.updatedAt).toLocaleString(),
     },
-    {
-      id: "lastUpdate",
-      label: "Last update",
-      type: "date",
-      visible: true,
-    },
-    { id: "updatedBy", label: "Updated by", type: "user", visible: true },
-    { id: "createdBy", label: "Created by", type: "user", visible: true },
-    { id: "deletedAt", label: "Deleted at", type: "date", visible: false },
-    {
-      id: "effectiveDate",
-      label: "Effective Date",
-      type: "date",
-      visible: false,
-    },
-    { id: "id", label: "Id", type: "text", visible: false },
-    { id: "practice", label: "Practice", type: "relation", visible: false },
-    {
-      id: "renewalDate",
-      label: "Renewal Date",
-      type: "date",
-      visible: false,
-    },
-    { id: "status", label: "Status", type: "text", visible: false },
-    {
-      id: "terminationDate",
-      label: "Termination Date",
-      type: "date",
-      visible: false,
-    },
-    { id: "type", label: "Type", type: "text", visible: false },
-    { id: "value", label: "Value", type: "text", visible: false },
-  ],
-  rows: [
-    {
-      id: "agreement-1",
-      values: {
-        id: "AGR-001",
-        name: "TriState Radiology Services",
-        creationDate: "Mar 23, 2026 6:47 PM",
-        lastUpdate: "Apr 01, 2026 10:12 AM",
-        updatedBy: {
-          name: "Siddhi Gajjar",
-          initials: "SG",
-        },
-        createdBy: {
-          name: "Riya Shah",
-          initials: "RS",
-        },
-        deletedAt: null,
-        effectiveDate: "Apr 15, 2026",
-        practice: "TriState Imaging",
-        renewalDate: "Apr 15, 2027",
-        status: "Active",
-        terminationDate: "Apr 14, 2028",
-        type: "MSA",
-        value: "$128,000",
-      },
-    },
-    {
-      id: "agreement-2",
-      values: {
-        id: "AGR-002",
-        name: "Hudson Valley Teleradiology",
-        creationDate: "Feb 11, 2026 2:05 PM",
-        lastUpdate: "Mar 30, 2026 4:25 PM",
-        updatedBy: {
-          name: "Nikhil Patel",
-          initials: "NP",
-        },
-        createdBy: {
-          name: "Siddhi Gajjar",
-          initials: "SG",
-        },
-        deletedAt: null,
-        effectiveDate: "May 01, 2026",
-        practice: "Hudson Valley Partners",
-        renewalDate: "May 01, 2027",
-        status: "Pending Signature",
-        terminationDate: "Apr 30, 2028",
-        type: "NDA",
-        value: "$42,500",
-      },
-    },
-    {
-      id: "agreement-3",
-      values: {
-        id: "AGR-003",
-        name: "Empire Diagnostics Network",
-        creationDate: "Jan 19, 2026 9:18 AM",
-        lastUpdate: "Apr 05, 2026 1:40 PM",
-        updatedBy: {
-          name: "Aarav Mehta",
-          initials: "AM",
-        },
-        createdBy: {
-          name: "Nikhil Patel",
-          initials: "NP",
-        },
-        deletedAt: "Apr 06, 2026 9:00 AM",
-        effectiveDate: "Jan 20, 2026",
-        practice: "Empire Diagnostics",
-        renewalDate: "Jan 20, 2027",
-        status: "Archived",
-        terminationDate: "Jan 19, 2028",
-        type: "BAA",
-        value: "$76,900",
-      },
-    },
-  ],
+  };
+}
+
+export type Agreement = {
+  id: string;
+  practiceId: string;
+  dealId?: string | null;
+  type: string;
+  status: string;
+  value?: number;
+  effectiveDate?: string | null;
+  renewalDate?: string | null;
+  terminationDate?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  practice?: { id: string; name: string };
+  deal?: { id: string; name: string };
 };
 
-export async function getAgreementsView() {
-  await new Promise((resolve) => setTimeout(resolve, 150));
-  return agreementsViewMock;
+type AgreementsRow = {
+  id: string;
+  values: Record<string, string | number | null>;
+};
+
+const fields = [
+  { id: "name", label: "Name", type: "text" as const, visible: true },
+  { id: "type", label: "Type", type: "text" as const, visible: true },
+  { id: "status", label: "Status", type: "text" as const, visible: true },
+  { id: "practiceName", label: "Practice", type: "text" as const, visible: true },
+  { id: "dealName", label: "Deal", type: "text" as const, visible: false },
+  { id: "value", label: "Value", type: "text" as const, visible: false },
+  { id: "effectiveDate", label: "Effective Date", type: "date" as const, visible: false },
+  { id: "renewalDate", label: "Renewal Date", type: "date" as const, visible: false },
+  { id: "terminationDate", label: "Termination Date", type: "date" as const, visible: false },
+  { id: "creationDate", label: "Created", type: "date" as const, visible: true },
+  { id: "lastUpdate", label: "Last Update", type: "date" as const, visible: true },
+];
+
+export type AgreementQueryParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  type?: string;
+  practiceId?: string;
+  dealId?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+};
+
+export type AgreementsViewData = {
+  viewId: string;
+  title: string;
+  totalCount: number;
+  fields: { id: string; label: string; type: string; visible: boolean }[];
+  rows: AgreementsRow[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
+export async function getAgreementsView(params?: AgreementQueryParams): Promise<AgreementsViewData> {
+  try {
+    const queryString = new URLSearchParams();
+    if (params?.page) queryString.set("page", String(params.page));
+    if (params?.limit) queryString.set("limit", String(params.limit));
+    if (params?.search) queryString.set("search", params.search);
+    if (params?.status) queryString.set("status", params.status);
+    if (params?.type) queryString.set("type", params.type);
+    if (params?.practiceId) queryString.set("practiceId", params.practiceId);
+    if (params?.dealId) queryString.set("dealId", params.dealId);
+    if (params?.sortBy) queryString.set("sortBy", params.sortBy);
+    if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
+
+    const url = queryString.toString() ? `${LIST}?${queryString.toString()}` : LIST;
+
+    const response = await apiConnector({
+      method: "GET",
+      url,
+      credentials: true,
+    });
+
+    const { agreements, pagination } = response.data as {
+      agreements: Agreement[];
+      pagination: { totalRecords: number; totalPages: number; currentPage: number; limit: number };
+    };
+
+    return {
+      viewId: "agreement-view-001",
+      title: "All Agreements",
+      totalCount: pagination.totalRecords,
+      fields,
+      rows: agreements.map(agreementToRow),
+      pagination: {
+        page: pagination.currentPage,
+        limit: pagination.limit,
+        total: pagination.totalRecords,
+        totalPages: pagination.totalPages,
+      },
+    };
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch agreements."));
+  }
 }
 
 export async function getAllAgreements(): Promise<AgreementOption[]> {
   try {
     const response = await apiConnector({
       method: "GET",
-      url: `${LIST}?page=1&limit=100`,
+      url: LIST,
       credentials: true,
     });
-    const { agreements } = response.data as { agreements: AgreementOption[] };
-    return agreements;
+    const { agreements } = response.data as { agreements: Agreement[] };
+    return agreements.map((a) => ({
+      id: a.id,
+      practiceId: a.practiceId,
+      type: a.type,
+      status: a.status,
+      createdAt: a.createdAt,
+      updatedAt: a.updatedAt,
+      practice: a.practice,
+    }));
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch agreements."));
+  }
+}
+
+export async function getAgreement(id: string): Promise<Agreement> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: GET(id),
+      credentials: true,
+    });
+    return (response.data as { agreement: Agreement }).agreement;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch agreement."));
+  }
+}
+
+export type AgreementBody = {
+  practiceId: string;
+  dealId?: string | null;
+  type: string;
+  status: string;
+  value?: number;
+  effectiveDate?: string;
+  renewalDate?: string;
+  terminationDate?: string;
+};
+
+export async function createAgreementApi(data: AgreementBody): Promise<AgreementsRow> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: CREATE,
+      body: data,
+      credentials: true,
+    });
+    const agreement = (response.data as { agreement: Agreement }).agreement;
+    return agreementToRow(agreement);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to create agreement."));
+  }
+}
+
+export async function updateAgreementApi(
+  id: string,
+  data: Partial<AgreementBody>,
+): Promise<AgreementsRow> {
+  try {
+    const response = await apiConnector({
+      method: "PATCH",
+      url: UPDATE(id),
+      body: data,
+      credentials: true,
+    });
+    const agreement = (response.data as { agreement: Agreement }).agreement;
+    return agreementToRow(agreement);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to update agreement."));
+  }
+}
+
+export async function deleteAgreementApi(id: string): Promise<void> {
+  try {
+    await apiConnector({
+      method: "DELETE",
+      url: DELETE(id),
+      credentials: true,
+    });
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to delete agreement."));
   }
 }

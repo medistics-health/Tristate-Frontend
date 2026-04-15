@@ -1,4 +1,12 @@
-import { ChevronLeft, Circle, LayoutList, Plus, Trash2, X } from "lucide-react";
+import {
+  ChevronLeft,
+  Circle,
+  LayoutList,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import {
   flexRender,
@@ -10,11 +18,13 @@ import {
 } from "@tanstack/react-table";
 import AppLayout from "../layout/AppLayout";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
-import type { AuditRow } from "./types";
+import type { AuditRow, Audit } from "./types";
 import {
   createAuditApi,
   deleteAuditApi,
+  getAudit,
   getAuditsView,
+  updateAuditApi,
 } from "../../services/operations/audits";
 import { getAllPractices } from "../../services/operations/practices";
 import type { Practice } from "../practices/types";
@@ -70,6 +80,9 @@ function AuditListView({
   const [filters, setFilters] = useState({ search: "", type: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedAudit, setSelectedAudit] = useState<Audit | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [practicesLoading, setPracticesLoading] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([
@@ -77,6 +90,14 @@ function AuditListView({
   ]);
   const [formData, setFormData] = useState({
     practiceId: practiceId || "",
+    type: "COMPLIANCE" as string,
+    score: "",
+    findings: "",
+    recommendations: "",
+  });
+
+  const [editForm, setEditForm] = useState({
+    practiceId: "",
     type: "COMPLIANCE" as string,
     score: "",
     findings: "",
@@ -193,15 +214,48 @@ function AuditListView({
     }
   }, [showCreateForm, showFilterPanel]);
 
-  function handleRowClick(rowId: string) {
+  async function handleRowClick(rowId: string) {
     setSelectedRowId(rowId);
     setShowDetailPanel(true);
     setShowCreateForm(false);
+    setIsDetailLoading(true);
+
+    try {
+      const audit = await getAudit(rowId);
+      setSelectedAudit(audit);
+      setEditForm({
+        practiceId: audit.practiceId || "",
+        type: audit.type,
+        score: String(audit.score || ""),
+        findings:
+          typeof audit.findings === "object"
+            ? JSON.stringify(audit.findings)
+            : "",
+        recommendations:
+          typeof audit.recommendations === "object"
+            ? JSON.stringify(audit.recommendations)
+            : "",
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to fetch audit";
+      toast.error(message);
+    } finally {
+      setIsDetailLoading(false);
+    }
   }
 
   function closeDetailPanel() {
     setShowDetailPanel(false);
     setSelectedRowId(null);
+    setSelectedAudit(null);
+    setEditForm({
+      practiceId: "",
+      type: "COMPLIANCE",
+      score: "",
+      findings: "",
+      recommendations: "",
+    });
   }
 
   function openCreateForm() {
@@ -288,6 +342,64 @@ function AuditListView({
       toast.error(message);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleUpdateAudit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editForm.practiceId) {
+      toast.error("Practice is required");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      let parsedFindings: Record<string, unknown> = {};
+      let parsedRecommendations: Record<string, unknown> = {};
+
+      try {
+        if (editForm.findings.trim()) {
+          parsedFindings = JSON.parse(editForm.findings);
+        }
+      } catch {
+        parsedFindings = { raw: editForm.findings };
+      }
+
+      try {
+        if (editForm.recommendations.trim()) {
+          parsedRecommendations = JSON.parse(editForm.recommendations);
+        }
+      } catch {
+        parsedRecommendations = { raw: editForm.recommendations };
+      }
+
+      const auditData = {
+        practiceId: editForm.practiceId,
+        type: editForm.type as
+          | "COMPLIANCE"
+          | "SECURITY"
+          | "QUALITY"
+          | "FINANCIAL"
+          | "OPERATIONAL",
+        score: parseFloat(editForm.score) || undefined,
+        findings: parsedFindings,
+        recommendations: parsedRecommendations,
+      };
+
+      await updateAuditApi(selectedRowId!, auditData);
+      const data = await getAuditsView({
+        page: pagination.page,
+        limit: pagination.limit,
+      });
+      setRows(data.rows);
+      setPagination(data.pagination);
+      toast.success("Audit updated successfully");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update audit";
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -595,7 +707,7 @@ function AuditListView({
         </section>
 
         {showDetailPanel && selectedRow && (
-          <aside className="app-panel relative flex w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+          <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
               <button
                 type="button"
@@ -606,64 +718,133 @@ function AuditListView({
               </button>
               <Circle className="h-4 w-4 text-slate-300" />
               <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
-                {String(selectedRow.values.type)} Audit
+                {selectedAudit?.type || String(selectedRow.values.type)} Audit
               </span>
             </div>
 
-            <div className="flex-1 overflow-auto p-4">
-              <div className="space-y-3 text-[13px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Type</span>
-                  <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${typeColors[String(selectedRow.values.type)] || ""}`}
-                  >
-                    {String(selectedRow.values.type)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Score</span>
-                  <span className="text-slate-700">
-                    {String(selectedRow.values.score ?? "-")}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Practice</span>
-                  <span className="text-slate-700">
-                    {String(selectedRow.values.practiceName || "-")}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Created</span>
-                  <span className="text-slate-700">
-                    {String(selectedRow.values.creationDate)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Last Update</span>
-                  <span className="text-slate-700">
-                    {String(selectedRow.values.lastUpdate)}
-                  </span>
-                </div>
+            {isDetailLoading || !selectedAudit ? (
+              <div className="flex flex-1 items-center justify-center text-[13px] text-slate-400">
+                Loading audit...
               </div>
-            </div>
+            ) : (
+              <form
+                onSubmit={handleUpdateAudit}
+                className="flex flex-1 flex-col overflow-hidden"
+              >
+                <div className="flex-1 overflow-auto p-4">
+                  <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Practice</span>
+                      <span className="text-slate-700">
+                        {selectedAudit.practice?.name || "-"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Created</span>
+                      <span className="text-slate-700">
+                        {selectedAudit.createdAt
+                          ? new Date(selectedAudit.createdAt).toLocaleString()
+                          : "-"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Last Update</span>
+                      <span className="text-slate-700">
+                        {selectedAudit.updatedAt
+                          ? new Date(selectedAudit.updatedAt).toLocaleString()
+                          : "-"}
+                      </span>
+                    </div>
+                  </div>
 
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-              <button
-                type="button"
-                onClick={handleDeleteAudit}
-                disabled={isDeleting}
-                className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                {isDeleting ? "Deleting..." : "Delete"}
-              </button>
-              <button
-                type="button"
-                className="rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
-              >
-                Open
-              </button>
-            </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700 ">
+                        Type
+                      </label>
+                      <select
+                        value={editForm.type}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, type: e.target.value })
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      >
+                        {auditTypeOptions.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Score
+                      </label>
+                      <input
+                        type="number"
+                        value={editForm.score}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, score: e.target.value })
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Findings (JSON)
+                      </label>
+                      <textarea
+                        value={editForm.findings}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, findings: e.target.value })
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        placeholder='{"key": "value"}'
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Recommendations (JSON)
+                      </label>
+                      <textarea
+                        value={editForm.recommendations}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            recommendations: e.target.value,
+                          })
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        placeholder='{"key": "value"}'
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={handleDeleteAudit}
+                    disabled={isDeleting}
+                    className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            )}
           </aside>
         )}
 

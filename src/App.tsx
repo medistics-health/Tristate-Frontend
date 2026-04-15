@@ -10,7 +10,7 @@ import PendingApprovalPage from "./components/purchase-orders/PendingApprovalPag
 import PurchaseOrdersPage from "./components/purchase-orders/PurchaseOrdersPage";
 import PurchaseOrderStatusBoardPage from "./components/purchase-orders/PurchaseOrderStatusBoardPage";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
-import DashboardPage from "./components/dashoard/Dashboard";
+import CRMDashboardPage from "./components/dashoard/CRMDashboard";
 import AssessmentsPage from "./components/assessments/AllAssessments";
 import AllInvoiceLineItems from "./components/invoice-line-items/AllInvoiceLineItems";
 import AllLineItems from "./components/invoice-line-items/AllLineItems";
@@ -34,6 +34,7 @@ import OverdueInvoicePage from "./components/invoices/OverdueInvoices";
 import DealsPage from "./components/deal/Deals";
 import PersonsPage from "./components/contact/Persons";
 import AllCompaniesPage from "./components/companies/AllCompanies";
+import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 
 function App() {
   return (
@@ -108,10 +109,19 @@ function App() {
         path="/dashboard"
         element={
           <ProtectedRoute>
-            <DashboardPage />
+            <CRMDashboardPage />
           </ProtectedRoute>
         }
       />
+
+      {/*<Route
+        path="/dashboard/crm"
+        element={
+          <ProtectedRoute>
+            <CRMDashboardPage />
+          </ProtectedRoute>
+        }
+      />*/}
 
       <Route
         path="/agreements/all-agreements"
@@ -126,7 +136,7 @@ function App() {
         path="/agreements/pipeline"
         element={
           <ProtectedRoute>
-            <InvoiceStatusBoardPage />
+            <AgreementPipelinePage />
           </ProtectedRoute>
         }
       />

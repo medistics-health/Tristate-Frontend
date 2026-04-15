@@ -1,333 +1,821 @@
 import {
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getSortedRowModel,
-  type ColumnFiltersState,
-  type ColumnDef,
-  type VisibilityState,
-  type SortingState,
   useReactTable,
+  type ColumnDef,
+  type SortingState,
 } from "@tanstack/react-table";
-import { ChevronDown, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  ChevronLeft,
+  Circle,
+  LayoutList,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import AppLayout from "../../layout/AppLayout";
 import {
-  AvatarPill,
-  DetailSidePanel,
-  getStandardNavbarActions,
-  type DetailTabId,
-} from "../../shared/PageComponents";
-import type {
-  AgreementsCellValue,
-  AgreementsField,
-  AgreementsRow,
-  AgreementsUserValue,
-  AgreementsViewData,
-} from "../types";
+  createAgreementApi,
+  deleteAgreementApi,
+  getAgreement,
+  getAgreementsView,
+  updateAgreementApi,
+  type Agreement,
+  type AgreementBody,
+} from "../../../services/operations/agreements";
+import { getAllPractices } from "../../../services/operations/practices";
+import type { Practice } from "../../practices/types";
 
-type AgreementsTanstackContentProps = {
-  data: AgreementsViewData;
+const statusStyles: Record<string, string> = {
+  DRAFT: "bg-slate-100 text-slate-700",
+  ACTIVE: "bg-green-100 text-green-700",
+  PENDING_SIGNATURE: "bg-amber-100 text-amber-700",
+  SIGNED: "bg-blue-100 text-blue-700",
+  EXPIRED: "bg-red-100 text-red-700",
+  ARCHIVED: "bg-zinc-100 text-zinc-600",
 };
 
-function getFieldPrefix(type: AgreementsField["type"]) {
-  switch (type) {
-    case "text":
-      return "Abc";
-    case "date":
-      return "Cal";
-    case "user":
-      return "Usr";
-    case "relation":
-      return "Rel";
-    default:
-      return "123";
-  }
+const agreementStatusOptions = ["DRAFT", "ACTIVE", "EXPIRED", "TERMINATED"];
+
+const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
+
+type AgreementFormState = {
+  practiceId: string;
+  dealId: string;
+  type: string;
+  status: string;
+  value: string;
+  effectiveDate: string;
+  renewalDate: string;
+  terminationDate: string;
+};
+
+const initialFormState: AgreementFormState = {
+  practiceId: "",
+  dealId: "",
+  type: "MSA",
+  status: "DRAFT",
+  value: "",
+  effectiveDate: "",
+  renewalDate: "",
+  terminationDate: "",
+};
+
+function formatStatusLabel(status: string) {
+  return status.replace(/_/g, " ");
 }
 
-function isUserValue(value: AgreementsCellValue): value is AgreementsUserValue {
-  return Boolean(
-    value &&
-    typeof value === "object" &&
-    "name" in value &&
-    "initials" in value,
-  );
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString();
 }
 
-function getSortableValue(value: AgreementsCellValue) {
-  if (isUserValue(value)) {
-    return value.name;
-  }
-
-  if (value === null || value === undefined) {
-    return "";
-  }
-
-  return value;
+function formatDateForInput(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
 }
 
-function renderCellValue(field: AgreementsField, value: AgreementsCellValue) {
-  if (field.id === "name" && typeof value === "string") {
-    return (
-      <span className="inline-flex items-center rounded-md bg-[#f3f2f0] px-2.5 py-1 text-slate-500">
-        {value}
-      </span>
-    );
-  }
-
-  if (isUserValue(value)) {
-    return <AvatarPill name={value.name} />;
-  }
-
-  if (value === null || value === undefined || value === "") {
-    return <span className="text-slate-300">—</span>;
-  }
-
-  return String(value);
+function buildFormState(agreement?: Agreement | null): AgreementFormState {
+  if (!agreement) return initialFormState;
+  return {
+    practiceId: agreement.practiceId,
+    dealId: agreement.dealId || "",
+    type: agreement.type,
+    status: agreement.status,
+    value: String(agreement.value || ""),
+    effectiveDate: formatDateForInput(agreement.effectiveDate),
+    renewalDate: formatDateForInput(agreement.renewalDate),
+    terminationDate: formatDateForInput(agreement.terminationDate),
+  };
 }
 
-const agreementsViewMock: AgreementsViewData = {
-  viewId: "5b2b90da-f741-47fe-8672-df3ec8359c2a",
-  title: "All Agreements",
-  totalCount: 3,
-  fields: [
-    { id: "name", label: "Name", type: "text", visible: true },
-    {
-      id: "creationDate",
-      label: "Creation date",
-      type: "date",
-      visible: true,
-    },
-    {
-      id: "lastUpdate",
-      label: "Last update",
-      type: "date",
-      visible: true,
-    },
-    { id: "updatedBy", label: "Updated by", type: "user", visible: true },
-    { id: "createdBy", label: "Created by", type: "user", visible: true },
-    { id: "deletedAt", label: "Deleted at", type: "date", visible: false },
-    {
-      id: "effectiveDate",
-      label: "Effective Date",
-      type: "date",
-      visible: false,
-    },
-    { id: "id", label: "Id", type: "text", visible: false },
-    { id: "practice", label: "Practice", type: "relation", visible: false },
-    {
-      id: "renewalDate",
-      label: "Renewal Date",
-      type: "date",
-      visible: false,
-    },
-    { id: "status", label: "Status", type: "text", visible: false },
-    {
-      id: "terminationDate",
-      label: "Termination Date",
-      type: "date",
-      visible: false,
-    },
-    { id: "type", label: "Type", type: "text", visible: false },
-    { id: "value", label: "Value", type: "text", visible: false },
-  ],
-  rows: [
-    {
-      id: "agreement-1",
-      values: {
-        id: "AGR-001",
-        name: "TriState Radiology Services",
-        creationDate: "Mar 23, 2026 6:47 PM",
-        lastUpdate: "Apr 01, 2026 10:12 AM",
-        updatedBy: {
-          name: "Siddhi Gajjar",
-          initials: "SG",
-        },
-        createdBy: {
-          name: "Riya Shah",
-          initials: "RS",
-        },
-        deletedAt: null,
-        effectiveDate: "Apr 15, 2026",
-        practice: "TriState Imaging",
-        renewalDate: "Apr 15, 2027",
-        status: "Active",
-        terminationDate: "Apr 14, 2028",
-        type: "MSA",
-        value: "$128,000",
-      },
-    },
-    {
-      id: "agreement-2",
-      values: {
-        id: "AGR-002",
-        name: "Hudson Valley Teleradiology",
-        creationDate: "Feb 11, 2026 2:05 PM",
-        lastUpdate: "Mar 30, 2026 4:25 PM",
-        updatedBy: {
-          name: "Nikhil Patel",
-          initials: "NP",
-        },
-        createdBy: {
-          name: "Siddhi Gajjar",
-          initials: "SG",
-        },
-        deletedAt: null,
-        effectiveDate: "May 01, 2026",
-        practice: "Hudson Valley Partners",
-        renewalDate: "May 01, 2027",
-        status: "Pending Signature",
-        terminationDate: "Apr 30, 2028",
-        type: "NDA",
-        value: "$42,500",
-      },
-    },
-    {
-      id: "agreement-3",
-      values: {
-        id: "AGR-003",
-        name: "Empire Diagnostics Network",
-        creationDate: "Jan 19, 2026 9:18 AM",
-        lastUpdate: "Apr 05, 2026 1:40 PM",
-        updatedBy: {
-          name: "Aarav Mehta",
-          initials: "AM",
-        },
-        createdBy: {
-          name: "Nikhil Patel",
-          initials: "NP",
-        },
-        deletedAt: "Apr 06, 2026 9:00 AM",
-        effectiveDate: "Jan 20, 2026",
-        practice: "Empire Diagnostics",
-        renewalDate: "Jan 20, 2027",
-        status: "Archived",
-        terminationDate: "Jan 19, 2028",
-        type: "BAA",
-        value: "$76,900",
-      },
-    },
-  ],
+type AgreementRow = {
+  id: string;
+  values: Record<string, string | number | null>;
 };
 
 function AllAgreementsPage() {
-  const [data, setData] = useState<AgreementsViewData | null>(
-    agreementsViewMock,
-  );
-
-  const [rows, setRows] = useState(data.rows);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
-  const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [rows, setRows] = useState<AgreementRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<DetailTabId>("home");
-
-  const [fieldQuery, setFieldQuery] = useState("");
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
-    () =>
-      Object.fromEntries(data.fields.map((field) => [field.id, field.visible])),
+  const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(
+    null,
   );
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+  const [filters, setFilters] = useState({ search: "", status: "", type: "" });
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [practices, setPractices] = useState<Practice[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [createForm, setCreateForm] =
+    useState<AgreementFormState>(initialFormState);
+  const [editForm, setEditForm] =
+    useState<AgreementFormState>(initialFormState);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const selectedRow = useMemo(
-    () => rows.find((row) => row.id === selectedRowId) || null,
-    [rows, selectedRowId],
-  );
-
-  const columns = useMemo<ColumnDef<AgreementsRow>[]>(
+  const columns = useMemo<ColumnDef<AgreementRow>[]>(
     () => [
       {
-        id: "select",
-        header: () => (
-          <span className="flex h-4 w-4 rounded border border-[#bbb8b2]" />
-        ),
-        cell: () => (
-          <span className="flex h-4 w-4 rounded border border-[#bbb8b2]" />
-        ),
-        enableSorting: false,
-        enableColumnFilter: false,
-        size: 52,
+        id: "name",
+        accessorFn: (row: AgreementRow) => row.values.name,
+        header: () => "Name",
+        cell: ({ row }: { row: { original: AgreementRow } }) =>
+          String(row.original.values.name || "-"),
       },
-      ...data.fields.map((field) => ({
-        id: field.id,
-        accessorFn: (row: AgreementsRow) =>
-          getSortableValue(row.values[field.id]),
-        header: () => (
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">{getFieldPrefix(field.type)}</span>
-            <span>{field.label}</span>
-          </div>
-        ),
-        cell: ({ row }: { row: { original: AgreementsRow } }) => (
-          <button
-            type="button"
-            onClick={() => {
-              if (field.id === "name") {
-                setSelectedRowId(row.original.id);
-                setShowDetailPanel(true);
-                setIsFilterPanelOpen(false);
-              }
-            }}
-            className={field.id === "name" ? "hover:text-[#4f63ea]" : ""}
-          >
-            {renderCellValue(field, row.original.values[field.id])}
-          </button>
-        ),
-        size: field.id === "name" ? 280 : 220,
-      })),
+      {
+        id: "type",
+        accessorFn: (row: AgreementRow) => row.values.type,
+        header: () => "Type",
+        cell: ({ row }: { row: { original: AgreementRow } }) =>
+          String(row.original.values.type || "-"),
+      },
+      {
+        id: "status",
+        accessorFn: (row: AgreementRow) => row.values.status,
+        header: () => "Status",
+        cell: ({ row }: { row: { original: AgreementRow } }) => {
+          const status = String(row.original.values.status || "");
+          return (
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[status]}`}
+            >
+              {formatStatusLabel(status)}
+            </span>
+          );
+        },
+      },
+      {
+        id: "practiceName",
+        accessorFn: (row: AgreementRow) => row.values.practiceName,
+        header: () => "Practice",
+        cell: ({ row }: { row: { original: AgreementRow } }) =>
+          String(row.original.values.practiceName || "-"),
+      },
+      {
+        id: "value",
+        accessorFn: (row: AgreementRow) => row.values.value,
+        header: () => "Value",
+        cell: ({ row }: { row: { original: AgreementRow } }) =>
+          String(row.original.values.value || "-"),
+      },
+      {
+        id: "effectiveDate",
+        accessorFn: (row: AgreementRow) => row.values.effectiveDate,
+        header: () => "Effective Date",
+        cell: ({ row }: { row: { original: AgreementRow } }) =>
+          String(row.original.values.effectiveDate || "-"),
+      },
+      {
+        id: "creationDate",
+        accessorFn: (row: AgreementRow) => row.values.creationDate,
+        header: () => "Created",
+        cell: ({ row }: { row: { original: AgreementRow } }) =>
+          String(row.original.values.creationDate),
+      },
     ],
-    [data.fields],
+    [],
   );
 
   const table = useReactTable({
     data: rows,
     columns,
-    state: {
-      sorting,
-      columnVisibility,
-      columnFilters,
-    },
+    state: { sorting },
     onSortingChange: setSorting,
-    onColumnVisibilityChange: setColumnVisibility,
-    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const filteredVisibleFields = data.fields.filter(
-    (field) =>
-      columnVisibility[field.id] !== false &&
-      field.label.toLowerCase().includes(fieldQuery.trim().toLowerCase()),
-  );
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      async function loadData() {
+        try {
+          setIsLoading(true);
+          const params: Record<string, unknown> = {
+            page: pagination.page,
+            limit: pagination.limit,
+            search: filters.search || undefined,
+            status: filters.status || undefined,
+            type: filters.type || undefined,
+          };
+          if (sorting[0]?.id) {
+            params.sortBy = sorting[0].id;
+            params.sortOrder = sorting[0]?.desc ? "desc" : "asc";
+          }
 
-  const filteredHiddenFields = data.fields.filter(
-    (field) =>
-      columnVisibility[field.id] === false &&
-      field.label.toLowerCase().includes(fieldQuery.trim().toLowerCase()),
-  );
+          const data = await getAgreementsView(params as any);
+          setRows(data.rows);
+          setPagination(data.pagination);
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Failed to load agreements";
+          toast.error(message);
+        } finally {
+          setIsLoading(false);
+        }
+      }
 
-  function toggleFieldVisibility(fieldId: string) {
-    table.getColumn(fieldId)?.toggleVisibility();
+      if (filters.search.length > 2 || filters.search.length === 0) {
+        loadData();
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [pagination.page, pagination.limit, sorting, filters]);
+
+  useEffect(() => {
+    if ((showCreateForm || showDetailPanel) && practices.length === 0) {
+      setOptionsLoading(true);
+      getAllPractices()
+        .then((practiceList) => {
+          setPractices(practiceList);
+        })
+        .catch((err) => console.error("Failed to load practices:", err))
+        .finally(() => setOptionsLoading(false));
+    }
+  }, [showCreateForm, showDetailPanel, practices.length]);
+
+  async function handleRowClick(rowId: string) {
+    setSelectedRowId(rowId);
+    setShowDetailPanel(true);
+    setShowCreateForm(false);
+    setIsDetailLoading(true);
+
+    try {
+      const agreement = await getAgreement(rowId);
+      setSelectedAgreement(agreement);
+      setEditForm(buildFormState(agreement));
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to fetch agreement";
+      toast.error(message);
+    } finally {
+      setIsDetailLoading(false);
+    }
   }
 
-  function addRow() {
-    const nextId = `new-agreement-${rows.length + 1}`;
-    const newRow: AgreementsRow = {
-      id: nextId,
-      values: {
-        name: `New Agreement ${rows.length + 1}`,
-        status: "Draft",
-        type: "Master Service Agreement",
-        effective_date: "2026-04-09",
-        expiration_date: "2027-04-09",
-        practice: "TriState Imaging",
-      },
+  function closeDetailPanel() {
+    setShowDetailPanel(false);
+    setSelectedRowId(null);
+    setSelectedAgreement(null);
+    setEditForm(initialFormState);
+  }
+
+  function openCreateForm() {
+    setCreateForm(initialFormState);
+    setShowCreateForm(true);
+    setShowDetailPanel(false);
+    setSelectedRowId(null);
+    setSelectedAgreement(null);
+  }
+
+  function closeCreateForm() {
+    setShowCreateForm(false);
+    setCreateForm(initialFormState);
+  }
+
+  function buildPayload(form: AgreementFormState): AgreementBody {
+    return {
+      practiceId: form.practiceId,
+      dealId: form.dealId || null,
+      type: form.type,
+      status: form.status,
+      value: Number.parseFloat(form.value) || undefined,
+      ...(form.effectiveDate
+        ? { effectiveDate: new Date(form.effectiveDate).toISOString() }
+        : {}),
+      ...(form.renewalDate
+        ? { renewalDate: new Date(form.renewalDate).toISOString() }
+        : {}),
+      ...(form.terminationDate
+        ? { terminationDate: new Date(form.terminationDate).toISOString() }
+        : {}),
     };
-    setRows((current) => [newRow, ...current]);
-    setSelectedRowId(nextId);
-    setShowDetailPanel(true);
-    setIsFilterPanelOpen(false);
+  }
+
+  async function handleCreateAgreement(e: React.FormEvent) {
+    e.preventDefault();
+    if (!createForm.practiceId) {
+      toast.error("Practice is required");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createAgreementApi(buildPayload(createForm));
+      const data = await getAgreementsView({
+        page: pagination.page,
+        limit: pagination.limit,
+      });
+      setRows(data.rows);
+      setPagination(data.pagination);
+      closeCreateForm();
+      toast.success("Agreement created successfully");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create agreement";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleUpdateAgreement(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editForm.practiceId) {
+      toast.error("Practice is required");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateAgreementApi(selectedRowId!, buildPayload(editForm));
+      const data = await getAgreementsView({
+        page: pagination.page,
+        limit: pagination.limit,
+      });
+      setRows(data.rows);
+      setPagination(data.pagination);
+      toast.success("Agreement updated successfully");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update agreement";
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteAgreement() {
+    if (!selectedRowId) return;
+    if (!window.confirm("Are you sure you want to delete this agreement?")) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteAgreementApi(selectedRowId);
+      const data = await getAgreementsView({
+        page: pagination.page,
+        limit: pagination.limit,
+      });
+      setRows(data.rows);
+      setPagination(data.pagination);
+      closeDetailPanel();
+      toast.success("Agreement deleted successfully");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete agreement";
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  const navbarActions = [
+    {
+      label: "New record",
+      icon: <Plus className="h-4 w-4" />,
+      onClick: openCreateForm,
+    },
+  ];
+
+  const detailPanel = (
+    <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+      <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
+        <button
+          type="button"
+          onClick={closeDetailPanel}
+          className="text-slate-400 hover:text-slate-600"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <Circle className="h-4 w-4 text-slate-300" />
+        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
+          {selectedAgreement?.type || "Agreement"}
+        </span>
+      </div>
+
+      {isDetailLoading || !selectedAgreement ? (
+        <div className="flex flex-1 items-center justify-center text-[13px] text-slate-400">
+          Loading agreement...
+        </div>
+      ) : (
+        <form
+          onSubmit={handleUpdateAgreement}
+          className="flex flex-1 flex-col overflow-hidden"
+        >
+          <div className="flex-1 overflow-auto p-4">
+            <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Practice</span>
+                <span className="text-right text-slate-700">
+                  {selectedAgreement.practice?.name || "-"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Deal</span>
+                <span className="text-right text-slate-700">
+                  {selectedAgreement.deal?.name || "-"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Created</span>
+                <span className="text-right text-slate-700">
+                  {formatDateTime(selectedAgreement.createdAt)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Last Update</span>
+                <span className="text-right text-slate-700">
+                  {formatDateTime(selectedAgreement.updatedAt)}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/*<div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Practice <span className="text-red-500">*</span>
+                </label>
+                {optionsLoading ? (
+                  <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
+                    Loading...
+                  </div>
+                ) : (
+                  <select
+                    value={editForm.practiceId}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        practiceId: event.target.value,
+                        dealId: "",
+                      }))
+                    }
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    required
+                  >
+                    <option value="">Select Practice</option>
+                    {practices.map((practice) => (
+                      <option key={practice.id} value={practice.id}>
+                        {practice.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>*/}
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editForm.type}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      type: event.target.value,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  required
+                >
+                  {agreementTypeOptions.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Status <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editForm.status}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      status: event.target.value,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  required
+                >
+                  {agreementStatusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {formatStatusLabel(status)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Value
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editForm.value}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      value: event.target.value,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Effective Date
+                </label>
+                <input
+                  type="date"
+                  value={editForm.effectiveDate}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      effectiveDate: event.target.value,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Renewal Date
+                </label>
+                <input
+                  type="date"
+                  value={editForm.renewalDate}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      renewalDate: event.target.value,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Termination Date
+                </label>
+                <input
+                  type="date"
+                  value={editForm.terminationDate}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      terminationDate: event.target.value,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+            <button
+              type="button"
+              onClick={handleDeleteAgreement}
+              disabled={isDeleting}
+              className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      )}
+    </aside>
+  );
+
+  const createPanel = (
+    <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
+        <h2 className="text-[15px] font-semibold text-slate-700">
+          Create Agreement
+        </h2>
+        <button
+          type="button"
+          onClick={closeCreateForm}
+          className="text-slate-400 hover:text-slate-600"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <form
+        onSubmit={handleCreateAgreement}
+        className="flex-1 overflow-auto p-4"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Practice <span className="text-red-500">*</span>
+            </label>
+            {optionsLoading ? (
+              <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
+                Loading...
+              </div>
+            ) : (
+              <select
+                value={createForm.practiceId}
+                onChange={(event) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    practiceId: event.target.value,
+                    dealId: "",
+                  }))
+                }
+                className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                required
+              >
+                <option value="">Select Practice</option>
+                {practices.map((practice) => (
+                  <option key={practice.id} value={practice.id}>
+                    {practice.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={createForm.type}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  type: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+              required
+            >
+              {agreementTypeOptions.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Status <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={createForm.status}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  status: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+              required
+            >
+              {agreementStatusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {formatStatusLabel(status)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Value
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={createForm.value}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  value: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+              placeholder="0.00"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Effective Date
+            </label>
+            <input
+              type="date"
+              value={createForm.effectiveDate}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  effectiveDate: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Renewal Date
+            </label>
+            <input
+              type="date"
+              value={createForm.renewalDate}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  renewalDate: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Termination Date
+            </label>
+            <input
+              type="date"
+              value={createForm.terminationDate}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  terminationDate: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full rounded-md bg-[#4f63ea] py-2 text-[14px] font-medium text-white hover:bg-[#3d4ed1]"
+          >
+            {isSubmitting ? "Creating..." : "Create Agreement"}
+          </button>
+        </div>
+      </form>
+    </aside>
+  );
+
+  if (isLoading) {
+    return (
+      <AppLayout
+        title="Agreements"
+        activeModule="Agreements"
+        activeSubItem="All Agreements"
+        navbarActions={navbarActions}
+      >
+        <div className="flex h-full items-center justify-center">
+          <div className="text-slate-400">Loading agreements...</div>
+        </div>
+      </AppLayout>
+    );
   }
 
   return (
@@ -335,53 +823,31 @@ function AllAgreementsPage() {
       title="Agreements"
       activeModule="Agreements"
       activeSubItem="All Agreements"
-      navbarActions={getStandardNavbarActions(addRow)}
+      navbarActions={navbarActions}
     >
       <div className="flex h-full gap-2 font-app-sans">
-        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#ece8e1] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-          <div className="flex items-center border-b border-[#efebe4] px-4 py-3">
-            <div className="flex items-center gap-2 text-[15px] font-medium text-slate-700">
-              <svg
-                viewBox="0 0 20 20"
-                className="h-4 w-4 text-slate-500"
-                fill="none"
-              >
-                <path
-                  d="M4.5 5.5H15.5M4.5 10H15.5M4.5 14.5H15.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span>{data.title}</span>
-              <span className="text-slate-400">
-                . {table.getRowModel().rows.length}
-              </span>
-              <svg viewBox="0 0 20 20" className="h-4 w-4 text-slate-400">
-                <path
-                  d="M5 7.5L10 12.5L15 7.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
+        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e8e3db] bg-white">
+          <div className="flex items-center justify-between border-b border-[#eeebe5] px-4 py-2.5">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
+            >
+              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
+              <span>Agreements</span>
+              {/*<span className="text-slate-400">
+                .{table.getRowModel().rows.length}
+              </span>*/}
+            </button>
 
-            <div className="ml-auto flex items-center gap-6 text-[14px] text-slate-500">
+            <div className="flex items-center gap-6 text-[14px] text-slate-500">
               <button
-                className={`font-medium ${
-                  isFilterPanelOpen ? "text-slate-700" : "text-slate-500"
-                }`}
-                onClick={() => {
-                  setIsFilterPanelOpen((current) => !current);
-                  setShowDetailPanel(false);
-                }}
+                type="button"
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
               >
-                Filter
+                Filters
               </button>
               <button
+                type="button"
                 onClick={() =>
                   setSorting((current) =>
                     current[0]?.id === "creationDate"
@@ -392,17 +858,51 @@ function AllAgreementsPage() {
               >
                 Sort
               </button>
-              <button
-                onClick={() =>
-                  data.fields.forEach((field) => {
-                    table.getColumn(field.id)?.toggleVisibility(true);
-                  })
-                }
-              >
-                Reset
-              </button>
             </div>
           </div>
+
+          {showFilterPanel && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
+              <select
+                value={filters.status}
+                onChange={(e) => {
+                  setFilters((prev) => ({ ...prev, status: e.target.value }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              >
+                <option value="">All Statuses</option>
+                {agreementStatusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {formatStatusLabel(status)}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filters.type}
+                onChange={(e) => {
+                  setFilters((prev) => ({ ...prev, type: e.target.value }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              >
+                <option value="">All Types</option>
+                {agreementTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setFilters({ search: "", status: "", type: "" })}
+                className="text-[13px] text-[#4f63ea] hover:underline"
+                disabled={!filters.status && !filters.type}
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
 
           <div className="min-h-0 flex-1 overflow-auto">
             <table className="min-w-full border-separate border-spacing-0 text-left">
@@ -412,35 +912,18 @@ function AllAgreementsPage() {
                     {headerGroup.headers.map((header, index) => (
                       <th
                         key={header.id}
-                        className={`border-b border-[#efebe4] px-4 py-3 ${
+                        className={`border-b border-[#eeebe5] px-4 py-3 ${
                           index < headerGroup.headers.length - 1
                             ? "border-r border-[#f2eee8]"
                             : ""
-                        } ${index === 0 ? "w-[52px] text-center" : ""}`}
-                        style={{
-                          width: header.getSize()
-                            ? `${header.getSize()}px`
-                            : undefined,
-                        }}
+                        }`}
                       >
-                        {header.isPlaceholder ? null : (
-                          <button
-                            type="button"
-                            onClick={header.column.getToggleSortingHandler()}
-                            className={`w-full ${
-                              index === 0 ? "flex justify-center" : "text-left"
-                            } ${
-                              header.column.getCanSort()
-                                ? "cursor-pointer"
-                                : "cursor-default"
-                            }`}
-                          >
-                            {flexRender(
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
                               header.column.columnDef.header,
                               header.getContext(),
                             )}
-                          </button>
-                        )}
                       </th>
                     ))}
                   </tr>
@@ -459,15 +942,28 @@ function AllAgreementsPage() {
                     {row.getVisibleCells().map((cell, index) => (
                       <td
                         key={cell.id}
-                        className={`border-b border-[#f4f1ec] px-4 py-3 align-middle ${
+                        className={`border-b border-[#f4f1ec] px-4 py-3 ${
                           index < row.getVisibleCells().length - 1
                             ? "border-r border-[#f5f2ed]"
                             : ""
-                        } ${index === 0 ? "text-center" : ""}`}
+                        }`}
                       >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
+                        {cell.column.id === "name" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleRowClick(row.original.id)}
+                            className="hover:text-[#4f63ea]"
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </button>
+                        ) : (
+                          flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )
                         )}
                       </td>
                     ))}
@@ -475,146 +971,65 @@ function AllAgreementsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
 
-            <div className="border-b border-[#f4f1ec] px-4 py-3 text-[14px] text-slate-400">
-              {table.getRowModel().rows.length === 0 ? (
-                "No agreements match the current filters."
-              ) : (
+          {rows.length > 0 && (
+            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
+              <div className="flex items-center gap-2 text-[13px] text-slate-500">
+                <span>
+                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+                  {Math.min(
+                    pagination.page * pagination.limit,
+                    pagination.total,
+                  )}{" "}
+                  of {pagination.total}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={addRow}
-                  className="inline-flex items-center gap-2"
+                  disabled={pagination.page === 1}
+                  onClick={() =>
+                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
+                  }
+                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
                 >
-                  <Plus className="h-4 w-4" />
-                  Add New
+                  Previous
                 </button>
-              )}
+                {Array.from(
+                  { length: pagination.totalPages },
+                  (_, i) => i + 1,
+                ).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
+                    className={`rounded px-2 py-1 text-[13px] ${
+                      pagination.page === page
+                        ? "bg-[#4f63ea] text-white"
+                        : "text-slate-500 hover:bg-[#f0ece6]"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={pagination.page === pagination.totalPages}
+                  onClick={() =>
+                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
+                  }
+                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  Next
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {isFilterPanelOpen ? (
-          <aside className="w-[348px] border border-[#efebe4] bg-[#fcfbf9] shadow-[-8px_0_24px_rgba(15,23,42,0.06)] rounded-2xl overflow-hidden">
-            <div className="flex items-center gap-3 border-b border-[#efebe4] px-4 py-3">
-              <button
-                className="text-xl leading-none text-slate-400"
-                onClick={() => setIsFilterPanelOpen(false)}
-              >
-                ×
-              </button>
-              <h2 className="text-[15px] font-medium text-slate-700">Filter</h2>
-            </div>
-
-            <div className="h-[calc(100%-53px)] overflow-y-auto">
-              <div className="border-b border-[#efebe4] px-4 py-3">
-                <input
-                  type="text"
-                  value={fieldQuery}
-                  onChange={(event) => setFieldQuery(event.target.value)}
-                  placeholder="Search fields"
-                  className="w-full bg-transparent text-[14px] text-slate-500 outline-none placeholder:text-slate-300"
-                />
-              </div>
-
-              <div className="border-b border-[#efebe4] px-4 py-3">
-                <input
-                  type="text"
-                  value={
-                    (table.getColumn("name")?.getFilterValue() as string) ?? ""
-                  }
-                  onChange={(event) =>
-                    table.getColumn("name")?.setFilterValue(event.target.value)
-                  }
-                  placeholder="Filter agreements by name"
-                  className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-2 text-[14px] text-slate-500 outline-none placeholder:text-slate-300"
-                />
-              </div>
-
-              <div className="px-4 py-3">
-                <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.03em] text-slate-300">
-                  Visible fields
-                </p>
-                <div className="space-y-1">
-                  {filteredVisibleFields.map((field) => (
-                    <button
-                      key={field.id}
-                      type="button"
-                      onClick={() => toggleFieldVisibility(field.id)}
-                      className="flex w-full items-center gap-3 rounded-md px-1 py-2 text-left text-[14px] text-slate-600"
-                    >
-                      <span className="text-[11px] text-slate-400">
-                        {getFieldPrefix(field.type)}
-                      </span>
-                      {field.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-[#efebe4] bg-[#f7f5f1] px-4 py-2">
-                <p className="text-[11px] font-medium uppercase tracking-[0.03em] text-slate-300">
-                  Hidden fields
-                </p>
-              </div>
-
-              <div className="px-4 py-3">
-                <div className="space-y-1">
-                  {filteredHiddenFields.map((field) => (
-                    <button
-                      key={field.id}
-                      type="button"
-                      onClick={() => toggleFieldVisibility(field.id)}
-                      className="flex w-full items-center gap-3 rounded-md px-1 py-2 text-left text-[14px] text-slate-500"
-                    >
-                      <span className="text-[11px] text-slate-400">
-                        {getFieldPrefix(field.type)}
-                      </span>
-                      {field.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </aside>
-        ) : null}
-
-        {showDetailPanel && selectedRow && (
-          <DetailSidePanel
-            isOpen={showDetailPanel}
-            onClose={() => setShowDetailPanel(false)}
-            title={String(selectedRow.values.name || "")}
-            onTitleChange={(newTitle) => {
-              setRows((current) =>
-                current.map((row) =>
-                  row.id === selectedRow.id
-                    ? { ...row, values: { ...row.values, name: newTitle } }
-                    : row,
-                ),
-              );
-            }}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onDelete={() => {
-              setRows((current) =>
-                current.filter((r) => r.id !== selectedRow.id),
-              );
-              setShowDetailPanel(false);
-            }}
-            metadata={data.fields
-              .filter((f) => f.id !== "name")
-              .map((field) => ({
-                label: (
-                  <>
-                    <span className="text-[11px]">
-                      {getFieldPrefix(field.type)}
-                    </span>
-                    <span>{field.label}</span>
-                  </>
-                ),
-                value: renderCellValue(field, selectedRow.values[field.id]),
-              }))}
-          />
-        )}
+        {showDetailPanel && detailPanel}
+        {showCreateForm && createPanel}
       </div>
     </AppLayout>
   );

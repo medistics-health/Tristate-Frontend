@@ -30,7 +30,21 @@ const sidebarSections: SidebarSection[] = [
 
     items: [
       { label: "Dashboards", to: "/dashboard" },
-
+      {
+        label: "Deal",
+        icon: <Backpack className="h-3 w-3" />,
+        to: "/deal/all-deals",
+      },
+      {
+        label: "Person",
+        icon: <User className="h-3 w-3" />,
+        to: "/person/all-persons",
+      },
+      {
+        label: "Company",
+        icon: <Building2 className="h-3 w-3" />,
+        to: "/company/all-companies",
+      },
       // { label: "Survey results" },
     ],
     menus: [
@@ -124,25 +138,25 @@ const sidebarSections: SidebarSection[] = [
       },
     ],
   },
-  {
-    items: [
-      {
-        label: "Deal",
-        icon: <Backpack className="h-3 w-3" />,
-        to: "/deal/all-deals",
-      },
-      {
-        label: "Person",
-        icon: <User className="h-3 w-3" />,
-        to: "/person/all-persons",
-      },
-      {
-        label: "Company",
-        icon: <Building2 className="h-3 w-3" />,
-        to: "/company/all-companies",
-      },
-    ],
-  },
+  // {
+  //   items: [
+  //     {
+  //       label: "Deal",
+  //       icon: <Backpack className="h-3 w-3" />,
+  //       to: "/deal/all-deals",
+  //     },
+  //     {
+  //       label: "Person",
+  //       icon: <User className="h-3 w-3" />,
+  //       to: "/person/all-persons",
+  //     },
+  //     {
+  //       label: "Company",
+  //       icon: <Building2 className="h-3 w-3" />,
+  //       to: "/company/all-companies",
+  //     },
+  //   ],
+  // },
 ];
 
 function SidebarIcon({ children }: { children: ReactNode }) {

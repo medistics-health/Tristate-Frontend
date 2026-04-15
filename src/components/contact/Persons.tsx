@@ -23,6 +23,7 @@ import {
   UserCircle,
   Shield,
   Star,
+  Trash2,
 } from "lucide-react";
 import type { PersonBody } from "../../components/contact/types";
 import { useEffect, useMemo, useState } from "react";
@@ -516,140 +517,122 @@ export default function PersonsPage() {
     setSorting(nextView.sort);
   }
 
-  const renderDetailView = () => {
-    if (!selectedRow) return null;
-    const values = selectedRow.values;
+  // const renderDetailView = () => {
+  //   if (!selectedRow) return null;
+  //   const values = selectedRow.values;
 
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[13px] font-medium text-slate-700">
-            Person Details
-          </h3>
-          <button
-            type="button"
-            onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1]"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            {isEditing ? "Cancel" : "Edit"}
-          </button>
-        </div>
+  //   return (
+  //     <div className="space-y-4">
+  //       <div className="flex items-center justify-between">
+  //         <h3 className="text-[13px] font-medium text-slate-700">
+  //           Person Details
+  //         </h3>
+  //         <button
+  //           type="button"
+  //           onClick={() => setIsEditing(!isEditing)}
+  //           className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1]"
+  //         >
+  //           <Pencil className="h-3.5 w-3.5" />
+  //           {isEditing ? "Cancel" : "Edit"}
+  //         </button>
+  //       </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Name:</span>
-            <span className="font-medium text-slate-700">
-              {String(values.firstName || "")} {String(values.lastName || "")}
-            </span>
-          </div>
+  //       <div className="space-y-3">
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Name:</span>
+  //           <span className="font-medium text-slate-700">
+  //             {String(values.firstName || "")} {String(values.lastName || "")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Role:</span>
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                String(values.role) === "OWNER"
-                  ? "bg-purple-100 text-purple-700"
-                  : String(values.role) === "ADMIN"
-                    ? "bg-blue-100 text-blue-700"
-                    : String(values.role) === "FINANCE"
-                      ? "bg-green-100 text-green-700"
-                      : String(values.role) === "OPERATIONS"
-                        ? "bg-orange-100 text-orange-700"
-                        : String(values.role) === "CLINICAL"
-                          ? "bg-cyan-100 text-cyan-700"
-                          : String(values.role) === "PROCUREMENT"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-700"
-              }`}
-            >
-              {String(values.role || "-")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Role:</span>
+  //           <span
+  //             className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+  //               String(values.role) === "OWNER"
+  //                 ? "bg-purple-100 text-purple-700"
+  //                 : String(values.role) === "ADMIN"
+  //                   ? "bg-blue-100 text-blue-700"
+  //                   : String(values.role) === "FINANCE"
+  //                     ? "bg-green-100 text-green-700"
+  //                     : String(values.role) === "OPERATIONS"
+  //                       ? "bg-orange-100 text-orange-700"
+  //                       : String(values.role) === "CLINICAL"
+  //                         ? "bg-cyan-100 text-cyan-700"
+  //                         : String(values.role) === "PROCUREMENT"
+  //                           ? "bg-yellow-100 text-yellow-700"
+  //                           : "bg-gray-100 text-gray-700"
+  //             }`}
+  //           >
+  //             {String(values.role || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Influence:</span>
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                String(values.influence) === "LOW"
-                  ? "bg-gray-100 text-gray-700"
-                  : String(values.influence) === "MEDIUM"
-                    ? "bg-blue-100 text-blue-700"
-                    : String(values.influence) === "HIGH"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-purple-100 text-purple-700"
-              }`}
-            >
-              {String(values.influence || "-").replace("_", " ")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Influence:</span>
+  //           <span
+  //             className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+  //               String(values.influence) === "LOW"
+  //                 ? "bg-gray-100 text-gray-700"
+  //                 : String(values.influence) === "MEDIUM"
+  //                   ? "bg-blue-100 text-blue-700"
+  //                   : String(values.influence) === "HIGH"
+  //                     ? "bg-green-100 text-green-700"
+  //                     : "bg-purple-100 text-purple-700"
+  //             }`}
+  //           >
+  //             {String(values.influence || "-").replace("_", " ")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Email:</span>
-            {values.email ? (
-              <a
-                href={`mailto:${values.email}`}
-                className="text-[#4f63ea] hover:underline"
-              >
-                {String(values.email)}
-              </a>
-            ) : (
-              <span className="text-slate-700">-</span>
-            )}
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Email:</span>
+  //           {values.email ? (
+  //             <a
+  //               href={`mailto:${values.email}`}
+  //               className="text-[#4f63ea] hover:underline"
+  //             >
+  //               {String(values.email)}
+  //             </a>
+  //           ) : (
+  //             <span className="text-slate-700">-</span>
+  //           )}
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Phone:</span>
-            <span className="text-slate-700">
-              {String(values.phone || "-")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Phone:</span>
+  //           <span className="text-slate-700">
+  //             {String(values.phone || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Practice:</span>
-            <span className="text-slate-700">
-              {String(values.practiceName || "-")}
-            </span>
-          </div>
-        </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Practice:</span>
+  //           <span className="text-slate-700">
+  //             {String(values.practiceName || "-")}
+  //           </span>
+  //         </div>
+  //       </div>
 
-        <div className="border-t border-[#f0ece6] pt-4">
-          <button
-            type="button"
-            onClick={handleDeletePerson}
-            disabled={isDeleting}
-            className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
-          >
-            {isDeleting ? "Deleting..." : "Delete Person"}
-          </button>
-        </div>
-      </div>
-    );
-  };
+  //       <div className="border-t border-[#f0ece6] pt-4">
+  //         <button
+  //           type="button"
+  //           onClick={handleDeletePerson}
+  //           disabled={isDeleting}
+  //           className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
+  //         >
+  //           {isDeleting ? "Deleting..." : "Delete Person"}
+  //         </button>
+  //       </div>
+  //     </div>
+  //   );
+  // };
 
   const renderDetailEditForm = () => {
     if (!selectedRow) return null;
 
     return (
       <form onSubmit={handleUpdatePerson} className="space-y-4">
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setIsEditing(false)}
-            className="text-[13px] text-slate-500 hover:text-slate-700"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="flex items-center gap-1 text-[13px] font-medium text-[#4f63ea] hover:text-[#3d4ed1] disabled:opacity-50"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {isSubmitting ? "Saving..." : "Save"}
-          </button>
-        </div>
-
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
@@ -735,6 +718,25 @@ export default function PersonsPage() {
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
+        </div>
+        <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+          <button
+            type="button"
+            onClick={handleDeletePerson}
+            disabled={isDeleting}
+            className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+            {isDeleting ? "Deleting..." : "Delete"}
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" />
+            {isSubmitting ? "Saving..." : "Save Changes"}
+          </button>
         </div>
       </form>
     );
@@ -1078,7 +1080,8 @@ export default function PersonsPage() {
             </div>
 
             <div className="flex-1 overflow-auto p-4">
-              {isEditing ? renderDetailEditForm() : renderDetailView()}
+              {/*{isEditing ? renderDetailEditForm() : renderDetailView()}*/}
+              {renderDetailEditForm()}
             </div>
           </aside>
         )}

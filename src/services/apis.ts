@@ -87,3 +87,12 @@ export const agreementEndpoints = {
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
 };
+
+export const assessmentEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/assessments",
+  LIST: BACKEND_URL + "/api/v1/assessments",
+  CREATE: BACKEND_URL + "/api/v1/assessments",
+  GET: (id: string) => BACKEND_URL + `/api/v1/assessments/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/assessments/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/assessments/${id}`,
+};

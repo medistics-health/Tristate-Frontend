@@ -6,15 +6,25 @@ import {
   type SortingState,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { ChevronLeft, Circle, LayoutList, Plus, Trash2, X } from "lucide-react";
+import {
+  ChevronLeft,
+  Circle,
+  LayoutList,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import AppLayout from "../layout/AppLayout";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
-import type { ServiceRow } from "./types";
+import type { ServiceRow, Service } from "./types";
 import {
   createServiceApi,
   deleteServiceApi,
+  getService,
   getServicesView,
+  updateServiceApi,
   type ServiceQueryParams,
 } from "../../services/operations/services";
 import toast from "react-hot-toast";
@@ -39,8 +49,18 @@ function AllServicesPage() {
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
 
   const [formData, setFormData] = useState({
+    name: "",
+    clientRate: "",
+    vendorRate: "",
+    margin: "",
+  });
+
+  const [editForm, setEditForm] = useState({
     name: "",
     clientRate: "",
     vendorRate: "",
@@ -143,15 +163,35 @@ function AllServicesPage() {
   //   setPagination((prev) => ({ ...prev, page: 1 }));
   // }, [filters, sorting]);
 
-  function handleRowClick(rowId: string) {
+  async function handleRowClick(rowId: string) {
     setSelectedRowId(rowId);
     setShowDetailPanel(true);
     setShowCreateForm(false);
+    setIsDetailLoading(true);
+
+    try {
+      const service = await getService(rowId);
+      setSelectedService(service);
+      setEditForm({
+        name: service.name,
+        clientRate: String(service.clientRate),
+        vendorRate: String(service.vendorRate),
+        margin: String(service.margin),
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to fetch service";
+      toast.error(message);
+    } finally {
+      setIsDetailLoading(false);
+    }
   }
 
   function closeDetailPanel() {
     setShowDetailPanel(false);
     setSelectedRowId(null);
+    setSelectedService(null);
+    setEditForm({ name: "", clientRate: "", vendorRate: "", margin: "" });
   }
 
   function openCreateForm() {
@@ -214,7 +254,6 @@ function AllServicesPage() {
         limit: pagination.limit,
       });
       setRows(data.rows);
-      setPagination(data.pagination);
       closeDetailPanel();
       toast.success("Service deleted successfully");
     } catch (err) {
@@ -223,6 +262,39 @@ function AllServicesPage() {
       toast.error(message);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleUpdateService(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editForm.name.trim()) {
+      toast.error("Service name is required");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const serviceData = {
+        name: editForm.name.trim(),
+        clientRate: parseFloat(editForm.clientRate) || 0,
+        vendorRate: parseFloat(editForm.vendorRate) || 0,
+        margin: parseFloat(editForm.margin) || 0,
+      };
+
+      await updateServiceApi(selectedRowId!, serviceData);
+      const data = await getServicesView({
+        page: pagination.page,
+        limit: pagination.limit,
+      });
+      setRows(data.rows);
+      setPagination(data.pagination);
+      toast.success("Service updated successfully");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update service";
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -468,7 +540,7 @@ function AllServicesPage() {
         </section>
 
         {showDetailPanel && selectedRow && (
-          <aside className="app-panel relative flex w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+          <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
               <button
                 type="button"
@@ -479,62 +551,127 @@ function AllServicesPage() {
               </button>
               <Circle className="h-4 w-4 text-slate-300" />
               <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
-                {String(selectedRow.values.name)}
+                {selectedService?.name || String(selectedRow.values.name)}
               </span>
             </div>
 
-            <div className="flex-1 overflow-auto p-4">
-              <div className="space-y-3 text-[13px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Name</span>
-                  <span className="text-slate-700">
-                    {String(selectedRow.values.name)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Client Rate</span>
-                  <span className="text-slate-700">
-                    {String(selectedRow.values.clientRate)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Vendor Rate</span>
-                  <span className="text-slate-700">
-                    {String(selectedRow.values.vendorRate)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Margin (%)</span>
-                  <span className="text-slate-700">
-                    {String(selectedRow.values.margin)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Created</span>
-                  <span className="text-slate-700">
-                    {String(selectedRow.values.creationDate)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Last Update</span>
-                  <span className="text-slate-700">
-                    {String(selectedRow.values.lastUpdate)}
-                  </span>
-                </div>
+            {isDetailLoading || !selectedService ? (
+              <div className="flex flex-1 items-center justify-center text-[13px] text-slate-400">
+                Loading service...
               </div>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-              <button
-                type="button"
-                onClick={handleDeleteService}
-                disabled={isDeleting}
-                className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
+            ) : (
+              <form
+                onSubmit={handleUpdateService}
+                className="flex flex-1 flex-col overflow-hidden"
               >
-                <Trash2 className="h-4 w-4" />
-                {isDeleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
+                <div className="flex-1 overflow-auto p-4">
+                  <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Created</span>
+                      <span className="text-slate-700">
+                        {selectedService.createdAt
+                          ? new Date(selectedService.createdAt).toLocaleString()
+                          : "-"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Last Update</span>
+                      <span className="text-slate-700">
+                        {selectedService.updatedAt
+                          ? new Date(selectedService.updatedAt).toLocaleString()
+                          : "-"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, name: e.target.value })
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Client Rate
+                      </label>
+                      <input
+                        type="number"
+                        value={editForm.clientRate}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            clientRate: e.target.value,
+                          })
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Vendor Rate
+                      </label>
+                      <input
+                        type="number"
+                        value={editForm.vendorRate}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            vendorRate: e.target.value,
+                          })
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Margin (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={editForm.margin}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, margin: e.target.value })
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={handleDeleteService}
+                    disabled={isDeleting}
+                    className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    // className="flex items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
+                    className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            )}
           </aside>
         )}
 

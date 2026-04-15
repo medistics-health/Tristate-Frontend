@@ -26,6 +26,7 @@ import {
   X,
   Pencil,
   Save,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
@@ -517,185 +518,167 @@ export default function AllCompaniesPage() {
     setSorting(nextView.sort);
   }
 
-  const renderDetailView = () => {
-    if (!selectedRow) return null;
-    const values = selectedRow.values;
+  // const renderDetailView = () => {
+  //   if (!selectedRow) return null;
+  //   const values = selectedRow.values;
 
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[13px] font-medium text-slate-700">
-            Company Details
-          </h3>
-          <button
-            type="button"
-            onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1]"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            {isEditing ? "Cancel" : "Edit"}
-          </button>
-        </div>
+  //   return (
+  //     <div className="space-y-4">
+  //       <div className="flex items-center justify-between">
+  //         <h3 className="text-[13px] font-medium text-slate-700">
+  //           Company Details
+  //         </h3>
+  //         <button
+  //           type="button"
+  //           onClick={() => setIsEditing(!isEditing)}
+  //           className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1]"
+  //         >
+  //           <Pencil className="h-3.5 w-3.5" />
+  //           {isEditing ? "Cancel" : "Edit"}
+  //         </button>
+  //       </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Name:</span>
-            <span className="font-medium text-slate-700">
-              {String(values.name || "-")}
-            </span>
-          </div>
+  //       <div className="space-y-3">
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Name:</span>
+  //           <span className="font-medium text-slate-700">
+  //             {String(values.name || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Status:</span>
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                String(values.status) === "ACTIVE"
-                  ? "bg-green-100 text-green-700"
-                  : String(values.status) === "PROSPECT"
-                    ? "bg-blue-100 text-blue-700"
-                    : String(values.status) === "LEAD"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-gray-100 text-gray-700"
-              }`}
-            >
-              {String(values.status || "-")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Status:</span>
+  //           <span
+  //             className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+  //               String(values.status) === "ACTIVE"
+  //                 ? "bg-green-100 text-green-700"
+  //                 : String(values.status) === "PROSPECT"
+  //                   ? "bg-blue-100 text-blue-700"
+  //                   : String(values.status) === "LEAD"
+  //                     ? "bg-yellow-100 text-yellow-700"
+  //                     : "bg-gray-100 text-gray-700"
+  //             }`}
+  //           >
+  //             {String(values.status || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Domain:</span>
-            <span className="text-slate-700">
-              {String(values.domain || "-")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Domain:</span>
+  //           <span className="text-slate-700">
+  //             {String(values.domain || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Industry:</span>
-            <span className="text-slate-700">
-              {String(values.industry || "-")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Industry:</span>
+  //           <span className="text-slate-700">
+  //             {String(values.industry || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Size:</span>
-            <span className="text-slate-700">
-              {Number(values.size || 0).toLocaleString()}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Size:</span>
+  //           <span className="text-slate-700">
+  //             {Number(values.size || 0).toLocaleString()}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Revenue:</span>
-            <span className="text-slate-700">
-              ${Number(values.revenue || 0).toLocaleString()}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Revenue:</span>
+  //           <span className="text-slate-700">
+  //             ${Number(values.revenue || 0).toLocaleString()}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Email:</span>
-            <span className="text-slate-700">
-              {String(values.email || "-")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Email:</span>
+  //           <span className="text-slate-700">
+  //             {String(values.email || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Phone:</span>
-            <span className="text-slate-700">
-              {String(values.phone || "-")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Phone:</span>
+  //           <span className="text-slate-700">
+  //             {String(values.phone || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Website:</span>
-            {values.website ? (
-              <a
-                href={String(values.website)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#4f63ea] hover:underline"
-              >
-                {String(values.website)}
-              </a>
-            ) : (
-              <span className="text-slate-700">-</span>
-            )}
-          </div>
-        </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Website:</span>
+  //           {values.website ? (
+  //             <a
+  //               href={String(values.website)}
+  //               target="_blank"
+  //               rel="noopener noreferrer"
+  //               className="text-[#4f63ea] hover:underline"
+  //             >
+  //               {String(values.website)}
+  //             </a>
+  //           ) : (
+  //             <span className="text-slate-700">-</span>
+  //           )}
+  //         </div>
+  //       </div>
 
-        <div className="border-t border-[#f0ece6] pt-4">
-          <h4 className="mb-3 text-[13px] font-medium text-slate-700">
-            Address
-          </h4>
-          <div className="space-y-2 text-[13px]">
-            <div className="flex items-center gap-2">
-              <span className="w-24 text-slate-400">Street:</span>
-              <span className="text-slate-700">
-                {String(values.street || "-")}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-24 text-slate-400">City:</span>
-              <span className="text-slate-700">
-                {String(values.city || "-")}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-24 text-slate-400">State:</span>
-              <span className="text-slate-700">
-                {String(values.state || "-")}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-24 text-slate-400">ZIP:</span>
-              <span className="text-slate-700">
-                {String(values.zip || "-")}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-24 text-slate-400">Country:</span>
-              <span className="text-slate-700">
-                {String(values.country || "-")}
-              </span>
-            </div>
-          </div>
-        </div>
+  //       <div className="border-t border-[#f0ece6] pt-4">
+  //         <h4 className="mb-3 text-[13px] font-medium text-slate-700">
+  //           Address
+  //         </h4>
+  //         <div className="space-y-2 text-[13px]">
+  //           <div className="flex items-center gap-2">
+  //             <span className="w-24 text-slate-400">Street:</span>
+  //             <span className="text-slate-700">
+  //               {String(values.street || "-")}
+  //             </span>
+  //           </div>
+  //           <div className="flex items-center gap-2">
+  //             <span className="w-24 text-slate-400">City:</span>
+  //             <span className="text-slate-700">
+  //               {String(values.city || "-")}
+  //             </span>
+  //           </div>
+  //           <div className="flex items-center gap-2">
+  //             <span className="w-24 text-slate-400">State:</span>
+  //             <span className="text-slate-700">
+  //               {String(values.state || "-")}
+  //             </span>
+  //           </div>
+  //           <div className="flex items-center gap-2">
+  //             <span className="w-24 text-slate-400">ZIP:</span>
+  //             <span className="text-slate-700">
+  //               {String(values.zip || "-")}
+  //             </span>
+  //           </div>
+  //           <div className="flex items-center gap-2">
+  //             <span className="w-24 text-slate-400">Country:</span>
+  //             <span className="text-slate-700">
+  //               {String(values.country || "-")}
+  //             </span>
+  //           </div>
+  //         </div>
+  //       </div>
 
-        <div className="border-t border-[#f0ece6] pt-4">
-          <button
-            type="button"
-            onClick={handleDeleteCompany}
-            disabled={isDeleting}
-            className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
-          >
-            {isDeleting ? "Deleting..." : "Delete Company"}
-          </button>
-        </div>
-      </div>
-    );
-  };
+  //       <div className="border-t border-[#f0ece6] pt-4">
+  //         <button
+  //           type="button"
+  //           onClick={handleDeleteCompany}
+  //           disabled={isDeleting}
+  //           className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
+  //         >
+  //           {isDeleting ? "Deleting..." : "Delete Company"}
+  //         </button>
+  //       </div>
+  //     </div>
+  //   );
+  // };
 
   const renderDetailEditForm = () => {
     if (!selectedRow) return null;
 
     return (
       <form onSubmit={handleUpdateCompany} className="space-y-4">
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setIsEditing(false)}
-            className="text-[13px] text-slate-500 hover:text-slate-700"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="flex items-center gap-1 text-[13px] font-medium text-[#4f63ea] hover:text-[#3d4ed1] disabled:opacity-50"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {isSubmitting ? "Saving..." : "Save"}
-          </button>
-        </div>
-
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
             Company Name <span className="text-red-500">*</span>
@@ -877,6 +860,25 @@ export default function AllCompaniesPage() {
               </div>
             </div>
           </div>
+        </div>
+        <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+          <button
+            type="button"
+            onClick={handleDeleteCompany}
+            disabled={isDeleting}
+            className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+            {isDeleting ? "Deleting..." : "Delete"}
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" />
+            {isSubmitting ? "Saving..." : "Save Changes"}
+          </button>
         </div>
       </form>
     );
@@ -1173,7 +1175,8 @@ export default function AllCompaniesPage() {
             </div>
 
             <div className="flex-1 overflow-auto p-4">
-              {isEditing ? renderDetailEditForm() : renderDetailView()}
+              {/*{isEditing ? renderDetailEditForm() : renderDetailView()}*/}
+              {renderDetailEditForm()}
             </div>
           </aside>
         )}
@@ -1416,7 +1419,6 @@ export default function AllCompaniesPage() {
                   </div>
                 </div>
               </div>
-
               <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">
                 <button
                   type="button"

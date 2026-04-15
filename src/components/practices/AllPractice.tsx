@@ -23,6 +23,7 @@ import {
   Save,
   Users,
   Backpack,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
@@ -358,8 +359,16 @@ export default function AllPracticePage() {
     setFormData(initialFormData);
   }
 
-  function handleRowClick(rowId: string) {
+  async function handleRowClick(rowId: string) {
     setSelectedRowId(rowId);
+    try {
+      const companyList = await getAllCompanies();
+      setCompanies(companyList);
+    } catch (err) {
+      console.error("Failed to load companies:", err);
+    } finally {
+      setCompaniesLoading(false);
+    }
     setShowDetailPanel(true);
     setShowCreateForm(false);
   }
@@ -588,129 +597,111 @@ export default function AllPracticePage() {
     return metadata;
   };
 
-  const renderDetailView = () => {
-    if (!selectedRow) return null;
-    const values = selectedRow.values;
+  // const renderDetailView = () => {
+  //   if (!selectedRow) return null;
+  //   const values = selectedRow.values;
 
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[13px] font-medium text-slate-700">
-            Practice Details
-          </h3>
-          <button
-            type="button"
-            onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1]"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            {isEditing ? "Cancel" : "Edit"}
-          </button>
-        </div>
+  //   return (
+  //     <div className="space-y-4">
+  //       <div className="flex items-center justify-between">
+  //         <h3 className="text-[13px] font-medium text-slate-700">
+  //           Practice Details
+  //         </h3>
+  //         <button
+  //           type="button"
+  //           onClick={() => setIsEditing(!isEditing)}
+  //           className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1]"
+  //         >
+  //           <Pencil className="h-3.5 w-3.5" />
+  //           {isEditing ? "Cancel" : "Edit"}
+  //         </button>
+  //       </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Name:</span>
-            <span className="font-medium text-slate-700">
-              {String(values.name || "-")}
-            </span>
-          </div>
+  //       <div className="space-y-3">
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Name:</span>
+  //           <span className="font-medium text-slate-700">
+  //             {String(values.name || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Status:</span>
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                String(values.status) === "ACTIVE"
-                  ? "bg-green-100 text-green-700"
-                  : String(values.status) === "LEAD"
-                    ? "bg-yellow-100 text-yellow-700"
-                    : String(values.status) === "INACTIVE"
-                      ? "bg-gray-100 text-gray-700"
-                      : "bg-red-100 text-red-700"
-              }`}
-            >
-              {String(values.status || "-")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Status:</span>
+  //           <span
+  //             className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+  //               String(values.status) === "ACTIVE"
+  //                 ? "bg-green-100 text-green-700"
+  //                 : String(values.status) === "LEAD"
+  //                   ? "bg-yellow-100 text-yellow-700"
+  //                   : String(values.status) === "INACTIVE"
+  //                     ? "bg-gray-100 text-gray-700"
+  //                     : "bg-red-100 text-red-700"
+  //             }`}
+  //           >
+  //             {String(values.status || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Region:</span>
-            <span className="text-slate-700">
-              {String(values.region || "-")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Region:</span>
+  //           <span className="text-slate-700">
+  //             {String(values.region || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Source:</span>
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                String(values.source) === "DIRECT"
-                  ? "bg-blue-100 text-blue-700"
-                  : String(values.source) === "REFERRAL"
-                    ? "bg-purple-100 text-purple-700"
-                    : String(values.source) === "CHANNEL_PARTNER"
-                      ? "bg-orange-100 text-orange-700"
-                      : String(values.source) === "OUTBOUND"
-                        ? "bg-cyan-100 text-cyan-700"
-                        : "bg-pink-100 text-pink-700"
-              }`}
-            >
-              {String(values.source || "-").replace("_", " ")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Source:</span>
+  //           <span
+  //             className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+  //               String(values.source) === "DIRECT"
+  //                 ? "bg-blue-100 text-blue-700"
+  //                 : String(values.source) === "REFERRAL"
+  //                   ? "bg-purple-100 text-purple-700"
+  //                   : String(values.source) === "CHANNEL_PARTNER"
+  //                     ? "bg-orange-100 text-orange-700"
+  //                     : String(values.source) === "OUTBOUND"
+  //                       ? "bg-cyan-100 text-cyan-700"
+  //                       : "bg-pink-100 text-pink-700"
+  //             }`}
+  //           >
+  //             {String(values.source || "-").replace("_", " ")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Bucket:</span>
-            <span className="text-slate-700">
-              {String(values.bucket || "-")}
-            </span>
-          </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Bucket:</span>
+  //           <span className="text-slate-700">
+  //             {String(values.bucket || "-")}
+  //           </span>
+  //         </div>
 
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-24 text-slate-400">Company:</span>
-            <span className="text-slate-700">
-              {String(values.companyName || "-")}
-            </span>
-          </div>
-        </div>
+  //         <div className="flex items-center gap-2 text-[13px]">
+  //           <span className="w-24 text-slate-400">Company:</span>
+  //           <span className="text-slate-700">
+  //             {String(values.companyName || "-")}
+  //           </span>
+  //         </div>
+  //       </div>
 
-        <div className="border-t border-[#f0ece6] pt-4">
-          <button
-            type="button"
-            onClick={handleDeletePractice}
-            disabled={isDeleting}
-            className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
-          >
-            {isDeleting ? "Deleting..." : "Delete Practice"}
-          </button>
-        </div>
-      </div>
-    );
-  };
+  //       <div className="border-t border-[#f0ece6] pt-4">
+  //         <button
+  //           type="button"
+  //           onClick={handleDeletePractice}
+  //           disabled={isDeleting}
+  //           className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
+  //         >
+  //           {isDeleting ? "Deleting..." : "Delete Practice"}
+  //         </button>
+  //       </div>
+  //     </div>
+  //   );
+  // };
 
   const renderDetailEditForm = () => {
     if (!selectedRow) return null;
 
     return (
       <form onSubmit={handleUpdatePractice} className="space-y-4">
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setIsEditing(false)}
-            className="text-[13px] text-slate-500 hover:text-slate-700"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="flex items-center gap-1 text-[13px] font-medium text-[#4f63ea] hover:text-[#3d4ed1] disabled:opacity-50"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {isSubmitting ? "Saving..." : "Save"}
-          </button>
-        </div>
-
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
             Practice Name <span className="text-red-500">*</span>
@@ -807,6 +798,26 @@ export default function AllPracticePage() {
               ))}
             </select>
           )}
+        </div>
+
+        <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+          <button
+            type="button"
+            onClick={handleDeletePractice}
+            disabled={isDeleting}
+            className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+            {isDeleting ? "Deleting..." : "Delete"}
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" />
+            {isSubmitting ? "Saving..." : "Save Changes"}
+          </button>
         </div>
       </form>
     );
@@ -1145,7 +1156,8 @@ export default function AllPracticePage() {
             </div>
 
             <div className="flex-1 overflow-auto p-4">
-              {isEditing ? renderDetailEditForm() : renderDetailView()}
+              {/*{isEditing ? renderDetailEditForm() : renderDetailView()}*/}
+              {renderDetailEditForm()}
             </div>
           </aside>
         )}
