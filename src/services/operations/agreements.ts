@@ -2,7 +2,16 @@ import axios from "axios";
 import { apiConnector } from "../apiConnector";
 import { agreementEndpoints } from "../apis";
 
-const { LIST, CREATE, GET, UPDATE, DELETE } = agreementEndpoints;
+const {
+  LIST,
+  CREATE,
+  GET,
+  UPDATE,
+  DELETE,
+  GET_DOCUSEAL_TEMPLATES,
+  SEND_AGREEMENT_EMAIL,
+  CREATE_DOCUSEAL_SUBMISSION,
+} = agreementEndpoints;
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError(error)) {
@@ -65,6 +74,9 @@ export type Agreement = {
   effectiveDate?: string | null;
   renewalDate?: string | null;
   terminationDate?: string | null;
+  docusealId?: number | null;
+  docusealUrl?: string | null;
+  docusealStatus?: string | null;
   createdAt: string;
   updatedAt: string;
   practice?: { id: string; name: string };
@@ -80,14 +92,44 @@ const fields = [
   { id: "name", label: "Name", type: "text" as const, visible: true },
   { id: "type", label: "Type", type: "text" as const, visible: true },
   { id: "status", label: "Status", type: "text" as const, visible: true },
-  { id: "practiceName", label: "Practice", type: "text" as const, visible: true },
+  {
+    id: "practiceName",
+    label: "Practice",
+    type: "text" as const,
+    visible: true,
+  },
   { id: "dealName", label: "Deal", type: "text" as const, visible: false },
   { id: "value", label: "Value", type: "text" as const, visible: false },
-  { id: "effectiveDate", label: "Effective Date", type: "date" as const, visible: false },
-  { id: "renewalDate", label: "Renewal Date", type: "date" as const, visible: false },
-  { id: "terminationDate", label: "Termination Date", type: "date" as const, visible: false },
-  { id: "creationDate", label: "Created", type: "date" as const, visible: true },
-  { id: "lastUpdate", label: "Last Update", type: "date" as const, visible: true },
+  {
+    id: "effectiveDate",
+    label: "Effective Date",
+    type: "date" as const,
+    visible: false,
+  },
+  {
+    id: "renewalDate",
+    label: "Renewal Date",
+    type: "date" as const,
+    visible: false,
+  },
+  {
+    id: "terminationDate",
+    label: "Termination Date",
+    type: "date" as const,
+    visible: false,
+  },
+  {
+    id: "creationDate",
+    label: "Created",
+    type: "date" as const,
+    visible: true,
+  },
+  {
+    id: "lastUpdate",
+    label: "Last Update",
+    type: "date" as const,
+    visible: true,
+  },
 ];
 
 export type AgreementQueryParams = {
@@ -116,7 +158,9 @@ export type AgreementsViewData = {
   };
 };
 
-export async function getAgreementsView(params?: AgreementQueryParams): Promise<AgreementsViewData> {
+export async function getAgreementsView(
+  params?: AgreementQueryParams,
+): Promise<AgreementsViewData> {
   try {
     const queryString = new URLSearchParams();
     if (params?.page) queryString.set("page", String(params.page));
@@ -129,7 +173,9 @@ export async function getAgreementsView(params?: AgreementQueryParams): Promise<
     if (params?.sortBy) queryString.set("sortBy", params.sortBy);
     if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 
-    const url = queryString.toString() ? `${LIST}?${queryString.toString()}` : LIST;
+    const url = queryString.toString()
+      ? `${LIST}?${queryString.toString()}`
+      : LIST;
 
     const response = await apiConnector({
       method: "GET",
@@ -139,7 +185,12 @@ export async function getAgreementsView(params?: AgreementQueryParams): Promise<
 
     const { agreements, pagination } = response.data as {
       agreements: Agreement[];
-      pagination: { totalRecords: number; totalPages: number; currentPage: number; limit: number };
+      pagination: {
+        totalRecords: number;
+        totalPages: number;
+        currentPage: number;
+        limit: number;
+      };
     };
 
     return {
@@ -204,9 +255,17 @@ export type AgreementBody = {
   effectiveDate?: string;
   renewalDate?: string;
   terminationDate?: string;
+  docusealSubmissions?: Array<{
+    externalId: number;
+    status: string;
+    url?: string;
+    templateId?: number;
+  }>;
 };
 
-export async function createAgreementApi(data: AgreementBody): Promise<AgreementsRow> {
+export async function createAgreementApi(
+  data: AgreementBody,
+): Promise<AgreementsRow> {
   try {
     const response = await apiConnector({
       method: "POST",
@@ -248,5 +307,165 @@ export async function deleteAgreementApi(id: string): Promise<void> {
     });
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to delete agreement."));
+  }
+}
+
+export type DocusealTemplate = {
+  id: number;
+  archived_at: string | null;
+  fields: Array<{
+    uuid: string;
+    required: boolean;
+    preferences: Record<string, unknown>;
+    areas: Array<{
+      page: number;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      attachment_uuid: string;
+      cell_w?: number;
+    }>;
+    name: string;
+    type: string;
+    submitter_uuid: string;
+    default_value?: boolean;
+  }>;
+  name: string;
+  preferences: Record<string, unknown>;
+  schema: Array<{
+    attachment_uuid: string;
+    name: string;
+    pending_fields: boolean;
+  }>;
+  slug: string;
+  source: string;
+  submitters: Array<{
+    name: string;
+    uuid: string;
+  }>;
+  created_at: string;
+  updated_at: string;
+  author_id: number;
+  external_id: string | null;
+  folder_id: number;
+  shared_link: boolean;
+  application_key: string | null;
+  folder_name: string;
+  author: {
+    id: number;
+    email: string;
+    first_name: string;
+    last_name: string;
+  };
+  documents: Array<{
+    id: number;
+    uuid: string;
+    url: string;
+    preview_image_url: string;
+    filename: string;
+  }>;
+};
+
+export type DocusealTemplatesResponse = {
+  message: string;
+  templates: {
+    data: DocusealTemplate[];
+    pagination: {
+      count: number;
+      next: number | null;
+      prev: number | null;
+    };
+  };
+};
+
+export async function getDocusealTemplates(): Promise<DocusealTemplatesResponse> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: GET_DOCUSEAL_TEMPLATES,
+      credentials: true,
+    });
+    return response.data as DocusealTemplatesResponse;
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to fetch Docuseal templates."),
+    );
+  }
+}
+
+export type SendAgreementEmailBody = {
+  agreementId: string;
+  personId: string;
+  subject?: string;
+  message?: string;
+};
+
+export async function sendAgreementEmail(
+  data: SendAgreementEmailBody,
+): Promise<void> {
+  try {
+    await apiConnector({
+      method: "POST",
+      url: SEND_AGREEMENT_EMAIL,
+      body: data,
+      credentials: true,
+    });
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to send agreement email."));
+  }
+}
+
+export type CreateDocusealSubmissionBody = {
+  agreementId: string;
+  personId: string;
+  templateId: number;
+};
+
+export type DocusealSubmissionResponse = {
+  message: string;
+  submission: {
+    id: number;
+    status: string;
+    submitters?: Array<{
+      url: string;
+    }>;
+  };
+};
+
+export async function createDocusealSubmission(
+  data: CreateDocusealSubmissionBody,
+): Promise<DocusealSubmissionResponse> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: CREATE_DOCUSEAL_SUBMISSION,
+      body: data,
+      credentials: true,
+    });
+    return response.data as DocusealSubmissionResponse;
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to create Docuseal submission."),
+    );
+  }
+}
+
+export async function getAgreementsByPractice(
+  practiceId: string,
+): Promise<Agreement[]> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: LIST,
+      params: { practiceId },
+      credentials: true,
+    });
+    const { agreements } = response.data as { agreements: Agreement[] };
+    return agreements;
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to fetch agreements for practice."),
+    );
   }
 }

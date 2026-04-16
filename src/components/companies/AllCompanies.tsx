@@ -752,8 +752,8 @@ export default function AllCompaniesPage() {
             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
           >
             <option value="LEAD">Lead</option>
-            <option value="PROSPECT">Prospect</option>
-            <option value="ACTIVE">Active</option>
+            <option value="CUSTOMER">Customer</option>
+            <option value="PARTNER">Partner</option>
             <option value="INACTIVE">Inactive</option>
           </select>
         </div>
@@ -1285,8 +1285,8 @@ export default function AllCompaniesPage() {
                     className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                   >
                     <option value="LEAD">Lead</option>
-                    <option value="PROSPECT">Prospect</option>
-                    <option value="ACTIVE">Active</option>
+                    <option value="CUSTOMER">Customer</option>
+                    <option value="PARTNER">Partner</option>
                     <option value="INACTIVE">Inactive</option>
                   </select>
                 </div>

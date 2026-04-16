@@ -8,7 +8,6 @@ import {
 } from "@tanstack/react-table";
 import {
   CalendarDays,
-  ChevronDown,
   FileText,
   LayoutGrid,
   SlidersHorizontal,
@@ -19,7 +18,6 @@ import {
   MapPin,
   Tag,
   X,
-  Pencil,
   Save,
   Users,
   Backpack,
@@ -39,10 +37,15 @@ import {
   createPracticeApi,
   deletePracticeApi,
   getPracticesView,
+  getPractice,
   updatePracticeApi,
   type PracticeQueryParams,
 } from "../../services/operations/practices";
 import { getAllCompanies } from "../../services/operations/companies";
+import {
+  getAgreementsByPractice,
+  sendAgreementEmail,
+} from "../../services/operations/agreements";
 import type { Company } from "../companies/types";
 import toast from "react-hot-toast";
 
@@ -188,6 +191,7 @@ export default function AllPracticePage() {
   useEffect(() => {
     if (selectedRow && !showCreateForm) {
       const values = selectedRow.values;
+
       setFormData({
         name: String(values.name || ""),
         status: String(values.status || "LEAD"),
@@ -196,6 +200,7 @@ export default function AllPracticePage() {
         bucket: String(values.bucket || ""),
         companyId: String(values.companyId || ""),
       });
+
       setIsEditing(false);
     }
   }, [selectedRow, showCreateForm]);
@@ -442,6 +447,50 @@ export default function AllPracticePage() {
       setPagination(data.pagination);
       closeCreateForm();
       toast.success("Practice created successfully");
+
+      if (practiceData.status === "ACTIVE") {
+        const newPractice = data.rows.find(
+          (row) => row.values.name === practiceData.name,
+        );
+        if (newPractice) {
+          const fullPractice = await getPractice(newPractice.id);
+          const hasAdminWithEmail = fullPractice.persons?.some(
+            (person) => person.role === "ADMIN" && person.email,
+          );
+
+          if (!hasAdminWithEmail) {
+            toast.error(
+              "Practice must have at least one ADMIN person with email to set status to ACTIVE",
+            );
+            return;
+          }
+
+          const agreements = await getAgreementsByPractice(newPractice.id);
+          if (agreements.length > 0) {
+            await sendAgreementEmail({
+              agreementId: agreements[0].id,
+              personId: newPractice.id,
+            });
+            toast.success("Agreement email sent successfully");
+          }
+        }
+      }
+
+      if (practiceData.status === "ACTIVE") {
+        const newPractice = data.rows.find(
+          (row) => row.values.name === practiceData.name,
+        );
+        if (newPractice) {
+          const agreements = await getAgreementsByPractice(newPractice.id);
+          if (agreements.length > 0) {
+            await sendAgreementEmail({
+              agreementId: agreements[0].id,
+              personId: newPractice.id,
+            });
+            toast.success("Agreement email sent successfully");
+          }
+        }
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to create practice";
@@ -456,6 +505,29 @@ export default function AllPracticePage() {
     if (!selectedRow || !formData.name.trim()) {
       toast.error("Practice name is required");
       return;
+    }
+
+    const wasActive = String(selectedRow.values.status) === "ACTIVE";
+    const willBecomeActive = formData.status === "ACTIVE" && !wasActive;
+
+    const fullPractice = await getPractice(selectedRow.id);
+    if (willBecomeActive) {
+      const hasAdminWithEmail = fullPractice.persons?.some(
+        (person) => person.role === "ADMIN" && person.email,
+      );
+
+      if (!hasAdminWithEmail) {
+        toast.error(
+          "Practice must have at least one ADMIN person with email to set status to ACTIVE",
+        );
+        return;
+      }
+
+      const agreements = await getAgreementsByPractice(selectedRow.id);
+      if (agreements.length === 0) {
+        toast.error("This practice has no agreement, please create agreement");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -489,6 +561,21 @@ export default function AllPracticePage() {
       setPagination(data.pagination);
       setIsEditing(false);
       toast.success("Practice updated successfully");
+
+      if (willBecomeActive) {
+        const agreements = await getAgreementsByPractice(selectedRow.id);
+        const person = fullPractice.persons?.find(
+          (person) => person.role === "ADMIN" && person.email,
+        );
+
+        if (agreements.length > 0) {
+          await sendAgreementEmail({
+            agreementId: agreements[0].id,
+            personId: person?.id ?? "",
+          });
+          toast.success("Agreement email sent successfully");
+        }
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to update practice";
@@ -726,7 +813,11 @@ export default function AllPracticePage() {
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             >
               {statusOptions.map((status) => (
-                <option key={status} value={status}>
+                <option
+                  key={status}
+                  value={status}
+                  // disabled={status === "ACTIVE"}
+                >
                   {status}
                 </option>
               ))}
@@ -1209,8 +1300,14 @@ export default function AllPracticePage() {
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     >
                       {statusOptions.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
+                        <option
+                          key={status}
+                          value={status}
+                          disabled={status === "ACTIVE"}
+                        >
+                          {status === "ACTIVE"
+                            ? `${status} (Add person with email & agreement first)`
+                            : status}
                         </option>
                       ))}
                     </select>

@@ -11,6 +11,20 @@ export type PracticeBody = {
   companyId?: string;
 };
 
+export type Person = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  role: string;
+};
+
+export type Agreement = {
+  id: string;
+  type: string;
+  status: string;
+};
+
 export type Practice = {
   id: string;
   name: string;
@@ -23,7 +37,9 @@ export type Practice = {
   createdAt: string;
   updatedAt: string;
   company?: { id: string; name: string };
-  _count?: { persons: number; deals: number };
+  persons?: Person[];
+  agreements?: Agreement[];
+  _count?: { persons: number; deals: number; agreements: number };
 };
 
 export type PracticeFieldType = "text" | "select" | "array";

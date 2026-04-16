@@ -86,6 +86,9 @@ export const agreementEndpoints = {
   GET: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
+  GET_DOCUSEAL_TEMPLATES: BACKEND_URL + "/api/v1/agreements/docuseal/templates",
+  SEND_AGREEMENT_EMAIL: BACKEND_URL + "/api/v1/agreements/send-email",
+  CREATE_DOCUSEAL_SUBMISSION: BACKEND_URL + "/api/v1/agreements/docuseal/submission",
 };
 
 export const assessmentEndpoints = {

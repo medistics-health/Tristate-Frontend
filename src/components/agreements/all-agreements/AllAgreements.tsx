@@ -14,6 +14,7 @@ import {
   Save,
   Trash2,
   X,
+  ExternalLink,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -24,8 +25,10 @@ import {
   getAgreement,
   getAgreementsView,
   updateAgreementApi,
+  getDocusealTemplates,
   type Agreement,
   type AgreementBody,
+  type DocusealTemplate,
 } from "../../../services/operations/agreements";
 import { getAllPractices } from "../../../services/operations/practices";
 import type { Practice } from "../../practices/types";
@@ -52,6 +55,8 @@ type AgreementFormState = {
   effectiveDate: string;
   renewalDate: string;
   terminationDate: string;
+  // docusealTemplates: string[];
+  docusealTemplates: any[];
 };
 
 const initialFormState: AgreementFormState = {
@@ -63,6 +68,7 @@ const initialFormState: AgreementFormState = {
   effectiveDate: "",
   renewalDate: "",
   terminationDate: "",
+  docusealTemplates: [],
 };
 
 function formatStatusLabel(status: string) {
@@ -94,6 +100,7 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
     effectiveDate: formatDateForInput(agreement.effectiveDate),
     renewalDate: formatDateForInput(agreement.renewalDate),
     terminationDate: formatDateForInput(agreement.terminationDate),
+    docusealTemplates: agreement?.docusealSubmissions,
   };
 }
 
@@ -130,7 +137,12 @@ function AllAgreementsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [docusealTemplates, setDocusealTemplates] = useState<
+    DocusealTemplate[]
+  >([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
+  console.log(editForm);
   const columns = useMemo<ColumnDef<AgreementRow>[]>(
     () => [
       {
@@ -307,6 +319,21 @@ function AllAgreementsPage() {
       ...(form.terminationDate
         ? { terminationDate: new Date(form.terminationDate).toISOString() }
         : {}),
+      ...(form.docusealTemplates.length > 0
+        ? {
+            docusealSubmissions: form.docusealTemplates.map((id: string) => {
+              const template = docusealTemplates.find(
+                (t) => t.id === Number(id),
+              );
+              return {
+                externalId: Number(id),
+                status: "PENDING",
+                templateId: Number(id),
+                url: template?.documents?.[0]?.url || undefined,
+              };
+            }),
+          }
+        : {}),
     };
   }
 
@@ -346,7 +373,11 @@ function AllAgreementsPage() {
 
     setIsSaving(true);
     try {
-      await updateAgreementApi(selectedRowId!, buildPayload(editForm));
+      const { docusealTemplates, ...updateData } = editForm;
+      await updateAgreementApi(
+        selectedRowId!,
+        buildPayload(updateData as AgreementFormState),
+      );
       const data = await getAgreementsView({
         page: pagination.page,
         limit: pagination.limit,
@@ -386,6 +417,21 @@ function AllAgreementsPage() {
       toast.error(message);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function loadDocusealTemplates() {
+    if (docusealTemplates.length > 0) return;
+    setTemplatesLoading(true);
+    try {
+      const response = await getDocusealTemplates();
+      setDocusealTemplates(response.templates.data);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to fetch templates";
+      toast.error(message);
+    } finally {
+      setTemplatesLoading(false);
     }
   }
 
@@ -597,6 +643,31 @@ function AllAgreementsPage() {
                   className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                 />
               </div>
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Agreement Templates
+                </label>
+
+                {editForm?.docusealTemplates?.length ? (
+                  editForm.docusealTemplates.map((init: any, index: number) => (
+                    <a
+                      key={index}
+                      href={init.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1] hover:underline"
+                    >
+                      Open Template
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  ))
+                ) : (
+                  <span className="text-[13px] text-slate-400">
+                    No template attached
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -655,13 +726,13 @@ function AllAgreementsPage() {
             ) : (
               <select
                 value={createForm.practiceId}
-                onChange={(event) =>
+                onChange={(event) => {
                   setCreateForm((prev) => ({
                     ...prev,
                     practiceId: event.target.value,
                     dealId: "",
-                  }))
-                }
+                  }));
+                }}
                 className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                 required
               >
@@ -789,6 +860,57 @@ function AllAgreementsPage() {
               }
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Agreement Templates
+            </label>
+            {templatesLoading ? (
+              <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
+                Loading...
+              </div>
+            ) : (
+              <div
+                onClick={() => loadDocusealTemplates()}
+                className="app-control rounded-md px-3 py-2 text-[13px] max-h-[150px] overflow-y-auto"
+              >
+                {docusealTemplates.length === 0 ? (
+                  <span className="text-slate-400">
+                    Click to load templates
+                  </span>
+                ) : (
+                  <div className="space-y-2">
+                    {docusealTemplates.map((template) => (
+                      <label
+                        key={template.id}
+                        className="flex cursor-pointer items-center gap-2"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={createForm.docusealTemplates.includes(
+                            String(template.id),
+                          )}
+                          onChange={(e) => {
+                            const templateId = String(template.id);
+                            setCreateForm((prev) => ({
+                              ...prev,
+                              docusealTemplates: e.target.checked
+                                ? [...prev.docusealTemplates, templateId]
+                                : prev.docusealTemplates.filter(
+                                    (id: string) => id !== templateId,
+                                  ),
+                            }));
+                          }}
+                          className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea]"
+                        />
+                        <span className="text-slate-700">{template.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <button
