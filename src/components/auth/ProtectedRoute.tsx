@@ -9,9 +9,11 @@ function ProtectedRoute({ children }: { children: JSX.Element }) {
 
   async function authenticateMe() {
     try {
-      const response = await authMe();
-      if (response === 200) {
+      const response: any = await authMe();
+
+      if (response.id) {
         setIsAuth(true);
+        localStorage.setItem("user", response.name);
       }
     } catch (_) {
     } finally {

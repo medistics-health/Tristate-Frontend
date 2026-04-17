@@ -42,6 +42,7 @@ import {
   createCompanyApi,
   deleteCompanyApi,
   getCompaniesView,
+  getCompany,
   updateCompanyApi,
   type CompanyQueryParams,
 } from "../../services/operations/companies";
@@ -63,6 +64,13 @@ function getCellDisplayValue(value: CompanyCellValue): string {
   return String(value);
 }
 
+type TaxIdFormData = {
+  id?: string;
+  taxIdNumber: string;
+  legalEntityName: string;
+  notes: string;
+};
+
 type CompanyFormData = {
   name: string;
   domain: string;
@@ -78,6 +86,7 @@ type CompanyFormData = {
   state: string;
   zip: string;
   country: string;
+  taxIds: TaxIdFormData[];
 };
 
 const initialFormData: CompanyFormData = {
@@ -95,6 +104,7 @@ const initialFormData: CompanyFormData = {
   state: "",
   zip: "",
   country: "",
+  taxIds: [{ taxIdNumber: "", legalEntityName: "", notes: "" }],
 };
 
 export default function AllCompaniesPage() {
@@ -180,29 +190,6 @@ export default function AllCompaniesPage() {
   //   setPagination((prev) => ({ ...prev, page: 1 }));
   // }, [filters]);
 
-  useEffect(() => {
-    if (selectedRow && !showCreateForm) {
-      const values = selectedRow.values;
-      setFormData({
-        name: String(values.name || ""),
-        domain: String(values.domain || ""),
-        industry: String(values.industry || ""),
-        size: String(values.size || ""),
-        revenue: String(values.revenue || ""),
-        phone: String(values.phone || ""),
-        email: String(values.email || ""),
-        website: String(values.website || ""),
-        status: String(values.status || "LEAD"),
-        street: String(values.street || ""),
-        city: String(values.city || ""),
-        state: String(values.state || ""),
-        zip: String(values.zip || ""),
-        country: String(values.country || ""),
-      });
-      setIsEditing(false);
-    }
-  }, [selectedRow, showCreateForm]);
-
   const visibleFields = useMemo(() => {
     if (!viewData) return [];
     return viewData.fields.filter((f) => columnVisibility[f.id] !== false);
@@ -261,8 +248,8 @@ export default function AllCompaniesPage() {
           lastUpdate: (
             <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
           ),
-          updatedBy: <UserCircle2 className="h-3.5 w-3.5 text-slate-400" />,
-          createdBy: <Circle className="h-3.5 w-3.5 text-slate-400" />,
+          // updatedBy: <UserCircle2 className="h-3.5 w-3.5 text-slate-400" />,
+          // createdBy: <Circle className="h-3.5 w-3.5 text-slate-400" />,
           practicesCount: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
         };
 
@@ -285,9 +272,9 @@ export default function AllCompaniesPage() {
             }
             if (field.id === "status") {
               const statusColors: Record<string, string> = {
-                ACTIVE: "bg-green-100 text-green-700",
-                PROSPECT: "bg-blue-100 text-blue-700",
                 LEAD: "bg-yellow-100 text-yellow-700",
+                CUSTOMER: "bg-green-100 text-green-700",
+                PARTNER: "bg-blue-100 text-blue-700",
                 INACTIVE: "bg-gray-100 text-gray-700",
               };
               return (
@@ -301,7 +288,9 @@ export default function AllCompaniesPage() {
             if (
               field.id === "size" ||
               field.id === "revenue" ||
-              field.id === "practicesCount"
+              field.id === "practicesCount" ||
+              field.id === "practiceGroupsCount" ||
+              field.id === "taxIdsCount"
             ) {
               const numValue = Number(value);
               if (field.id === "revenue") {
@@ -360,10 +349,45 @@ export default function AllCompaniesPage() {
     setFormData(initialFormData);
   }
 
-  function handleRowClick(rowId: string) {
+  async function handleRowClick(rowId: string) {
     setSelectedRowId(rowId);
     setShowDetailPanel(true);
     setShowCreateForm(false);
+
+    const row = rows.find((r) => r.id === rowId);
+    if (row) {
+      try {
+        const fullCompany = await getCompany(rowId);
+        const values = row.values;
+        setFormData({
+          name: String(values.name || ""),
+          domain: String(values.domain || ""),
+          industry: String(values.industry || ""),
+          size: String(values.size || ""),
+          revenue: String(values.revenue || ""),
+          phone: String(values.phone || ""),
+          email: String(values.email || ""),
+          website: String(values.website || ""),
+          status: String(values.status || "LEAD"),
+          street: String(values.street || ""),
+          city: String(values.city || ""),
+          state: String(values.state || ""),
+          zip: String(values.zip || ""),
+          country: String(values.country || ""),
+          taxIds:
+            fullCompany.taxIds && fullCompany.taxIds.length > 0
+              ? fullCompany.taxIds.map((t) => ({
+                  id: t.id,
+                  taxIdNumber: t.taxIdNumber,
+                  legalEntityName: t.legalEntityName,
+                  notes: t.notes || "",
+                }))
+              : [{ taxIdNumber: "", legalEntityName: "", notes: "" }],
+        });
+      } catch (err) {
+        console.error("Failed to fetch company details:", err);
+      }
+    }
   }
 
   function closeDetailPanel() {
@@ -377,6 +401,35 @@ export default function AllCompaniesPage() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }
 
+  function handleTaxIdChange(
+    index: number,
+    field: keyof TaxIdFormData,
+    value: string,
+  ) {
+    setFormData((prev) => {
+      const newTaxIds = [...prev.taxIds];
+      newTaxIds[index] = { ...newTaxIds[index], [field]: value };
+      return { ...prev, taxIds: newTaxIds };
+    });
+  }
+
+  function addTaxId() {
+    setFormData((prev) => ({
+      ...prev,
+      taxIds: [
+        ...prev.taxIds,
+        { taxIdNumber: "", legalEntityName: "", notes: "" },
+      ],
+    }));
+  }
+
+  function removeTaxId(index: number) {
+    setFormData((prev) => ({
+      ...prev,
+      taxIds: prev.taxIds.filter((_, i) => i !== index),
+    }));
+  }
+
   async function handleCreateCompany(e: React.FormEvent) {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -386,6 +439,10 @@ export default function AllCompaniesPage() {
 
     setIsSubmitting(true);
     try {
+      const validTaxIds = formData.taxIds.filter(
+        (t) => t.taxIdNumber.trim() && t.legalEntityName.trim(),
+      );
+
       const companyData = {
         name: formData.name.trim(),
         domain: formData.domain.trim() || undefined,
@@ -395,7 +452,7 @@ export default function AllCompaniesPage() {
         phone: formData.phone.trim() || undefined,
         email: formData.email.trim() || undefined,
         website: formData.website.trim() || undefined,
-        status: formData.status as "LEAD" | "PROSPECT" | "ACTIVE" | "INACTIVE",
+        status: formData.status as "LEAD" | "CUSTOMER" | "PARTNER" | "INACTIVE",
         address: {
           street: formData.street.trim() || undefined,
           city: formData.city.trim() || undefined,
@@ -403,6 +460,7 @@ export default function AllCompaniesPage() {
           zip: formData.zip.trim() || undefined,
           country: formData.country.trim() || undefined,
         },
+        ...(validTaxIds.length > 0 ? { taxIds: validTaxIds } : {}),
       };
 
       await createCompanyApi(companyData);
@@ -442,7 +500,7 @@ export default function AllCompaniesPage() {
         phone: formData.phone.trim() || undefined,
         email: formData.email.trim() || undefined,
         website: formData.website.trim() || undefined,
-        status: formData.status as "LEAD" | "PROSPECT" | "ACTIVE" | "INACTIVE",
+        status: formData.status as "LEAD" | "CUSTOMER" | "PARTNER" | "INACTIVE",
         address: {
           street: formData.street.trim() || undefined,
           city: formData.city.trim() || undefined,
@@ -450,6 +508,7 @@ export default function AllCompaniesPage() {
           zip: formData.zip.trim() || undefined,
           country: formData.country.trim() || undefined,
         },
+        taxIds: formData.taxIds || undefined,
       };
 
       await updateCompanyApi(selectedRow.id, companyData);
@@ -859,6 +918,87 @@ export default function AllCompaniesPage() {
                 />
               </div>
             </div>
+
+            <div className="border-t border-[#f0ece6] pt-4 mt-4">
+              <div className="mb-3 flex items-center justify-between">
+                <label className="block text-[11px] font-medium text-slate-600">
+                  Tax IDs
+                </label>
+                <button
+                  type="button"
+                  onClick={addTaxId}
+                  className="flex items-center gap-1 text-[11px] text-[#4f63ea] hover:text-[#3d4ed1]"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add Tax ID
+                </button>
+              </div>
+
+              {formData.taxIds.map((taxId, index) => (
+                <div
+                  key={index}
+                  className="mb-3 rounded-lg border border-[#e8e4dc] bg-[#faf9f7] p-3"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[10px] font-medium text-slate-500">
+                      Tax ID {index + 1}
+                    </span>
+                    {formData.taxIds.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeTaxId(index)}
+                        className="text-[10px] text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <input
+                        type="text"
+                        value={taxId.taxIdNumber}
+                        onChange={(e) =>
+                          handleTaxIdChange(
+                            index,
+                            "taxIdNumber",
+                            e.target.value,
+                          )
+                        }
+                        placeholder="Tax ID Number"
+                        className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={taxId.legalEntityName}
+                        onChange={(e) =>
+                          handleTaxIdChange(
+                            index,
+                            "legalEntityName",
+                            e.target.value,
+                          )
+                        }
+                        placeholder="Legal Entity Name"
+                        className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <input
+                        type="text"
+                        value={taxId.notes}
+                        onChange={(e) =>
+                          handleTaxIdChange(index, "notes", e.target.value)
+                        }
+                        placeholder="Notes (optional)"
+                        className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
         <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
@@ -981,8 +1121,8 @@ export default function AllCompaniesPage() {
               >
                 <option value="">All Statuses</option>
                 <option value="LEAD">Lead</option>
-                <option value="CUSTOMER">CUSTOMER</option>
-                <option value="PARTNER">PARTNER</option>
+                <option value="CUSTOMER">Customer</option>
+                <option value="PARTNER">Partner</option>
                 <option value="INACTIVE">Inactive</option>
               </select>
               <input
@@ -1416,6 +1556,91 @@ export default function AllCompaniesPage() {
                         />
                       </div>
                     </div>
+                  </div>
+
+                  <div className="border-t border-[#f0ece6] pt-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <label className="block text-[12px] font-medium text-slate-600">
+                        Tax IDs
+                      </label>
+                      <button
+                        type="button"
+                        onClick={addTaxId}
+                        className="flex items-center gap-1 text-[12px] text-[#4f63ea] hover:text-[#3d4ed1]"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add Tax ID
+                      </button>
+                    </div>
+
+                    {formData.taxIds.map((taxId, index) => (
+                      <div
+                        key={index}
+                        className="mb-3 rounded-lg border border-[#e8e4dc] bg-[#faf9f7] p-3"
+                      >
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-[11px] font-medium text-slate-500">
+                            Tax ID {index + 1}
+                          </span>
+                          {formData.taxIds.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeTaxId(index)}
+                              className="text-[11px] text-red-500 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <input
+                              type="text"
+                              value={taxId.taxIdNumber}
+                              onChange={(e) =>
+                                handleTaxIdChange(
+                                  index,
+                                  "taxIdNumber",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Tax ID Number"
+                              className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="text"
+                              value={taxId.legalEntityName}
+                              onChange={(e) =>
+                                handleTaxIdChange(
+                                  index,
+                                  "legalEntityName",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Legal Entity Name"
+                              className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input
+                              type="text"
+                              value={taxId.notes}
+                              onChange={(e) =>
+                                handleTaxIdChange(
+                                  index,
+                                  "notes",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Notes (optional)"
+                              className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

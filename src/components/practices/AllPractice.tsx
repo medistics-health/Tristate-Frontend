@@ -817,6 +817,7 @@ export default function AllPracticePage() {
                   key={status}
                   value={status}
                   // disabled={status === "ACTIVE"}
+                  disabled={formData.status === status}
                 >
                   {status}
                 </option>
@@ -1305,9 +1306,7 @@ export default function AllPracticePage() {
                           value={status}
                           disabled={status === "ACTIVE"}
                         >
-                          {status === "ACTIVE"
-                            ? `${status} (Add person with email & agreement first)`
-                            : status}
+                          {status}
                         </option>
                       ))}
                     </select>

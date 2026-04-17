@@ -6,7 +6,20 @@ export type AddressBody = {
   zip?: string;
 };
 
-export type CompanyStatus = "LEAD" | "PROSPECT" | "ACTIVE" | "INACTIVE";
+export type CompanyStatus = "LEAD" | "CUSTOMER" | "PARTNER" | "INACTIVE";
+
+export type TaxId = {
+  id: string;
+  taxIdNumber: string;
+  legalEntityName: string;
+  status: "ACTIVE" | "INACTIVE";
+  notes?: string;
+};
+
+export type PracticeGroup = {
+  id: string;
+  name: string;
+};
 
 export type CompanyBody = {
   name: string;
@@ -19,6 +32,11 @@ export type CompanyBody = {
   website?: string;
   address?: AddressBody;
   status?: CompanyStatus;
+  taxIds?: Array<{
+    taxIdNumber: string;
+    legalEntityName: string;
+    notes?: string;
+  }>;
 };
 
 export type Company = {
@@ -41,7 +59,9 @@ export type Company = {
   createdAt: string;
   updatedAt: string;
   practices?: Array<{ id: string; name: string }>;
-  _count?: { practices: number };
+  practiceGroups?: PracticeGroup[];
+  taxIds?: TaxId[];
+  _count?: { practices: number; practiceGroups: number; taxIds: number };
 };
 
 export type CompanyFieldType = "text" | "number" | "user" | "relation";

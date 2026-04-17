@@ -44,15 +44,21 @@ function companyToRow(company: Company): CompanyRow {
       zip: company.zip || "",
       creationDate: new Date(company.createdAt).toLocaleString(),
       lastUpdate: new Date(company.updatedAt).toLocaleString(),
-      updatedBy: { name: "User", initials: "U" },
-      createdBy: { name: "User", initials: "U" },
       practicesCount: company._count?.practices || 0,
+      practiceGroupsCount: company._count?.practiceGroups || 0,
+      taxIds: company.taxIds?.map((t) => t.taxIdNumber).join(", ") || "",
     },
   };
 }
 
 const fields = [
   { id: "name", label: "Name", type: "text" as const, visible: true },
+  {
+    id: "taxIds",
+    label: "Tax IDs",
+    type: "text" as const,
+    visible: true,
+  },
   { id: "domain", label: "Domain", type: "text" as const, visible: true },
   { id: "industry", label: "Industry", type: "text" as const, visible: true },
   { id: "size", label: "Size", type: "number" as const, visible: true },
@@ -73,23 +79,17 @@ const fields = [
     id: "lastUpdate",
     label: "Last update",
     type: "text" as const,
-    visible: true,
-  },
-  {
-    id: "updatedBy",
-    label: "Updated by",
-    type: "user" as const,
-    visible: true,
-  },
-  {
-    id: "createdBy",
-    label: "Created by",
-    type: "user" as const,
-    visible: true,
+    visible: false,
   },
   {
     id: "practicesCount",
     label: "Practices",
+    type: "number" as const,
+    visible: false,
+  },
+  {
+    id: "practiceGroupsCount",
+    label: "Groups",
     type: "number" as const,
     visible: false,
   },
@@ -105,7 +105,9 @@ export type CompanyQueryParams = {
   sortOrder?: "asc" | "desc";
 };
 
-export async function getCompaniesView(params?: CompanyQueryParams): Promise<CompanyViewData> {
+export async function getCompaniesView(
+  params?: CompanyQueryParams,
+): Promise<CompanyViewData> {
   try {
     const queryString = new URLSearchParams();
     if (params?.page) queryString.set("page", String(params.page));
@@ -116,7 +118,9 @@ export async function getCompaniesView(params?: CompanyQueryParams): Promise<Com
     if (params?.sortBy) queryString.set("sortBy", params.sortBy);
     if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 
-    const url = queryString.toString() ? `${LIST}?${queryString.toString()}` : LIST;
+    const url = queryString.toString()
+      ? `${LIST}?${queryString.toString()}`
+      : LIST;
 
     const response = await apiConnector({
       method: "GET",
@@ -125,7 +129,12 @@ export async function getCompaniesView(params?: CompanyQueryParams): Promise<Com
     });
     const { companies, pagination } = response.data as {
       companies: Company[];
-      pagination: { totalRecords: number; totalPages: number; currentPage: number; limit: number };
+      pagination: {
+        totalRecords: number;
+        totalPages: number;
+        currentPage: number;
+        limit: number;
+      };
     };
     return {
       viewId: "company-view-001",

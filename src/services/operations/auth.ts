@@ -75,7 +75,7 @@ export async function authMe() {
       url: AUTHME,
       credentials: true,
     });
-    return response.status;
+    return response.data;
   } catch (Err) {
     return Err;
   }
