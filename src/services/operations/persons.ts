@@ -27,6 +27,7 @@ function personToRow(person: Person): PersonRow {
       lastName: person.lastName,
       fullName: `${person.firstName} ${person.lastName}`,
       role: person.role,
+      designation: person.designation || "",
       influence: person.influence,
       email: person.email || "",
       phone: person.phone || "",
@@ -41,6 +42,7 @@ function personToRow(person: Person): PersonRow {
 const fields = [
   { id: "fullName", label: "Name", type: "text" as const, visible: true },
   { id: "role", label: "Role", type: "text" as const, visible: true },
+  { id: "designation", label: "Designation", type: "text" as const, visible: true },
   { id: "influence", label: "Influence", type: "text" as const, visible: true },
   { id: "email", label: "Email", type: "text" as const, visible: true },
   { id: "phone", label: "Phone", type: "text" as const, visible: false },

@@ -55,6 +55,7 @@ type PersonFormData = {
   email: string;
   phone: string;
   practiceId: string;
+  designation: string;
 };
 
 const initialFormData: PersonFormData = {
@@ -65,6 +66,7 @@ const initialFormData: PersonFormData = {
   email: "",
   phone: "",
   practiceId: "",
+  designation: "",
 };
 
 const roleOptions = [
@@ -180,6 +182,7 @@ export default function PersonsPage() {
         email: String(values.email || ""),
         phone: String(values.phone || ""),
         practiceId: String(values.practiceId || ""),
+        designation: String(values.designation || ""),
       });
       setIsEditing(false);
     }
@@ -233,6 +236,7 @@ export default function PersonsPage() {
           influence: <Star className="h-3.5 w-3.5 text-slate-400" />,
           email: <Mail className="h-3.5 w-3.5 text-slate-400" />,
           phone: <Phone className="h-3.5 w-3.5 text-slate-400" />,
+          designation: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           practiceName: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
           creationDate: <CalendarDays className="h-3.5 w-3.5 text-slate-400" />,
           lastUpdate: (
@@ -407,6 +411,7 @@ export default function PersonsPage() {
         email: formData.email.trim() || undefined,
         phone: formData.phone.trim() || undefined,
         practiceId: formData.practiceId,
+        designation: formData.designation.trim() || undefined,
       };
 
       await createPersonApi(personData);
@@ -449,6 +454,7 @@ export default function PersonsPage() {
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: formData.phone.trim() || undefined,
+        designation: formData.designation.trim() || undefined,
       };
 
       await updatePersonApi(selectedRow.id, personData);
@@ -718,6 +724,19 @@ export default function PersonsPage() {
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            Designation
+          </label>
+          <input
+            type="text"
+            value={formData.designation}
+            onChange={(e) => handleFormChange("designation", e.target.value)}
+            placeholder="e.g. CEO, Manager, Director"
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+          />
         </div>
         <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
           <button
@@ -1205,6 +1224,21 @@ export default function PersonsPage() {
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                    Designation
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.designation}
+                    onChange={(e) =>
+                      handleFormChange("designation", e.target.value)
+                    }
+                    placeholder="e.g. CEO, Manager, Director"
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  />
                 </div>
 
                 <div>

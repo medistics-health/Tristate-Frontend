@@ -10,6 +10,7 @@ export type PersonBody = {
   influence: InfluenceLevel;
   email?: string;
   phone?: string;
+  designation?: string;
 };
 
 export type Person = {
@@ -21,6 +22,7 @@ export type Person = {
   influence: InfluenceLevel;
   email?: string;
   phone?: string;
+  designation?: string;
   createdAt: string;
   updatedAt: string;
   practice?: { id: string; name: string };
