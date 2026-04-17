@@ -65,22 +65,34 @@ function getCellDisplayValue(value: PracticeCellValue): string {
   return String(value);
 }
 
+type TaxIdOption = {
+  id: string;
+  taxIdNumber: string;
+  legalEntityName: string;
+};
+
 type PracticeFormData = {
   name: string;
+  npi: string;
   status: string;
   region: string;
   source: string;
   bucket: string;
   companyId: string;
+  taxIdId: string;
+  groupNpiNumber: string;
 };
 
 const initialFormData: PracticeFormData = {
   name: "",
+  npi: "",
   status: "LEAD",
   region: "",
   source: "DIRECT",
   bucket: "",
   companyId: "",
+  taxIdId: "",
+  groupNpiNumber: "",
 };
 
 const statusOptions = ["LEAD", "ACTIVE", "INACTIVE", "CLOSED"];
@@ -114,6 +126,7 @@ export default function AllPracticePage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [companyTaxIds, setCompanyTaxIds] = useState<TaxIdOption[]>([]);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -194,16 +207,35 @@ export default function AllPracticePage() {
 
       setFormData({
         name: String(values.name || ""),
+        npi: String(values.npi || ""),
         status: String(values.status || "LEAD"),
         region: String(values.region || ""),
         source: String(values.source || "DIRECT"),
         bucket: String(values.bucket || ""),
         companyId: String(values.companyId || ""),
+        taxIdId: String(values.taxIdId || ""),
+        groupNpiNumber: String(values.groupNpiNumber || ""),
       });
+
+      const companyId = String(values.companyId || "");
+      if (companyId) {
+        const company = companies.find((c) => c.id === companyId);
+        if (company && company.taxIds) {
+          setCompanyTaxIds(
+            company.taxIds.map((t) => ({
+              id: t.id,
+              taxIdNumber: t.taxIdNumber,
+              legalEntityName: t.legalEntityName,
+            })),
+          );
+        }
+      } else {
+        setCompanyTaxIds([]);
+      }
 
       setIsEditing(false);
     }
-  }, [selectedRow, showCreateForm]);
+  }, [selectedRow, showCreateForm, companies]);
 
   const visibleFields = useMemo(() => {
     if (!viewData) return [];
@@ -249,11 +281,15 @@ export default function AllPracticePage() {
       ...visibleFields.map((field) => {
         const iconMap: Record<string, React.ReactNode> = {
           name: <FileText className="h-3.5 w-3.5 text-slate-400" />,
+          npi: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           status: <Circle className="h-3.5 w-3.5 text-slate-400" />,
           region: <MapPin className="h-3.5 w-3.5 text-slate-400" />,
           source: <Tag className="h-3.5 w-3.5 text-slate-400" />,
           bucket: <Tag className="h-3.5 w-3.5 text-slate-400" />,
           companyName: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
+          taxIdNumber: <FileText className="h-3.5 w-3.5 text-slate-400" />,
+          practiceGroupName: <Users className="h-3.5 w-3.5 text-slate-400" />,
+          groupNpiNumbers: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           personsCount: <Users className="h-3.5 w-3.5 text-slate-400" />,
           dealsCount: <Backpack className="h-3.5 w-3.5 text-slate-400" />,
           creationDate: <CalendarDays className="h-3.5 w-3.5 text-slate-400" />,
@@ -406,7 +442,30 @@ export default function AllPracticePage() {
   }, [showFilterPanel]);
 
   function handleFormChange(field: keyof PracticeFormData, value: string) {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const newData = { ...prev, [field]: value };
+      if (field === "companyId") {
+        if (value) {
+          const company = companies.find((c) => c.id === value);
+          if (company && company.taxIds) {
+            setCompanyTaxIds(
+              company.taxIds.map((t) => ({
+                id: t.id,
+                taxIdNumber: t.taxIdNumber,
+                legalEntityName: t.legalEntityName,
+              })),
+            );
+          } else {
+            setCompanyTaxIds([]);
+          }
+          newData.taxIdId = "";
+        } else {
+          setCompanyTaxIds([]);
+          newData.taxIdId = "";
+        }
+      }
+      return newData;
+    });
   }
 
   async function handleCreatePractice(e: React.FormEvent) {
@@ -420,6 +479,7 @@ export default function AllPracticePage() {
     try {
       const practiceData = {
         name: formData.name.trim(),
+        npi: formData.npi.trim() || undefined,
         status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
         region: formData.region.trim(),
         source: formData.source as
@@ -435,9 +495,45 @@ export default function AllPracticePage() {
               .filter(Boolean)
           : [],
         companyId: formData.companyId.trim() || undefined,
+        taxIdId: formData.taxIdId.trim() || undefined,
       };
 
-      await createPracticeApi(practiceData);
+      const result = await createPracticeApi(practiceData);
+      const createdPracticeId = result.id;
+
+      if (formData.groupNpiNumber.trim() && formData.companyId && formData.taxIdId) {
+        const token = localStorage.getItem("token");
+        await fetch(`/api/v1/practice-groups`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: `Group ${formData.groupNpiNumber.trim()}`,
+            companyId: formData.companyId,
+          }),
+        }).then(async (res) => {
+          if (res.ok) {
+            const { practiceGroup } = await res.json();
+            await fetch(`/api/v1/group-npis`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                groupNpiNumber: formData.groupNpiNumber.trim(),
+                groupName: `Group ${formData.groupNpiNumber.trim()}`,
+                taxId: formData.taxIdId,
+                practiceGroupId: practiceGroup.id,
+                practiceId: createdPracticeId,
+              }),
+            });
+          }
+        });
+      }
+
       const params: PracticeQueryParams = {
         page: pagination.page,
         limit: pagination.limit,
@@ -534,6 +630,7 @@ export default function AllPracticePage() {
     try {
       const practiceData = {
         name: formData.name.trim(),
+        npi: formData.npi.trim() || undefined,
         status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
         region: formData.region.trim(),
         source: formData.source as
@@ -549,9 +646,44 @@ export default function AllPracticePage() {
               .filter(Boolean)
           : [],
         companyId: formData.companyId.trim() || undefined,
+        taxIdId: formData.taxIdId.trim() || undefined,
       };
 
       await updatePracticeApi(selectedRow.id, practiceData);
+
+      if (formData.groupNpiNumber.trim() && formData.companyId && formData.taxIdId) {
+        const token = localStorage.getItem("token");
+        await fetch(`/api/v1/practice-groups`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: `Group ${formData.groupNpiNumber.trim()}`,
+            companyId: formData.companyId,
+          }),
+        }).then(async (res) => {
+          if (res.ok) {
+            const { practiceGroup } = await res.json();
+            await fetch(`/api/v1/group-npis`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                groupNpiNumber: formData.groupNpiNumber.trim(),
+                groupName: `Group ${formData.groupNpiNumber.trim()}`,
+                taxId: formData.taxIdId,
+                practiceGroupId: practiceGroup.id,
+                practiceId: selectedRow.id,
+              }),
+            });
+          }
+        });
+      }
+
       const params: PracticeQueryParams = {
         page: pagination.page,
         limit: pagination.limit,
@@ -802,6 +934,19 @@ export default function AllPracticePage() {
           />
         </div>
 
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            NPI
+          </label>
+          <input
+            type="text"
+            value={formData.npi}
+            onChange={(e) => handleFormChange("npi", e.target.value)}
+            placeholder="National Provider Identifier"
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+          />
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
@@ -890,6 +1035,42 @@ export default function AllPracticePage() {
               ))}
             </select>
           )}
+        </div>
+
+        {formData.companyId && (
+          <div>
+            <label className="mb-1 block text-[12px] font-medium text-slate-600">
+              Tax ID
+            </label>
+            <select
+              value={formData.taxIdId}
+              onChange={(e) => handleFormChange("taxIdId", e.target.value)}
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            >
+              <option value="">-- Select a Tax ID --</option>
+              {companyTaxIds.map((taxId) => (
+                <option key={taxId.id} value={taxId.id}>
+                  {taxId.taxIdNumber} - {taxId.legalEntityName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            Group NPI
+          </label>
+          <input
+            type="text"
+            value={formData.groupNpiNumber}
+            onChange={(e) => handleFormChange("groupNpiNumber", e.target.value)}
+            placeholder="Enter group NPI number"
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+          />
+          <p className="mt-1 text-[11px] text-slate-400">
+            Practices with the same Group NPI will be automatically grouped
+          </p>
         </div>
 
         <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
@@ -987,7 +1168,6 @@ export default function AllPracticePage() {
               >
                 Sort
               </button>
-              {/*<button type="button">Columns</button>*/}
             </div>
           </div>
 
@@ -1288,10 +1468,23 @@ export default function AllPracticePage() {
                   />
                 </div>
 
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                    NPI <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.npi}
+                    onChange={(e) => handleFormChange("npi", e.target.value)}
+                    placeholder="National Provider Identifier"
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Status
+                      Status <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.status}
@@ -1313,7 +1506,7 @@ export default function AllPracticePage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Region
+                      Region <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -1330,7 +1523,7 @@ export default function AllPracticePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Source
+                      Source <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.source}
@@ -1386,6 +1579,46 @@ export default function AllPracticePage() {
                       ))}
                     </select>
                   )}
+                </div>
+
+                {formData.companyId && (
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Tax ID
+                    </label>
+                    <select
+                      value={formData.taxIdId}
+                      onChange={(e) =>
+                        handleFormChange("taxIdId", e.target.value)
+                      }
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    >
+                      <option value="">-- Select a Tax ID --</option>
+                      {companyTaxIds.map((taxId) => (
+                        <option key={taxId.id} value={taxId.id}>
+                          {taxId.taxIdNumber} - {taxId.legalEntityName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                    Group NPI
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.groupNpiNumber}
+                    onChange={(e) =>
+                      handleFormChange("groupNpiNumber", e.target.value)
+                    }
+                    placeholder="Enter group NPI number"
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Practices with the same Group NPI will be automatically grouped
+                  </p>
                 </div>
               </div>
 

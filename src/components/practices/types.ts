@@ -4,11 +4,14 @@ export type PracticeSource = "DIRECT" | "REFERRAL" | "CHANNEL_PARTNER" | "OUTBOU
 
 export type PracticeBody = {
   name: string;
+  npi?: string;
   status: PracticeStatus;
   region: string;
   source: PracticeSource;
   bucket: string[];
   companyId?: string;
+  taxIdId?: string;
+  groupNpiNumber?: string;
 };
 
 export type Person = {
@@ -28,17 +31,22 @@ export type Agreement = {
 export type Practice = {
   id: string;
   name: string;
+  npi?: string;
   status: PracticeStatus;
   region: string;
   source: PracticeSource;
   bucket: string[];
   companyId?: string;
+  taxIdId?: string;
   ownerId: string;
   createdAt: string;
   updatedAt: string;
   company?: { id: string; name: string };
+  taxId?: { id: string; taxIdNumber: string; legalEntityName: string };
+  practiceGroup?: { id: string; name: string };
   persons?: Person[];
   agreements?: Agreement[];
+  groupNpis?: { id: string; groupNpiNumber: string; groupName: string }[];
   _count?: { persons: number; deals: number; agreements: number };
 };
 

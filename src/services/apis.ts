@@ -99,3 +99,13 @@ export const assessmentEndpoints = {
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/assessments/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/assessments/${id}`,
 };
+
+export const practiceGroupEndpoints = {
+  LIST: BACKEND_URL + "/api/v1/practice-groups",
+  GET: (id: string) => BACKEND_URL + `/api/v1/practice-groups/${id}`,
+};
+
+export const groupNpiEndpoints = {
+  LIST: BACKEND_URL + "/api/v1/group-npis",
+  GET: (id: string) => BACKEND_URL + `/api/v1/group-npis/${id}`,
+};
