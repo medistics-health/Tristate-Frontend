@@ -2,6 +2,16 @@ export type PracticeStatus = "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED";
 
 export type PracticeSource = "DIRECT" | "REFERRAL" | "CHANNEL_PARTNER" | "OUTBOUND" | "INBOUND";
 
+export type GroupNpiStatus = "ACTIVE" | "INACTIVE";
+
+export type GroupNpiEntry = {
+  groupNpiNumber: string;
+  groupName: string;
+  status: GroupNpiStatus;
+  notes?: string;
+  taxId: string;
+};
+
 export type PracticeBody = {
   name: string;
   npi?: string;
@@ -11,7 +21,7 @@ export type PracticeBody = {
   bucket: string[];
   companyId?: string;
   taxIdId?: string;
-  groupNpiNumber?: string;
+  groupNpis?: GroupNpiEntry[];
 };
 
 export type Person = {

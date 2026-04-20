@@ -22,6 +22,7 @@ import {
   Users,
   Backpack,
   Trash2,
+  ChevronRight,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
@@ -80,7 +81,12 @@ type PracticeFormData = {
   bucket: string;
   companyId: string;
   taxIdId: string;
-  groupNpiNumber: string;
+  groupNpis: {
+    groupNpiNumber: string;
+    groupName: string;
+    status: string;
+    notes: string;
+  }[];
 };
 
 const initialFormData: PracticeFormData = {
@@ -90,9 +96,8 @@ const initialFormData: PracticeFormData = {
   region: "",
   source: "DIRECT",
   bucket: "",
-  companyId: "",
   taxIdId: "",
-  groupNpiNumber: "",
+  groupNpis: [],
 };
 
 const statusOptions = ["LEAD", "ACTIVE", "INACTIVE", "CLOSED"];
@@ -120,6 +125,10 @@ export default function AllPracticePage() {
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [groupedView, setGroupedView] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
+    {},
+  );
   const [formData, setFormData] = useState<PracticeFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -141,6 +150,14 @@ export default function AllPracticePage() {
     companyId: "",
   });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [groupNpiEntries, setGroupNpiEntries] = useState<
+    {
+      groupNpiNumber: string;
+      groupName: string;
+      status: string;
+      notes: string;
+    }[]
+  >([]);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
@@ -214,7 +231,11 @@ export default function AllPracticePage() {
         bucket: String(values.bucket || ""),
         companyId: String(values.companyId || ""),
         taxIdId: String(values.taxIdId || ""),
-        groupNpiNumber: String(values.groupNpiNumber || ""),
+        groupNpis:
+          (values.groupNpis as {
+            groupNpiNumber: string;
+            groupName: string;
+          }[]) || [],
       });
 
       const companyId = String(values.companyId || "");
@@ -233,6 +254,18 @@ export default function AllPracticePage() {
         setCompanyTaxIds([]);
       }
 
+      const existingGroupNpis =
+        (values.groupNpis as { groupNpiNumber: string; groupName: string }[]) ||
+        [];
+      setGroupNpiEntries(
+        existingGroupNpis.map((g) => ({
+          groupNpiNumber: g.groupNpiNumber,
+          groupName: g.groupName || "",
+          status: "ACTIVE",
+          notes: "",
+        })),
+      );
+
       setIsEditing(false);
     }
   }, [selectedRow, showCreateForm, companies]);
@@ -241,6 +274,62 @@ export default function AllPracticePage() {
     if (!viewData) return [];
     return viewData.fields.filter((f) => columnVisibility[f.id] !== false);
   }, [viewData, columnVisibility]);
+
+  type GroupedRow = {
+    type: "group";
+    groupKey: string;
+    groupName: string;
+    practices: PracticeRow[];
+    isExpanded: boolean;
+  };
+  type DisplayRow = GroupedRow | PracticeRow;
+
+  const groupedRows = useMemo((): DisplayRow[] => {
+    if (!groupedView) return rows;
+
+    const groups: Record<string, PracticeRow[]> = {};
+    const ungrouped: PracticeRow[] = [];
+
+    rows.forEach((row) => {
+      const groupNpis = row.values.groupNpis as
+        | { groupNpiNumber: string; groupName: string }[]
+        | undefined;
+      if (groupNpis && groupNpis.length > 0) {
+        const key = groupNpis[0].groupNpiNumber;
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(row);
+      } else {
+        ungrouped.push(row);
+      }
+    });
+
+    const result: DisplayRow[] = [];
+    Object.entries(groups).forEach(([key, practices]) => {
+      result.push({
+        type: "group",
+        groupKey: key,
+        groupName: practices[0]?.values.groupNpis?.[0]?.groupName || key,
+        practices,
+        isExpanded: expandedGroups[key] !== false,
+      });
+    });
+    if (ungrouped.length > 0) {
+      result.push({
+        type: "group",
+        groupKey: "ungrouped",
+        groupName: "No Group NPI",
+        practices: ungrouped,
+        isExpanded: expandedGroups["ungrouped"] !== false,
+      });
+    }
+    return result;
+  }, [rows, groupedView, expandedGroups]);
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
 
   const columns = useMemo<ColumnDef<PracticeRow>[]>(() => {
     const cols: ColumnDef<PracticeRow>[] = [
@@ -377,8 +466,64 @@ export default function AllPracticePage() {
     enableSortingRemoval: false,
   });
 
+  const renderCell = (row: PracticeRow, columnId: string) => {
+    if (columnId === "select") {
+      return (
+        <input
+          type="checkbox"
+          checked={Boolean(selectedIds[row.id])}
+          onChange={(event) =>
+            setSelectedIds((current) => ({
+              ...current,
+              [row.id]: event.target.checked,
+            }))
+          }
+          onClick={(e) => e.stopPropagation()}
+          className="h-4 w-4 rounded border border-[#cec8bf]"
+        />
+      );
+    }
+    if (columnId === "add") return null;
+    const value = row.values[columnId];
+    const field = visibleFields.find((f) => f.id === columnId);
+    if (field?.id === "status") {
+      const statusColors: Record<string, string> = {
+        LEAD: "bg-yellow-100 text-yellow-700",
+        ACTIVE: "bg-green-100 text-green-700",
+        INACTIVE: "bg-gray-100 text-gray-700",
+        CLOSED: "bg-red-100 text-red-700",
+      };
+      return (
+        <span
+          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[String(value)] || ""}`}
+        >
+          {String(value)}
+        </span>
+      );
+    }
+    if (field?.id === "source") {
+      const sourceColors: Record<string, string> = {
+        DIRECT: "bg-blue-100 text-blue-700",
+        REFERRAL: "bg-purple-100 text-purple-700",
+        CHANNEL_PARTNER: "bg-orange-100 text-orange-700",
+        OUTBOUND: "bg-cyan-100 text-cyan-700",
+        INBOUND: "bg-pink-100 text-pink-700",
+      };
+      const displayValue = String(value).replace("_", " ");
+      return (
+        <span
+          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${sourceColors[String(value)] || ""}`}
+        >
+          {displayValue}
+        </span>
+      );
+    }
+    return <span className="truncate">{getCellDisplayValue(value)}</span>;
+  };
+
   async function openCreateForm() {
     setFormData(initialFormData);
+    setGroupNpiEntries([]);
     setShowCreateForm(true);
     setShowDetailPanel(false);
 
@@ -398,6 +543,7 @@ export default function AllPracticePage() {
   function closeCreateForm() {
     setShowCreateForm(false);
     setFormData(initialFormData);
+    setGroupNpiEntries([]);
   }
 
   async function handleRowClick(rowId: string) {
@@ -419,6 +565,7 @@ export default function AllPracticePage() {
     setSelectedRowId(null);
     setIsEditing(false);
     setFormData(initialFormData);
+    setGroupNpiEntries([]);
   }
 
   useEffect(() => {
@@ -482,6 +629,10 @@ export default function AllPracticePage() {
         npi: formData.npi.trim() || undefined,
         status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
         region: formData.region.trim(),
+        groupNpis: groupNpiEntries.map((entry) => ({
+          ...entry,
+          taxId: formData.taxIdId,
+        })),
         source: formData.source as
           | "DIRECT"
           | "REFERRAL"
@@ -494,45 +645,11 @@ export default function AllPracticePage() {
               .map((s) => s.trim())
               .filter(Boolean)
           : [],
-        companyId: formData.companyId.trim() || undefined,
-        taxIdId: formData.taxIdId.trim() || undefined,
+        companyId: formData.companyId?.trim() || undefined,
+        taxIdId: formData.taxIdId?.trim() || undefined,
       };
 
       const result = await createPracticeApi(practiceData);
-      const createdPracticeId = result.id;
-
-      if (formData.groupNpiNumber.trim() && formData.companyId && formData.taxIdId) {
-        const token = localStorage.getItem("token");
-        await fetch(`/api/v1/practice-groups`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: `Group ${formData.groupNpiNumber.trim()}`,
-            companyId: formData.companyId,
-          }),
-        }).then(async (res) => {
-          if (res.ok) {
-            const { practiceGroup } = await res.json();
-            await fetch(`/api/v1/group-npis`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                groupNpiNumber: formData.groupNpiNumber.trim(),
-                groupName: `Group ${formData.groupNpiNumber.trim()}`,
-                taxId: formData.taxIdId,
-                practiceGroupId: practiceGroup.id,
-                practiceId: createdPracticeId,
-              }),
-            });
-          }
-        });
-      }
 
       const params: PracticeQueryParams = {
         page: pagination.page,
@@ -633,6 +750,10 @@ export default function AllPracticePage() {
         npi: formData.npi.trim() || undefined,
         status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
         region: formData.region.trim(),
+        groupNpis: groupNpiEntries.map((entry) => ({
+          ...entry,
+          taxId: formData.taxIdId,
+        })),
         source: formData.source as
           | "DIRECT"
           | "REFERRAL"
@@ -645,44 +766,11 @@ export default function AllPracticePage() {
               .map((s) => s.trim())
               .filter(Boolean)
           : [],
-        companyId: formData.companyId.trim() || undefined,
-        taxIdId: formData.taxIdId.trim() || undefined,
+        companyId: formData.companyId?.trim() || undefined,
+        taxIdId: formData.taxIdId?.trim() || undefined,
       };
 
       await updatePracticeApi(selectedRow.id, practiceData);
-
-      if (formData.groupNpiNumber.trim() && formData.companyId && formData.taxIdId) {
-        const token = localStorage.getItem("token");
-        await fetch(`/api/v1/practice-groups`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: `Group ${formData.groupNpiNumber.trim()}`,
-            companyId: formData.companyId,
-          }),
-        }).then(async (res) => {
-          if (res.ok) {
-            const { practiceGroup } = await res.json();
-            await fetch(`/api/v1/group-npis`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                groupNpiNumber: formData.groupNpiNumber.trim(),
-                groupName: `Group ${formData.groupNpiNumber.trim()}`,
-                taxId: formData.taxIdId,
-                practiceGroupId: practiceGroup.id,
-                practiceId: selectedRow.id,
-              }),
-            });
-          }
-        });
-      }
 
       const params: PracticeQueryParams = {
         page: pagination.page,
@@ -1059,18 +1147,78 @@ export default function AllPracticePage() {
 
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
-            Group NPI
+            Group NPIs
           </label>
-          <input
-            type="text"
-            value={formData.groupNpiNumber}
-            onChange={(e) => handleFormChange("groupNpiNumber", e.target.value)}
-            placeholder="Enter group NPI number"
-            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-          />
-          <p className="mt-1 text-[11px] text-slate-400">
-            Practices with the same Group NPI will be automatically grouped
-          </p>
+          <div className="space-y-2">
+            {groupNpiEntries.map((entry, index) => (
+              <div key={index} className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  required
+                  value={entry.groupNpiNumber}
+                  onChange={(e) => {
+                    const updated = [...groupNpiEntries];
+                    updated[index].groupNpiNumber = e.target.value;
+                    setGroupNpiEntries(updated);
+                  }}
+                  placeholder="Group NPI Number"
+                  className="app-control rounded-md px-3 py-2 text-[13px]"
+                />
+                <input
+                  type="text"
+                  required
+                  value={entry.groupName}
+                  onChange={(e) => {
+                    const updated = [...groupNpiEntries];
+                    updated[index].groupName = e.target.value;
+                    setGroupNpiEntries(updated);
+                  }}
+                  placeholder="Group Name"
+                  className="app-control rounded-md px-3 py-2 text-[13px]"
+                />
+                <select
+                  value={entry.status}
+                  onChange={(e) => {
+                    const updated = [...groupNpiEntries];
+                    updated[index].status = e.target.value;
+                    setGroupNpiEntries(updated);
+                  }}
+                  className="app-control rounded-md px-2 py-2 text-[13px]"
+                >
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGroupNpiEntries(
+                      groupNpiEntries.filter((_, i) => i !== index),
+                    )
+                  }
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() =>
+                setGroupNpiEntries([
+                  ...groupNpiEntries,
+                  {
+                    groupNpiNumber: "",
+                    groupName: "",
+                    status: "ACTIVE",
+                    notes: "",
+                  },
+                ])
+              }
+              className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#4f63ea]"
+            >
+              <Plus className="h-4 w-4" /> Add Group NPI
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
@@ -1259,67 +1407,161 @@ export default function AllPracticePage() {
               >
                 Clear filters
               </button>
+              <button
+                type="button"
+                onClick={() => setGroupedView(!groupedView)}
+                className={`text-[13px] px-2 py-1 rounded ${
+                  groupedView
+                    ? "bg-[#4f63ea] text-white"
+                    : "text-slate-500 hover:bg-[#f0ece6]"
+                }`}
+              >
+                {groupedView ? "Grouped" : "Group"}
+              </button>
             </div>
           )}
 
           <div className="min-h-0 flex-1 overflow-auto">
-            <table className="min-w-full border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10 bg-white">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                        style={{
-                          width: header.getSize()
-                            ? `${header.getSize()}px`
-                            : undefined,
-                        }}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <button
-                            type="button"
-                            onClick={
-                              header.column.getCanSort()
-                                ? header.column.getToggleSortingHandler()
-                                : undefined
-                            }
-                            className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                          </button>
+            {groupedView ? (
+              <div className="divide-y divide-[#f4f1ec]">
+                {groupedRows.map((item, idx) => {
+                  if (item.type === "group") {
+                    return (
+                      <div key={item.groupKey} className="bg-white">
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(item.groupKey)}
+                          className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-[#faf9f7]"
+                        >
+                          <div className="flex items-center gap-3">
+                            <ChevronRight
+                              className={`h-4 w-4 text-slate-400 transition-transform ${
+                                item.isExpanded ? "rotate-90" : ""
+                              }`}
+                            />
+                            <span className="text-[14px] font-medium text-slate-700">
+                              {item.groupName}
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              ({item.practices.length} practices)
+                            </span>
+                          </div>
+                          <span className="text-xs text-slate-400">
+                            {item.groupKey !== "ungrouped" && item.groupKey}
+                          </span>
+                        </button>
+                        {item.isExpanded && (
+                          <div className="border-t border-[#f4f1ec]">
+                            <table className="min-w-full border-separate border-spacing-0">
+                              <thead className="sticky top-0 z-10 bg-[#faf9f7]">
+                                {table.getHeaderGroups().map((headerGroup) => (
+                                  <tr key={headerGroup.id}>
+                                    {headerGroup.headers.map((header) => (
+                                      <th
+                                        key={header.id}
+                                        className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
+                                      >
+                                        {header.isPlaceholder ? null : (
+                                          <div
+                                            className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
+                                          >
+                                            {flexRender(
+                                              header.column.columnDef.header,
+                                              header.getContext(),
+                                            )}
+                                          </div>
+                                        )}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </thead>
+                              <tbody>
+                                {item.practices.map((row) => (
+                                  <tr
+                                    key={row.id}
+                                    onClick={() => handleRowClick(row.id)}
+                                    className={`cursor-pointer ${selectedRowId === row.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                                  >
+                                    {table.getAllColumns().map((col) => (
+                                      <td
+                                        key={col.id}
+                                        className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+                                      >
+                                        {renderCell(row, col.id)}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    onClick={() => handleRowClick(row.original.id)}
-                    className={`cursor-pointer ${selectedRowId === row.original.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            ) : (
+              <table className="min-w-full border-separate border-spacing-0">
+                <thead className="sticky top-0 z-10 bg-white">
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <th
+                          key={header.id}
+                          className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
+                          style={{
+                            width: header.getSize()
+                              ? `${header.getSize()}px`
+                              : undefined,
+                          }}
+                        >
+                          {header.isPlaceholder ? null : (
+                            <button
+                              type="button"
+                              onClick={
+                                header.column.getCanSort()
+                                  ? header.column.getToggleSortingHandler()
+                                  : undefined
+                              }
+                              className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
+                            >
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
+                            </button>
+                          )}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {table.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => handleRowClick(row.original.id)}
+                      className={`cursor-pointer ${selectedRowId === row.original.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td
+                          key={cell.id}
+                          className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
 
             {rows.length === 0 ? (
               <div className="relative flex min-h-[520px] items-center justify-center">
@@ -1605,20 +1847,76 @@ export default function AllPracticePage() {
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Group NPI
+                    Group NPIs
                   </label>
-                  <input
-                    type="text"
-                    value={formData.groupNpiNumber}
-                    onChange={(e) =>
-                      handleFormChange("groupNpiNumber", e.target.value)
-                    }
-                    placeholder="Enter group NPI number"
-                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Practices with the same Group NPI will be automatically grouped
-                  </p>
+                  <div className="space-y-2">
+                    {groupNpiEntries.map((entry, index) => (
+                      <div key={index} className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={entry.groupNpiNumber}
+                          onChange={(e) => {
+                            const updated = [...groupNpiEntries];
+                            updated[index].groupNpiNumber = e.target.value;
+                            setGroupNpiEntries(updated);
+                          }}
+                          placeholder="Group NPI Number"
+                          className="app-control rounded-md px-3 py-2 text-[13px]"
+                        />
+                        <input
+                          type="text"
+                          value={entry.groupName}
+                          onChange={(e) => {
+                            const updated = [...groupNpiEntries];
+                            updated[index].groupName = e.target.value;
+                            setGroupNpiEntries(updated);
+                          }}
+                          placeholder="Group Name"
+                          className="app-control rounded-md px-3 py-2 text-[13px]"
+                        />
+                        <select
+                          value={entry.status}
+                          onChange={(e) => {
+                            const updated = [...groupNpiEntries];
+                            updated[index].status = e.target.value;
+                            setGroupNpiEntries(updated);
+                          }}
+                          className="app-control rounded-md px-2 py-2 text-[13px]"
+                        >
+                          <option value="ACTIVE">ACTIVE</option>
+                          <option value="INACTIVE">INACTIVE</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setGroupNpiEntries(
+                              groupNpiEntries.filter((_, i) => i !== index),
+                            )
+                          }
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGroupNpiEntries([
+                          ...groupNpiEntries,
+                          {
+                            groupNpiNumber: "",
+                            groupName: "",
+                            status: "ACTIVE",
+                            notes: "",
+                          },
+                        ])
+                      }
+                      className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#4f63ea]"
+                    >
+                      <Plus className="h-4 w-4" /> Add Group NPI
+                    </button>
+                  </div>
                 </div>
               </div>
 
