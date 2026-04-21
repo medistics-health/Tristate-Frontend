@@ -1648,14 +1648,14 @@ export default function AllCompaniesPage() {
                 <button
                   type="button"
                   onClick={closeCreateForm}
-                  className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+                  className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] font-medium cursor-pointer text-slate-600 hover:bg-[#f7f5f1]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+                  className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#f7f5f1] cursor-pointer disabled:opacity-50"
                 >
                   {isSubmitting ? "Creating..." : "Create Company"}
                 </button>

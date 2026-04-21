@@ -319,7 +319,7 @@ function AllAgreementsPage() {
       ...(form.terminationDate
         ? { terminationDate: new Date(form.terminationDate).toISOString() }
         : {}),
-      ...(form.docusealTemplates.length > 0
+      ...(form.docusealTemplates?.length > 0
         ? {
             docusealSubmissions: form.docusealTemplates.map((id: string) => {
               const template = docusealTemplates.find(
@@ -386,6 +386,7 @@ function AllAgreementsPage() {
       setPagination(data.pagination);
       toast.success("Agreement updated successfully");
     } catch (err) {
+      console.log(err);
       const message =
         err instanceof Error ? err.message : "Failed to update agreement";
       toast.error(message);
@@ -574,7 +575,7 @@ function AllAgreementsPage() {
                 </select>
               </div>
 
-              <div>
+              {/*<div>
                 <label className="mb-1 block text-[13px] font-medium text-slate-700">
                   Value
                 </label>
@@ -591,7 +592,7 @@ function AllAgreementsPage() {
                   className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                   placeholder="0.00"
                 />
-              </div>
+              </div>*/}
 
               <div>
                 <label className="mb-1 block text-[13px] font-medium text-slate-700">
@@ -627,7 +628,7 @@ function AllAgreementsPage() {
                 />
               </div>
 
-              <div>
+              {/*<div>
                 <label className="mb-1 block text-[13px] font-medium text-slate-700">
                   Termination Date
                 </label>
@@ -642,7 +643,7 @@ function AllAgreementsPage() {
                   }
                   className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                 />
-              </div>
+              </div>*/}
 
               <div>
                 <label className="mb-1 block text-[13px] font-medium text-slate-700">
@@ -792,7 +793,7 @@ function AllAgreementsPage() {
             </select>
           </div>
 
-          <div>
+          {/*<div>
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
               Value
             </label>
@@ -809,7 +810,7 @@ function AllAgreementsPage() {
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
               placeholder="0.00"
             />
-          </div>
+          </div>*/}
 
           <div>
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
@@ -845,7 +846,7 @@ function AllAgreementsPage() {
             />
           </div>
 
-          <div>
+          {/*<div>
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
               Termination Date
             </label>
@@ -860,7 +861,7 @@ function AllAgreementsPage() {
               }
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
-          </div>
+          </div>*/}
 
           <div>
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
@@ -913,13 +914,29 @@ function AllAgreementsPage() {
             )}
           </div>
 
-          <button
+          <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">
+            <button
+              type="button"
+              onClick={closeCreateForm}
+              className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] cursor-pointer font-medium text-slate-600 hover:bg-[#f7f5f1]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#f7f5f1] cursor-pointer disabled:opacity-50"
+            >
+              {isSubmitting ? "Creating..." : "Create Agreement"}
+            </button>
+          </div>
+          {/*<button
             type="submit"
             disabled={isSubmitting}
             className="w-full rounded-md bg-[#4f63ea] py-2 text-[14px] font-medium text-white hover:bg-[#3d4ed1]"
           >
             {isSubmitting ? "Creating..." : "Create Agreement"}
-          </button>
+          </button>*/}
         </div>
       </form>
     </aside>

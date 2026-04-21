@@ -39,6 +39,7 @@ import {
   type PersonQueryParams,
 } from "../../services/operations/persons";
 import { getAllPractices } from "../../services/operations/practices";
+import { getAllCompanies } from "../../services/operations/companies";
 import type { Practice } from "../practices/types";
 import toast from "react-hot-toast";
 
@@ -47,6 +48,11 @@ function getCellDisplayValue(value: PersonCellValue): string {
   return String(value);
 }
 
+type Company = {
+  id: string;
+  name: string;
+};
+
 type PersonFormData = {
   firstName: string;
   lastName: string;
@@ -54,7 +60,8 @@ type PersonFormData = {
   influence: string;
   email: string;
   phone: string;
-  practiceId: string;
+  practiceIds: string[];
+  companyIds: string[];
   designation: string;
 };
 
@@ -65,7 +72,8 @@ const initialFormData: PersonFormData = {
   influence: "MEDIUM",
   email: "",
   phone: "",
-  practiceId: "",
+  practiceIds: [],
+  companyIds: [],
   designation: "",
 };
 
@@ -102,6 +110,8 @@ export default function PersonsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [practicesLoading, setPracticesLoading] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -113,6 +123,7 @@ export default function PersonsPage() {
     role: "",
     influence: "",
     practiceId: "",
+    practiceIds: [] as string[],
   });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
@@ -174,6 +185,16 @@ export default function PersonsPage() {
   useEffect(() => {
     if (selectedRow && !showCreateForm) {
       const values = selectedRow.values;
+      const practiceIdsArray = Array.isArray(values.practiceIds)
+        ? values.practiceIds
+        : String(values.practiceIds || "")
+            .split(",")
+            .filter(Boolean);
+      const companyIdsArray = Array.isArray(values.companyIds)
+        ? values.companyIds
+        : String(values.companyIds || "")
+            .split(",")
+            .filter(Boolean);
       setFormData({
         firstName: String(values.firstName || ""),
         lastName: String(values.lastName || ""),
@@ -181,7 +202,8 @@ export default function PersonsPage() {
         influence: String(values.influence || "MEDIUM"),
         email: String(values.email || ""),
         phone: String(values.phone || ""),
-        practiceId: String(values.practiceId || ""),
+        practiceIds: practiceIdsArray,
+        companyIds: companyIdsArray,
         designation: String(values.designation || ""),
       });
       setIsEditing(false);
@@ -237,7 +259,8 @@ export default function PersonsPage() {
           email: <Mail className="h-3.5 w-3.5 text-slate-400" />,
           phone: <Phone className="h-3.5 w-3.5 text-slate-400" />,
           designation: <FileText className="h-3.5 w-3.5 text-slate-400" />,
-          practiceName: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
+          practiceNames: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
+          companyNames: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
           creationDate: <CalendarDays className="h-3.5 w-3.5 text-slate-400" />,
           lastUpdate: (
             <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
@@ -302,6 +325,36 @@ export default function PersonsPage() {
                 </a>
               );
             }
+            if (field.id === "practiceNames" && value) {
+              const names = String(value).split(", ").filter(Boolean);
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {names.map((name, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex rounded-full bg-[#e8e5f9] px-2 py-0.5 text-xs text-[#4f63ea]"
+                    >
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              );
+            }
+            if (field.id === "companyNames" && value) {
+              const names = String(value).split(", ").filter(Boolean);
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {names.map((name, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex rounded-full bg-[#e8f5e9] px-2 py-0.5 text-xs text-[#2e7d32]"
+                    >
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              );
+            }
             return (
               <span className="truncate">{getCellDisplayValue(value)}</span>
             );
@@ -346,6 +399,18 @@ export default function PersonsPage() {
         setPracticesLoading(false);
       }
     }
+
+    if (companies.length === 0) {
+      setCompaniesLoading(true);
+      try {
+        const companyList = await getAllCompanies();
+        setCompanies(companyList);
+      } catch (err) {
+        console.error("Failed to load companies:", err);
+      } finally {
+        setCompaniesLoading(false);
+      }
+    }
   }
 
   function closeCreateForm() {
@@ -366,19 +431,60 @@ export default function PersonsPage() {
     setFormData(initialFormData);
   }
 
-  function handleFormChange(field: keyof PersonFormData, value: string) {
+  function handleFormChange(
+    field: keyof PersonFormData,
+    value: string | string[],
+  ) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }
 
+  function handlePracticeToggle(practiceId: string) {
+    setFormData((prev) => {
+      const current = prev.practiceIds;
+      if (current.includes(practiceId)) {
+        return {
+          ...prev,
+          practiceIds: current.filter((id) => id !== practiceId),
+        };
+      } else {
+        return { ...prev, practiceIds: [...current, practiceId] };
+      }
+    });
+  }
+
+  function handleCompanyToggle(companyId: string) {
+    setFormData((prev) => {
+      const current = prev.companyIds;
+      if (current.includes(companyId)) {
+        return {
+          ...prev,
+          companyIds: current.filter((id) => id !== companyId),
+        };
+      } else {
+        return { ...prev, companyIds: [...current, companyId] };
+      }
+    });
+  }
+
   useEffect(() => {
-    if (isEditing && practices.length === 0) {
+    if ((showDetailPanel || isEditing) && practices.length === 0) {
       setPracticesLoading(true);
       getAllPractices()
         .then(setPractices)
         .catch((err) => console.error("Failed to load practices:", err))
         .finally(() => setPracticesLoading(false));
     }
-  }, [isEditing]);
+  }, [showDetailPanel, isEditing]);
+
+  useEffect(() => {
+    if ((showDetailPanel || isEditing) && companies.length === 0) {
+      setCompaniesLoading(true);
+      getAllCompanies()
+        .then(setCompanies)
+        .catch((err) => console.error("Failed to load companies:", err))
+        .finally(() => setCompaniesLoading(false));
+    }
+  }, [showDetailPanel, isEditing]);
 
   useEffect(() => {
     if (showFilterPanel && practices.length === 0) {
@@ -396,8 +502,8 @@ export default function PersonsPage() {
       toast.error("First name and last name are required");
       return;
     }
-    if (!formData.practiceId) {
-      toast.error("Please select a practice");
+    if (formData.practiceIds.length === 0) {
+      toast.error("Please select at least one practice");
       return;
     }
 
@@ -410,7 +516,8 @@ export default function PersonsPage() {
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: formData.phone.trim() || undefined,
-        practiceId: formData.practiceId,
+        practiceIds: formData.practiceIds,
+        companyIds: formData.companyIds,
         designation: formData.designation.trim() || undefined,
       };
 
@@ -455,6 +562,8 @@ export default function PersonsPage() {
         email: formData.email.trim() || undefined,
         phone: formData.phone.trim() || undefined,
         designation: formData.designation.trim() || undefined,
+        practiceIds: formData.practiceIds,
+        companyIds: formData.companyIds,
       };
 
       await updatePersonApi(selectedRow.id, personData);
@@ -613,7 +722,7 @@ export default function PersonsPage() {
   //         </div>
 
   //         <div className="flex items-center gap-2 text-[13px]">
-  //           <span className="w-24 text-slate-400">Practice:</span>
+  //             <span className="w-24 text-slate-400">Practices:</span>
   //           <span className="text-slate-700">
   //             {String(values.practiceName || "-")}
   //           </span>
@@ -704,10 +813,11 @@ export default function PersonsPage() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Email
+              Email <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
+              required
               value={formData.email}
               onChange={(e) => handleFormChange("email", e.target.value)}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
@@ -738,6 +848,67 @@ export default function PersonsPage() {
             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
           />
         </div>
+
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            Practices
+          </label>
+          {practicesLoading ? (
+            <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
+              Loading...
+            </div>
+          ) : (
+            <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-[#e5e2d9] bg-white p-2">
+              {practices.map((practice) => (
+                <label
+                  key={practice.id}
+                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-[#f7f5f1]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.practiceIds.includes(practice.id)}
+                    onChange={() => handlePracticeToggle(practice.id)}
+                    className="h-4 w-4 rounded border border-[#cec8bf] text-[#4f63ea]"
+                  />
+                  <span className="text-[13px] text-slate-600">
+                    {practice.name}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            Companies
+          </label>
+          {companiesLoading ? (
+            <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
+              Loading...
+            </div>
+          ) : (
+            <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-[#e5e2d9] bg-white p-2">
+              {companies.map((company) => (
+                <label
+                  key={company.id}
+                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-[#f7f5f1]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.companyIds.includes(company.id)}
+                    onChange={() => handleCompanyToggle(company.id)}
+                    className="h-4 w-4 rounded border border-[#cec8bf] text-[#2e7d32]"
+                  />
+                  <span className="text-[13px] text-slate-600">
+                    {company.name}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
           <button
             type="button"
@@ -1198,11 +1369,12 @@ export default function PersonsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Email
+                      Email <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="email"
                       value={formData.email}
+                      required
                       onChange={(e) =>
                         handleFormChange("email", e.target.value)
                       }
@@ -1243,28 +1415,119 @@ export default function PersonsPage() {
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Practice <span className="text-red-500">*</span>
+                    Practices <span className="text-red-500">*</span>
                   </label>
                   {practicesLoading ? (
                     <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
                       Loading practices...
                     </div>
                   ) : (
-                    <select
-                      value={formData.practiceId}
-                      onChange={(e) =>
-                        handleFormChange("practiceId", e.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    >
-                      <option value="">-- Select a Practice --</option>
-                      {practices.map((practice) => (
-                        <option key={practice.id} value={practice.id}>
-                          {practice.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-md border border-[#e5e2d9] bg-white p-2">
+                      {practices.length === 0 ? (
+                        <div className="py-2 text-center text-[13px] text-slate-400">
+                          No practices available
+                        </div>
+                      ) : (
+                        practices.map((practice) => (
+                          <label
+                            key={practice.id}
+                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-[#f7f5f1]"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={formData.practiceIds.includes(
+                                practice.id,
+                              )}
+                              onChange={() => handlePracticeToggle(practice.id)}
+                              className="h-4 w-4 rounded border border-[#cec8bf] text-[#4f63ea]"
+                            />
+                            <span className="text-[13px] text-slate-600">
+                              {practice.name}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {formData.practiceIds.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {formData.practiceIds.map((id) => {
+                        const practice = practices.find((p) => p.id === id);
+                        return practice ? (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-1 rounded-full bg-[#e8e5f9] px-2 py-0.5 text-xs text-[#4f63ea]"
+                          >
+                            {practice.name}
+                            <button
+                              type="button"
+                              onClick={() => handlePracticeToggle(id)}
+                              className="ml-0.5 text-[#4f63ea] hover:text-[#3d4ed1]"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                    Companies
+                  </label>
+                  {companiesLoading ? (
+                    <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
+                      Loading companies...
+                    </div>
+                  ) : (
+                    <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-md border border-[#e5e2d9] bg-white p-2">
+                      {companies.length === 0 ? (
+                        <div className="py-2 text-center text-[13px] text-slate-400">
+                          No companies available
+                        </div>
+                      ) : (
+                        companies.map((company) => (
+                          <label
+                            key={company.id}
+                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-[#f7f5f1]"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={formData.companyIds.includes(company.id)}
+                              onChange={() => handleCompanyToggle(company.id)}
+                              className="h-4 w-4 rounded border border-[#cec8bf] text-[#4f63ea]"
+                            />
+                            <span className="text-[13px] text-slate-600">
+                              {company.name}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {formData.companyIds.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {formData.companyIds.map((id) => {
+                        const company = companies.find((c) => c.id === id);
+                        return company ? (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-1 rounded-full bg-[#e8f5e9] px-2 py-0.5 text-xs text-[#2e7d32]"
+                          >
+                            {company.name}
+                            <button
+                              type="button"
+                              onClick={() => handleCompanyToggle(id)}
+                              className="ml-0.5 text-[#2e7d32] hover:text-[#1b5e20]"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1273,14 +1536,14 @@ export default function PersonsPage() {
                 <button
                   type="button"
                   onClick={closeCreateForm}
-                  className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+                  className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] cursor-pointer font-medium text-slate-600 hover:bg-[#f7f5f1]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+                  className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#f7f5f1] cursor-pointer disabled:opacity-50"
                 >
                   {isSubmitting ? "Creating..." : "Create Person"}
                 </button>

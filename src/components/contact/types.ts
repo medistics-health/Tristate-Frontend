@@ -1,9 +1,17 @@
-export type PersonRole = "OWNER" | "ADMIN" | "FINANCE" | "OPERATIONS" | "CLINICAL" | "PROCUREMENT" | "OTHER";
+export type PersonRole =
+  | "OWNER"
+  | "ADMIN"
+  | "FINANCE"
+  | "OPERATIONS"
+  | "CLINICAL"
+  | "PROCUREMENT"
+  | "OTHER";
 
 export type InfluenceLevel = "LOW" | "MEDIUM" | "HIGH" | "DECISION_MAKER";
 
 export type PersonBody = {
-  practiceId: string;
+  practiceIds: string[];
+  companyIds: string[];
   firstName: string;
   lastName: string;
   role: PersonRole;
@@ -13,9 +21,11 @@ export type PersonBody = {
   designation?: string;
 };
 
+export type PersonPractice = { id: string; name: string };
+export type PersonCompany = { id: string; name: string };
+
 export type Person = {
   id: string;
-  practiceId: string;
   firstName: string;
   lastName: string;
   role: PersonRole;
@@ -25,7 +35,8 @@ export type Person = {
   designation?: string;
   createdAt: string;
   updatedAt: string;
-  practice?: { id: string; name: string };
+  practices?: PersonPractice[];
+  companies?: PersonCompany[];
 };
 
 export type PersonFieldType = "text" | "select";

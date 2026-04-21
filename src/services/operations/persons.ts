@@ -18,7 +18,16 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
-function personToRow(person: Person): PersonRow {
+type PersonWithPractices = Person & {
+  practices?: { practice: { id: string; name: string } }[];
+  companies?: { company: { id: string; name: string } }[];
+};
+
+function personToRow(person: PersonWithPractices): PersonRow {
+  const practicesList = person.practices?.map((p) => p.practice) || [];
+  const companiesList = person.companies?.map((c) => c.company) || [];
+  const practiceNames = practicesList.map((p) => p.name).join(", ");
+  const companyNames = companiesList.map((c) => c.name).join(", ");
   return {
     id: person.id,
     values: {
@@ -31,8 +40,10 @@ function personToRow(person: Person): PersonRow {
       influence: person.influence,
       email: person.email || "",
       phone: person.phone || "",
-      practiceId: person.practiceId || "",
-      practiceName: person.practice?.name || "",
+      practiceIds: practicesList.map((p) => p.id),
+      practiceNames: practiceNames,
+      companyIds: companiesList.map((c) => c.id),
+      companyNames: companyNames,
       creationDate: new Date(person.createdAt).toLocaleString(),
       lastUpdate: new Date(person.updatedAt).toLocaleString(),
     },
@@ -46,7 +57,8 @@ const fields = [
   { id: "influence", label: "Influence", type: "text" as const, visible: true },
   { id: "email", label: "Email", type: "text" as const, visible: true },
   { id: "phone", label: "Phone", type: "text" as const, visible: false },
-  { id: "practiceName", label: "Practice", type: "text" as const, visible: true },
+  { id: "practiceNames", label: "Practices", type: "text" as const, visible: true },
+  { id: "companyNames", label: "Companies", type: "text" as const, visible: true },
   { id: "creationDate", label: "Creation date", type: "text" as const, visible: true },
   { id: "lastUpdate", label: "Last update", type: "text" as const, visible: false },
 ];
@@ -82,7 +94,7 @@ export async function getPersonsView(params?: PersonQueryParams): Promise<Person
       credentials: true,
     });
     const { persons, pagination } = response.data as {
-      persons: Person[];
+      persons: PersonWithPractices[];
       pagination: { totalRecords: number; totalPages: number; currentPage: number; limit: number };
     };
     return {
@@ -103,14 +115,14 @@ export async function getPersonsView(params?: PersonQueryParams): Promise<Person
   }
 }
 
-export async function getPerson(id: string): Promise<Person> {
+export async function getPerson(id: string): Promise<PersonWithPractices> {
   try {
     const response = await apiConnector({
       method: "GET",
       url: GET(id),
       credentials: true,
     });
-    return (response.data as { person: Person }).person;
+    return (response.data as { person: PersonWithPractices }).person;
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch person."));
   }

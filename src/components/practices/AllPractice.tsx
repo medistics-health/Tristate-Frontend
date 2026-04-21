@@ -1424,7 +1424,7 @@ export default function AllPracticePage() {
           <div className="min-h-0 flex-1 overflow-auto">
             {groupedView ? (
               <div className="divide-y divide-[#f4f1ec]">
-                {groupedRows.map((item, idx) => {
+                {groupedRows.map((item: any, idx) => {
                   if (item.type === "group") {
                     return (
                       <div key={item.groupKey} className="bg-white">
@@ -1924,14 +1924,14 @@ export default function AllPracticePage() {
                 <button
                   type="button"
                   onClick={closeCreateForm}
-                  className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+                  className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] cursor-pointer font-medium text-slate-600 hover:bg-[#f7f5f1]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+                  className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#f7f5f1] cursor-pointer disabled:opacity-50"
                 >
                   {isSubmitting ? "Creating..." : "Create Practice"}
                 </button>
