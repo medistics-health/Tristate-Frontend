@@ -35,6 +35,8 @@ import DealsPage from "./components/deal/Deals";
 import PersonsPage from "./components/contact/Persons";
 import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
+import DocumentSigningPage from "./components/shared/DocumentSigningPage";
+import OnboardingForm from "./components/onboarding/OnboardingForm";
 
 function App() {
   return (
@@ -42,6 +44,19 @@ function App() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route
+        path="/onboarding"
+        element={
+          <ProtectedRoute>
+            <OnboardingForm />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/sign/:slug"
+        element={<DocumentSigningPage />}
+      />
       <Route
         path="/audit/all-practice-audits"
         element={

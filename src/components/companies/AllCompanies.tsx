@@ -460,7 +460,8 @@ export default function AllCompaniesPage() {
           zip: formData.zip.trim() || undefined,
           country: formData.country.trim() || undefined,
         },
-        ...(validTaxIds.length > 0 ? { taxIds: validTaxIds } : {}),
+        // ...(validTaxIds.length > 0 ? { taxIds: validTaxIds } : {}),
+        taxIds: formData.taxIds || undefined,
       };
 
       await createCompanyApi(companyData);

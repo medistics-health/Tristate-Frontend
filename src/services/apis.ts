@@ -35,45 +35,45 @@ export const personEndpoints = {
 };
 
 export const auditEndpoints = {
-  BASE: BACKEND_URL + '/api/v1/audits',
-  LIST: BACKEND_URL + '/api/v1/audits',
-  CREATE: BACKEND_URL + '/api/v1/audits',
+  BASE: BACKEND_URL + "/api/v1/audits",
+  LIST: BACKEND_URL + "/api/v1/audits",
+  CREATE: BACKEND_URL + "/api/v1/audits",
   GET: (id: string) => BACKEND_URL + `/api/v1/audits/${id}`,
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/audits/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/audits/${id}`,
 };
 
 export const serviceEndpoints = {
-  BASE: BACKEND_URL + '/api/v1/services',
-  LIST: BACKEND_URL + '/api/v1/services',
-  CREATE: BACKEND_URL + '/api/v1/services',
+  BASE: BACKEND_URL + "/api/v1/services",
+  LIST: BACKEND_URL + "/api/v1/services",
+  CREATE: BACKEND_URL + "/api/v1/services",
   GET: (id: string) => BACKEND_URL + `/api/v1/services/${id}`,
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/services/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/services/${id}`,
 };
 
 export const purchaseOrderEndpoints = {
-  BASE: BACKEND_URL + '/api/v1/purchase-orders',
-  LIST: BACKEND_URL + '/api/v1/purchase-orders',
-  CREATE: BACKEND_URL + '/api/v1/purchase-orders',
+  BASE: BACKEND_URL + "/api/v1/purchase-orders",
+  LIST: BACKEND_URL + "/api/v1/purchase-orders",
+  CREATE: BACKEND_URL + "/api/v1/purchase-orders",
   GET: (id: string) => BACKEND_URL + `/api/v1/purchase-orders/${id}`,
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/purchase-orders/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/purchase-orders/${id}`,
 };
 
 export const vendorEndpoints = {
-  BASE: BACKEND_URL + '/api/v1/vendors',
-  LIST: BACKEND_URL + '/api/v1/vendors',
-  CREATE: BACKEND_URL + '/api/v1/vendors',
+  BASE: BACKEND_URL + "/api/v1/vendors",
+  LIST: BACKEND_URL + "/api/v1/vendors",
+  CREATE: BACKEND_URL + "/api/v1/vendors",
   GET: (id: string) => BACKEND_URL + `/api/v1/vendors/${id}`,
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/vendors/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/vendors/${id}`,
 };
 
 export const invoiceEndpoints = {
-  BASE: BACKEND_URL + '/api/v1/invoices',
-  LIST: BACKEND_URL + '/api/v1/invoices',
-  CREATE: BACKEND_URL + '/api/v1/invoices',
+  BASE: BACKEND_URL + "/api/v1/invoices",
+  LIST: BACKEND_URL + "/api/v1/invoices",
+  CREATE: BACKEND_URL + "/api/v1/invoices",
   GET: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
@@ -87,8 +87,11 @@ export const agreementEndpoints = {
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
   GET_DOCUSEAL_TEMPLATES: BACKEND_URL + "/api/v1/agreements/docuseal/templates",
+  GET_DOCUSEAL_FORM: (slug: string) =>
+    BACKEND_URL + `/api/v1/agreements/docuseal/forms/${slug}`,
   SEND_AGREEMENT_EMAIL: BACKEND_URL + "/api/v1/agreements/send-email",
-  CREATE_DOCUSEAL_SUBMISSION: BACKEND_URL + "/api/v1/agreements/docuseal/submission",
+  CREATE_DOCUSEAL_SUBMISSION:
+    BACKEND_URL + "/api/v1/agreements/docuseal/submission",
 };
 
 export const assessmentEndpoints = {
@@ -108,4 +111,14 @@ export const practiceGroupEndpoints = {
 export const groupNpiEndpoints = {
   LIST: BACKEND_URL + "/api/v1/group-npis",
   GET: (id: string) => BACKEND_URL + `/api/v1/group-npis/${id}`,
+};
+
+export const onboardingEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/onboarding",
+  LIST: BACKEND_URL + "/api/v1/onboarding",
+  CREATE: BACKEND_URL + "/api/v1/onboardings",
+  GET: (id: string) => BACKEND_URL + `/api/v1/onboarding/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/onboarding/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/onboarding/${id}`,
+  EXTERNAL: BACKEND_URL + "/api/v1/onboarding/external",
 };

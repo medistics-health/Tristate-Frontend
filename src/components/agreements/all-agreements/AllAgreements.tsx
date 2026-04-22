@@ -21,6 +21,8 @@ import toast from "react-hot-toast";
 import AppLayout from "../../layout/AppLayout";
 import {
   createAgreementApi,
+  createDocusealSubmissionApi,
+  sendAgreementEmailApi,
   deleteAgreementApi,
   getAgreement,
   getAgreementsView,
@@ -141,6 +143,9 @@ function AllAgreementsPage() {
     DocusealTemplate[]
   >([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [signers, setSigners] = useState<any[]>([]);
+  const [selectedSignerId, setSelectedSignerId] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   console.log(editForm);
   const columns = useMemo<ColumnDef<AgreementRow>[]>(
@@ -201,6 +206,28 @@ function AllAgreementsPage() {
         header: () => "Created",
         cell: ({ row }: { row: { original: AgreementRow } }) =>
           String(row.original.values.creationDate),
+      },
+      {
+        id: "signingStatus",
+        accessorFn: (row: AgreementRow) => row.values.signingStatus,
+        header: () => "Signing",
+        cell: ({ row }: { row: { original: AgreementRow } }) => {
+          const status = String(row.original.values.signingStatus || "");
+          if (!status) return null;
+          const isComplete = status.includes("/") && !status.includes("0/");
+          return (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                isComplete
+                  ? "bg-green-100 text-green-700"
+                  : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              {status}
+            </span>
+          );
+        },
+        size: 100,
       },
     ],
     [],
@@ -330,6 +357,7 @@ function AllAgreementsPage() {
                 status: "PENDING",
                 templateId: Number(id),
                 url: template?.documents?.[0]?.url || undefined,
+                slug: template?.slug,
               };
             }),
           }
@@ -418,6 +446,45 @@ function AllAgreementsPage() {
       toast.error(message);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleSendForSignature() {
+    if (
+      !selectedAgreement ||
+      !selectedSignerId ||
+      !selectedAgreement.docusealId
+    ) {
+      toast.error("Please select a person and ensure agreement has a template");
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const result = await createDocusealSubmissionApi({
+        agreementId: selectedAgreement.id,
+        personId: selectedSignerId,
+        templateId: String(selectedAgreement.docusealId),
+      });
+
+      if (result.submission?.embedUrl) {
+        await sendAgreementEmailApi({
+          agreementId: selectedAgreement.id,
+          personId: selectedSignerId,
+        });
+      }
+
+      toast.success("Signature request sent successfully!");
+      setSelectedSignerId("");
+
+      const updatedAgreement = await getAgreement(selectedAgreement.id);
+      setSelectedAgreement(updatedAgreement);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to send signature request";
+      toast.error(message);
+    } finally {
+      setIsSending(false);
     }
   }
 
@@ -671,6 +738,36 @@ function AllAgreementsPage() {
               </div>
             </div>
           </div>
+
+          {/*{selectedAgreement?.docusealId && (
+            <div className="border-t border-[#f0ece6] pt-4 mt-4">
+              <label className="mb-2 block text-[13px] font-medium text-slate-700">
+                Send for Signature
+              </label>
+              <div className="flex gap-2">
+                <select
+                  value={selectedSignerId}
+                  onChange={(e) => setSelectedSignerId(e.target.value)}
+                  className="app-control flex-1 rounded-md px-3 py-2 text-[13px]"
+                >
+                  <option value="">Select Person</option>
+                  {signers.map((signer: any) => (
+                    <option key={signer.id} value={signer.id}>
+                      {signer.firstName} {signer.lastName}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleSendForSignature}
+                  disabled={isSending || !selectedSignerId}
+                  className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+                >
+                  {isSending ? "Sending..." : "Send"}
+                </button>
+              </div>
+            </div>
+          )}*/}
 
           <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
             <button

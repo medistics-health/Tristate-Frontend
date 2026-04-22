@@ -9,6 +9,7 @@ const {
   UPDATE,
   DELETE,
   GET_DOCUSEAL_TEMPLATES,
+  GET_DOCUSEAL_FORM,
   SEND_AGREEMENT_EMAIL,
   CREATE_DOCUSEAL_SUBMISSION,
 } = agreementEndpoints;
@@ -37,6 +38,13 @@ export type AgreementOption = {
 };
 
 function agreementToRow(agreement: Agreement): AgreementsRow {
+  const submissions = agreement.docusealSubmissions || [];
+  const completedSubmissions = submissions.filter(s => s.status === "completed").length;
+  const totalSubmissions = submissions.length;
+  const signingStatus = totalSubmissions > 0 
+    ? `${completedSubmissions}/${totalSubmissions} signed` 
+    : "";
+
   return {
     id: agreement.id,
     values: {
@@ -60,6 +68,9 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
       value: agreement.value?.toString() || "",
       creationDate: new Date(agreement.createdAt).toLocaleString(),
       lastUpdate: new Date(agreement.updatedAt).toLocaleString(),
+      docusealId: agreement.docusealId?.toString() || "",
+      docusealUrl: agreement.docusealUrl || "",
+      signingStatus: signingStatus,
     },
   };
 }
@@ -81,6 +92,12 @@ export type Agreement = {
   updatedAt: string;
   practice?: { id: string; name: string };
   deal?: { id: string; name: string };
+  docusealSubmissions?: Array<{
+    id: string;
+    externalId: number;
+    status: string;
+    url?: string;
+  }>;
 };
 
 type AgreementsRow = {
@@ -390,6 +407,52 @@ export async function getDocusealTemplates(): Promise<DocusealTemplatesResponse>
   } catch (error) {
     throw new Error(
       getErrorMessage(error, "Unable to fetch Docuseal templates."),
+    );
+  }
+}
+
+export async function getDocusealFormBySlug(slug: string): Promise<any> {
+  try {
+    const response = await axios.get(GET_DOCUSEAL_FORM(slug));
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to fetch DocuSeal form."),
+    );
+  }
+}
+
+export async function createDocusealSubmissionApi(data: {
+  agreementId: string;
+  personId: string;
+  templateId: string;
+}): Promise<any> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: CREATE_DOCUSEAL_SUBMISSION,
+      body: data,
+      credentials: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to create DocuSeal submission."),
+    );
+  }
+}
+
+export async function sendAgreementEmailApi(data: SendAgreementEmailBody): Promise<void> {
+  try {
+    await apiConnector({
+      method: "POST",
+      url: SEND_AGREEMENT_EMAIL,
+      body: data,
+      credentials: true,
+    });
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to send agreement email."),
     );
   }
 }
