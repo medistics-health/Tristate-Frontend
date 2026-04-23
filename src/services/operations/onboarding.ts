@@ -217,6 +217,7 @@ export type OnboardingBody = {
   currentVendorName?: string;
   currentVendorEndDate?: string;
   engagementGoals?: string;
+  isIndividualPractice?: boolean;
   informationAccurate?: boolean;
   authorizeUse?: boolean;
   submittedByName?: string;

@@ -31,6 +31,7 @@ import {
   type Agreement,
   type AgreementBody,
   type DocusealTemplate,
+  getAgreementDocusealId,
 } from "../../../services/operations/agreements";
 import { getAllPractices } from "../../../services/operations/practices";
 import type { Practice } from "../../practices/types";
@@ -147,7 +148,6 @@ function AllAgreementsPage() {
   const [selectedSignerId, setSelectedSignerId] = useState("");
   const [isSending, setIsSending] = useState(false);
 
-  console.log(editForm);
   const columns = useMemo<ColumnDef<AgreementRow>[]>(
     () => [
       {
@@ -358,6 +358,7 @@ function AllAgreementsPage() {
                 templateId: Number(id),
                 url: template?.documents?.[0]?.url || undefined,
                 slug: template?.slug,
+                submitter_uuid: template?.submitters?.[0]?.uuid,
               };
             }),
           }
@@ -450,11 +451,8 @@ function AllAgreementsPage() {
   }
 
   async function handleSendForSignature() {
-    if (
-      !selectedAgreement ||
-      !selectedSignerId ||
-      !selectedAgreement.docusealId
-    ) {
+    const docusealId = getAgreementDocusealId(selectedAgreement!);
+    if (!selectedAgreement || !selectedSignerId || !docusealId) {
       toast.error("Please select a person and ensure agreement has a template");
       return;
     }
@@ -464,7 +462,7 @@ function AllAgreementsPage() {
       const result = await createDocusealSubmissionApi({
         agreementId: selectedAgreement.id,
         personId: selectedSignerId,
-        templateId: String(selectedAgreement.docusealId),
+        templateId: String(docusealId),
       });
 
       if (result.submission?.embedUrl) {

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import Login from "./components/auth/Login";
 import Signup from "./components/auth/Signup";
 import AllAgreementsPage from "./components/agreements/all-agreements/AllAgreements";
@@ -39,24 +39,40 @@ import DocumentSigningPage from "./components/shared/DocumentSigningPage";
 import OnboardingForm from "./components/onboarding/OnboardingForm";
 
 function App() {
+  function UUIDProtectedRoute({ children }) {
+    const { id } = useParams();
+
+    const isValidUUID = (id: string | any) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+        id,
+      );
+
+    if (!id || !isValidUUID(id)) {
+      return <Navigate to="/404" replace />;
+    }
+
+    return children;
+  }
+
+  const isOnboardingClient = localStorage.getItem("onBoardingId");
+
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
+      {!isOnboardingClient && <Route path="/signup" element={<Signup />} />}
       <Route
-        path="/onboarding"
+        path="/onboarding/:id"
         element={
           <ProtectedRoute>
-            <OnboardingForm />
+            <UUIDProtectedRoute>
+              <OnboardingForm />
+            </UUIDProtectedRoute>
           </ProtectedRoute>
         }
       />
-      
-      <Route
-        path="/sign/:slug"
-        element={<DocumentSigningPage />}
-      />
+
+      <Route path="/sign/:slug" element={<DocumentSigningPage />} />
       <Route
         path="/audit/all-practice-audits"
         element={

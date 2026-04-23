@@ -62,6 +62,7 @@ function Login() {
     }
   }
 
+  const isOnboardingClient = localStorage.getItem("onBoardingId");
   return (
     <AuthLayout
       title="Sign in"
@@ -74,12 +75,14 @@ function Login() {
         >
           Login
         </Link>
-        <Link
-          to="/signup"
-          className="inline-flex rounded-full px-4 py-2 text-sm font-medium text-slate-500 transition hover:text-slate-950"
-        >
-          Sign up
-        </Link>
+        {!isOnboardingClient && (
+          <Link
+            to="/signup"
+            className="inline-flex rounded-full px-4 py-2 text-sm font-medium text-slate-500 transition hover:text-slate-950"
+          >
+            Sign up
+          </Link>
+        )}
       </div>
 
       <form className="mt-6 space-y-4" onSubmit={handleSubmit}>

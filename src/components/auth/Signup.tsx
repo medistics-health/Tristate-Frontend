@@ -112,6 +112,7 @@ function Signup() {
         >
           Login
         </Link>
+
         <Link
           to="/signup"
           className="inline-flex rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"

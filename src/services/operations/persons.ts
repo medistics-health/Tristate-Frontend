@@ -21,6 +21,20 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
 type PersonWithPractices = Person & {
   practices?: { practice: { id: string; name: string } }[];
   companies?: { company: { id: string; name: string } }[];
+  docusealSubmissions?: {
+    id: string;
+    agreementId: string;
+    externalId: number;
+    status: string;
+    url?: string;
+    signedDocUrls?: string;
+    auditLogUrl?: string;
+    embedUrl?: string;
+    slug?: string;
+    templateId: number;
+    createdAt: string;
+    updatedAt: string;
+  }[];
 };
 
 function personToRow(person: PersonWithPractices): PersonRow {

@@ -35,6 +35,7 @@ import {
   createPersonApi,
   deletePersonApi,
   getPersonsView,
+  getPerson,
   updatePersonApi,
   type PersonQueryParams,
 } from "../../services/operations/persons";
@@ -126,7 +127,9 @@ export default function PersonsPage() {
     practiceIds: [] as string[],
   });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [selectedPersonData, setSelectedPersonData] = useState<any>(null);
 
+  console.log(selectedPersonData);
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
     [rows, selectedRowId],
@@ -422,6 +425,16 @@ export default function PersonsPage() {
     setSelectedRowId(rowId);
     setShowDetailPanel(true);
     setShowCreateForm(false);
+    loadPersonDetails(rowId);
+  }
+
+  async function loadPersonDetails(id: string) {
+    try {
+      const person = await getPerson(id);
+      setSelectedPersonData(person);
+    } catch (err) {
+      console.error("Failed to load person details:", err);
+    }
   }
 
   function closeDetailPanel() {
@@ -908,6 +921,49 @@ export default function PersonsPage() {
             </div>
           )}
         </div>
+
+        {selectedPersonData?.docusealSubmissions?.length > 0 &&
+          (selectedPersonData.role === "OWNER" ||
+            selectedPersonData.role === "ADMIN") && (
+            <div>
+              <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                Signed Agreements
+              </label>
+              <div className="space-y-2 rounded-md border border-[#e5e2d9] bg-white p-2">
+                {selectedPersonData.docusealSubmissions
+                  .filter(
+                    (sub: any) =>
+                      sub.status === "completed" || sub.status === "signed",
+                  )
+                  .map((sub: any) => (
+                    <div
+                      key={sub.id}
+                      className="flex items-center justify-between rounded px-2 py-2 hover:bg-[#f7f5f1]"
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-[13px] font-medium text-slate-700">
+                          Template #{sub.templateId}
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          {sub.status} •{" "}
+                          {new Date(sub.updatedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {sub.signedDocUrls ? (
+                        <a
+                          href={sub.signedDocUrls}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-blue-600 hover:underline"
+                        >
+                          View PDF
+                        </a>
+                      ) : null}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
         <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
           <button

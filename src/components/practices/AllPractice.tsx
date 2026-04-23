@@ -47,6 +47,7 @@ import {
   getAgreementsByPractice,
   sendAgreementEmail,
   createDocusealSubmissionApi,
+  getAgreementDocusealId,
 } from "../../services/operations/agreements";
 import type { Company } from "../companies/types";
 import toast from "react-hot-toast";
@@ -682,14 +683,15 @@ export default function AllPracticePage() {
           const agreements = await getAgreementsByPractice(newPractice.id);
           if (agreements.length > 0) {
             const agreement = agreements[0];
-            if (agreement.docusealId) {
+            const docusealId = getAgreementDocusealId(agreement);
+            if (docusealId) {
               const person = fullPractice?.persons?.find(
                 (p) => p.role === "ADMIN" && p.email,
               );
               await createDocusealSubmissionApi({
                 agreementId: agreement.id,
                 personId: person?.id ?? "",
-                templateId: String(agreement.docusealId),
+                templateId: String(docusealId),
               });
             }
             await sendAgreementEmail({
@@ -709,14 +711,15 @@ export default function AllPracticePage() {
           const agreements = await getAgreementsByPractice(newPractice.id);
           if (agreements.length > 0) {
             const agreement = agreements[0];
-            if (agreement.docusealId) {
+            const docusealId = getAgreementDocusealId(agreement);
+            if (docusealId) {
               const person = fullPractice?.persons?.find(
                 (p) => p.role === "ADMIN" && p.email,
               );
               await createDocusealSubmissionApi({
                 agreementId: agreement.id,
                 personId: person?.id ?? "",
-                templateId: String(agreement.docusealId),
+                templateId: String(docusealId),
               });
             }
             await sendAgreementEmail({
@@ -750,7 +753,9 @@ export default function AllPracticePage() {
     const practicePersons = fullPractice.persons ?? [];
     if (willBecomeActive) {
       const hasAdminWithEmail = practicePersons.some(
-        (init: any) => init.person?.role === "ADMIN" && !!init.person?.email,
+        (init: any) =>
+          (init.person?.role === "ADMIN" || init.person?.role === "OWNER") &&
+          !!init.person?.email,
       );
 
       console.log(practicePersons);
@@ -758,7 +763,7 @@ export default function AllPracticePage() {
 
       if (!hasAdminWithEmail) {
         toast.error(
-          "Practice must have at least one ADMIN person with email to set status to ACTIVE",
+          "Practice must have at least one ADMIN/OWNER person with email to set status to ACTIVE",
         );
         return;
       }
@@ -797,6 +802,10 @@ export default function AllPracticePage() {
         taxIdId: formData.taxIdId?.trim() || undefined,
       };
 
+      if (practiceData.status !== "ACTIVE") {
+        await updatePracticeApi(selectedRow.id, practiceData);
+        await getPracticesView();
+      }
       const params: PracticeQueryParams = {
         page: pagination.page,
         limit: pagination.limit,
@@ -810,17 +819,19 @@ export default function AllPracticePage() {
       if (willBecomeActive) {
         const agreements = await getAgreementsByPractice(selectedRow.id);
         const persons = practicePersons?.find(
-          (init) => init.person.role === "ADMIN" && init.person.email,
+          (init) =>
+            (init.person.role === "ADMIN" || init.person.role === "OWNER") &&
+            init.person.email,
         );
-        console.log("s", persons.person.id);
 
         if (agreements.length > 0) {
           const agreement = agreements[0];
-          if (agreement.docusealId) {
+          const docusealIds = getAgreementDocusealId(agreement);
+          if (docusealIds?.length) {
             await createDocusealSubmissionApi({
               agreementId: agreement.id,
               personId: persons?.person.id ?? "",
-              templateId: String(agreement.docusealId),
+              templateId: docusealIds,
             });
           }
           await sendAgreementEmail({
@@ -829,6 +840,8 @@ export default function AllPracticePage() {
           });
           await updatePracticeApi(selectedRow.id, practiceData);
           toast.success("Agreement email sent successfully");
+
+          await getPracticesView();
         }
       }
     } catch (err) {

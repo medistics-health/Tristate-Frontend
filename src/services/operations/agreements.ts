@@ -39,11 +39,14 @@ export type AgreementOption = {
 
 function agreementToRow(agreement: Agreement): AgreementsRow {
   const submissions = agreement.docusealSubmissions || [];
-  const completedSubmissions = submissions.filter(s => s.status === "completed").length;
+  const completedSubmissions = submissions.filter(
+    (s) => s.status === "completed",
+  ).length;
   const totalSubmissions = submissions.length;
-  const signingStatus = totalSubmissions > 0 
-    ? `${completedSubmissions}/${totalSubmissions} signed` 
-    : "";
+  const signingStatus =
+    totalSubmissions > 0
+      ? `${completedSubmissions}/${totalSubmissions} signed`
+      : "";
 
   return {
     id: agreement.id,
@@ -75,6 +78,21 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
   };
 }
 
+export type DocusealSubmission = {
+  id: string;
+  agreementId: string;
+  personId?: string | null;
+  externalId: number;
+  status: string;
+  url?: string | null;
+  embedUrl?: string | null;
+  slug?: string | null;
+  submitterUuid?: string | null;
+  templateId: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Agreement = {
   id: string;
   practiceId: string;
@@ -92,13 +110,16 @@ export type Agreement = {
   updatedAt: string;
   practice?: { id: string; name: string };
   deal?: { id: string; name: string };
-  docusealSubmissions?: Array<{
-    id: string;
-    externalId: number;
-    status: string;
-    url?: string;
-  }>;
+  docusealSubmissions?: DocusealSubmission[];
 };
+
+export function getAgreementDocusealId(agreement: Agreement): number[] | null {
+  if (agreement.docusealId) return [agreement.docusealId];
+  if (agreement.docusealSubmissions?.length) {
+    return agreement.docusealSubmissions.map((init: any) => init.templateId);
+  }
+  return null;
+}
 
 type AgreementsRow = {
   id: string;
@@ -416,16 +437,14 @@ export async function getDocusealFormBySlug(slug: string): Promise<any> {
     const response = await axios.get(GET_DOCUSEAL_FORM(slug));
     return response.data;
   } catch (error) {
-    throw new Error(
-      getErrorMessage(error, "Unable to fetch DocuSeal form."),
-    );
+    throw new Error(getErrorMessage(error, "Unable to fetch DocuSeal form."));
   }
 }
 
 export async function createDocusealSubmissionApi(data: {
   agreementId: string;
   personId: string;
-  templateId: string;
+  templateId: any[];
 }): Promise<any> {
   try {
     const response = await apiConnector({
@@ -442,7 +461,9 @@ export async function createDocusealSubmissionApi(data: {
   }
 }
 
-export async function sendAgreementEmailApi(data: SendAgreementEmailBody): Promise<void> {
+export async function sendAgreementEmailApi(
+  data: SendAgreementEmailBody,
+): Promise<void> {
   try {
     await apiConnector({
       method: "POST",
@@ -451,9 +472,7 @@ export async function sendAgreementEmailApi(data: SendAgreementEmailBody): Promi
       credentials: true,
     });
   } catch (error) {
-    throw new Error(
-      getErrorMessage(error, "Unable to send agreement email."),
-    );
+    throw new Error(getErrorMessage(error, "Unable to send agreement email."));
   }
 }
 

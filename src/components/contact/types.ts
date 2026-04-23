@@ -9,6 +9,21 @@ export type PersonRole =
 
 export type InfluenceLevel = "LOW" | "MEDIUM" | "HIGH" | "DECISION_MAKER";
 
+export type DocusealSubmission = {
+  id: string;
+  agreementId: string;
+  externalId: number;
+  status: string;
+  url?: string;
+  signedDocUrls?: string;
+  auditLogUrl?: string;
+  embedUrl?: string;
+  slug?: string;
+  templateId: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PersonBody = {
   practiceIds: string[];
   companyIds: string[];
@@ -37,6 +52,7 @@ export type Person = {
   updatedAt: string;
   practices?: PersonPractice[];
   companies?: PersonCompany[];
+  docusealSubmissions?: DocusealSubmission[];
 };
 
 export type PersonFieldType = "text" | "select";

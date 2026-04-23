@@ -122,7 +122,7 @@ export default function DocumentSigningPage() {
                 ← Back to Documents
               </button>
             </div>
-            <a
+            {/*<a
               href={formUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -130,7 +130,7 @@ export default function DocumentSigningPage() {
             >
               <ExternalLink className="h-4 w-4" />
               Open in DocuSeal
-            </a>
+            </a>*/}
           </div>
         </header>
         <main className="p-6">
@@ -187,15 +187,15 @@ export default function DocumentSigningPage() {
               <RefreshCw className="h-4 w-4" />
               Refresh
             </button>
-            {!isCompleted && !isDeclined && (
+            {/*{!isCompleted && !isDeclined && (
               <button
                 onClick={() => setShowEmbeddedForm(true)}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#4f63ea] px-5 py-2.5 text-[14px] font-medium text-white hover:bg-[#3d4ed1]"
               >
                 Sign Now
               </button>
-            )}
-            <a
+            )}*/}
+            {/*<a
               href={formUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -203,7 +203,7 @@ export default function DocumentSigningPage() {
             >
               <ExternalLink className="h-4 w-4" />
               Open in DocuSeal
-            </a>
+            </a>*/}
           </div>
         </div>
       </header>
@@ -313,7 +313,7 @@ export default function DocumentSigningPage() {
                 <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#4f63ea] text-[11px] font-medium text-white">
                   1
                 </span>
-                Click the "Sign Now" button above
+                Click the "Sign" button
               </li>
               <li className="flex gap-3">
                 <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#4f63ea] text-[11px] font-medium text-white">
