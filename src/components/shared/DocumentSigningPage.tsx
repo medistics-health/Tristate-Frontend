@@ -71,6 +71,12 @@ export default function DocumentSigningPage() {
     fetchDocuSealForm();
   }, [fetchDocuSealForm]);
 
+  const url = useParams();
+
+  useEffect(() => {
+    localStorage.setItem("documentId", url.slug as string);
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#faf9f7]">

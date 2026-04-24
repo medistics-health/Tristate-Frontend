@@ -36,7 +36,8 @@ import PersonsPage from "./components/contact/Persons";
 import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
-import OnboardingForm from "./components/onboarding/OnboardingForm";
+import OnboardingForm from "./components/onboarding/OnboardingFormV2";
+import OnboardingFormV2 from "./components/onboarding/OnboardingFormV2";
 
 function App() {
   function UUIDProtectedRoute({ children }) {
@@ -54,25 +55,48 @@ function App() {
     return children;
   }
 
-  const isOnboardingClient = localStorage.getItem("onBoardingId");
+  function SignPage({ children }) {
+    const url = useParams();
+    const token = url?.slug as string;
+
+    const isValidSignToken = (token: string) =>
+      /^[A-Za-z0-9]{10,20}$/.test(token);
+
+    if (!token || !isValidSignToken(token)) {
+      return <Navigate to="/404" replace />;
+    }
+
+    return children;
+  }
+
+  const isOnboardingPage = localStorage.getItem("onBoardingId");
+  const isSignDocPage = localStorage.getItem("documentId");
 
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
-      {!isOnboardingClient && <Route path="/signup" element={<Signup />} />}
+      {(!isOnboardingPage || !isSignDocPage) && (
+        <Route path="/signup" element={<Signup />} />
+      )}
       <Route
         path="/onboarding/:id"
         element={
-          <ProtectedRoute>
-            <UUIDProtectedRoute>
-              <OnboardingForm />
-            </UUIDProtectedRoute>
-          </ProtectedRoute>
+          <UUIDProtectedRoute>
+            {/*<OnboardingForm />*/}
+            <OnboardingFormV2 />
+          </UUIDProtectedRoute>
         }
       />
 
-      <Route path="/sign/:slug" element={<DocumentSigningPage />} />
+      <Route
+        path="/sign/:slug"
+        element={
+          <SignPage>
+            <DocumentSigningPage />
+          </SignPage>
+        }
+      />
       <Route
         path="/audit/all-practice-audits"
         element={

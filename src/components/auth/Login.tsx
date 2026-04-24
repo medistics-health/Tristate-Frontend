@@ -62,7 +62,8 @@ function Login() {
     }
   }
 
-  const isOnboardingClient = localStorage.getItem("onBoardingId");
+  const isOnboardingPage = localStorage.getItem("onBoardingId");
+  const isSignDocPage = localStorage.getItem("documentId");
   return (
     <AuthLayout
       title="Sign in"
@@ -75,7 +76,7 @@ function Login() {
         >
           Login
         </Link>
-        {!isOnboardingClient && (
+        {(!isOnboardingPage || !isSignDocPage) && (
           <Link
             to="/signup"
             className="inline-flex rounded-full px-4 py-2 text-sm font-medium text-slate-500 transition hover:text-slate-950"

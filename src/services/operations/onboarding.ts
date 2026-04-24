@@ -178,6 +178,31 @@ export type OnboardingCompliance = {
   additionalNotes?: string;
 };
 
+export type OnboardingCareProgram = {
+  programsPlanned?: string[];
+  estimatedEligiblePatients?: number;
+  currentEnrolledPatients?: number;
+  patientEnrollmentHandler?: string;
+  monthlyFollowUpHandler?: string;
+  consentFormsInPlace?: boolean;
+  existingCarePlanWorkflow?: boolean;
+  patientMinutesTracker?: string;
+  complianceConcerns?: string;
+};
+
+export type OnboardingServiceSetup = {
+  requestedServices?: string[];
+  primaryServiceToLaunch?: string;
+  requestedGoLiveDate?: string;
+  priorityLevel?: string;
+  servicesForAllPractices?: string;
+  selectedPractices?: string[];
+  replacingExistingVendor?: boolean;
+  currentVendorName?: string;
+  currentVendorEndDate?: string;
+  engagementGoals?: string;
+};
+
 export type OnboardingBody = {
   onboardingType?: string;
   isAuthorizedPerson?: boolean;
@@ -213,6 +238,7 @@ export type OnboardingBody = {
   requestedGoLiveDate?: string;
   priorityLevel?: string;
   servicesForAllPractices?: string;
+  selectedPractices?: string[];
   replacingExistingVendor?: boolean;
   currentVendorName?: string;
   currentVendorEndDate?: string;
@@ -222,6 +248,7 @@ export type OnboardingBody = {
   authorizeUse?: boolean;
   submittedByName?: string;
   submittedByTitle?: string;
+  submissionDate?: string;
   status?: string;
   contacts?: OnboardingContact[];
   practices?: OnboardingPractice[];
@@ -232,6 +259,8 @@ export type OnboardingBody = {
   outreach?: OnboardingOutreach;
   labPharmacy?: OnboardingLabPharmacy;
   compliance?: OnboardingCompliance;
+  serviceSetup?: OnboardingServiceSetup;
+  careProgram?: OnboardingCareProgram;
 };
 
 export type Onboarding = {
@@ -270,6 +299,7 @@ export type Onboarding = {
   requestedGoLiveDate?: string;
   priorityLevel?: string;
   servicesForAllPractices?: string;
+  selectedPractices?: string[];
   replacingExistingVendor?: boolean;
   currentVendorName?: string;
   currentVendorEndDate?: string;
@@ -278,8 +308,8 @@ export type Onboarding = {
   authorizeUse?: boolean;
   submittedByName?: string;
   submittedByTitle?: string;
-  status?: string;
   submissionDate?: string;
+  status?: string;
   createdAt: string;
   updatedAt: string;
   contacts?: OnboardingContact[];
@@ -291,6 +321,8 @@ export type Onboarding = {
   outreach?: OnboardingOutreach;
   labPharmacy?: OnboardingLabPharmacy;
   compliance?: OnboardingCompliance;
+  serviceSetup?: OnboardingServiceSetup;
+  careProgram?: OnboardingCareProgram;
 };
 
 export async function createExternalOnboarding(
