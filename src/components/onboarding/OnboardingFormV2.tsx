@@ -1583,9 +1583,10 @@ export default function OnboardingFormV2() {
             Onboarding Form
           </h2>
           <p className="mt-3 max-w-2xl text-sm text-slate-600">
-            Capture company structure, onboarding scope, operational readiness,
+            {/*Capture company structure, onboarding scope, operational readiness,
             and compliance details in one flow using the existing onboarding
-            API.
+            API.*/}
+            Complete this form to begin your onboarding.
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-right">
