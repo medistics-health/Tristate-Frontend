@@ -358,7 +358,10 @@ function AllAgreementsPage() {
                 templateId: Number(id),
                 url: template?.documents?.[0]?.url || undefined,
                 slug: template?.slug,
-                submitter_uuid: template?.submitters?.[0]?.uuid,
+                submitters: template?.submitters?.map((init: any) => ({
+                  role: init.name,
+                  uuid: init.uuid,
+                })),
               };
             }),
           }

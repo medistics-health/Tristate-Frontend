@@ -78,8 +78,10 @@ export function DocuSealEmbed({
   if (!isOpen) return null;
 
   const formUrl = formSlug
-    ? `https://docuseal.com/d/${formSlug}`
-    : `https://docuseal.com/d/${formId}`;
+    ? `https://docuseal.com/s/${formSlug}`
+    : `https://docuseal.com/s/${formId}`;
+  // ? `https://docuseal.com/d/${formSlug}`
+  // : `https://docuseal.com/d/${formId}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -103,12 +105,20 @@ export function DocuSealEmbed({
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#4f63ea] border-t-transparent" />
             </div>
           )}
-
+          {/*
           <DocusealForm
             src={formUrl}
             email={signerEmail}
             name={signerName}
             disabledSign={disabledSign}
+            onLoad={() => {
+              setIsLoading(false);
+              onLoad?.();
+            }}
+          />*/}
+          <iframe
+            src={`https://docuseal.com/s/${formSlug}`}
+            className="w-full h-full border-0"
             onLoad={() => {
               setIsLoading(false);
               onLoad?.();

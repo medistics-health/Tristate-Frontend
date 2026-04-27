@@ -1,16 +1,22 @@
 export type ServiceBody = {
   name: string;
-  clientRate: number;
-  vendorRate: number;
-  margin: number;
+  code?: string | null;
+  category?: string | null;
+  isActive?: boolean;
+  clientRate?: number;
+  vendorRate?: number;
+  margin?: number;
 };
 
 export type Service = {
   id: string;
   name: string;
-  clientRate: string;
-  vendorRate: string;
-  margin: string;
+  code: string | null;
+  category: string | null;
+  isActive: boolean;
+  clientRate: string | null;
+  vendorRate: string | null;
+  margin: string | null;
   createdAt: string;
   updatedAt: string;
 };

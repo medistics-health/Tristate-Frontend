@@ -22,9 +22,9 @@ function serviceToRow(service: Service): ServiceRow {
     values: {
       id: service.id,
       name: service.name,
-      clientRate: service.clientRate,
-      vendorRate: service.vendorRate,
-      margin: service.margin,
+      code: service.code ?? '',
+      category: service.category ?? '',
+      isActive: service.isActive,
       creationDate: new Date(service.createdAt).toLocaleString(),
       lastUpdate: new Date(service.updatedAt).toLocaleString(),
     },
@@ -33,9 +33,9 @@ function serviceToRow(service: Service): ServiceRow {
 
 const fields = [
   { id: 'name', label: 'Name', type: 'text' as const, visible: true },
-  { id: 'clientRate', label: 'Client Rate', type: 'number' as const, visible: true },
-  { id: 'vendorRate', label: 'Vendor Rate', type: 'number' as const, visible: true },
-  { id: 'margin', label: 'Margin (%)', type: 'number' as const, visible: true },
+  { id: 'code', label: 'Code', type: 'text' as const, visible: true },
+  { id: 'category', label: 'Category', type: 'text' as const, visible: true },
+  { id: 'isActive', label: 'Active', type: 'text' as const, visible: true },
   { id: 'creationDate', label: 'Creation Date', type: 'text' as const, visible: true },
   { id: 'lastUpdate', label: 'Last Update', type: 'text' as const, visible: false },
 ];

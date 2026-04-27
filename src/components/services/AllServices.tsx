@@ -55,16 +55,16 @@ function AllServicesPage() {
 
   const [formData, setFormData] = useState({
     name: "",
-    clientRate: "",
-    vendorRate: "",
-    margin: "",
+    code: "",
+    category: "",
+    isActive: true,
   });
 
   const [editForm, setEditForm] = useState({
     name: "",
-    clientRate: "",
-    vendorRate: "",
-    margin: "",
+    code: "",
+    category: "",
+    isActive: true,
   });
 
   const selectedRow = useMemo(
@@ -83,25 +83,25 @@ function AllServicesPage() {
             String(row.original.values.name || "-"),
         },
         {
-          id: "clientRate",
-          accessorFn: (row: ServiceRow) => row.values.clientRate,
-          header: () => "Client Rate",
+          id: "code",
+          accessorFn: (row: ServiceRow) => row.values.code,
+          header: () => "Code",
           cell: ({ row }: { row: { original: ServiceRow } }) =>
-            String(row.original.values.clientRate || "-"),
+            String(row.original.values.code || "-"),
         },
         {
-          id: "vendorRate",
-          accessorFn: (row: ServiceRow) => row.values.vendorRate,
-          header: () => "Vendor Rate",
+          id: "category",
+          accessorFn: (row: ServiceRow) => row.values.category,
+          header: () => "Category",
           cell: ({ row }: { row: { original: ServiceRow } }) =>
-            String(row.original.values.vendorRate || "-"),
+            String(row.original.values.category || "-"),
         },
         {
-          id: "margin",
-          accessorFn: (row: ServiceRow) => row.values.margin,
-          header: () => "Margin (%)",
+          id: "isActive",
+          accessorFn: (row: ServiceRow) => row.values.isActive,
+          header: () => "Active",
           cell: ({ row }: { row: { original: ServiceRow } }) =>
-            String(row.original.values.margin || "-"),
+            row.original.values.isActive ? "Yes" : "No",
         },
         {
           id: "creationDate",
@@ -174,9 +174,9 @@ function AllServicesPage() {
       setSelectedService(service);
       setEditForm({
         name: service.name,
-        clientRate: String(service.clientRate),
-        vendorRate: String(service.vendorRate),
-        margin: String(service.margin),
+        code: service.code ?? "",
+        category: service.category ?? "",
+        isActive: service.isActive ?? true,
       });
     } catch (err) {
       const message =
@@ -191,18 +191,18 @@ function AllServicesPage() {
     setShowDetailPanel(false);
     setSelectedRowId(null);
     setSelectedService(null);
-    setEditForm({ name: "", clientRate: "", vendorRate: "", margin: "" });
+    setEditForm({ name: "", code: "", category: "", isActive: true });
   }
 
   function openCreateForm() {
-    setFormData({ name: "", clientRate: "", vendorRate: "", margin: "" });
+    setFormData({ name: "", code: "", category: "", isActive: true });
     setShowCreateForm(true);
     setShowDetailPanel(false);
   }
 
   function closeCreateForm() {
     setShowCreateForm(false);
-    setFormData({ name: "", clientRate: "", vendorRate: "", margin: "" });
+    setFormData({ name: "", code: "", category: "", isActive: true });
   }
 
   async function handleCreateService(e: React.FormEvent) {
@@ -216,9 +216,9 @@ function AllServicesPage() {
     try {
       const serviceData = {
         name: formData.name.trim(),
-        clientRate: parseFloat(formData.clientRate) || 0,
-        vendorRate: parseFloat(formData.vendorRate) || 0,
-        margin: parseFloat(formData.margin) || 0,
+        ...(formData.code.trim() && { code: formData.code.trim() }),
+        ...(formData.category.trim() && { category: formData.category.trim() }),
+        isActive: formData.isActive,
       };
 
       await createServiceApi(serviceData);
@@ -276,9 +276,9 @@ function AllServicesPage() {
     try {
       const serviceData = {
         name: editForm.name.trim(),
-        clientRate: parseFloat(editForm.clientRate) || 0,
-        vendorRate: parseFloat(editForm.vendorRate) || 0,
-        margin: parseFloat(editForm.margin) || 0,
+        ...(editForm.code.trim() && { code: editForm.code.trim() }),
+        ...(editForm.category.trim() && { category: editForm.category.trim() }),
+        isActive: editForm.isActive,
       };
 
       await updateServiceApi(selectedRowId!, serviceData);
@@ -602,15 +602,15 @@ function AllServicesPage() {
 
                     <div>
                       <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Client Rate
+                        Code
                       </label>
                       <input
-                        type="number"
-                        value={editForm.clientRate}
+                        type="text"
+                        value={editForm.code}
                         onChange={(e) =>
                           setEditForm({
                             ...editForm,
-                            clientRate: e.target.value,
+                            code: e.target.value,
                           })
                         }
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
@@ -619,33 +619,40 @@ function AllServicesPage() {
 
                     <div>
                       <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Vendor Rate
+                        Category
                       </label>
                       <input
-                        type="number"
-                        value={editForm.vendorRate}
+                        type="text"
+                        value={editForm.category}
                         onChange={(e) =>
                           setEditForm({
                             ...editForm,
-                            vendorRate: e.target.value,
+                            category: e.target.value,
                           })
                         }
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </div>
 
-                    <div>
-                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Margin (%)
-                      </label>
+                    <div className="flex items-center gap-2">
                       <input
-                        type="number"
-                        value={editForm.margin}
+                        type="checkbox"
+                        id="editIsActive"
+                        checked={editForm.isActive}
                         onChange={(e) =>
-                          setEditForm({ ...editForm, margin: e.target.value })
+                          setEditForm({
+                            ...editForm,
+                            isActive: e.target.checked,
+                          })
                         }
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        className="h-4 w-4 rounded border-slate-300 text-[#4f63ea]"
                       />
+                      <label
+                        htmlFor="editIsActive"
+                        className="text-[13px] font-medium text-slate-700"
+                      >
+                        Active
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -713,59 +720,59 @@ function AllServicesPage() {
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Client Rate
+                    Code
                   </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    value={formData.clientRate}
+                    type="text"
+                    value={formData.code}
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
-                        clientRate: e.target.value,
+                        code: e.target.value,
                       }))
                     }
-                    placeholder="0.00"
+                    placeholder="Service code"
                     className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                   />
                 </div>
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Vendor Rate
+                    Category
                   </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    value={formData.vendorRate}
+                    type="text"
+                    value={formData.category}
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
-                        vendorRate: e.target.value,
+                        category: e.target.value,
                       }))
                     }
-                    placeholder="0.00"
+                    placeholder="Service category"
                     className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                   />
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Margin (%)
-                  </label>
+                <div className="flex items-center gap-2">
                   <input
-                    type="number"
-                    step="0.01"
-                    value={formData.margin}
+                    type="checkbox"
+                    id="createIsActive"
+                    checked={formData.isActive}
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
-                        margin: e.target.value,
+                        isActive: e.target.checked,
                       }))
                     }
-                    placeholder="0.00"
-                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    className="h-4 w-4 rounded border-slate-300 text-[#4f63ea]"
                   />
+                  <label
+                    htmlFor="createIsActive"
+                    className="text-[13px] font-medium text-slate-700"
+                  >
+                    Active
+                  </label>
                 </div>
               </div>
 

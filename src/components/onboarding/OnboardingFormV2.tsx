@@ -1691,53 +1691,55 @@ export default function OnboardingFormV2() {
               </div>
             </SectionCard>
 
-            <SectionCard
-              title="Centralized Operations"
-              description="Use these settings to understand parent-level ownership and communication."
-            >
-              <div className="grid gap-6">
-                <Field label="Is billing managed centrally for all practices?">
-                  <RadioGroup
-                    name="billingManagedCentrally"
-                    value={formData.billingManagedCentrally ?? ""}
-                    options={centralizationOptions}
-                    onChange={(value) =>
-                      updateField("billingManagedCentrally", value)
-                    }
-                  />
-                </Field>
+            {!formData.isIndividualPractice && (
+              <SectionCard
+                title="Centralized Operations"
+                description="Use these settings to understand parent-level ownership and communication."
+              >
+                <div className="grid gap-6">
+                  <Field label="Is billing managed centrally for all practices?">
+                    <RadioGroup
+                      name="billingManagedCentrally"
+                      value={formData.billingManagedCentrally ?? ""}
+                      options={centralizationOptions}
+                      onChange={(value) =>
+                        updateField("billingManagedCentrally", value)
+                      }
+                    />
+                  </Field>
 
-                <Field label="Is credentialing managed centrally for all practices?">
-                  <RadioGroup
-                    name="credentialingManagedCentrally"
-                    value={formData.credentialingManagedCentrally ?? ""}
-                    options={centralizationOptions}
-                    onChange={(value) =>
-                      updateField("credentialingManagedCentrally", value)
-                    }
-                  />
-                </Field>
+                  <Field label="Is credentialing managed centrally for all practices?">
+                    <RadioGroup
+                      name="credentialingManagedCentrally"
+                      value={formData.credentialingManagedCentrally ?? ""}
+                      options={centralizationOptions}
+                      onChange={(value) =>
+                        updateField("credentialingManagedCentrally", value)
+                      }
+                    />
+                  </Field>
 
-                <Field label="Is contracting managed centrally for all practices?">
-                  <RadioGroup
-                    name="contractingManagedCentrally"
-                    value={formData.contractingManagedCentrally ?? ""}
-                    options={centralizationOptions}
-                    onChange={(value) =>
-                      updateField("contractingManagedCentrally", value)
-                    }
-                  />
-                </Field>
+                  <Field label="Is contracting managed centrally for all practices?">
+                    <RadioGroup
+                      name="contractingManagedCentrally"
+                      value={formData.contractingManagedCentrally ?? ""}
+                      options={centralizationOptions}
+                      onChange={(value) =>
+                        updateField("contractingManagedCentrally", value)
+                      }
+                    />
+                  </Field>
 
-                <Field label="Is there one main contact for all practices?">
-                  <BooleanRadioGroup
-                    name="oneMainContact"
-                    value={formData.oneMainContact ?? false}
-                    onChange={(value) => updateField("oneMainContact", value)}
-                  />
-                </Field>
-              </div>
-            </SectionCard>
+                  <Field label="Is there one main contact for all practices?">
+                    <BooleanRadioGroup
+                      name="oneMainContact"
+                      value={formData.oneMainContact ?? false}
+                      onChange={(value) => updateField("oneMainContact", value)}
+                    />
+                  </Field>
+                </div>
+              </SectionCard>
+            )}
           </>
         ) : null}
 

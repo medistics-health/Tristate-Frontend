@@ -17,7 +17,7 @@ import {
   getPurchaseOrdersView,
   type PurchaseOrderQueryParams,
 } from "../../services/operations/purchaseOrders";
-import { getAllVendors } from "../../services/operations/vendors";
+import { getAllVendorsApi } from "../../services/operations/vendors";
 import { getAllInvoices } from "../../services/operations/invoices";
 import type { Vendor } from "../../services/operations/vendors";
 import type { Invoice } from "../../services/operations/invoices";
