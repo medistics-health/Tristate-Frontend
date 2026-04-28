@@ -357,6 +357,11 @@ import { useEffect } from "react";
 export default function DocumentSigningPage() {
   const { slug } = useParams<{ slug: string }>();
   const [isLoading, setIsLoading] = useState(false);
+  const url = useParams();
+
+  useEffect(() => {
+    localStorage.setItem("documentId", url.slug as string);
+  }, []);
 
   if (!slug) {
     return (
