@@ -94,6 +94,24 @@ export const agreementEndpoints = {
     BACKEND_URL + "/api/v1/agreements/docuseal/submission",
 };
 
+export const agreementVersionEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/agreements/versions",
+  LIST: BACKEND_URL + "/api/v1/agreements/versions",
+  CREATE: BACKEND_URL + "/api/v1/agreements/versions",
+  GET: (id: string) => BACKEND_URL + `/api/v1/agreements/versions/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/agreements/versions/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/agreements/versions/${id}`,
+};
+
+export const agreementServiceTermEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/agreements/service-terms",
+  LIST: BACKEND_URL + "/api/v1/agreements/service-terms",
+  CREATE: BACKEND_URL + "/api/v1/agreements/service-terms",
+  GET: (id: string) => BACKEND_URL + `/api/v1/agreements/service-terms/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/agreements/service-terms/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/agreements/service-terms/${id}`,
+};
+
 export const assessmentEndpoints = {
   BASE: BACKEND_URL + "/api/v1/assessments",
   LIST: BACKEND_URL + "/api/v1/assessments",

@@ -55,7 +55,7 @@ function AllVendorsPage() {
 
   const [formData, setFormData] = useState({
     name: "",
-    type: "VENDOR" as "VENDOR" | "VENDOR_PLATFORM",
+    type: "BILLING",
     renewalDate: "",
     quickbooksVendorId: "",
     remitEmail: "",
@@ -64,7 +64,7 @@ function AllVendorsPage() {
 
   const [editForm, setEditForm] = useState({
     name: "",
-    type: "VENDOR" as "VENDOR" | "VENDOR_PLATFORM",
+    type: "BILLING",
     renewalDate: "",
     quickbooksVendorId: "",
     remitEmail: "",
@@ -209,7 +209,7 @@ function AllVendorsPage() {
     setSelectedVendor(null);
     setEditForm({
       name: "",
-      type: "VENDOR",
+      type: "BILLING",
       renewalDate: "",
       quickbooksVendorId: "",
       remitEmail: "",
@@ -220,7 +220,7 @@ function AllVendorsPage() {
   function openCreateForm() {
     setFormData({
       name: "",
-      type: "VENDOR",
+      type: "BILLING",
       renewalDate: "",
       quickbooksVendorId: "",
       remitEmail: "",
@@ -234,7 +234,7 @@ function AllVendorsPage() {
     setShowCreateForm(false);
     setFormData({
       name: "",
-      type: "VENDOR",
+      type: "BILLING",
       renewalDate: "",
       quickbooksVendorId: "",
       remitEmail: "",
@@ -816,7 +816,7 @@ function AllVendorsPage() {
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
-                        type: e.target.value as "VENDOR" | "VENDOR_PLATFORM",
+                        type: e.target.value,
                       }))
                     }
                     className="app-control w-full rounded-md px-3 py-2 text-[13px]"

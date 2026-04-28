@@ -1,6 +1,6 @@
 import axios from "axios";
 import { apiConnector } from "../apiConnector";
-import { agreementEndpoints } from "../apis";
+import { agreementEndpoints, agreementVersionEndpoints, agreementServiceTermEndpoints } from "../apis";
 
 const {
   LIST,
@@ -13,6 +13,22 @@ const {
   SEND_AGREEMENT_EMAIL,
   CREATE_DOCUSEAL_SUBMISSION,
 } = agreementEndpoints;
+
+const {
+  LIST: VERSION_LIST,
+  CREATE: VERSION_CREATE,
+  GET: VERSION_GET,
+  UPDATE: VERSION_UPDATE,
+  DELETE: VERSION_DELETE,
+} = agreementVersionEndpoints;
+
+const {
+  LIST: TERM_LIST,
+  CREATE: TERM_CREATE,
+  GET: TERM_GET,
+  UPDATE: TERM_UPDATE,
+  DELETE: TERM_DELETE,
+} = agreementServiceTermEndpoints;
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError(error)) {
@@ -551,3 +567,304 @@ export async function getAgreementsByPractice(
     );
   }
 }
+
+// ===================== AGREEMENT VERSION TYPES & API =====================
+
+export type AgreementVersion = {
+  id: string;
+  agreementId: string;
+  versionNumber: number;
+  isCurrent: boolean;
+  effectiveDate?: string | null;
+  endDate?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  agreement?: { id: string; type: string; practice?: { name: string } };
+  serviceTerms?: AgreementServiceTerm[];
+};
+
+export type AgreementVersionBody = {
+  agreementId: string;
+  versionNumber: number;
+  isCurrent?: boolean;
+  effectiveDate?: string;
+  endDate?: string;
+  notes?: string;
+};
+
+export type AgreementVersionsViewData = {
+  versions: AgreementVersion[];
+  pagination: {
+    totalRecords: number;
+    totalPages: number;
+    currentPage: number;
+    limit: number;
+  };
+};
+
+export async function getAgreementVersions(
+  params?: { agreementId?: string; page?: number; limit?: number }
+): Promise<AgreementVersionsViewData> {
+  try {
+    const queryString = new URLSearchParams();
+    if (params?.agreementId) queryString.set("agreementId", params.agreementId);
+    if (params?.page) queryString.set("page", String(params.page));
+    if (params?.limit) queryString.set("limit", String(params.limit));
+
+    const url = queryString.toString()
+      ? `${VERSION_LIST}?${queryString.toString()}`
+      : VERSION_LIST;
+
+    const response = await apiConnector({
+      method: "GET",
+      url,
+      credentials: true,
+    });
+
+    return response.data as AgreementVersionsViewData;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch agreement versions."));
+  }
+}
+
+export async function getAgreementVersion(id: string): Promise<AgreementVersion> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: VERSION_GET(id),
+      credentials: true,
+    });
+    return (response.data as { version: AgreementVersion }).version;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch agreement version."));
+  }
+}
+
+export async function createAgreementVersionApi(
+  data: AgreementVersionBody,
+): Promise<AgreementVersion> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: VERSION_CREATE,
+      body: data,
+      credentials: true,
+    });
+    return (response.data as { version: AgreementVersion }).version;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to create agreement version."));
+  }
+}
+
+export async function updateAgreementVersionApi(
+  id: string,
+  data: Partial<AgreementVersionBody>,
+): Promise<AgreementVersion> {
+  try {
+    const response = await apiConnector({
+      method: "PATCH",
+      url: VERSION_UPDATE(id),
+      body: data,
+      credentials: true,
+    });
+    return (response.data as { version: AgreementVersion }).version;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to update agreement version."));
+  }
+}
+
+export async function deleteAgreementVersionApi(id: string): Promise<void> {
+  try {
+    await apiConnector({
+      method: "DELETE",
+      url: VERSION_DELETE(id),
+      credentials: true,
+    });
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to delete agreement version."));
+  }
+}
+
+// ===================== AGREEMENT SERVICE TERM TYPES & API =====================
+
+export type PricingModel =
+  | "FIXED_MONTHLY"
+  | "FIXED_ONE_TIME"
+  | "PER_UNIT"
+  | "PER_ENCOUNTER"
+  | "PER_PATIENT"
+  | "PER_PROVIDER"
+  | "PER_SITE"
+  | "PER_CPT_CODE"
+  | "PERCENT_COLLECTIONS"
+  | "PERCENT_REVENUE"
+  | "PERCENT_PROFIT"
+  | "TIERED_VOLUME"
+  | "MONTHLY_MINIMUM"
+  | "HYBRID"
+  | "MULTI_COMPONENT"
+  | "RETAINER"
+  | "SUCCESS_FEE"
+  | "CUSTOM_ATTACHMENT_DEFINED";
+
+export type AgreementServiceTerm = {
+  id: string;
+  agreementId: string;
+  agreementVersionId?: string | null;
+  serviceId: string;
+  vendorId?: string | null;
+  pricingModel: PricingModel;
+  pricingConfig: Record<string, unknown>;
+  currency?: string;
+  priority?: number;
+  minimumFee?: number | null;
+  effectiveDate?: string | null;
+  endDate?: string | null;
+  isActive?: boolean;
+  externalReference?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  agreement?: { id: string; type: string };
+  agreementVersion?: { id: string; versionNumber: number };
+  service?: { id: string; name: string };
+  vendor?: { id: string; name: string };
+};
+
+export type AgreementServiceTermBody = {
+  agreementId: string;
+  agreementVersionId?: string | null;
+  serviceId: string;
+  vendorId?: string | null;
+  pricingModel: PricingModel;
+  pricingConfig: Record<string, unknown>;
+  currency?: string;
+  priority?: number;
+  minimumFee?: number | null;
+  effectiveDate?: string;
+  endDate?: string;
+  isActive?: boolean;
+  externalReference?: string;
+};
+
+export type AgreementServiceTermsViewData = {
+  terms: AgreementServiceTerm[];
+  pagination: {
+    totalRecords: number;
+    totalPages: number;
+    currentPage: number;
+    limit: number;
+  };
+};
+
+export async function getAgreementServiceTerms(
+  params?: {
+    agreementId?: string;
+    agreementVersionId?: string;
+    serviceId?: string;
+    page?: number;
+    limit?: number;
+  },
+): Promise<AgreementServiceTermsViewData> {
+  try {
+    const queryString = new URLSearchParams();
+    if (params?.agreementId) queryString.set("agreementId", params.agreementId);
+    if (params?.agreementVersionId) queryString.set("agreementVersionId", params.agreementVersionId);
+    if (params?.serviceId) queryString.set("serviceId", params.serviceId);
+    if (params?.page) queryString.set("page", String(params.page));
+    if (params?.limit) queryString.set("limit", String(params.limit));
+
+    const url = queryString.toString()
+      ? `${TERM_LIST}?${queryString.toString()}`
+      : TERM_LIST;
+
+    const response = await apiConnector({
+      method: "GET",
+      url,
+      credentials: true,
+    });
+
+    return response.data as AgreementServiceTermsViewData;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch agreement service terms."));
+  }
+}
+
+export async function getAgreementServiceTerm(id: string): Promise<AgreementServiceTerm> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: TERM_GET(id),
+      credentials: true,
+    });
+    return (response.data as { term: AgreementServiceTerm }).term;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch agreement service term."));
+  }
+}
+
+export async function createAgreementServiceTermApi(
+  data: AgreementServiceTermBody,
+): Promise<AgreementServiceTerm> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: TERM_CREATE,
+      body: data,
+      credentials: true,
+    });
+    return (response.data as { term: AgreementServiceTerm }).term;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to create agreement service term."));
+  }
+}
+
+export async function updateAgreementServiceTermApi(
+  id: string,
+  data: Partial<AgreementServiceTermBody>,
+): Promise<AgreementServiceTerm> {
+  try {
+    const response = await apiConnector({
+      method: "PATCH",
+      url: TERM_UPDATE(id),
+      body: data,
+      credentials: true,
+    });
+    return (response.data as { term: AgreementServiceTerm }).term;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to update agreement service term."));
+  }
+}
+
+export async function deleteAgreementServiceTermApi(id: string): Promise<void> {
+  try {
+    await apiConnector({
+      method: "DELETE",
+      url: TERM_DELETE(id),
+      credentials: true,
+    });
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to delete agreement service term."));
+  }
+}
+
+export const pricingModelOptions: PricingModel[] = [
+  "FIXED_MONTHLY",
+  "FIXED_ONE_TIME",
+  "PER_UNIT",
+  "PER_ENCOUNTER",
+  "PER_PATIENT",
+  "PER_PROVIDER",
+  "PER_SITE",
+  "PER_CPT_CODE",
+  "PERCENT_COLLECTIONS",
+  "PERCENT_REVENUE",
+  "PERCENT_PROFIT",
+  "TIERED_VOLUME",
+  "MONTHLY_MINIMUM",
+  "HYBRID",
+  "MULTI_COMPONENT",
+  "RETAINER",
+  "SUCCESS_FEE",
+  "CUSTOM_ATTACHMENT_DEFINED",
+];
