@@ -79,6 +79,23 @@ export const invoiceEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
 };
 
+export const billingEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/billing",
+  READINESS: (practiceId: string) =>
+    BACKEND_URL + `/api/v1/billing/practices/${practiceId}/readiness`,
+  LIST_RUNS: BACKEND_URL + "/api/v1/billing/runs",
+  CREATE_RUN: BACKEND_URL + "/api/v1/billing/runs",
+  GET_RUN: (id: string) => BACKEND_URL + `/api/v1/billing/runs/${id}`,
+  SAVE_SNAPSHOTS: (id: string) =>
+    BACKEND_URL + `/api/v1/billing/runs/${id}/snapshots`,
+  CALCULATE_RUN: (id: string) =>
+    BACKEND_URL + `/api/v1/billing/runs/${id}/calculate`,
+  APPROVE_RUN: (id: string) =>
+    BACKEND_URL + `/api/v1/billing/runs/${id}/approve`,
+  POST_RUN: (id: string) => BACKEND_URL + `/api/v1/billing/runs/${id}/post`,
+  RECORD_PAYMENT: BACKEND_URL + "/api/v1/billing/payments/record",
+};
+
 export const agreementEndpoints = {
   BASE: BACKEND_URL + "/api/v1/agreements",
   LIST: BACKEND_URL + "/api/v1/agreements",

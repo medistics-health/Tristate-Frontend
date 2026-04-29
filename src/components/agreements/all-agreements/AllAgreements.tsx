@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   Circle,
   LayoutList,
+  Pencil,
   Plus,
   Save,
   Trash2,
@@ -41,7 +42,10 @@ import {
   getAgreementServiceTerms,
   createAgreementServiceTermApi,
   createAgreementVersionApi,
+  updateAgreementVersionApi,
+  updateAgreementServiceTermApi,
   deleteAgreementVersionApi,
+  deleteAgreementServiceTermApi,
   type AgreementVersion,
   type AgreementServiceTerm,
   type PricingModel,
@@ -180,6 +184,7 @@ function AllAgreementsPage() {
   const [versions, setVersions] = useState<AgreementVersion[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [showVersionForm, setShowVersionForm] = useState(false);
+  const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
   const [versionForm, setVersionForm] = useState({
     versionNumber: 1,
     isCurrent: true,
@@ -193,6 +198,7 @@ function AllAgreementsPage() {
   const [serviceTerms, setServiceTerms] = useState<AgreementServiceTerm[]>([]);
   const [termsLoading, setTermsLoading] = useState(false);
   const [showTermForm, setShowTermForm] = useState(false);
+  const [editingTermId, setEditingTermId] = useState<string | null>(null);
   const [termForm, setTermForm] = useState({
     serviceId: "",
     vendorId: "",
@@ -864,6 +870,7 @@ function AllAgreementsPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    setEditingVersionId(null);
                     setShowVersionForm(!showVersionForm);
                     setVersionForm({
                       versionNumber: versions.length + 1,
@@ -887,26 +894,42 @@ function AllAgreementsPage() {
                     if (!selectedRowId) return;
                     setIsSavingVersion(true);
                     try {
-                      await createAgreementVersionApi({
-                        agreementId: selectedRowId,
-                        versionNumber: versionForm.versionNumber,
-                        isCurrent: versionForm.isCurrent,
-                        effectiveDate: versionForm.effectiveDate
-                          ? new Date(versionForm.effectiveDate).toISOString()
-                          : undefined,
-                        endDate: versionForm.endDate
-                          ? new Date(versionForm.endDate).toISOString()
-                          : undefined,
-                        notes: versionForm.notes,
-                      });
-                      toast.success("Version created successfully");
+                      if (editingVersionId) {
+                        await updateAgreementVersionApi(editingVersionId, {
+                          versionNumber: versionForm.versionNumber,
+                          isCurrent: versionForm.isCurrent,
+                          effectiveDate: versionForm.effectiveDate
+                            ? new Date(versionForm.effectiveDate).toISOString()
+                            : undefined,
+                          endDate: versionForm.endDate
+                            ? new Date(versionForm.endDate).toISOString()
+                            : undefined,
+                          notes: versionForm.notes,
+                        });
+                        toast.success("Version updated successfully");
+                      } else {
+                        await createAgreementVersionApi({
+                          agreementId: selectedRowId,
+                          versionNumber: versionForm.versionNumber,
+                          isCurrent: versionForm.isCurrent,
+                          effectiveDate: versionForm.effectiveDate
+                            ? new Date(versionForm.effectiveDate).toISOString()
+                            : undefined,
+                          endDate: versionForm.endDate
+                            ? new Date(versionForm.endDate).toISOString()
+                            : undefined,
+                          notes: versionForm.notes,
+                        });
+                        toast.success("Version created successfully");
+                      }
                       setShowVersionForm(false);
+                      setEditingVersionId(null);
                       loadVersions(selectedRowId);
                     } catch (err) {
                       toast.error(
                         err instanceof Error
                           ? err.message
-                          : "Failed to create version",
+                          : `Failed to ${editingVersionId ? "update" : "create"} version`,
                       );
                     } finally {
                       setIsSavingVersion(false);
@@ -1001,11 +1024,14 @@ function AllAgreementsPage() {
                       disabled={isSavingVersion}
                       className="rounded-md bg-[#4f63ea] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
                     >
-                      {isSavingVersion ? "Saving..." : "Save"}
+                      {isSavingVersion ? "Saving..." : (editingVersionId ? "Update" : "Save")}
                     </button>
                     <button
                       type="button"
-                      onClick={() => setShowVersionForm(false)}
+                      onClick={() => {
+                        setShowVersionForm(false);
+                        setEditingVersionId(null);
+                      }}
                       className="rounded-md border border-[#ece8e1] px-3 py-1.5 text-[12px] font-medium text-slate-600"
                     >
                       Cancel
@@ -1054,26 +1080,49 @@ function AllAgreementsPage() {
                             </div>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!window.confirm("Delete this version?")) return;
-                            try {
-                              await deleteAgreementVersionApi(version.id);
-                              toast.success("Version deleted");
-                              if (selectedRowId) loadVersions(selectedRowId);
-                            } catch (err) {
-                              toast.error(
-                                err instanceof Error
-                                  ? err.message
-                                  : "Failed to delete",
-                              );
-                            }
-                          }}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingVersionId(version.id);
+                              setVersionForm({
+                                versionNumber: version.versionNumber,
+                                isCurrent: version.isCurrent,
+                                effectiveDate: version.effectiveDate
+                                  ? new Date(version.effectiveDate).toISOString().slice(0, 10)
+                                  : "",
+                                endDate: version.endDate
+                                  ? new Date(version.endDate).toISOString().slice(0, 10)
+                                  : "",
+                                notes: version.notes || "",
+                              });
+                              setShowVersionForm(true);
+                            }}
+                            className="text-slate-400 hover:text-slate-600"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!window.confirm("Delete this version?")) return;
+                              try {
+                                await deleteAgreementVersionApi(version.id);
+                                toast.success("Version deleted");
+                                if (selectedRowId) loadVersions(selectedRowId);
+                              } catch (err) {
+                                toast.error(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Failed to delete",
+                                );
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1092,6 +1141,7 @@ function AllAgreementsPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    setEditingTermId(null);
                     setShowTermForm(!showTermForm);
                     setTermForm({
                       serviceId: "",
@@ -1124,34 +1174,58 @@ function AllAgreementsPage() {
                     }
                     setIsSavingTerm(true);
                     try {
-                      await createAgreementServiceTermApi({
-                        agreementId: selectedRowId,
-                        serviceId: termForm.serviceId,
-                        vendorId: termForm.vendorId || null,
-                        pricingModel: termForm.pricingModel,
-                        pricingConfig: JSON.parse(termForm.pricingConfig),
-                        currency: termForm.currency,
-                        priority: termForm.priority,
-                        minimumFee: termForm.minimumFee
-                          ? parseFloat(termForm.minimumFee)
-                          : undefined,
-                        effectiveDate: termForm.effectiveDate
-                          ? new Date(termForm.effectiveDate).toISOString()
-                          : undefined,
-                        endDate: termForm.endDate
-                          ? new Date(termForm.endDate).toISOString()
-                          : undefined,
-                        isActive: termForm.isActive,
-                        externalReference: termForm.externalReference,
-                      });
-                      toast.success("Service term created successfully");
+                      if (editingTermId) {
+                        await updateAgreementServiceTermApi(editingTermId, {
+                          serviceId: termForm.serviceId,
+                          vendorId: termForm.vendorId || null,
+                          pricingModel: termForm.pricingModel,
+                          pricingConfig: JSON.parse(termForm.pricingConfig),
+                          currency: termForm.currency,
+                          priority: termForm.priority,
+                          minimumFee: termForm.minimumFee
+                            ? parseFloat(termForm.minimumFee)
+                            : undefined,
+                          effectiveDate: termForm.effectiveDate
+                            ? new Date(termForm.effectiveDate).toISOString()
+                            : undefined,
+                          endDate: termForm.endDate
+                            ? new Date(termForm.endDate).toISOString()
+                            : undefined,
+                          isActive: termForm.isActive,
+                          externalReference: termForm.externalReference,
+                        });
+                        toast.success("Service term updated successfully");
+                      } else {
+                        await createAgreementServiceTermApi({
+                          agreementId: selectedRowId,
+                          serviceId: termForm.serviceId,
+                          vendorId: termForm.vendorId || null,
+                          pricingModel: termForm.pricingModel,
+                          pricingConfig: JSON.parse(termForm.pricingConfig),
+                          currency: termForm.currency,
+                          priority: termForm.priority,
+                          minimumFee: termForm.minimumFee
+                            ? parseFloat(termForm.minimumFee)
+                            : undefined,
+                          effectiveDate: termForm.effectiveDate
+                            ? new Date(termForm.effectiveDate).toISOString()
+                            : undefined,
+                          endDate: termForm.endDate
+                            ? new Date(termForm.endDate).toISOString()
+                            : undefined,
+                          isActive: termForm.isActive,
+                          externalReference: termForm.externalReference,
+                        });
+                        toast.success("Service term created successfully");
+                      }
                       setShowTermForm(false);
+                      setEditingTermId(null);
                       loadServiceTerms(selectedRowId);
                     } catch (err) {
                       toast.error(
                         err instanceof Error
                           ? err.message
-                          : "Failed to create term",
+                          : `Failed to ${editingTermId ? "update" : "create"} term`,
                       );
                     } finally {
                       setIsSavingTerm(false);
@@ -1333,11 +1407,14 @@ function AllAgreementsPage() {
                       disabled={isSavingTerm}
                       className="rounded-md bg-[#4f63ea] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
                     >
-                      {isSavingTerm ? "Saving..." : "Save"}
+                      {isSavingTerm ? "Saving..." : (editingTermId ? "Update" : "Save")}
                     </button>
                     <button
                       type="button"
-                      onClick={() => setShowTermForm(false)}
+                      onClick={() => {
+                        setShowTermForm(false);
+                        setEditingTermId(null);
+                      }}
                       className="rounded-md border border-[#ece8e1] px-3 py-1.5 text-[12px] font-medium text-slate-600"
                     >
                       Cancel
@@ -1386,28 +1463,57 @@ function AllAgreementsPage() {
                                 ` • Min Fee: $${term.minimumFee}`}
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!window.confirm("Delete this service term?"))
-                                return;
-                              try {
-                                await deleteAgreementServiceTermApi(term.id);
-                                toast.success("Service term deleted");
-                                if (selectedRowId)
-                                  loadServiceTerms(selectedRowId);
-                              } catch (err) {
-                                toast.error(
-                                  err instanceof Error
-                                    ? err.message
-                                    : "Failed to delete",
-                                );
-                              }
-                            }}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingTermId(term.id);
+                                setTermForm({
+                                  serviceId: term.serviceId,
+                                  vendorId: term.vendorId || "",
+                                  pricingModel: term.pricingModel as PricingModel,
+                                  pricingConfig: JSON.stringify(term.pricingConfig || {}),
+                                  currency: term.currency,
+                                  priority: term.priority,
+                                  minimumFee: term.minimumFee?.toString() || "",
+                                  effectiveDate: term.effectiveDate
+                                    ? new Date(term.effectiveDate).toISOString().slice(0, 10)
+                                    : "",
+                                  endDate: term.endDate
+                                    ? new Date(term.endDate).toISOString().slice(0, 10)
+                                    : "",
+                                  isActive: term.isActive,
+                                  externalReference: term.externalReference || "",
+                                });
+                                setShowTermForm(true);
+                              }}
+                              className="text-slate-400 hover:text-slate-600"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!window.confirm("Delete this service term?"))
+                                  return;
+                                try {
+                                  await deleteAgreementServiceTermApi(term.id);
+                                  toast.success("Service term deleted");
+                                  if (selectedRowId)
+                                    loadServiceTerms(selectedRowId);
+                                } catch (err) {
+                                  toast.error(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Failed to delete",
+                                  );
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}

@@ -31,6 +31,8 @@ import ActivePracticesPage from "./components/practices/ActivePractices";
 import ProspectsPage from "./components/practices/Prospects";
 import ReminderDuePage from "./components/practices/RemindersDue";
 import OverdueInvoicePage from "./components/invoices/OverdueInvoices";
+import BillingRunsPage from "./components/billing/BillingRuns";
+import BillingStatusBoardPage from "./components/billing/BillingStatusBoard";
 import DealsPage from "./components/deal/Deals";
 import PersonsPage from "./components/contact/Persons";
 import AllCompaniesPage from "./components/companies/AllCompanies";
@@ -308,6 +310,23 @@ function App() {
         element={
           <ProtectedRoute>
             <InvoiceStatusBoardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/billing/runs"
+        element={
+          <ProtectedRoute>
+            <BillingRunsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/billing/status-board"
+        element={
+          <ProtectedRoute>
+            <BillingStatusBoardPage />
           </ProtectedRoute>
         }
       />
