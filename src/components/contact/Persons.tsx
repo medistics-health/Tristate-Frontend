@@ -942,16 +942,18 @@ export default function PersonsPage() {
                     >
                       <div className="flex flex-col">
                         <span className="text-[13px] font-medium text-slate-700">
-                          Template #{sub.templateId}
+                          {decodeURIComponent(
+                            sub.signedDocUrl.split("/").pop() || "",
+                          ).replace(".pdf", "")}
                         </span>
                         <span className="text-[11px] text-slate-500">
                           {sub.status} •{" "}
                           {new Date(sub.updatedAt).toLocaleDateString()}
                         </span>
                       </div>
-                      {sub.signedDocUrls ? (
+                      {sub.signedDocUrl ? (
                         <a
-                          href={sub.signedDocUrls}
+                          href={sub.signedDocUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[11px] text-blue-600 hover:underline"
