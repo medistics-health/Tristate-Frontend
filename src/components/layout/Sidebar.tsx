@@ -104,6 +104,13 @@ const sidebarSections: SidebarSection[] = [
         ],
       },
       {
+        label: "Billing",
+        items: [
+          { label: "Billing Runs", to: "/billing/runs" },
+          { label: "Billing Status Board", to: "/billing/status-board" },
+        ],
+      },
+      {
         label: "Invoices",
         items: [
           { label: "All Invoices", to: "/invoice/all-invoices" },
