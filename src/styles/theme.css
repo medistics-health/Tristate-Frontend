@@ -1,6 +1,7 @@
 @layer base {
   :root {
-    --app-font-sans: "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif;
+    --app-font-sans: "Google Sans", "Product Sans", "Outfit", "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif;
+    --font-sans: var(--app-font-sans);
     --app-font-serif: Georgia, "Times New Roman", serif;
     --app-bg: #fbfaf8;
     --app-panel: #ffffff;
