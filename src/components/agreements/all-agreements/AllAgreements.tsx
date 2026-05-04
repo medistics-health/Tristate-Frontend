@@ -143,6 +143,9 @@ function AllAgreementsPage() {
   const [rows, setRows] = useState<AgreementRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  // const [selectedRowVersionId, setSelectedRowVersionId] = useState<
+  //   string | null
+  // >(null);
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(
     null,
   );
@@ -201,6 +204,7 @@ function AllAgreementsPage() {
   const [editingTermId, setEditingTermId] = useState<string | null>(null);
   const [termForm, setTermForm] = useState({
     serviceId: "",
+    agreementVersionId: "",
     vendorId: "",
     pricingModel: "PER_PATIENT" as PricingModel,
     pricingConfig: "{}",
@@ -329,6 +333,7 @@ function AllAgreementsPage() {
 
           const data = await getAgreementsView(params as any);
           setRows(data.rows);
+
           setPagination(data.pagination);
         } catch (err) {
           const message =
@@ -361,6 +366,7 @@ function AllAgreementsPage() {
 
   async function handleRowClick(rowId: string) {
     setSelectedRowId(rowId);
+
     setShowDetailPanel(true);
     setShowCreateForm(false);
     setActiveTab("overview");
@@ -369,6 +375,7 @@ function AllAgreementsPage() {
     try {
       const agreement = await getAgreement(rowId);
       setSelectedAgreement(agreement);
+
       setEditForm(buildFormState(agreement));
     } catch (err) {
       const message =
@@ -1024,7 +1031,11 @@ function AllAgreementsPage() {
                       disabled={isSavingVersion}
                       className="rounded-md bg-[#4f63ea] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
                     >
-                      {isSavingVersion ? "Saving..." : (editingVersionId ? "Update" : "Save")}
+                      {isSavingVersion
+                        ? "Saving..."
+                        : editingVersionId
+                          ? "Update"
+                          : "Save"}
                     </button>
                     <button
                       type="button"
@@ -1089,10 +1100,14 @@ function AllAgreementsPage() {
                                 versionNumber: version.versionNumber,
                                 isCurrent: version.isCurrent,
                                 effectiveDate: version.effectiveDate
-                                  ? new Date(version.effectiveDate).toISOString().slice(0, 10)
+                                  ? new Date(version.effectiveDate)
+                                      .toISOString()
+                                      .slice(0, 10)
                                   : "",
                                 endDate: version.endDate
-                                  ? new Date(version.endDate).toISOString().slice(0, 10)
+                                  ? new Date(version.endDate)
+                                      .toISOString()
+                                      .slice(0, 10)
                                   : "",
                                 notes: version.notes || "",
                               });
@@ -1105,7 +1120,8 @@ function AllAgreementsPage() {
                           <button
                             type="button"
                             onClick={async () => {
-                              if (!window.confirm("Delete this version?")) return;
+                              if (!window.confirm("Delete this version?"))
+                                return;
                               try {
                                 await deleteAgreementVersionApi(version.id);
                                 toast.success("Version deleted");
@@ -1145,6 +1161,7 @@ function AllAgreementsPage() {
                     setShowTermForm(!showTermForm);
                     setTermForm({
                       serviceId: "",
+                      agreementVersionId: "",
                       vendorId: "",
                       pricingModel: "PER_PATIENT" as PricingModel,
                       pricingConfig: "{}",
@@ -1177,6 +1194,7 @@ function AllAgreementsPage() {
                       if (editingTermId) {
                         await updateAgreementServiceTermApi(editingTermId, {
                           serviceId: termForm.serviceId,
+                          agreementVersionId: termForm.agreementVersionId,
                           vendorId: termForm.vendorId || null,
                           pricingModel: termForm.pricingModel,
                           pricingConfig: JSON.parse(termForm.pricingConfig),
@@ -1198,6 +1216,7 @@ function AllAgreementsPage() {
                       } else {
                         await createAgreementServiceTermApi({
                           agreementId: selectedRowId,
+                          agreementVersionId: termForm.agreementVersionId,
                           serviceId: termForm.serviceId,
                           vendorId: termForm.vendorId || null,
                           pricingModel: termForm.pricingModel,
@@ -1256,6 +1275,30 @@ function AllAgreementsPage() {
                       ))}
                     </select>
                   </div>
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                      Agreement Version <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={termForm.agreementVersionId}
+                      onChange={(e) =>
+                        setTermForm((prev) => ({
+                          ...prev,
+                          agreementVersionId: e.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                      required
+                    >
+                      <option value="">Select Agreement Version</option>
+                      {selectedAgreement.versions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          Version: {s.versionNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="mb-1 block text-[12px] font-medium text-slate-700">
                       Vendor
@@ -1407,7 +1450,11 @@ function AllAgreementsPage() {
                       disabled={isSavingTerm}
                       className="rounded-md bg-[#4f63ea] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
                     >
-                      {isSavingTerm ? "Saving..." : (editingTermId ? "Update" : "Save")}
+                      {isSavingTerm
+                        ? "Saving..."
+                        : editingTermId
+                          ? "Update"
+                          : "Save"}
                     </button>
                     <button
                       type="button"
@@ -1470,20 +1517,29 @@ function AllAgreementsPage() {
                                 setEditingTermId(term.id);
                                 setTermForm({
                                   serviceId: term.serviceId,
+                                  agreementVersionId: term.agreementVersionId,
                                   vendorId: term.vendorId || "",
-                                  pricingModel: term.pricingModel as PricingModel,
-                                  pricingConfig: JSON.stringify(term.pricingConfig || {}),
+                                  pricingModel:
+                                    term.pricingModel as PricingModel,
+                                  pricingConfig: JSON.stringify(
+                                    term.pricingConfig || {},
+                                  ),
                                   currency: term.currency,
                                   priority: term.priority,
                                   minimumFee: term.minimumFee?.toString() || "",
                                   effectiveDate: term.effectiveDate
-                                    ? new Date(term.effectiveDate).toISOString().slice(0, 10)
+                                    ? new Date(term.effectiveDate)
+                                        .toISOString()
+                                        .slice(0, 10)
                                     : "",
                                   endDate: term.endDate
-                                    ? new Date(term.endDate).toISOString().slice(0, 10)
+                                    ? new Date(term.endDate)
+                                        .toISOString()
+                                        .slice(0, 10)
                                     : "",
                                   isActive: term.isActive,
-                                  externalReference: term.externalReference || "",
+                                  externalReference:
+                                    term.externalReference || "",
                                 });
                                 setShowTermForm(true);
                               }}
@@ -1494,7 +1550,9 @@ function AllAgreementsPage() {
                             <button
                               type="button"
                               onClick={async () => {
-                                if (!window.confirm("Delete this service term?"))
+                                if (
+                                  !window.confirm("Delete this service term?")
+                                )
                                   return;
                                 try {
                                   await deleteAgreementServiceTermApi(term.id);
