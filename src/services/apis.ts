@@ -157,3 +157,12 @@ export const onboardingEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/onboarding/${id}`,
   EXTERNAL: BACKEND_URL + "/api/v1/onboarding/external",
 };
+
+export const dealEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/deals",
+  LIST: BACKEND_URL + "/api/v1/deals",
+  CREATE: BACKEND_URL + "/api/v1/deals",
+  GET: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
+};
