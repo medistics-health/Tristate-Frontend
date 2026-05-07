@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle,
   Clock,
@@ -16,8 +16,15 @@ import {
   Target,
   Zap,
   Plus,
+  Loader2,
 } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
+import { getAllInvoices } from "../../services/operations/invoices";
+import { getAllPractices } from "../../services/operations/practices";
+import { getAllAgreements } from "../../services/operations/agreements";
+import { getServicesView } from "../../services/operations/services";
+import { getAuditsView } from "../../services/operations/audits";
+import { getAllDeals } from "../../services/operations/deals";
 
 type DashboardRole = "executive" | "sales" | "operations" | "finance";
 
@@ -683,38 +690,99 @@ const roleLabels: Record<DashboardRole, string> = {
 
 export default function CRMDashboardPage() {
   const [selectedRole, setSelectedRole] = useState<DashboardRole>("executive");
+  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [practices, setPractices] = useState<ClientItem[]>([]);
+  const [agreements, setAgreements] = useState<ContractItem[]>([]);
+  const [services, setServices] = useState<ServiceRevenue[]>([]);
+  const [audits, setAudits] = useState<AuditItem[]>([]);
+  const [deals, setDeals] = useState<DealItem[]>([]);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const [invoicesData, practicesData, agreementsData, servicesData, auditsData, dealsData] = await Promise.all([
+          getAllInvoices().catch(() => []),
+          getAllPractices().catch(() => []),
+          getAllAgreements().catch(() => []),
+          getServicesView({ limit: 100 }).catch(() => ({ rows: [] })),
+          getAuditsView({ limit: 100 }).catch(() => ({ rows: [] })),
+          getAllDeals().catch(() => []),
+        ]);
+
+        setInvoices(invoicesData.slice(0, 10).map((inv: any) => ({
+          id: inv.id,
+          client: inv.practice?.name || "Unknown",
+          amount: parseFloat(inv.totalAmount) || 0,
+          dueDate: inv.dueDate || "N/A",
+          status: inv.status === "PAID" ? "paid" as const : inv.status === "OVERDUE" ? "overdue" as const : "pending" as const,
+        })));
+
+        setPractices(practicesData.slice(0, 10).map((prac: any) => ({
+          id: prac.id,
+          name: prac.name,
+          status: prac.status || "Active",
+          servicesCount: prac._count?.deals || 0,
+          lastActivity: prac.updatedAt || "Today",
+          revenue: 0,
+        })));
+
+        setAgreements(agreementsData.slice(0, 10).map((agr: any) => ({
+          id: agr.id,
+          name: agr.practice?.name || "Unknown",
+          status: agr.status === "SIGNED" ? "signed" as const : agr.status === "PENDING" ? "pending" as const : "sent" as const,
+          sentDate: agr.createdAt || "N/A",
+          value: agr.value || 0,
+        })));
+
+        setServices((servicesData as any)?.rows?.slice(0, 10).map((srv: any) => ({
+          name: srv.values?.name || "Unknown",
+          revenue: 0,
+          clients: 0,
+        })) || []);
+
+        setAudits((auditsData as any)?.rows?.slice(0, 10).map((aud: any) => ({
+          id: aud.id,
+          client: aud.values?.practiceName || "Unknown",
+          status: aud.values?.status || "Scheduled",
+          recommendations: aud.values?.recommendations || 0,
+          completed: aud.values?.status === "Completed",
+        })) || []);
+
+        setDeals(dealsData.slice(0, 10).map((deal: any) => ({
+          id: deal.id,
+          name: deal.practice?.name || "Unknown",
+          value: deal.value || 0,
+          stage: deal.stage || "LEAD",
+          daysInStage: 0,
+          closeDate: deal.expectedCloseDate || "N/A",
+        })));
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
 
   const stats = useMemo(() => {
-    const totalPipeline = mockDeals.reduce((sum, deal) => sum + deal.value, 0);
-    const dealsClosingThisMonth = mockDeals.filter((d) =>
-      d.closeDate.includes("Apr"),
-    ).length;
-    const contractsPending = mockContracts.filter(
-      (c) => c.status !== "signed",
-    ).length;
-    const activeClients = mockClients.filter(
-      (c) => c.status === "Active",
-    ).length;
-    const clientsAtRisk = mockClients.filter(
-      (c) => c.status === "At Risk",
-    ).length;
-    const totalRevenue = mockServiceRevenue.reduce(
-      (sum, s) => sum + s.revenue,
-      0,
-    );
-    const invoicesDue = mockInvoices.filter(
-      (i) => i.status === "pending",
-    ).length;
-    const overdueInvoices = mockInvoices.filter(
-      (i) => i.status === "overdue",
-    ).length;
-    const totalInvoices = mockInvoices.reduce((sum, i) => sum + i.amount, 0);
-    const auditsOpen = mockAudits.filter((a) => !a.completed).length;
-    const totalPartnerRevenue = mockPartners.reduce(
-      (sum, p) => sum + p.revenue,
-      0,
-    );
-    const tasksOverdue = mockTasks.filter((t) => t.dueDate === "Today").length;
+    const totalPipeline = deals.reduce((sum, deal) => sum + (deal.value || 0), 0);
+    const dealsClosingThisMonth = deals.filter((d) => {
+      if (!d.closeDate) return false;
+      const closeDate = new Date(d.closeDate);
+      const now = new Date();
+      return closeDate.getMonth() === now.getMonth() && closeDate.getFullYear() === now.getFullYear();
+    }).length;
+    const contractsPending = agreements.filter((c) => c.status !== "signed").length;
+    const activeClients = practices.filter((c) => c.status === "Active").length;
+    const clientsAtRisk = practices.filter((c) => c.status === "At Risk").length;
+    const totalRevenue = services.reduce((sum, s) => sum + (s.revenue || 0), 0);
+    const invoicesDue = invoices.filter((i) => i.status === "pending").length;
+    const overdueInvoices = invoices.filter((i) => i.status === "overdue").length;
+    const totalInvoices = invoices.reduce((sum, i) => sum + i.amount, 0);
+    const auditsOpen = audits.filter((a) => !a.completed).length;
 
     return {
       totalPipeline,
@@ -727,84 +795,134 @@ export default function CRMDashboardPage() {
       overdueInvoices,
       totalInvoices,
       auditsOpen,
-      totalPartnerRevenue,
-      tasksOverdue,
-      totalTasks: mockTasks.length,
-      totalDeals: mockDeals.length,
-      totalContracts: mockContracts.length,
-      totalClients: mockClients.length,
-      totalPartners: mockPartners.length,
+      totalPartnerRevenue: 0,
+      tasksOverdue: 0,
+      totalTasks: 0,
+      totalDeals: deals.length,
+      totalContracts: agreements.length,
+      totalClients: practices.length,
+      totalPartners: 0,
     };
-  }, []);
+  }, [deals, agreements, practices, services, invoices, audits]);
 
   const renderTasksSection = () => (
     <div className="space-y-2">
-      {mockTasks.map((task) => (
-        <TaskRow key={task.id} task={task} />
-      ))}
+      {loading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        </div>
+      ) : (
+        <p className="text-[13px] text-slate-400">No tasks available</p>
+      )}
     </div>
   );
 
   const renderPipelineSection = () => (
     <div className="space-y-2">
-      {mockDeals.map((deal) => (
-        <DealRow key={deal.id} deal={deal} />
-      ))}
+      {loading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        </div>
+      ) : deals.length > 0 ? (
+        deals.map((deal) => (
+          <DealRow key={deal.id} deal={deal} />
+        ))
+      ) : (
+        <p className="text-[13px] text-slate-400">No deals available</p>
+      )}
     </div>
   );
 
   const renderContractsSection = () => (
     <div className="space-y-2">
-      {mockContracts.map((contract) => (
-        <ContractRow key={contract.id} contract={contract} />
-      ))}
+      {loading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        </div>
+      ) : agreements.length > 0 ? (
+        agreements.map((contract) => (
+          <ContractRow key={contract.id} contract={contract} />
+        ))
+      ) : (
+        <p className="text-[13px] text-slate-400">No contracts available</p>
+      )}
     </div>
   );
 
   const renderClientsSection = () => (
     <div className="space-y-2">
-      {mockClients.map((client) => (
-        <ClientRow key={client.id} client={client} />
-      ))}
+      {loading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        </div>
+      ) : practices.length > 0 ? (
+        practices.map((client) => (
+          <ClientRow key={client.id} client={client} />
+        ))
+      ) : (
+        <p className="text-[13px] text-slate-400">No clients available</p>
+      )}
     </div>
   );
 
   const renderServicesSection = () => (
     <div className="space-y-2">
-      {mockServiceRevenue.map((service) => (
-        <ServiceRevenueRow key={service.name} service={service} />
-      ))}
+      {loading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        </div>
+      ) : services.length > 0 ? (
+        services.map((service, idx) => (
+          <ServiceRevenueRow key={idx} service={service} />
+        ))
+      ) : (
+        <p className="text-[13px] text-slate-400">No services available</p>
+      )}
     </div>
   );
 
   const renderBillingSection = () => (
     <div className="space-y-2">
-      {mockInvoices.map((invoice) => (
-        <InvoiceRow key={invoice.id} invoice={invoice} />
-      ))}
+      {loading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        </div>
+      ) : invoices.length > 0 ? (
+        invoices.map((invoice) => (
+          <InvoiceRow key={invoice.id} invoice={invoice} />
+        ))
+      ) : (
+        <p className="text-[13px] text-slate-400">No invoices available</p>
+      )}
     </div>
   );
 
   const renderAuditsSection = () => (
     <div className="space-y-2">
-      {mockAudits.map((audit) => (
-        <AuditRow key={audit.id} audit={audit} />
-      ))}
+      {loading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        </div>
+      ) : audits.length > 0 ? (
+        audits.map((audit) => (
+          <AuditRow key={audit.id} audit={audit} />
+        ))
+      ) : (
+        <p className="text-[13px] text-slate-400">No audits available</p>
+      )}
     </div>
   );
 
   const renderPartnersSection = () => (
     <div className="space-y-2">
-      {mockPartners.map((partner) => (
-        <PartnerRow key={partner.id} partner={partner} />
-      ))}
+      <p className="text-[13px] text-slate-400">No partners available</p>
     </div>
   );
 
   const renderAlertsSection = () => {
-    const overdueInvoices = mockInvoices.filter((i) => i.status === "overdue");
-    const atRiskClients = mockClients.filter((c) => c.status === "At Risk");
-    const unsignedContracts = mockContracts.filter((c) => c.status === "sent");
+    const overdueInvoices = invoices.filter((i) => i.status === "overdue");
+    const atRiskClients = practices.filter((c) => c.status === "At Risk");
+    const unsignedContracts = agreements.filter((c) => c.status === "sent");
 
     const alerts: Array<{
       type: "billing" | "client" | "contract";
