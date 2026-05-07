@@ -7,23 +7,23 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import {
-  CalendarDays,
-  ChevronDown,
+  AlertTriangle,
+  ChevronLeft,
+  Circle,
   LayoutList,
   Plus,
   Save,
   Trash2,
   X,
-  ChevronLeft,
-  Circle,
-  Pencil,
-  TrendingUp,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
 import { getAllPractices } from "../../services/operations/practices";
+import { getAllCompanies } from "../../services/operations/companies";
+import { getPersonsView } from "../../services/operations/persons";
+import { getAllServices } from "../../services/operations/services";
 import {
   createDealApi,
   deleteDealApi,
@@ -31,21 +31,60 @@ import {
   getDealsView,
   updateDealApi,
   type Deal,
+  type DealApiError,
   type DealBody,
   type DealRow,
   type DealStage,
+  type DealStageReadiness,
   dealStageOptions,
-  getStageColor,
 } from "../../services/operations/deals";
 import type { Practice } from "../practices/types";
+import type { Company } from "../companies/types";
+import type { Service } from "../services/types";
 
 const stageStyles: Record<DealStage, string> = {
   PROSPECTING: "bg-blue-100 text-blue-700",
   QUALIFICATION: "bg-indigo-100 text-indigo-700",
-  PROPOSAL: "bg-purple-100 text-purple-700",
+  PROPOSAL: "bg-violet-100 text-violet-700",
+  AGREEMENT_SENT: "bg-amber-100 text-amber-800",
+  ONBOARDING: "bg-cyan-100 text-cyan-800",
   NEGOTIATION: "bg-orange-100 text-orange-700",
   WON: "bg-green-100 text-green-700",
   LOST: "bg-red-100 text-red-700",
+};
+
+type DealFormState = {
+  practiceId: string;
+  companyId: string;
+  primaryContactId: string;
+  stage: DealStage;
+  value: string;
+  probability: string;
+  expectedCloseDate: string;
+  selectedServiceIds: string[];
+  nextTaskTitle: string;
+  nextTaskDueAt: string;
+};
+
+type ContactOption = {
+  id: string;
+  fullName: string;
+  email: string;
+  practiceIds: string[];
+  companyIds: string[];
+};
+
+const initialFormState: DealFormState = {
+  practiceId: "",
+  companyId: "",
+  primaryContactId: "",
+  stage: "PROSPECTING",
+  value: "",
+  probability: "50",
+  expectedCloseDate: "",
+  selectedServiceIds: [],
+  nextTaskTitle: "",
+  nextTaskDueAt: "",
 };
 
 function formatStageLabel(stage: string) {
@@ -54,7 +93,7 @@ function formatStageLabel(stage: string) {
 
 function formatCurrency(amount: number | string) {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
-  if (isNaN(num)) return "-";
+  if (Number.isNaN(num)) return "-";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -63,47 +102,375 @@ function formatCurrency(amount: number | string) {
   }).format(num);
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString();
-}
-
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
-  if (isNaN(date.getTime())) return "-";
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleString();
 }
 
-type DealFormState = {
-  practiceId: string;
-  stage: DealStage;
-  value: string;
-  probability: string;
-  expectedCloseDate: string;
-};
+function formatRelativeDate(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
 
-const initialFormState: DealFormState = {
-  practiceId: "",
-  stage: "LEAD",
-  value: "",
-  probability: "50",
-  expectedCloseDate: "",
-};
+  const diffMs = Date.now() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "1 day ago";
+  if (diffDays < 30) return `${diffDays} days ago`;
+
+  return formatDateTime(value);
+}
 
 function buildFormState(deal?: Deal | null): DealFormState {
   if (!deal) return initialFormState;
   return {
     practiceId: deal.practiceId,
+    companyId: deal.companyId || deal.practice?.company?.id || "",
+    primaryContactId: deal.primaryContactId || "",
     stage: deal.stage,
     value: String(deal.value),
     probability: String(deal.probability),
     expectedCloseDate: deal.expectedCloseDate
       ? new Date(deal.expectedCloseDate).toISOString().slice(0, 10)
       : "",
+    selectedServiceIds: deal.selectedServiceIds || [],
+    nextTaskTitle: deal.nextTaskTitle || "",
+    nextTaskDueAt: deal.nextTaskDueAt
+      ? new Date(deal.nextTaskDueAt).toISOString().slice(0, 10)
+      : "",
   };
+}
+
+function getReadinessForStage(
+  readiness: DealStageReadiness,
+  stage: DealStage,
+) {
+  if (stage === "PROPOSAL") return readiness.PROPOSAL;
+  if (stage === "AGREEMENT_SENT") return readiness.AGREEMENT_SENT;
+  if (stage === "ONBOARDING") return readiness.ONBOARDING;
+  return null;
+}
+
+function buildRequirementErrorMessage(
+  baseMessage: string,
+  missingRequirements?: string[],
+) {
+  if (!missingRequirements?.length) return baseMessage;
+  return `${baseMessage} Missing: ${missingRequirements.join(", ")}.`;
+}
+
+function SelectedServicesField({
+  form,
+  setForm,
+  services,
+  mode,
+}: {
+  form: DealFormState;
+  setForm: React.Dispatch<React.SetStateAction<DealFormState>>;
+  services: Service[];
+  mode: "create" | "edit";
+}) {
+  const selectedServices = services.filter((service) =>
+    form.selectedServiceIds.includes(service.id),
+  );
+
+  const selectedLabel = selectedServices.length
+    ? selectedServices.map((service) => service.name).join(" + ")
+    : "-";
+
+  return (
+    <div>
+      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+        Selected Services
+      </label>
+      {mode === "edit" ? (
+        <div className="mb-2 rounded-md border border-[#ece8e1] bg-[#faf9f7] px-3 py-2 text-[13px] text-slate-700">
+          {selectedLabel}
+        </div>
+      ) : null}
+      <details className="rounded-md border border-[#ece8e1] bg-white">
+        <summary className="cursor-pointer list-none px-3 py-2 text-[13px] text-slate-700">
+          {selectedServices.length
+            ? `${selectedServices.length} service${selectedServices.length > 1 ? "s" : ""} selected`
+            : "Select services"}
+        </summary>
+        <div className="max-h-48 space-y-2 overflow-auto border-t border-[#f0ece6] px-3 py-3">
+          {services.map((service) => {
+            const checked = form.selectedServiceIds.includes(service.id);
+            return (
+              <label
+                key={service.id}
+                className="flex cursor-pointer items-start gap-2 text-[13px] text-slate-700"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      selectedServiceIds: event.target.checked
+                        ? [...prev.selectedServiceIds, service.id]
+                        : prev.selectedServiceIds.filter((id) => id !== service.id),
+                    }))
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  {service.name}
+                  {service.category ? ` - ${service.category}` : ""}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function DealFormFields({
+  form,
+  setForm,
+  practices,
+  companies,
+  services,
+  contactOptions,
+  mode,
+}: {
+  form: DealFormState;
+  setForm: React.Dispatch<React.SetStateAction<DealFormState>>;
+  practices: Practice[];
+  companies: Company[];
+  services: Service[];
+  contactOptions: ContactOption[];
+  mode: "create" | "edit";
+}) {
+  const selectedPractice = useMemo(
+    () => practices.find((practice) => practice.id === form.practiceId) || null,
+    [form.practiceId, practices],
+  );
+
+  const availableContacts = useMemo(() => {
+    return contactOptions.filter((contact) => {
+      if (form.practiceId && contact.practiceIds.includes(form.practiceId)) {
+        return true;
+      }
+      if (form.companyId && contact.companyIds.includes(form.companyId)) {
+        return true;
+      }
+      return false;
+    });
+  }, [contactOptions, form.companyId, form.practiceId]);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Practice <span className="text-red-500">*</span>
+        </label>
+        <select
+          value={form.practiceId}
+          onChange={(event) => {
+            const nextPracticeId = event.target.value;
+            const practice = practices.find((item) => item.id === nextPracticeId);
+            setForm((prev) => ({
+              ...prev,
+              practiceId: nextPracticeId,
+              companyId: practice?.companyId || "",
+              primaryContactId: "",
+            }));
+          }}
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+          required
+        >
+          <option value="">Select Practice</option>
+          {practices.map((practice) => (
+            <option key={practice.id} value={practice.id}>
+              {practice.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Company
+        </label>
+        <select
+          value={form.companyId}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              companyId: event.target.value,
+              primaryContactId: "",
+            }))
+          }
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        >
+          <option value="">Select Company</option>
+          {companies.map((company) => (
+            <option key={company.id} value={company.id}>
+              {company.name}
+            </option>
+          ))}
+        </select>
+        {selectedPractice?.company?.name ? (
+          <p className="mt-1 text-[12px] text-slate-400">
+            Linked practice company: {selectedPractice.company.name}
+          </p>
+        ) : null}
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Primary Contact
+        </label>
+        <select
+          value={form.primaryContactId}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              primaryContactId: event.target.value,
+            }))
+          }
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        >
+          <option value="">Select Contact</option>
+          {availableContacts.map((contact) => (
+            <option key={contact.id} value={contact.id}>
+              {contact.fullName}
+              {contact.email ? ` - ${contact.email}` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Stage <span className="text-red-500">*</span>
+        </label>
+        <select
+          value={form.stage}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              stage: event.target.value as DealStage,
+            }))
+          }
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        >
+          {dealStageOptions.map((stage) => (
+            <option key={stage} value={stage}>
+              {formatStageLabel(stage)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <SelectedServicesField
+        form={form}
+        setForm={setForm}
+        services={services}
+        mode={mode}
+      />
+
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Value <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="number"
+          step="1"
+          value={form.value}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              value: event.target.value,
+            }))
+          }
+          placeholder="0"
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Probability (%) <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          value={form.probability}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              probability: event.target.value,
+            }))
+          }
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Expected Close Date
+        </label>
+        <input
+          type="date"
+          value={form.expectedCloseDate}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              expectedCloseDate: event.target.value,
+            }))
+          }
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Next Task
+        </label>
+        <input
+          type="text"
+          value={form.nextTaskTitle}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              nextTaskTitle: event.target.value,
+            }))
+          }
+          placeholder="Follow-up Call"
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Next Task Due
+        </label>
+        <input
+          type="date"
+          value={form.nextTaskDueAt}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              nextTaskDueAt: event.target.value,
+            }))
+          }
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        />
+      </div>
+    </div>
+  );
 }
 
 function DealsPage() {
@@ -123,16 +490,18 @@ function DealsPage() {
     totalPages: 0,
   });
   const [filters, setFilters] = useState({
-    search: "",
     stage: "",
     practiceId: "",
     minValue: "",
     maxValue: "",
   });
   const [sorting, setSorting] = useState<SortingState>([
-    { id: "creationDate", desc: true },
+    { id: "lastActivity", desc: true },
   ]);
   const [practices, setPractices] = useState<Practice[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [contactOptions, setContactOptions] = useState<ContactOption[]>([]);
   const [createForm, setCreateForm] = useState<DealFormState>(initialFormState);
   const [editForm, setEditForm] = useState<DealFormState>(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -150,11 +519,25 @@ function DealsPage() {
             String(row.original.values.practiceName || "-"),
         },
         {
+          id: "companyName",
+          accessorFn: (row: DealRow) => row.values.companyName,
+          header: () => "Company",
+          cell: ({ row }: { row: { original: DealRow } }) =>
+            String(row.original.values.companyName || "-"),
+        },
+        {
+          id: "primaryContactName",
+          accessorFn: (row: DealRow) => row.values.primaryContactName,
+          header: () => "Primary Contact",
+          cell: ({ row }: { row: { original: DealRow } }) =>
+            String(row.original.values.primaryContactName || "-"),
+        },
+        {
           id: "stage",
           accessorFn: (row: DealRow) => row.values.stage,
           header: () => "Stage",
           cell: ({ row }: { row: { original: DealRow } }) => {
-            const stage = row.original.values.stage as DealStage;
+            const stage = row.original.values.stage;
             return (
               <span
                 className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${stageStyles[stage]}`}
@@ -165,6 +548,13 @@ function DealsPage() {
           },
         },
         {
+          id: "services",
+          accessorFn: (row: DealRow) => row.values.services,
+          header: () => "Services",
+          cell: ({ row }: { row: { original: DealRow } }) =>
+            String(row.original.values.services || "-"),
+        },
+        {
           id: "value",
           accessorFn: (row: DealRow) => row.values.value,
           header: () => "Value",
@@ -172,25 +562,32 @@ function DealsPage() {
             String(row.original.values.value || "-"),
         },
         {
-          id: "probability",
-          accessorFn: (row: DealRow) => row.values.probability,
-          header: () => "Probability",
+          id: "lastActivity",
+          accessorFn: (row: DealRow) => row.values.lastActivity,
+          header: () => "Last Activity",
           cell: ({ row }: { row: { original: DealRow } }) =>
-            `${row.original.values.probability}%`,
+            String(row.original.values.lastActivity || "-"),
         },
         {
-          id: "expectedCloseDate",
-          accessorFn: (row: DealRow) => row.values.expectedCloseDate,
-          header: () => "Expected Close",
+          id: "activityCount",
+          accessorFn: (row: DealRow) => row.values.activityCount,
+          header: () => "Activity Count",
           cell: ({ row }: { row: { original: DealRow } }) =>
-            String(row.original.values.expectedCloseDate || "-"),
+            String(row.original.values.activityCount ?? 0),
         },
         {
-          id: "creationDate",
-          accessorFn: (row: DealRow) => row.values.creationDate,
-          header: () => "Created",
+          id: "nextTask",
+          accessorFn: (row: DealRow) => row.values.nextTask,
+          header: () => "Next Task",
           cell: ({ row }: { row: { original: DealRow } }) =>
-            String(row.original.values.creationDate),
+            String(row.original.values.nextTask || "-"),
+        },
+        {
+          id: "nextTaskDueAt",
+          accessorFn: (row: DealRow) => row.values.nextTaskDueAt,
+          header: () => "Next Task Due",
+          cell: ({ row }: { row: { original: DealRow } }) =>
+            String(row.original.values.nextTaskDueAt || "-"),
         },
       ] as ColumnDef<DealRow>[],
     [],
@@ -204,6 +601,26 @@ function DealsPage() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
+
+  const selectedPracticeForCreate = useMemo(
+    () =>
+      practices.find((practice) => practice.id === createForm.practiceId) || null,
+    [createForm.practiceId, practices],
+  );
+
+  const selectedPracticeForEdit = useMemo(
+    () =>
+      practices.find((practice) => practice.id === editForm.practiceId) || null,
+    [editForm.practiceId, practices],
+  );
+
+  const activeReadiness = useMemo(
+    () =>
+      selectedDeal
+        ? getReadinessForStage(selectedDeal.stageReadiness, editForm.stage)
+        : null,
+    [editForm.stage, selectedDeal],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -235,23 +652,33 @@ function DealsPage() {
         }
       }
 
-      if (filters.search.length > 2 || filters.search.length === 0) {
-        loadData();
-      }
-    }, 400);
+      loadData();
+    }, 300);
 
     return () => clearTimeout(timer);
-  }, [pagination.page, pagination.limit, sorting, filters]);
+  }, [filters.maxValue, filters.minValue, filters.practiceId, filters.stage, pagination.limit, pagination.page, sorting]);
 
   useEffect(() => {
-    if (showCreateForm || showDetailPanel) {
-      if (practices.length === 0) {
-        getAllPractices()
-          .then((practiceList) => setPractices(practiceList))
-          .catch((err) => console.error("Failed to load practices:", err));
-      }
-    }
-  }, [showCreateForm, showDetailPanel]);
+    getAllPractices().then(setPractices).catch(console.error);
+    getAllCompanies().then(setCompanies).catch(console.error);
+    getAllServices().then(setServices).catch(console.error);
+    getPersonsView({ page: 1, limit: 200 })
+      .then((data) => {
+        const options = data.rows.map((row) => ({
+          id: row.id,
+          fullName: String(row.values.fullName || "").trim(),
+          email: String(row.values.email || ""),
+          practiceIds: Array.isArray(row.values.practiceIds)
+            ? (row.values.practiceIds as string[])
+            : [],
+          companyIds: Array.isArray(row.values.companyIds)
+            ? (row.values.companyIds as string[])
+            : [],
+        }));
+        setContactOptions(options);
+      })
+      .catch(console.error);
+  }, []);
 
   async function refreshRows(targetPage = pagination.page) {
     const data = await getDealsView({
@@ -305,14 +732,21 @@ function DealsPage() {
     setCreateForm(initialFormState);
   }
 
-  function buildPayload(form: DealFormState): DealBody {
+  function buildPayload(form: DealFormState, selectedPractice?: Practice | null): DealBody {
     return {
       practiceId: form.practiceId,
+      companyId: form.companyId || selectedPractice?.companyId || undefined,
+      primaryContactId: form.primaryContactId || undefined,
       stage: form.stage,
       value: parseFloat(form.value),
       probability: parseFloat(form.probability),
+      selectedServiceIds: form.selectedServiceIds,
       ...(form.expectedCloseDate
         ? { expectedCloseDate: new Date(form.expectedCloseDate).toISOString() }
+        : {}),
+      ...(form.nextTaskTitle ? { nextTaskTitle: form.nextTaskTitle } : {}),
+      ...(form.nextTaskDueAt
+        ? { nextTaskDueAt: new Date(form.nextTaskDueAt).toISOString() }
         : {}),
     };
   }
@@ -324,21 +758,25 @@ function DealsPage() {
       return;
     }
     const value = parseFloat(createForm.value);
-    if (isNaN(value)) {
+    if (Number.isNaN(value)) {
       toast.error("Enter a valid value");
       return;
     }
     setIsSubmitting(true);
     try {
-      await createDealApi(buildPayload(createForm));
+      await createDealApi(buildPayload(createForm, selectedPracticeForCreate));
       await refreshRows(1);
       setPagination((prev) => ({ ...prev, page: 1 }));
       closeCreateForm();
       toast.success("Deal created successfully");
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to create deal";
-      toast.error(message);
+      const error = err as DealApiError;
+      toast.error(
+        buildRequirementErrorMessage(
+          error.message || "Failed to create deal",
+          error.missingRequirements,
+        ),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -352,22 +790,29 @@ function DealsPage() {
       return;
     }
     const value = parseFloat(editForm.value);
-    if (isNaN(value)) {
+    if (Number.isNaN(value)) {
       toast.error("Enter a valid value");
       return;
     }
     setIsSaving(true);
     try {
-      await updateDealApi(selectedDeal.id, buildPayload(editForm));
+      await updateDealApi(
+        selectedDeal.id,
+        buildPayload(editForm, selectedPracticeForEdit),
+      );
       await refreshRows();
       const refreshedDeal = await getDeal(selectedDeal.id);
       setSelectedDeal(refreshedDeal);
       setEditForm(buildFormState(refreshedDeal));
       toast.success("Deal updated successfully");
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to update deal";
-      toast.error(message);
+      const error = err as DealApiError;
+      toast.error(
+        buildRequirementErrorMessage(
+          error.message || "Failed to update deal",
+          error.missingRequirements,
+        ),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -400,7 +845,7 @@ function DealsPage() {
   ];
 
   const detailPanel = (
-    <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+    <aside className="app-panel relative flex w-[430px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
         <button
           type="button"
@@ -411,7 +856,7 @@ function DealsPage() {
         </button>
         <Circle className="h-4 w-4 text-slate-300" />
         <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
-          {selectedDeal?.practice?.name || "Deal"}
+          {selectedDeal?.card.practiceName || selectedDeal?.practice?.name || "Deal"}
         </span>
       </div>
 
@@ -425,143 +870,83 @@ function DealsPage() {
           className="flex flex-1 flex-col overflow-hidden"
         >
           <div className="flex-1 overflow-auto p-4">
-            <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Practice</span>
-                <span className="text-right text-slate-700">
-                  {selectedDeal.practice?.name || "-"}
+            <div className="mb-5 rounded-2xl border border-[#eadfcd] bg-gradient-to-br from-[#f9f4ec] via-white to-[#f4f7fb] p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-[18px] font-semibold text-slate-800">
+                    {selectedDeal.card.practiceName}
+                  </h2>
+                </div>
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${stageStyles[selectedDeal.stage]}`}
+                >
+                  {formatStageLabel(selectedDeal.stage)}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Agreements</span>
-                <span className="text-slate-700">
-                  {selectedDeal.agreements?.length || 0}
-                </span>
+
+              <div className="space-y-2 text-[13px] text-slate-700">
+                <div>Services: {selectedDeal.card.servicesLabel || "-"}</div>
+                <div>Value: {selectedDeal.card.valueLabel || formatCurrency(selectedDeal.value)}</div>
+                <div>
+                  Last Activity:{" "}
+                  {formatRelativeDate(
+                    selectedDeal.card.lastActivityAt || selectedDeal.lastActivityAt,
+                  )}
+                </div>
+                <div>Next Task: {selectedDeal.card.nextTaskTitle || "-"}</div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Audits</span>
-                <span className="text-slate-700">
-                  {selectedDeal.audits?.length || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Created</span>
-                <span className="text-right text-slate-700">
-                  {formatDateTime(selectedDeal.createdAt)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Last Update</span>
-                <span className="text-right text-slate-700">
-                  {formatDateTime(selectedDeal.updatedAt)}
+
+              <div className="mt-4 flex items-center justify-between rounded-xl border border-white/80 bg-white/80 px-3 py-2 text-[12px] text-slate-600">
+                <span>Activity count</span>
+                <span className="text-[18px] font-semibold text-slate-800">
+                  {selectedDeal.card.activityCount}
                 </span>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Practice <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={editForm.practiceId}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      practiceId: event.target.value,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                  required
-                >
-                  <option value="">Select Practice</option>
-                  {practices.map((practice) => (
-                    <option key={practice.id} value={practice.id}>
-                      {practice.name}
-                    </option>
-                  ))}
-                </select>
+            <div className="mb-5 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
+              <div className="mb-2 flex items-center gap-2 font-medium text-slate-700">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                Stage Validation
               </div>
-
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Stage <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={editForm.stage}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      stage: event.target.value as DealStage,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                >
-                  {dealStageOptions.map((stage) => (
-                    <option key={stage} value={stage}>
-                      {formatStageLabel(stage)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Value <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="1"
-                  value={editForm.value}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      value: event.target.value,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Probability (%) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={editForm.probability}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      probability: event.target.value,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Expected Close Date
-                </label>
-                <input
-                  type="date"
-                  value={editForm.expectedCloseDate}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      expectedCloseDate: event.target.value,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                />
-              </div>
+              {activeReadiness ? (
+                <div className="space-y-2">
+                  <div
+                    className={`rounded-lg px-3 py-2 text-[12px] ${
+                      activeReadiness.complete
+                        ? "bg-green-50 text-green-700"
+                        : "bg-amber-50 text-amber-800"
+                    }`}
+                  >
+                    {activeReadiness.complete
+                      ? `${formatStageLabel(editForm.stage)} is ready.`
+                      : `${formatStageLabel(editForm.stage)} is blocked.`}
+                  </div>
+                  {!activeReadiness.complete && activeReadiness.missing.length ? (
+                    <ul className="space-y-1 text-[12px] text-slate-600">
+                      {activeReadiness.missing.map((item) => (
+                        <li key={item}>• {item}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-[12px] text-slate-500">
+                  Validation rules are enforced for Proposal, Agreement Sent, and
+                  Onboarding.
+                </p>
+              )}
             </div>
+
+            <DealFormFields
+              form={editForm}
+              setForm={setEditForm}
+              practices={practices}
+              companies={companies}
+              services={services}
+              contactOptions={contactOptions}
+              mode="edit"
+            />
           </div>
 
           <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
@@ -569,7 +954,7 @@ function DealsPage() {
               type="button"
               onClick={handleDeleteDeal}
               disabled={isDeleting}
-              className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+              className="flex cursor-pointer items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
             >
               <Trash2 className="h-4 w-4" />
               {isDeleting ? "Deleting..." : "Delete"}
@@ -577,7 +962,7 @@ function DealsPage() {
             <button
               type="submit"
               disabled={isSaving}
-              className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+              className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
             >
               <Save className="h-4 w-4" />
               {isSaving ? "Saving..." : "Save Changes"}
@@ -589,11 +974,9 @@ function DealsPage() {
   );
 
   const createPanel = (
-    <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+    <aside className="app-panel flex w-[430px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
-        <h2 className="text-[15px] font-semibold text-slate-700">
-          Create Deal
-        </h2>
+        <h2 className="text-[15px] font-semibold text-slate-700">Create Deal</h2>
         <button
           type="button"
           onClick={closeCreateForm}
@@ -604,111 +987,36 @@ function DealsPage() {
       </div>
 
       <form onSubmit={handleCreateDeal} className="flex-1 overflow-auto p-4">
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-[13px] font-medium text-slate-700">
-              Practice <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={createForm.practiceId}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  practiceId: event.target.value,
-                }))
-              }
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-              required
-            >
-              <option value="">Select Practice</option>
-              {practices.map((practice) => (
-                <option key={practice.id} value={practice.id}>
-                  {practice.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-[13px] font-medium text-slate-700">
-              Stage <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={createForm.stage}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  stage: event.target.value as DealStage,
-                }))
-              }
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            >
-              {dealStageOptions.map((stage) => (
-                <option key={stage} value={stage}>
-                  {formatStageLabel(stage)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-[13px] font-medium text-slate-700">
-              Value <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              step="1"
-              value={createForm.value}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  value: event.target.value,
-                }))
-              }
-              placeholder="0"
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-[13px] font-medium text-slate-700">
-              Probability (%) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="1"
-              value={createForm.probability}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  probability: event.target.value,
-                }))
-              }
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-[13px] font-medium text-slate-700">
-              Expected Close Date
-            </label>
-            <input
-              type="date"
-              value={createForm.expectedCloseDate}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  expectedCloseDate: event.target.value,
-                }))
-              }
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            />
+        <div className="mb-5 rounded-2xl border border-dashed border-[#d9cfbf] bg-[#faf7f2] p-4 text-[13px] text-slate-600">
+          <div className="font-medium text-slate-700">Card Preview</div>
+          <div className="mt-3 space-y-2">
+            <div>{selectedPracticeForCreate?.name || "Practice Name"}</div>
+            <div>
+              Services:{" "}
+              {createForm.selectedServiceIds.length
+                ? services
+                    .filter((service) =>
+                      createForm.selectedServiceIds.includes(service.id),
+                    )
+                    .map((service) => service.name)
+                    .join(" + ")
+                : "-"}
+            </div>
+            <div>Value: {createForm.value ? formatCurrency(createForm.value) : "-"}</div>
+            <div>Last Activity: -</div>
+            <div>Next Task: {createForm.nextTaskTitle || "-"}</div>
           </div>
         </div>
+
+        <DealFormFields
+          form={createForm}
+          setForm={setCreateForm}
+          practices={practices}
+          companies={companies}
+          services={services}
+          contactOptions={contactOptions}
+          mode="create"
+        />
 
         <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">
           <button
@@ -787,9 +1095,9 @@ function DealsPage() {
                 type="button"
                 onClick={() =>
                   setSorting((current) =>
-                    current[0]?.id === "creationDate"
-                      ? [{ id: "creationDate", desc: !current[0].desc }]
-                      : [{ id: "creationDate", desc: true }],
+                    current[0]?.id === "lastActivity"
+                      ? [{ id: "lastActivity", desc: !current[0].desc }]
+                      : [{ id: "lastActivity", desc: true }],
                   )
                 }
               >
@@ -800,19 +1108,6 @@ function DealsPage() {
 
           {showFilterPanel && (
             <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              {/*<input
-                type="text"
-                placeholder="Search by practice name..."
-                value={filters.search}
-                onChange={(event) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    search: event.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              />*/}
               <select
                 value={filters.stage}
                 onChange={(event) => {
@@ -879,7 +1174,6 @@ function DealsPage() {
                 type="button"
                 onClick={() =>
                   setFilters({
-                    search: "",
                     stage: "",
                     practiceId: "",
                     minValue: "",
@@ -888,7 +1182,6 @@ function DealsPage() {
                 }
                 className="text-[13px] text-[#4f63ea] hover:underline"
                 disabled={
-                  !filters.search &&
                   !filters.stage &&
                   !filters.practiceId &&
                   !filters.minValue &&
@@ -959,7 +1252,9 @@ function DealsPage() {
                       <tr
                         key={row.id}
                         onClick={() => handleRowClick(row.original.id)}
-                        className={`cursor-pointer ${isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                        className={`cursor-pointer ${
+                          isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"
+                        }`}
                       >
                         {row.getVisibleCells().map((cell) => (
                           <td
@@ -985,11 +1280,8 @@ function DealsPage() {
               <div className="flex items-center gap-2 text-[13px] text-slate-500">
                 <span>
                   Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total,
-                  )}{" "}
-                  of {pagination.total}
+                  {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
+                  {pagination.total}
                 </span>
               </div>
               <div className="flex items-center gap-1">

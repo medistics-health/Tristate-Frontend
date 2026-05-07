@@ -758,9 +758,6 @@ export default function AllPracticePage() {
           !!init.person?.email,
       );
 
-      console.log(practicePersons);
-      console.log(hasAdminWithEmail);
-
       if (!hasAdminWithEmail) {
         toast.error(
           "Practice must have at least one ADMIN/OWNER person with email to set status to ACTIVE",

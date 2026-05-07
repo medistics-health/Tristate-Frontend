@@ -65,7 +65,13 @@ const statusStyles: Record<string, string> = {
   ARCHIVED: "bg-zinc-100 text-zinc-600",
 };
 
-const agreementStatusOptions = ["DRAFT", "ACTIVE", "EXPIRED", "TERMINATED"];
+const agreementStatusOptions = [
+  "DRAFT",
+  "ACTIVE",
+  "EXPIRED",
+  "TERMINATED",
+  "SIGNED",
+];
 
 const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
 
