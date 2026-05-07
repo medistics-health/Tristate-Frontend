@@ -75,6 +75,13 @@ const agreementStatusOptions = [
 
 const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
 
+const AUTO_INCLUDE_TEMPLATE_NAMES = [
+  "Master Service Agreement",
+  "BAA",
+  "Credentialing Exhibit",
+  "Exhibit P",
+];
+
 type AgreementFormState = {
   practiceId: string;
   dealId: string;
@@ -622,18 +629,40 @@ function AllAgreementsPage() {
     }
   }
 
+  function applyAutoSelectTemplates(templates: DocusealTemplate[]) {
+    if (createForm.type !== "MSA") return;
+    const autoSelectIds = templates
+      .filter((t) =>
+        AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+          t.name.toLowerCase().includes(name.toLowerCase()),
+        ),
+      )
+      .map((t) => String(t.id));
+    setCreateForm((prev) => ({
+      ...prev,
+      docusealTemplates: [
+        ...new Set([...prev.docusealTemplates, ...autoSelectIds]),
+      ],
+    }));
+  }
+
   async function loadDocusealTemplates() {
-    if (docusealTemplates.length > 0) return;
-    setTemplatesLoading(true);
-    try {
-      const response = await getDocusealTemplates();
-      setDocusealTemplates(response.templates.data);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to fetch templates";
-      toast.error(message);
-    } finally {
-      setTemplatesLoading(false);
+    if (docusealTemplates.length === 0) {
+      setTemplatesLoading(true);
+      try {
+        const response = await getDocusealTemplates();
+        const templates = response.templates.data;
+        setDocusealTemplates(templates);
+        applyAutoSelectTemplates(templates);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to fetch templates";
+        toast.error(message);
+      } finally {
+        setTemplatesLoading(false);
+      }
+    } else {
+      applyAutoSelectTemplates(docusealTemplates);
     }
   }
 
@@ -1777,32 +1806,59 @@ function AllAgreementsPage() {
                   </span>
                 ) : (
                   <div className="space-y-2">
-                    {docusealTemplates.map((template) => (
-                      <label
-                        key={template.id}
-                        className="flex cursor-pointer items-center gap-2"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={createForm.docusealTemplates.includes(
-                            String(template.id),
-                          )}
-                          onChange={(e) => {
-                            const templateId = String(template.id);
-                            setCreateForm((prev) => ({
-                              ...prev,
-                              docusealTemplates: e.target.checked
-                                ? [...prev.docusealTemplates, templateId]
-                                : prev.docusealTemplates.filter(
-                                    (id: string) => id !== templateId,
-                                  ),
-                            }));
-                          }}
-                          className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea]"
-                        />
-                        <span className="text-slate-700">{template.name}</span>
-                      </label>
-                    ))}
+                    {(() => {
+                      const autoIncludeIds = docusealTemplates
+                        .filter((t) =>
+                          AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+                            t.name.toLowerCase().includes(name.toLowerCase()),
+                          ),
+                        )
+                        .map((t) => String(t.id));
+                      return docusealTemplates.map((template) => {
+                        const templateId = String(template.id);
+                        const isAutoInclude =
+                          autoIncludeIds.includes(templateId);
+                        return (
+                          <label
+                            key={template.id}
+                            className={`flex items-center gap-2 ${isAutoInclude ? "" : "cursor-pointer"}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                isAutoInclude ||
+                                createForm.docusealTemplates.includes(
+                                  templateId,
+                                )
+                              }
+                              disabled={isAutoInclude}
+                              onChange={(e) => {
+                                if (isAutoInclude) return;
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  docusealTemplates: e.target.checked
+                                    ? [...prev.docusealTemplates, templateId]
+                                    : prev.docusealTemplates.filter(
+                                        (id: string) => id !== templateId,
+                                      ),
+                                }));
+                              }}
+                              className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea]"
+                            />
+                            <span
+                              className={`text-slate-700 ${isAutoInclude ? "font-medium" : ""}`}
+                            >
+                              {template.name}
+                              {isAutoInclude && (
+                                <span className="ml-1 text-xs text-slate-400">
+                                  (required)
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        );
+                      });
+                    })()}
                   </div>
                 )}
               </div>
