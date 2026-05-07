@@ -38,11 +38,12 @@ import PersonsPage from "./components/contact/Persons";
 import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
-import OnboardingForm from "./components/onboarding/OnboardingFormV2";
 import OnboardingFormV2 from "./components/onboarding/OnboardingFormV2";
+import PricingEnginePage from "./components/pricing-terms/PricingEngine";
+import type { ReactNode } from "react";
 
 function App() {
-  function UUIDProtectedRoute({ children }) {
+  function UUIDProtectedRoute({ children }: { children: ReactNode }) {
     const { id } = useParams();
 
     const isValidUUID = (id: string | any) =>
@@ -57,7 +58,7 @@ function App() {
     return children;
   }
 
-  function SignPage({ children }) {
+  function SignPage({ children }: { children: ReactNode }) {
     const url = useParams();
     const token = url?.slug as string;
 
@@ -412,6 +413,14 @@ function App() {
         element={
           <ProtectedRoute>
             <AllCompaniesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pricing-engine/rate-finalization"
+        element={
+          <ProtectedRoute>
+            <PricingEnginePage />
           </ProtectedRoute>
         }
       />

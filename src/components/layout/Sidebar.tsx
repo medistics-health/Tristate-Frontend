@@ -104,6 +104,12 @@ const sidebarSections: SidebarSection[] = [
         ],
       },
       {
+        label: "Pricing Engine",
+        items: [
+          { label: "Rate Finalization", to: "/pricing-engine/rate-finalization" },
+        ],
+      },
+      {
         label: "Billing",
         items: [
           { label: "Billing Runs", to: "/billing/runs" },
