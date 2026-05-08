@@ -40,6 +40,9 @@ import AgreementPipelinePage from "./components/agreements/agreements-pipeline/A
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
 import OnboardingFormV2 from "./components/onboarding/OnboardingFormV2";
 import PricingEnginePage from "./components/pricing-terms/PricingEngine";
+import AccountingSyncDashboard from "./components/integrations/AccountingSyncDashboard";
+import VendorPayableDashboard from "./components/payables/VendorPayableDashboard";
+import ClientPortalDashboard from "./components/portal/ClientPortalDashboard";
 import type { ReactNode } from "react";
 
 function App() {
@@ -168,6 +171,33 @@ function App() {
         element={
           <ProtectedRoute>
             <CRMDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/integrations/accounting-sync"
+        element={
+          <ProtectedRoute>
+            <AccountingSyncDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/vendors/payables"
+        element={
+          <ProtectedRoute>
+            <VendorPayableDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/portal"
+        element={
+          <ProtectedRoute>
+            <ClientPortalDashboard />
           </ProtectedRoute>
         }
       />

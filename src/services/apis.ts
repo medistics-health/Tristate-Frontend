@@ -166,3 +166,10 @@ export const dealEndpoints = {
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
 };
+
+export const quickbooksEndpoints = {
+  GET_LOGS: BACKEND_URL + '/api/v1/quickbooks/sync-logs',
+  RETRY_JOB: (jobId: string) => BACKEND_URL + '/api/v1/quickbooks/sync-logs/' + jobId + '/retry',
+};
+
+export const portalEndpoints = { GET_SNAPSHOT: BACKEND_URL + '/api/v1/portal/snapshot' };

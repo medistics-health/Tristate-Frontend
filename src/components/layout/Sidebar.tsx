@@ -30,6 +30,7 @@ const sidebarSections: SidebarSection[] = [
 
     items: [
       { label: "Dashboards", to: "/dashboard" },
+      { label: "Client Portal", to: "/portal" },
       {
         label: "Deal",
         icon: <Backpack className="h-3 w-3" />,
@@ -137,6 +138,7 @@ const sidebarSections: SidebarSection[] = [
         items: [
           { label: "All Vendors", to: "/vendors/all-vendors" },
           { label: "Vendor Contracts", to: "/vendors/contracts" },
+          { label: "Vendor Payables", to: "/vendors/payables" },
         ],
       },
       {
@@ -147,6 +149,12 @@ const sidebarSections: SidebarSection[] = [
           { label: "Active Practices", to: "/practice/active-practice" },
           { label: "Prospects", to: "/practice/prospects" },
           { label: "Reminders Due", to: "/practice/reminder-dues" },
+        ],
+      },
+      {
+        label: "Integrations",
+        items: [
+          { label: "Accounting Sync", to: "/integrations/accounting-sync" },
         ],
       },
     ],

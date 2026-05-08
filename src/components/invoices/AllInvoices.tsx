@@ -41,6 +41,7 @@ import {
   type InvoiceStatus,
 } from "../../services/operations/invoices";
 import type { Practice } from "../practices/types";
+import StripeInvoiceFlow from "./StripeInvoiceFlow";
 
 const statusStyles: Record<InvoiceStatus, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
@@ -587,6 +588,15 @@ function AllInvoicePage() {
                 />
               </div>
             </div>
+
+            {/* --- STRIPE FLOW SECTION --- */}
+            <StripeInvoiceFlow 
+              invoice={selectedInvoice} 
+              onUpdate={() => {
+                refreshRows();
+                getInvoice(selectedInvoice.id).then(setSelectedInvoice);
+              }} 
+            />
           </div>
 
           <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
