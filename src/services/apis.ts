@@ -166,3 +166,12 @@ export const dealEndpoints = {
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
 };
+
+export const monthlyReportEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/monthly-reports",
+  LIST: BACKEND_URL + "/api/v1/monthly-reports",
+  CREATE: BACKEND_URL + "/api/v1/monthly-reports",
+  GET: (id: string) => BACKEND_URL + `/api/v1/monthly-reports/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/monthly-reports/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/monthly-reports/${id}`,
+};

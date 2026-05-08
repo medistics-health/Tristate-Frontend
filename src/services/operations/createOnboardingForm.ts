@@ -1,10 +1,27 @@
+// Go to Step 5 (Scope), select services, then check Steps 6 & 7. Here's what to test:
+// Select this in Step 5
+// Billing / Revenue Cycle Management
+// Credentialing
+// Patient Acquisition, Brand Growth, or AI Visibility
+// Lab Relationship Support or Pharmacy Program Support
+// APCM, CCM, RPM, PCM, RTM, BHI, TCM
+// Test it behaviorally:
+// 1. Fill Steps 1-4 with any basic data
+// 2. On Step 5, select only Credentialing + Billing/RCM + any marketing service
+// 3. Go to Step 6 → you should see only Technology Stack + Billing/RCM + Credentialing + Marketing Setup (4 cards)
+// 4. Go back to Step 5, deselect all of those, select only care program services (APCM, CCM, etc.)
+// 5. Go to Step 6 → you should see only Technology Stack (no Billing, no Credentialing, no Marketing)
+// 6. Go to Step 7 → you should see Care Program Readiness but no Lab/Pharmacy section
 import {
   createOnboarding,
   type Onboarding,
   type OnboardingBody,
 } from "./onboarding";
 
-type CreateOnboardingPayload = Omit<OnboardingBody, "serviceSetup" | "isIndividualPractice"> & {
+type CreateOnboardingPayload = Omit<
+  OnboardingBody,
+  "serviceSetup" | "isIndividualPractice"
+> & {
   documents?: Array<
     Omit<NonNullable<OnboardingBody["documents"]>[number], "documentType"> & {
       documentType?: string[];
@@ -115,7 +132,8 @@ export async function createOnboardingFromForm(
     requestedGoLiveDate:
       formData.requestedGoLiveDate ??
       formData.serviceSetup?.requestedGoLiveDate,
-    priorityLevel: formData.priorityLevel ?? formData.serviceSetup?.priorityLevel,
+    priorityLevel:
+      formData.priorityLevel ?? formData.serviceSetup?.priorityLevel,
     servicesForAllPractices:
       formData.servicesForAllPractices ??
       formData.serviceSetup?.servicesForAllPractices,
@@ -129,7 +147,8 @@ export async function createOnboardingFromForm(
     currentVendorName:
       formData.currentVendorName ?? formData.serviceSetup?.currentVendorName,
     currentVendorEndDate:
-      formData.currentVendorEndDate ?? formData.serviceSetup?.currentVendorEndDate,
+      formData.currentVendorEndDate ??
+      formData.serviceSetup?.currentVendorEndDate,
     engagementGoals:
       formData.engagementGoals ?? formData.serviceSetup?.engagementGoals,
     informationAccurate: formData.informationAccurate,
@@ -168,6 +187,7 @@ export async function createOnboardingFromForm(
     labPharmacy: formData.labPharmacy,
     compliance: formData.compliance,
     careProgram: formData.careProgram,
+    marketing: formData.marketing,
   };
 
   return createOnboarding(payload as OnboardingBody);

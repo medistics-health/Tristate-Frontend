@@ -143,6 +143,13 @@ const sidebarSections: SidebarSection[] = [
           { label: "Reminders Due", to: "/practice/reminder-dues" },
         ],
       },
+      {
+        label: "Monthly Reports",
+        items: [
+          { label: "Dashboard", to: "/monthly-reporting/dashboard" },
+          { label: "Submit Report", to: "/monthly-reporting/submit" },
+        ],
+      },
     ],
   },
   // {

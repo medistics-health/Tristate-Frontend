@@ -178,6 +178,19 @@ export type OnboardingCompliance = {
   additionalNotes?: string;
 };
 
+export type OnboardingMarketing = {
+  websiteUrl?: string;
+  socialMediaChannels?: string[];
+  currentMarketingChannels?: string[];
+  targetPatientDemographics?: string;
+  monthlyMarketingBudget?: string;
+  existingBrandAssets?: string;
+  googleBusinessProfileClaimed?: boolean;
+  patientAcquisitionGoals?: string;
+  aiToolsUsed?: string;
+  additionalMarketingNotes?: string;
+};
+
 export type OnboardingCareProgram = {
   programsPlanned?: string[];
   estimatedEligiblePatients?: number;
@@ -261,6 +274,7 @@ export type OnboardingBody = {
   compliance?: OnboardingCompliance;
   serviceSetup?: OnboardingServiceSetup;
   careProgram?: OnboardingCareProgram;
+  marketing?: OnboardingMarketing;
 };
 
 export type Onboarding = {
@@ -323,6 +337,7 @@ export type Onboarding = {
   compliance?: OnboardingCompliance;
   serviceSetup?: OnboardingServiceSetup;
   careProgram?: OnboardingCareProgram;
+  marketing?: OnboardingMarketing;
 };
 
 export async function createExternalOnboarding(

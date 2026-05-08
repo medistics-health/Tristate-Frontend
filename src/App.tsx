@@ -39,7 +39,9 @@ import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
 import OnboardingForm from "./components/onboarding/OnboardingFormV2";
-import OnboardingFormV2 from "./components/onboarding/OnboardingFormV2";
+import OnboardingFormV3 from "./components/onboarding/OnboardingFormV3";
+import MonthlyReportingDashboard from "./components/monthly-reporting/MonthlyReportingDashboard";
+import SubmitMonthlyReport from "./components/monthly-reporting/SubmitMonthlyReport";
 
 function App() {
   function UUIDProtectedRoute({ children }) {
@@ -85,8 +87,8 @@ function App() {
         path="/onboarding/:id"
         element={
           <UUIDProtectedRoute>
-            {/*<OnboardingForm />*/}
-            <OnboardingFormV2 />
+              {/*<OnboardingForm />*/}
+              <OnboardingFormV3 />
           </UUIDProtectedRoute>
         }
       />
@@ -412,6 +414,22 @@ function App() {
         element={
           <ProtectedRoute>
             <AllCompaniesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/monthly-reporting/dashboard"
+        element={
+          <ProtectedRoute>
+            <MonthlyReportingDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/monthly-reporting/submit"
+        element={
+          <ProtectedRoute>
+            <SubmitMonthlyReport />
           </ProtectedRoute>
         }
       />
