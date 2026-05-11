@@ -170,6 +170,9 @@ export const dealEndpoints = {
 export const quickbooksEndpoints = {
   GET_LOGS: BACKEND_URL + '/api/v1/quickbooks/sync-logs',
   RETRY_JOB: (jobId: string) => BACKEND_URL + '/api/v1/quickbooks/sync-logs/' + jobId + '/retry',
+  CONNECT: BACKEND_URL + '/api/v1/quickbooks/connect',
+  STATUS: (companyId: string) => BACKEND_URL + `/api/v1/quickbooks/connections/${companyId}`,
+  DISCONNECT: (companyId: string) => BACKEND_URL + `/api/v1/quickbooks/connections/${companyId}`,
 };
 
 export const portalEndpoints = { GET_SNAPSHOT: BACKEND_URL + '/api/v1/portal/snapshot' };

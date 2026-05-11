@@ -7,8 +7,6 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import {
-  CalendarDays,
-  ChevronDown,
   LayoutList,
   Plus,
   Save,
@@ -16,8 +14,8 @@ import {
   X,
   ChevronLeft,
   Circle,
-  Pencil,
-  FileText,
+  RefreshCw,
+  CheckCircle2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -35,6 +33,8 @@ import {
   getInvoicesView,
   invoiceStatusOptions,
   updateInvoiceApi,
+  resendStripeInvoice,
+  syncInvoiceToQuickBooks,
   type Invoice,
   type InvoiceBody,
   type InvoiceRow,
@@ -126,6 +126,18 @@ function AllInvoicePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [resendInvoiceId, setResendInvoiceId] = useState<string | null>(null);
+  const [isResendModalOpen, setIsResendModalOpen] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [actionLoading, setActionLoading] = useState<Record<string, Record<string, boolean>>>({});
+
+  const isActionLoading = (id: string, action: string) => actionLoading[id]?.[action] || false;
+  const setActionState = (id: string, action: string, state: boolean) => {
+    setActionLoading((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), [action]: state },
+    }));
+  };
 
   const filteredAgreementsForCreate = useMemo(
     () =>
@@ -172,6 +184,34 @@ function AllInvoicePage() {
           },
         },
         {
+          id: "actions",
+          header: () => "Actions",
+          cell: ({ row }: { row: { original: InvoiceRow } }) => {
+            const invoice = row.original;
+            return (
+              <div className="flex items-center gap-1">
+                {invoice.values.quickbooksInvoiceId ? (
+                  <div className="p-1 text-green-600" title={`Synced to QB: ${invoice.values.quickbooksInvoiceId}`}>
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSyncToQB(invoice.id);
+                    }}
+                    disabled={isActionLoading(invoice.id, "sync")}
+                    className="p-1 text-slate-400 hover:text-green-600 transition-colors disabled:opacity-50"
+                    title="Sync to QuickBooks"
+                  >
+                    <img src="https://quickbooks.intuit.com/cas/dam/IMAGE/A8u8GvpJS/apple-touch-icon-152x152.png" alt="QB" className="h-4 w-4 grayscale hover:grayscale-0 transition-all" />
+                  </button>
+                )}
+              </div>
+            );
+          },
+        },
+        {
           id: "totalAmount",
           accessorFn: (row: InvoiceRow) => row.values.totalAmount,
           header: () => "Total Amount",
@@ -193,7 +233,7 @@ function AllInvoicePage() {
             String(row.original.values.creationDate),
         },
       ] as ColumnDef<InvoiceRow>[],
-    [],
+    [actionLoading],
   );
 
   const table = useReactTable({
@@ -390,6 +430,33 @@ function AllInvoicePage() {
       toast.error(message);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleSyncToQB(invoiceId: string) {
+    try {
+      setActionState(invoiceId, "sync", true);
+      await syncInvoiceToQuickBooks(invoiceId);
+      toast.success("Synced to QuickBooks successfully.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to sync to QuickBooks.");
+    } finally {
+      setActionState(invoiceId, "sync", false);
+    }
+  }
+
+  async function handleResendInvoice() {
+    if (!resendInvoiceId) return;
+    try {
+      setIsResending(true);
+      await resendStripeInvoice(resendInvoiceId);
+      toast.success("Invoice resent successfully");
+      setIsResendModalOpen(false);
+      await refreshRows();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to resend invoice");
+    } finally {
+      setIsResending(false);
     }
   }
 
@@ -590,32 +657,72 @@ function AllInvoicePage() {
             </div>
 
             {/* --- STRIPE FLOW SECTION --- */}
-            <StripeInvoiceFlow 
-              invoice={selectedInvoice} 
+            <StripeInvoiceFlow
+              invoice={selectedInvoice}
               onUpdate={() => {
                 refreshRows();
                 getInvoice(selectedInvoice.id).then(setSelectedInvoice);
-              }} 
+              }}
             />
           </div>
 
-          <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+          <div className="flex items-center gap-2 border-t border-[#f1f5f9] px-3 py-3 bg-white sticky bottom-0 z-20 overflow-hidden">
+            {/* Resend Button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedInvoice) {
+                  setResendInvoiceId(selectedInvoice.id);
+                  handleResendInvoice();
+                }
+              }}
+              disabled={isResending}
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#e2e8f0] bg-white px-2.5 text-[12px] font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:opacity-50 shadow-sm"
+            >
+              <RefreshCw className={`h-4 w-4 shrink-0 text-slate-400 ${isResending ? "animate-spin" : ""}`} />
+              <span className="whitespace-nowrap">Resend</span>
+            </button>
+
+            {/* Sync QB Button */}
+            <button
+              type="button"
+              onClick={() => selectedInvoice && handleSyncToQB(selectedInvoice.id)}
+              disabled={isActionLoading(selectedInvoice?.id || "", "sync")}
+              className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#e2e8f0] bg-white px-2.5 transition-all hover:bg-slate-50 disabled:opacity-50 shadow-sm"
+            >
+              <img
+                src="https://quickbooks.intuit.com/cas/dam/IMAGE/A8u8GvpJS/apple-touch-icon-152x152.png"
+                alt="QB"
+                className="h-4 w-4 shrink-0 rounded-sm"
+              />
+              <div className="flex flex-col items-start leading-none gap-0">
+                <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Sync</span>
+                <span className="text-[12px] font-extrabold text-slate-800">QB</span>
+              </div>
+            </button>
+
+            {/* Delete Button */}
             <button
               type="button"
               onClick={handleDeleteInvoice}
               disabled={isDeleting}
-              className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#fee2e2] bg-white px-2.5 text-[12px] font-bold text-[#ef4444] transition-all hover:bg-red-50 disabled:opacity-50 shadow-sm"
             >
-              <Trash2 className="h-4 w-4" />
-              {isDeleting ? "Deleting..." : "Delete"}
+              <Trash2 className="h-4 w-4 shrink-0" />
+              <span className="whitespace-nowrap">Delete</span>
             </button>
+
+            {/* Save Changes Button */}
             <button
               type="submit"
               disabled={isSaving}
-              className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+              className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-[#e2e8f0] bg-white px-3 ml-auto text-left shadow-sm transition-all hover:border-[#6366f1] disabled:opacity-50"
             >
-              <Save className="h-4 w-4" />
-              {isSaving ? "Saving..." : "Save Changes"}
+              <Save className="h-5 w-5 shrink-0 text-[#6366f1]" />
+              <div className="flex flex-col items-start justify-center leading-none">
+                <span className="text-[12px] font-extrabold text-slate-800">Save</span>
+                <span className="text-[12px] font-extrabold text-slate-800">Changes</span>
+              </div>
             </button>
           </div>
         </form>
@@ -1011,11 +1118,10 @@ function AllInvoicePage() {
                     key={page}
                     type="button"
                     onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
+                    className={`rounded px-2 py-1 text-[13px] ${pagination.page === page
+                      ? "bg-[#4f63ea] text-white"
+                      : "text-slate-500 hover:bg-[#f0ece6]"
+                      }`}
                   >
                     {page}
                   </button>

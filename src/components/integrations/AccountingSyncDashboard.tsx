@@ -1,18 +1,28 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, AlertCircle, CheckCircle2, Clock, CalendarDays, ExternalLink } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle2, Clock, CalendarDays } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import {
   getSyncLogs,
   retrySyncJob,
+  connectQuickBooks,
+  getQuickBooksStatus,
+  disconnectQuickBooks,
   type ExternalSyncJob,
 } from "../../services/operations/quickbooks";
+import { getAllCompanies, type Company } from "../../services/operations/companies";
 
 export default function AccountingSyncDashboard() {
   const [logs, setLogs] = useState<ExternalSyncJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRetryingMap, setIsRetryingMap] = useState<Record<string, boolean>>({});
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+
+  // Connection State
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+  const [connectionStatus, setConnectionStatus] = useState<{ isConnected: boolean; realmId?: string } | null>(null);
+  const [isStatusLoading, setIsStatusLoading] = useState(false);
 
   async function loadLogs(page = 1) {
     try {
@@ -29,7 +39,86 @@ export default function AccountingSyncDashboard() {
 
   useEffect(() => {
     loadLogs(1);
-  }, []);
+    loadCompanies();
+
+    // Listen for QuickBooks connection success from popup
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data === 'qb-connected') {
+        toast.success("QuickBooks connected successfully!");
+        if (selectedCompanyId) {
+          checkConnectionStatus(selectedCompanyId);
+        } else {
+          loadCompanies(); // Re-load to get the status for the first company
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [selectedCompanyId]);
+
+  async function loadCompanies() {
+    try {
+      const data = await getAllCompanies();
+      setCompanies(data);
+      if (data.length > 0) {
+        setSelectedCompanyId(data[0].id);
+        checkConnectionStatus(data[0].id);
+      }
+    } catch (error) {
+      console.error("Failed to load companies", error);
+    }
+  }
+
+  async function checkConnectionStatus(companyId: string) {
+    if (!companyId) return;
+    try {
+      setIsStatusLoading(true);
+      const data = await getQuickBooksStatus(companyId);
+      // The API returns { connected: true, connection: { ... } }
+      // We map 'connected' to our local 'isConnected' state
+      setConnectionStatus({
+        isConnected: !!(data as any).connected,
+        realmId: (data as any).connection?.realmId
+      });
+    } catch (error) {
+      setConnectionStatus(null);
+    } finally {
+      setIsStatusLoading(false);
+    }
+  }
+
+  async function handleConnect() {
+    if (!selectedCompanyId) return;
+    try {
+      const { authUrl } = await connectQuickBooks(selectedCompanyId);
+      // Open in a popup window instead of redirecting the current page
+      const width = 600;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+      
+      window.open(
+        authUrl, 
+        'QuickBooks', 
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Connection failed.");
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!selectedCompanyId) return;
+    if (!confirm("Are you sure you want to disconnect this company from QuickBooks?")) return;
+    try {
+      await disconnectQuickBooks(selectedCompanyId);
+      toast.success("Disconnected successfully.");
+      checkConnectionStatus(selectedCompanyId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Disconnect failed.");
+    }
+  }
 
   async function handleRetry(jobId: string) {
     try {
@@ -50,7 +139,7 @@ export default function AccountingSyncDashboard() {
       toast.success("No failed syncs on this page.");
       return;
     }
-    
+
     let successCount = 0;
     for (const job of failedJobs) {
       try {
@@ -63,7 +152,7 @@ export default function AccountingSyncDashboard() {
         setIsRetryingMap(prev => ({ ...prev, [job.id]: false }));
       }
     }
-    
+
     if (successCount === failedJobs.length) {
       toast.success(`Successfully retried all ${successCount} jobs.`);
     } else {
@@ -94,7 +183,7 @@ export default function AccountingSyncDashboard() {
     if (!dateString) return "-";
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "-";
-    
+
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
     if (seconds < 60) return "Just now";
     const minutes = Math.floor(seconds / 60);
@@ -135,6 +224,63 @@ export default function AccountingSyncDashboard() {
               <AlertCircle className="h-4 w-4" />
               Retry Failed ({failedCount})
             </button>
+          </div>
+        </div>
+
+        {/* Connection Management */}
+        <div className="mb-8 rounded-xl border border-indigo-100 bg-indigo-50/30 p-6">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm border border-indigo-100">
+                <img src="https://quickbooks.intuit.com/cas/dam/IMAGE/A8u8GvpJS/apple-touch-icon-152x152.png" alt="QB" className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">QuickBooks Connection</h2>
+                <p className="text-xs text-slate-500">Connect a company to enable automated accounting sync.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="w-64">
+                <select
+                  value={selectedCompanyId}
+                  onChange={(e) => {
+                    setSelectedCompanyId(e.target.value);
+                    checkConnectionStatus(e.target.value);
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">Select a Company</option>
+                  {companies.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {isStatusLoading ? (
+                <div className="text-sm text-slate-400 animate-pulse">Checking status...</div>
+              ) : connectionStatus?.isConnected ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600 border border-emerald-100">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    CONNECTED ({connectionStatus.realmId})
+                  </div>
+                  <button
+                    onClick={handleDisconnect}
+                    className="text-xs font-bold text-red-600 hover:text-red-700 underline underline-offset-4"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleConnect}
+                  disabled={!selectedCompanyId}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#2ca01c] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#258a17] focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  Connect to QuickBooks
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

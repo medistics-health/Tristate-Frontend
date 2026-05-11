@@ -66,3 +66,42 @@ export async function retrySyncJob(jobId: string): Promise<any> {
     throw new Error(getErrorMessage(error, "Unable to retry sync job."));
   }
 }
+
+export async function connectQuickBooks(companyId: string, isSandbox = true): Promise<{ authUrl: string }> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: quickbooksEndpoints.CONNECT,
+      body: { companyId, isSandbox },
+      credentials: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to connect to QuickBooks."));
+  }
+}
+
+export async function getQuickBooksStatus(companyId: string): Promise<{ isConnected: boolean; realmId?: string }> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: quickbooksEndpoints.STATUS(companyId),
+      credentials: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch QuickBooks status."));
+  }
+}
+
+export async function disconnectQuickBooks(companyId: string): Promise<void> {
+  try {
+    await apiConnector({
+      method: "DELETE",
+      url: quickbooksEndpoints.DISCONNECT(companyId),
+      credentials: true,
+    });
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to disconnect QuickBooks."));
+  }
+}

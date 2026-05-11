@@ -43,6 +43,7 @@ import PricingEnginePage from "./components/pricing-terms/PricingEngine";
 import AccountingSyncDashboard from "./components/integrations/AccountingSyncDashboard";
 import VendorPayableDashboard from "./components/payables/VendorPayableDashboard";
 import ClientPortalDashboard from "./components/portal/ClientPortalDashboard";
+import SettingsPage from "./components/settings/Settings";
 import type { ReactNode } from "react";
 
 function App() {
@@ -451,6 +452,38 @@ function App() {
         element={
           <ProtectedRoute>
             <PricingEnginePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/general"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/integrations"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/team"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/security"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
           </ProtectedRoute>
         }
       />

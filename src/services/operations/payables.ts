@@ -31,6 +31,7 @@ export type VendorPayable = {
   practice: { id: string; name: string };
   createdAt: string;
   updatedAt: string;
+  quickbooksBillId?: string | null;
 };
 
 export type VendorPayablesResponse = {
@@ -92,5 +93,24 @@ export async function generatePayableStatement(id: string): Promise<string> {
     return (response.data as { statementUrl: string }).statementUrl;
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to generate statement."));
+  }
+}
+
+export async function createVendorPayable(data: {
+  vendorId: string;
+  practiceId: string;
+  totalAmount: number;
+  description?: string;
+}): Promise<VendorPayable> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: BASE,
+      body: data,
+      credentials: true,
+    });
+    return (response.data as { payable: VendorPayable }).payable;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to create vendor payable."));
   }
 }
