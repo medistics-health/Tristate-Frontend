@@ -8,6 +8,8 @@ import type {
   CompanyViewData,
 } from "../../components/companies/types";
 
+export type { Company, CompanyBody, CompanyRow, CompanyViewData };
+
 const { LIST, CREATE, GET, UPDATE, DELETE } = companyEndpoints;
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {

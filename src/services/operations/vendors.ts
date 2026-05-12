@@ -3,6 +3,8 @@ import { apiConnector } from "../apiConnector";
 import { vendorEndpoints } from "../apis";
 import type { Vendor, VendorBody, VendorRow, VendorViewData } from "../../components/vendors/types";
 
+export type { Vendor, VendorBody, VendorRow, VendorViewData };
+
 const { LIST, CREATE, GET, UPDATE, DELETE } = vendorEndpoints;
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
@@ -158,3 +160,5 @@ export async function deleteVendorApi(id: string): Promise<void> {
     throw new Error(getErrorMessage(error, 'Unable to delete vendor.'));
   }
 }
+
+export const getAllVendors = getAllVendorsApi;

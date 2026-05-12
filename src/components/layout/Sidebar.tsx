@@ -1,4 +1,9 @@
-import { Backpack, User, Building2 } from "lucide-react";
+import { 
+  Backpack, User, Building2, Settings as SettingsIcon, Link as LinkIcon, Shield,
+  LayoutDashboard, Monitor, Target, Users, ShoppingCart, ListOrdered, Briefcase,
+  Share2, ClipboardCheck, BarChart3, Calculator, CreditCard, Receipt, 
+  FileSignature, Truck, Stethoscope, Zap, Settings2, Globe
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -30,6 +35,7 @@ const sidebarSections: SidebarSection[] = [
 
     items: [
       { label: "Dashboards", to: "/dashboard" },
+      { label: "Client Portal", to: "/portal" },
       {
         label: "Deal",
         icon: <Backpack className="h-3 w-3" />,
@@ -104,6 +110,19 @@ const sidebarSections: SidebarSection[] = [
         ],
       },
       {
+        label: "Pricing Engine",
+        items: [
+          { label: "Rate Finalization", to: "/pricing-engine/rate-finalization" },
+        ],
+      },
+      {
+        label: "Billing",
+        items: [
+          { label: "Billing Runs", to: "/billing/runs" },
+          { label: "Billing Status Board", to: "/billing/status-board" },
+        ],
+      },
+      {
         label: "Invoices",
         items: [
           { label: "All Invoices", to: "/invoice/all-invoices" },
@@ -124,6 +143,7 @@ const sidebarSections: SidebarSection[] = [
         items: [
           { label: "All Vendors", to: "/vendors/all-vendors" },
           { label: "Vendor Contracts", to: "/vendors/contracts" },
+          { label: "Vendor Payables", to: "/vendors/payables" },
         ],
       },
       {
@@ -134,6 +154,21 @@ const sidebarSections: SidebarSection[] = [
           { label: "Active Practices", to: "/practice/active-practice" },
           { label: "Prospects", to: "/practice/prospects" },
           { label: "Reminders Due", to: "/practice/reminder-dues" },
+        ],
+      },
+      {
+        label: "Integrations",
+        items: [
+          { label: "Accounting Sync", to: "/integrations/accounting-sync" },
+        ],
+      },
+      {
+        label: "Settings",
+        items: [
+          { label: "General Settings", to: "/settings/general" },
+          { label: "API & Integrations", to: "/settings/integrations" },
+          { label: "Team Management", to: "/settings/team" },
+          { label: "Security & Access", to: "/settings/security" },
         ],
       },
     ],
@@ -226,6 +261,16 @@ function SidebarLeafItem({ item }: { item: SidebarSectionItem }) {
   const baseClass =
     "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px]";
 
+  const IconToRender = (() => {
+    const label = item.label.toLowerCase();
+    if (label.includes("dashboard")) return <LayoutDashboard className="h-3.5 w-3.5 text-indigo-500" />;
+    if (label.includes("portal")) return <Globe className="h-3.5 w-3.5 text-emerald-500" />;
+    if (label.includes("deal")) return <Target className="h-3.5 w-3.5 text-rose-500" />;
+    if (label.includes("person")) return <Users className="h-3.5 w-3.5 text-blue-500" />;
+    if (label.includes("company")) return <Building2 className="h-3.5 w-3.5 text-amber-500" />;
+    return <ListDocumentIcon />;
+  })();
+
   if (item.to) {
     return (
       <NavLink
@@ -239,7 +284,7 @@ function SidebarLeafItem({ item }: { item: SidebarSectionItem }) {
         }
       >
         <SidebarIcon>
-          <ListDocumentIcon />
+          {IconToRender}
         </SidebarIcon>
         {item.label}
       </NavLink>
@@ -249,7 +294,7 @@ function SidebarLeafItem({ item }: { item: SidebarSectionItem }) {
   return (
     <button type="button" className={`${baseClass} hover:bg-white/70`}>
       <SidebarIcon>
-        <ListDocumentIcon />
+        {IconToRender}
       </SidebarIcon>
       {item.label}
     </button>
@@ -356,7 +401,23 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                     }`}
                   >
                     <SidebarIcon>
-                      <ListDocumentIcon />
+                      {(() => {
+                        const label = menu.label.toLowerCase();
+                        if (label.includes("purchase")) return <ShoppingCart className="h-3.5 w-3.5" />;
+                        if (label.includes("invoice")) return <Receipt className="h-3.5 w-3.5" />;
+                        if (label.includes("services")) return <Briefcase className="h-3.5 w-3.5" />;
+                        if (label.includes("partner")) return <Share2 className="h-3.5 w-3.5" />;
+                        if (label.includes("audit")) return <ClipboardCheck className="h-3.5 w-3.5" />;
+                        if (label.includes("assessment")) return <BarChart3 className="h-3.5 w-3.5" />;
+                        if (label.includes("pricing")) return <Calculator className="h-3.5 w-3.5" />;
+                        if (label.includes("billing")) return <CreditCard className="h-3.5 w-3.5" />;
+                        if (label.includes("agreement")) return <FileSignature className="h-3.5 w-3.5" />;
+                        if (label.includes("vendor")) return <Truck className="h-3.5 w-3.5" />;
+                        if (label.includes("practice")) return <Stethoscope className="h-3.5 w-3.5" />;
+                        if (label.includes("integration")) return <Zap className="h-3.5 w-3.5" />;
+                        if (label.includes("settings")) return <Settings2 className="h-3.5 w-3.5" />;
+                        return <ListDocumentIcon />;
+                      })()}
                     </SidebarIcon>
                     <span className="min-w-0 flex-1">{menu.label}</span>
                     <ChevronIcon open={isOpen} />
@@ -369,6 +430,19 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                           item.label === activeSubItem ||
                           item.to === location.pathname;
 
+                        // Selection of icon based on label
+                        let CustomIcon = <SubmenuIcon />;
+                        const label = item.label.toLowerCase();
+                        if (label.includes("general")) CustomIcon = <SettingsIcon className="h-3.5 w-3.5" />;
+                        if (label.includes("integrations")) CustomIcon = <LinkIcon className="h-3.5 w-3.5" />;
+                        if (label.includes("team")) CustomIcon = <User className="h-3.5 w-3.5" />;
+                        if (label.includes("security")) CustomIcon = <Shield className="h-3.5 w-3.5" />;
+                        if (label.includes("status board")) CustomIcon = <LayoutDashboard className="h-3.5 w-3.5" />;
+                        if (label.includes("overdue") || label.includes("pending")) CustomIcon = <BarChart3 className="h-3.5 w-3.5" />;
+                        if (label.includes("contracts") || label.includes("agreements")) CustomIcon = <FileSignature className="h-3.5 w-3.5" />;
+                        if (label.includes("payables") || label.includes("billing")) CustomIcon = <CreditCard className="h-3.5 w-3.5" />;
+                        if (label.includes("sync")) CustomIcon = <Zap className="h-3.5 w-3.5" />;
+
                         return item.to ? (
                           <NavLink
                             key={item.label}
@@ -380,7 +454,7 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                             }`}
                           >
                             <SidebarIcon>
-                              <SubmenuIcon />
+                              {CustomIcon}
                             </SidebarIcon>
                             {item.label}
                           </NavLink>

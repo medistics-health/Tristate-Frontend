@@ -1,17 +1,1044 @@
-import StandardEntityListPage from "../shared/StandardEntityListPage";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  type ColumnDef,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table";
+import {
+  CalendarDays,
+  ChevronDown,
+  LayoutList,
+  Plus,
+  Save,
+  Trash2,
+  X,
+  ChevronLeft,
+  Circle,
+  Pencil,
+  TrendingUp,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
+import AppLayout from "../layout/AppLayout";
+import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { getAllPractices } from "../../services/operations/practices";
+import {
+  createDealApi,
+  deleteDealApi,
+  getDeal,
+  getDealsView,
+  updateDealApi,
+  type Deal,
+  type DealBody,
+  type DealRow,
+  type DealStage,
+  dealStageOptions,
+  getStageColor,
+} from "../../services/operations/deals";
+import type { Practice } from "../practices/types";
+
+const stageStyles: Record<DealStage, string> = {
+  PROSPECTING: "bg-blue-100 text-blue-700",
+  QUALIFICATION: "bg-indigo-100 text-indigo-700",
+  PROPOSAL: "bg-purple-100 text-purple-700",
+  NEGOTIATION: "bg-orange-100 text-orange-700",
+  WON: "bg-green-100 text-green-700",
+  LOST: "bg-red-100 text-red-700",
+};
+
+function formatStageLabel(stage: string) {
+  return stage.replace(/_/g, " ");
+}
+
+function formatCurrency(amount: number | string) {
+  const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (isNaN(num)) return "-";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString();
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "-";
+  return date.toLocaleString();
+}
+
+type DealFormState = {
+  practiceId: string;
+  stage: DealStage;
+  value: string;
+  probability: string;
+  expectedCloseDate: string;
+};
+
+const initialFormState: DealFormState = {
+  practiceId: "",
+  stage: "LEAD",
+  value: "",
+  probability: "50",
+  expectedCloseDate: "",
+};
+
+function buildFormState(deal?: Deal | null): DealFormState {
+  if (!deal) return initialFormState;
+  return {
+    practiceId: deal.practiceId,
+    stage: deal.stage,
+    value: String(deal.value),
+    probability: String(deal.probability),
+    expectedCloseDate: deal.expectedCloseDate
+      ? new Date(deal.expectedCloseDate).toISOString().slice(0, 10)
+      : "",
+  };
+}
 
 function DealsPage() {
+  const [rows, setRows] = useState<DealRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+  const [filters, setFilters] = useState({
+    search: "",
+    stage: "",
+    practiceId: "",
+    minValue: "",
+    maxValue: "",
+  });
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "creationDate", desc: true },
+  ]);
+  const [practices, setPractices] = useState<Practice[]>([]);
+  const [createForm, setCreateForm] = useState<DealFormState>(initialFormState);
+  const [editForm, setEditForm] = useState<DealFormState>(initialFormState);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const columns = useMemo(
+    () =>
+      [
+        {
+          id: "practiceName",
+          accessorFn: (row: DealRow) => row.values.practiceName,
+          header: () => "Practice",
+          cell: ({ row }: { row: { original: DealRow } }) =>
+            String(row.original.values.practiceName || "-"),
+        },
+        {
+          id: "stage",
+          accessorFn: (row: DealRow) => row.values.stage,
+          header: () => "Stage",
+          cell: ({ row }: { row: { original: DealRow } }) => {
+            const stage = row.original.values.stage as DealStage;
+            return (
+              <span
+                className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${stageStyles[stage]}`}
+              >
+                {formatStageLabel(stage)}
+              </span>
+            );
+          },
+        },
+        {
+          id: "value",
+          accessorFn: (row: DealRow) => row.values.value,
+          header: () => "Value",
+          cell: ({ row }: { row: { original: DealRow } }) =>
+            String(row.original.values.value || "-"),
+        },
+        {
+          id: "probability",
+          accessorFn: (row: DealRow) => row.values.probability,
+          header: () => "Probability",
+          cell: ({ row }: { row: { original: DealRow } }) =>
+            `${row.original.values.probability}%`,
+        },
+        {
+          id: "expectedCloseDate",
+          accessorFn: (row: DealRow) => row.values.expectedCloseDate,
+          header: () => "Expected Close",
+          cell: ({ row }: { row: { original: DealRow } }) =>
+            String(row.original.values.expectedCloseDate || "-"),
+        },
+        {
+          id: "creationDate",
+          accessorFn: (row: DealRow) => row.values.creationDate,
+          header: () => "Created",
+          cell: ({ row }: { row: { original: DealRow } }) =>
+            String(row.original.values.creationDate),
+        },
+      ] as ColumnDef<DealRow>[],
+    [],
+  );
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      async function loadData() {
+        try {
+          setIsLoading(true);
+          setError(null);
+          const data = await getDealsView({
+            page: pagination.page,
+            limit: pagination.limit,
+            stage: filters.stage || undefined,
+            practiceId: filters.practiceId || undefined,
+            minValue: filters.minValue
+              ? parseFloat(filters.minValue)
+              : undefined,
+            maxValue: filters.maxValue
+              ? parseFloat(filters.maxValue)
+              : undefined,
+          });
+          setRows(data.rows);
+          setPagination(data.pagination);
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Failed to load deals";
+          setError(message);
+          toast.error(message);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+
+      if (filters.search.length > 2 || filters.search.length === 0) {
+        loadData();
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [pagination.page, pagination.limit, sorting, filters]);
+
+  useEffect(() => {
+    if (showCreateForm || showDetailPanel) {
+      if (practices.length === 0) {
+        getAllPractices()
+          .then((practiceList) => setPractices(practiceList))
+          .catch((err) => console.error("Failed to load practices:", err));
+      }
+    }
+  }, [showCreateForm, showDetailPanel]);
+
+  async function refreshRows(targetPage = pagination.page) {
+    const data = await getDealsView({
+      page: targetPage,
+      limit: pagination.limit,
+      stage: filters.stage || undefined,
+      practiceId: filters.practiceId || undefined,
+      minValue: filters.minValue ? parseFloat(filters.minValue) : undefined,
+      maxValue: filters.maxValue ? parseFloat(filters.maxValue) : undefined,
+    });
+    setRows(data.rows);
+    setPagination(data.pagination);
+  }
+
+  async function handleRowClick(rowId: string) {
+    setSelectedRowId(rowId);
+    setShowDetailPanel(true);
+    setShowCreateForm(false);
+    setIsDetailLoading(true);
+
+    try {
+      const deal = await getDeal(rowId);
+      setSelectedDeal(deal);
+      setEditForm(buildFormState(deal));
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to fetch deal";
+      toast.error(message);
+    } finally {
+      setIsDetailLoading(false);
+    }
+  }
+
+  function closeDetailPanel() {
+    setShowDetailPanel(false);
+    setSelectedRowId(null);
+    setSelectedDeal(null);
+    setEditForm(initialFormState);
+  }
+
+  function openCreateForm() {
+    setCreateForm(initialFormState);
+    setShowCreateForm(true);
+    setShowDetailPanel(false);
+    setSelectedRowId(null);
+    setSelectedDeal(null);
+  }
+
+  function closeCreateForm() {
+    setShowCreateForm(false);
+    setCreateForm(initialFormState);
+  }
+
+  function buildPayload(form: DealFormState): DealBody {
+    return {
+      practiceId: form.practiceId,
+      stage: form.stage,
+      value: parseFloat(form.value),
+      probability: parseFloat(form.probability),
+      ...(form.expectedCloseDate
+        ? { expectedCloseDate: new Date(form.expectedCloseDate).toISOString() }
+        : {}),
+    };
+  }
+
+  async function handleCreateDeal(event: React.FormEvent) {
+    event.preventDefault();
+    if (!createForm.practiceId || !createForm.value) {
+      toast.error("Practice and value are required");
+      return;
+    }
+    const value = parseFloat(createForm.value);
+    if (isNaN(value)) {
+      toast.error("Enter a valid value");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await createDealApi(buildPayload(createForm));
+      await refreshRows(1);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+      closeCreateForm();
+      toast.success("Deal created successfully");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create deal";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleUpdateDeal(event: React.FormEvent) {
+    event.preventDefault();
+    if (!selectedDeal) return;
+    if (!editForm.practiceId || !editForm.value) {
+      toast.error("Practice and value are required");
+      return;
+    }
+    const value = parseFloat(editForm.value);
+    if (isNaN(value)) {
+      toast.error("Enter a valid value");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateDealApi(selectedDeal.id, buildPayload(editForm));
+      await refreshRows();
+      const refreshedDeal = await getDeal(selectedDeal.id);
+      setSelectedDeal(refreshedDeal);
+      setEditForm(buildFormState(refreshedDeal));
+      toast.success("Deal updated successfully");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update deal";
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteDeal() {
+    if (!selectedDeal) return;
+    if (!window.confirm("Are you sure you want to delete this deal?")) return;
+    setIsDeleting(true);
+    try {
+      await deleteDealApi(selectedDeal.id);
+      await refreshRows();
+      closeDetailPanel();
+      toast.success("Deal deleted successfully");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete deal";
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  const navbarActions = [
+    {
+      label: "New Deal",
+      icon: <Plus className="h-4 w-4" />,
+      onClick: openCreateForm,
+    },
+  ];
+
+  const detailPanel = (
+    <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+      <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
+        <button
+          type="button"
+          onClick={closeDetailPanel}
+          className="text-slate-400 hover:text-slate-600"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <Circle className="h-4 w-4 text-slate-300" />
+        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
+          {selectedDeal?.practice?.name || "Deal"}
+        </span>
+      </div>
+
+      {isDetailLoading || !selectedDeal ? (
+        <div className="flex flex-1 items-center justify-center text-[13px] text-slate-400">
+          Loading deal...
+        </div>
+      ) : (
+        <form
+          onSubmit={handleUpdateDeal}
+          className="flex flex-1 flex-col overflow-hidden"
+        >
+          <div className="flex-1 overflow-auto p-4">
+            <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Practice</span>
+                <span className="text-right text-slate-700">
+                  {selectedDeal.practice?.name || "-"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Agreements</span>
+                <span className="text-slate-700">
+                  {selectedDeal.agreements?.length || 0}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Audits</span>
+                <span className="text-slate-700">
+                  {selectedDeal.audits?.length || 0}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Created</span>
+                <span className="text-right text-slate-700">
+                  {formatDateTime(selectedDeal.createdAt)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Last Update</span>
+                <span className="text-right text-slate-700">
+                  {formatDateTime(selectedDeal.updatedAt)}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Practice <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editForm.practiceId}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      practiceId: event.target.value,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  required
+                >
+                  <option value="">Select Practice</option>
+                  {practices.map((practice) => (
+                    <option key={practice.id} value={practice.id}>
+                      {practice.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Stage <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editForm.stage}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      stage: event.target.value as DealStage,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                >
+                  {dealStageOptions.map((stage) => (
+                    <option key={stage} value={stage}>
+                      {formatStageLabel(stage)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Value <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  value={editForm.value}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      value: event.target.value,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Probability (%) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={editForm.probability}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      probability: event.target.value,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                  Expected Close Date
+                </label>
+                <input
+                  type="date"
+                  value={editForm.expectedCloseDate}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      expectedCloseDate: event.target.value,
+                    }))
+                  }
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+            <button
+              type="button"
+              onClick={handleDeleteDeal}
+              disabled={isDeleting}
+              className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      )}
+    </aside>
+  );
+
+  const createPanel = (
+    <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
+        <h2 className="text-[15px] font-semibold text-slate-700">
+          Create Deal
+        </h2>
+        <button
+          type="button"
+          onClick={closeCreateForm}
+          className="text-slate-400 hover:text-slate-600"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <form onSubmit={handleCreateDeal} className="flex-1 overflow-auto p-4">
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Practice <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={createForm.practiceId}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  practiceId: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+              required
+            >
+              <option value="">Select Practice</option>
+              {practices.map((practice) => (
+                <option key={practice.id} value={practice.id}>
+                  {practice.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Stage <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={createForm.stage}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  stage: event.target.value as DealStage,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            >
+              {dealStageOptions.map((stage) => (
+                <option key={stage} value={stage}>
+                  {formatStageLabel(stage)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Value <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              step="1"
+              value={createForm.value}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  value: event.target.value,
+                }))
+              }
+              placeholder="0"
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Probability (%) <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              value={createForm.probability}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  probability: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Expected Close Date
+            </label>
+            <input
+              type="date"
+              value={createForm.expectedCloseDate}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  expectedCloseDate: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">
+          <button
+            type="button"
+            onClick={closeCreateForm}
+            className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+          >
+            {isSubmitting ? "Creating..." : "Create"}
+          </button>
+        </div>
+      </form>
+    </aside>
+  );
+
+  if (isLoading && rows.length === 0) {
+    return (
+      <AppLayout title="Deals" activeModule="Deals" activeSubItem="All Deals">
+        <div className="flex h-full items-center justify-center">
+          <div className="text-slate-400">Loading deals...</div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error && rows.length === 0) {
+    return (
+      <AppLayout title="Deals" activeModule="Deals" activeSubItem="All Deals">
+        <div className="flex h-full flex-col items-center justify-center gap-4">
+          <div className="text-red-500">{error}</div>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="app-control rounded-md px-4 py-2 text-[14px] font-medium"
+          >
+            Retry
+          </button>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
-    <StandardEntityListPage
+    <AppLayout
       title="Deals"
       activeModule="Deals"
       activeSubItem="All Deals"
-      viewLabel="All Deals"
-      itemLabel="Deal"
-      emptyTitle="Add your first Deal"
-      emptyDescription="Use our API or add your first Deal manually"
-      emptyActionLabel="Add a Deal"
-    />
+      navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
+      navbarActions={navbarActions}
+    >
+      <div className="flex h-full gap-2">
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white">
+          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
+            >
+              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
+              <span>All Deals</span>
+            </button>
+
+            <div className="flex items-center gap-6 text-[14px] text-slate-500">
+              <button
+                type="button"
+                onClick={() => setShowFilterPanel((current) => !current)}
+              >
+                Filters
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setSorting((current) =>
+                    current[0]?.id === "creationDate"
+                      ? [{ id: "creationDate", desc: !current[0].desc }]
+                      : [{ id: "creationDate", desc: true }],
+                  )
+                }
+              >
+                Sort
+              </button>
+            </div>
+          </div>
+
+          {showFilterPanel && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
+              {/*<input
+                type="text"
+                placeholder="Search by practice name..."
+                value={filters.search}
+                onChange={(event) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    search: event.target.value,
+                  }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              />*/}
+              <select
+                value={filters.stage}
+                onChange={(event) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    stage: event.target.value,
+                  }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              >
+                <option value="">All Stages</option>
+                {dealStageOptions.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {formatStageLabel(stage)}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filters.practiceId}
+                onChange={(event) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    practiceId: event.target.value,
+                  }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control rounded-md px-3 py-1.5 text-[13px]"
+              >
+                <option value="">All Practices</option>
+                {practices.map((practice) => (
+                  <option key={practice.id} value={practice.id}>
+                    {practice.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                placeholder="Min Value"
+                value={filters.minValue}
+                onChange={(event) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    minValue: event.target.value,
+                  }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control w-32 rounded-md px-3 py-1.5 text-[13px]"
+              />
+              <input
+                type="number"
+                placeholder="Max Value"
+                value={filters.maxValue}
+                onChange={(event) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    maxValue: event.target.value,
+                  }));
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="app-control w-32 rounded-md px-3 py-1.5 text-[13px]"
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setFilters({
+                    search: "",
+                    stage: "",
+                    practiceId: "",
+                    minValue: "",
+                    maxValue: "",
+                  })
+                }
+                className="text-[13px] text-[#4f63ea] hover:underline"
+                disabled={
+                  !filters.search &&
+                  !filters.stage &&
+                  !filters.practiceId &&
+                  !filters.minValue &&
+                  !filters.maxValue
+                }
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
+
+          <div className="min-h-0 flex-1 overflow-auto">
+            {rows.length === 0 ? (
+              <div className="relative flex min-h-[400px] items-center justify-center">
+                <div className="flex max-w-md flex-col items-center px-6 text-center">
+                  <EmptyStateIllustration />
+                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
+                    No deals found
+                  </h2>
+                  <p className="mt-2 text-[14px] text-slate-400">
+                    Create your first deal to get started
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openCreateForm}
+                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Create Deal
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <table className="min-w-full border-separate border-spacing-0">
+                <thead className="sticky top-0 z-10 bg-white">
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <th
+                          key={header.id}
+                          className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
+                        >
+                          {header.isPlaceholder ? null : (
+                            <button
+                              type="button"
+                              onClick={
+                                header.column.getCanSort()
+                                  ? header.column.getToggleSortingHandler()
+                                  : undefined
+                              }
+                              className="flex w-full items-center gap-2"
+                            >
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
+                            </button>
+                          )}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {table.getRowModel().rows.map((row) => {
+                    const isSelected = row.original.id === selectedRowId;
+                    return (
+                      <tr
+                        key={row.id}
+                        onClick={() => handleRowClick(row.original.id)}
+                        className={`cursor-pointer ${isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <td
+                            key={cell.id}
+                            className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {rows.length > 0 && (
+            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
+              <div className="flex items-center gap-2 text-[13px] text-slate-500">
+                <span>
+                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+                  {Math.min(
+                    pagination.page * pagination.limit,
+                    pagination.total,
+                  )}{" "}
+                  of {pagination.total}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={pagination.page === 1}
+                  onClick={() =>
+                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
+                  }
+                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  Previous
+                </button>
+                {Array.from(
+                  { length: pagination.totalPages },
+                  (_, index) => index + 1,
+                ).map((page) => (
+                  <button
+                    type="button"
+                    key={page}
+                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
+                    className={`rounded px-2 py-1 text-[13px] ${
+                      pagination.page === page
+                        ? "bg-[#4f63ea] text-white"
+                        : "text-slate-500 hover:bg-[#f0ece6]"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={pagination.page === pagination.totalPages}
+                  onClick={() =>
+                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
+                  }
+                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {showDetailPanel && detailPanel}
+        {showCreateForm && createPanel}
+      </div>
+    </AppLayout>
   );
 }
 

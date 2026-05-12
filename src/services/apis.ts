@@ -79,6 +79,23 @@ export const invoiceEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
 };
 
+export const billingEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/billing",
+  READINESS: (practiceId: string) =>
+    BACKEND_URL + `/api/v1/billing/practices/${practiceId}/readiness`,
+  LIST_RUNS: BACKEND_URL + "/api/v1/billing/runs",
+  CREATE_RUN: BACKEND_URL + "/api/v1/billing/runs",
+  GET_RUN: (id: string) => BACKEND_URL + `/api/v1/billing/runs/${id}`,
+  SAVE_SNAPSHOTS: (id: string) =>
+    BACKEND_URL + `/api/v1/billing/runs/${id}/snapshots`,
+  CALCULATE_RUN: (id: string) =>
+    BACKEND_URL + `/api/v1/billing/runs/${id}/calculate`,
+  APPROVE_RUN: (id: string) =>
+    BACKEND_URL + `/api/v1/billing/runs/${id}/approve`,
+  POST_RUN: (id: string) => BACKEND_URL + `/api/v1/billing/runs/${id}/post`,
+  RECORD_PAYMENT: BACKEND_URL + "/api/v1/billing/payments/record",
+};
+
 export const agreementEndpoints = {
   BASE: BACKEND_URL + "/api/v1/agreements",
   LIST: BACKEND_URL + "/api/v1/agreements",
@@ -140,3 +157,22 @@ export const onboardingEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/onboarding/${id}`,
   EXTERNAL: BACKEND_URL + "/api/v1/onboarding/external",
 };
+
+export const dealEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/deals",
+  LIST: BACKEND_URL + "/api/v1/deals",
+  CREATE: BACKEND_URL + "/api/v1/deals",
+  GET: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
+};
+
+export const quickbooksEndpoints = {
+  GET_LOGS: BACKEND_URL + '/api/v1/quickbooks/sync-logs',
+  RETRY_JOB: (jobId: string) => BACKEND_URL + '/api/v1/quickbooks/sync-logs/' + jobId + '/retry',
+  CONNECT: BACKEND_URL + '/api/v1/quickbooks/connect',
+  STATUS: (companyId: string) => BACKEND_URL + `/api/v1/quickbooks/connections/${companyId}`,
+  DISCONNECT: (companyId: string) => BACKEND_URL + `/api/v1/quickbooks/connections/${companyId}`,
+};
+
+export const portalEndpoints = { GET_SNAPSHOT: BACKEND_URL + '/api/v1/portal/snapshot' };

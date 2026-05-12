@@ -1,560 +1,165 @@
-import {
-  CalendarDays,
-  CheckSquare,
-  ChevronDown,
-  ChevronLeft,
-  Circle,
-  ExternalLink,
-  GripVertical,
-  Home,
-  LayoutGrid,
-  MoreHorizontal,
-  Plus,
-  RotateCcw,
-  Sparkles,
-  Trash2,
-  UserCircle2,
-} from "lucide-react";
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { CalendarDays, CreditCard, ChevronRight, AlertCircle, FileText, CheckCircle2, Clock } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
-import type { NavbarAction } from "../layout/Navbar";
+import { getAllInvoices, type Invoice, type InvoiceStatus } from "../../services/operations/invoices";
 
-type InvoiceStatusBoardProgresstatus =
-  | "scheduled"
-  | "in-progress"
-  | "completed"
-  | "action-required"
-  | "closed";
-
-type InvoiceStatusBoardProgressCard = {
-  id: string;
-  title: string;
-  status: InvoiceStatusBoardProgresstatus;
-  type: string;
-  createdBy: string;
-  createdAt: string;
-  overallScore: string;
-  scoreLabel: string;
-  suggestedService: string;
-  lastUpdate: string;
-  updatedBy: string;
-  practice: string;
-};
-
-type InvoiceStatusBoardProgres = {
-  id: InvoiceStatusBoardProgresstatus;
+type ColumnDef = {
+  id: InvoiceStatus;
   label: string;
   badgeClassName: string;
+  icon: React.ReactNode;
 };
 
-const InvoiceStatusBoardProgress: InvoiceStatusBoardProgres[] = [
+const COLUMNS: ColumnDef[] = [
   {
-    id: "scheduled",
-    label: "SCHEDULED",
-    badgeClassName: "bg-[#e8f7ee] text-[#2ba36f]",
+    id: "DRAFT",
+    label: "Draft",
+    badgeClassName: "bg-slate-100 text-slate-700 border border-slate-200",
+    icon: <FileText className="h-4 w-4 text-slate-500" />,
   },
   {
-    id: "in-progress",
-    label: "IN PROGRESS",
-    badgeClassName: "bg-[#eef1ff] text-[#6b7de2]",
+    id: "SENT",
+    label: "Sent",
+    badgeClassName: "bg-blue-50 text-blue-700 border border-blue-200",
+    icon: <Clock className="h-4 w-4 text-blue-500" />,
   },
   {
-    id: "completed",
-    label: "COMPLETED",
-    badgeClassName: "bg-[#fff1bd] text-[#b78800]",
+    id: "PARTIALLY_PAID",
+    label: "Partially Paid",
+    badgeClassName: "bg-amber-50 text-amber-700 border border-amber-200",
+    icon: <CreditCard className="h-4 w-4 text-amber-500" />,
   },
   {
-    id: "action-required",
-    label: "ACTION REQUIRED",
-    badgeClassName: "bg-[#ffe8e8] text-[#ef5d5d]",
+    id: "PAID",
+    label: "Paid",
+    badgeClassName: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
   },
   {
-    id: "closed",
-    label: "CLOSED",
-    badgeClassName: "bg-[#f0e6ff] text-[#9b70dc]",
-  },
-];
-
-const initialCards: InvoiceStatusBoardProgressCard[] = [
-  {
-    id: "audit-1",
-    title: "Untitled",
-    status: "scheduled",
-    type: "COMPLIANCE",
-    createdBy: "Siddhi Gajjar",
-    createdAt: "Created now",
-    overallScore: "Overall Score",
-    scoreLabel: "Overall Score",
-    suggestedService: "Suggested Services",
-    lastUpdate: "Apr 8, 2026 2:50 PM",
-    updatedBy: "Siddhi Gajjar",
-    practice: "TriState Specialty Imaging",
-  },
-  {
-    id: "audit-2",
-    title: "Untitled",
-    status: "in-progress",
-    type: "COMPLIANCE",
-    createdBy: "Siddhi Gajjar",
-    createdAt: "Created now",
-    overallScore: "Overall Score",
-    scoreLabel: "Overall Score",
-    suggestedService: "Suggested Services",
-    lastUpdate: "Apr 8, 2026 2:50 PM",
-    updatedBy: "Siddhi Gajjar",
-    practice: "Hudson Valley Imaging",
-  },
-  {
-    id: "audit-3",
-    title: "Untitled",
-    status: "in-progress",
-    type: "COMPLIANCE",
-    createdBy: "Siddhi Gajjar",
-    createdAt: "Created now",
-    overallScore: "Overall Score",
-    scoreLabel: "Overall Score",
-    suggestedService: "Suggested Services",
-    lastUpdate: "Apr 8, 2026 2:50 PM",
-    updatedBy: "Siddhi Gajjar",
-    practice: "Metro Practice Group",
-  },
-  {
-    id: "audit-4",
-    title: "Untitled",
-    status: "completed",
-    type: "COMPLIANCE",
-    createdBy: "Siddhi Gajjar",
-    createdAt: "Created now",
-    overallScore: "Overall Score",
-    scoreLabel: "Overall Score",
-    suggestedService: "Suggested Services",
-    lastUpdate: "Apr 8, 2026 2:50 PM",
-    updatedBy: "Siddhi Gajjar",
-    practice: "Northfield Medical",
-  },
-  {
-    id: "audit-5",
-    title: "Untitled",
-    status: "closed",
-    type: "COMPLIANCE",
-    createdBy: "Siddhi Gajjar",
-    createdAt: "Created now",
-    overallScore: "Overall Score",
-    scoreLabel: "Overall Score",
-    suggestedService: "Suggested Services",
-    lastUpdate: "Apr 8, 2026 2:50 PM",
-    updatedBy: "Siddhi Gajjar",
-    practice: "TriState Specialty Imaging",
+    id: "CANCELLED",
+    label: "Cancelled",
+    badgeClassName: "bg-red-50 text-red-700 border border-red-200",
+    icon: <AlertCircle className="h-4 w-4 text-red-500" />,
   },
 ];
 
-const detailTabs = [
-  { id: "home", label: "Home", icon: <Home className="h-4 w-4" /> },
-  { id: "tasks", label: "Tasks", icon: <CheckSquare className="h-4 w-4" /> },
-  { id: "more", label: "+2 More", icon: null },
-] as const;
-
-function AvatarPill({ name }: { name: string }) {
-  return (
-    <span className="inline-flex items-center gap-2 text-slate-700">
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#fff1bd] text-[11px] text-[#b78800]">
-        {name.charAt(0)}
-      </span>
-      {name}
-    </span>
-  );
-}
-
-function InvoiceStatusBoardPage() {
-  const [cards, setCards] = useState(initialCards);
-  const [selectedAuditId, setSelectedAuditId] = useState<string | null>(
-    initialCards[4]?.id ?? null,
-  );
-  const [activeTab, setActiveTab] =
-    useState<(typeof detailTabs)[number]["id"]>("home");
-  const [hideClosed, setHideClosed] = useState(false);
-  const [showDetailPanel, setShowDetailPanel] = useState(true);
-  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+export default function InvoiceStatusBoard() {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    function handleOutsideClick(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowOptionsMenu(false);
+    async function load() {
+      try {
+        setIsLoading(true);
+        const data = await getAllInvoices();
+        setInvoices(data);
+      } catch (error) {
+        console.error("Failed to load invoices", error);
+      } finally {
+        setIsLoading(false);
       }
     }
-
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
+    load();
   }, []);
 
-  const visibleLanes = useMemo(
-    () =>
-      hideClosed
-        ? InvoiceStatusBoardProgress.filter((lane) => lane.id !== "closed")
-        : InvoiceStatusBoardProgress,
-    [hideClosed],
-  );
-
-  const cardsByLane = useMemo(
-    () =>
-      Object.fromEntries(
-        visibleLanes.map((lane) => [
-          lane.id,
-          cards.filter((card) => card.status === lane.id),
-        ]),
-      ) as Record<
-        InvoiceStatusBoardProgresstatus,
-        InvoiceStatusBoardProgressCard[]
-      >,
-    [cards, visibleLanes],
-  );
-
-  const selectedAudit = useMemo(
-    () => cards.find((card) => card.id === selectedAuditId) || null,
-    [cards, selectedAuditId],
-  );
-
-  function createAudit(status: InvoiceStatusBoardProgresstatus) {
-    const nextId = `audit-${cards.length + 1}`;
-    const newCard: InvoiceStatusBoardProgressCard = {
-      id: nextId,
-      title: "Untitled",
-      status,
-      type: "COMPLIANCE",
-      createdBy: "Siddhi Gajjar",
-      createdAt: "Created now",
-      overallScore: "Overall Score",
-      scoreLabel: "Overall Score",
-      suggestedService: "Suggested Services",
-      lastUpdate: "Apr 8, 2026 2:50 PM",
-      updatedBy: "Siddhi Gajjar",
-      practice: "New Practice",
-    };
-
-    setCards((current) => [newCard, ...current]);
-    setSelectedAuditId(nextId);
-    setShowDetailPanel(true);
+  function formatCurrency(amount: string | number) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+    }).format(Number(amount));
   }
 
-  function sortLanesByCount() {
-    setCards((current) =>
-      [...current].sort((left, right) =>
-        left.status.localeCompare(right.status),
-      ),
-    );
+  function formatDate(dateStr?: string | null) {
+    if (!dateStr) return "N/A";
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(dateStr));
   }
-
-  const navbarActions: NavbarAction[] = [
-    {
-      label: "New record",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: () => createAudit("scheduled"),
-    },
-  ];
 
   return (
-    <AppLayout
-      title="InvoiceStatusBoards"
-      activeModule="InvoiceStatusBoards"
-      activeSubItem="InvoiceStatusBoard Progress"
-      navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
-    >
-      <div className="flex h-full gap-2 font-app-sans">
-        <div className="app-panel min-w-0 flex-1 overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
-              <LayoutGrid className="h-3.5 w-3.5 text-slate-400" />
-              <span>Invoice Status Board</span>
-              <span className="text-slate-400">. {cards.length}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            </button>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setHideClosed((current) => !current)}
-              >
-                Filter
-              </button>
-              <button type="button" onClick={sortLanesByCount}>
-                Sort
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowDetailPanel((prev) => !prev)}
-              >
-                Options
-              </button>
+    <AppLayout title="Invoice Status Board" activeModule="Invoices" activeSubItem="Invoice Status Board">
+      <div className="flex h-[calc(100vh-64px)] w-full flex-col overflow-hidden bg-[#faf9f7]">
+        {/* Board Area */}
+        <div className="flex-1 overflow-x-auto overflow-y-hidden p-6 pb-2 custom-scrollbar-hide">
+          <div className="flex h-full gap-6 min-w-max pb-4">
+          {isLoading ? (
+            <div className="w-full h-full flex items-center justify-center text-slate-400">
+              Loading board...
             </div>
-          </div>
-
-          <div className="min-h-0 h-full overflow-auto">
-            <div className="grid min-w-[1050px] auto-cols-fr grid-flow-col h-full bg-[#fcfbf9]">
-              {visibleLanes.map((lane) => (
-                <section
-                  key={lane.id}
-                  className="border-r border-[#f0ece6] last:border-r-0 flex flex-col"
-                >
-                  <div className="flex items-center gap-3 px-4 py-3 sticky top-0 bg-[#fcfbf9] z-10">
-                    <span
-                      className={`inline-flex rounded px-2 py-0.5 text-[12px] font-semibold ${lane.badgeClassName}`}
-                    >
-                      {lane.label}
-                    </span>
-                    <span className="text-[13px] text-slate-400">
-                      {cardsByLane[lane.id]?.length || 0}
+          ) : (
+            COLUMNS.map((col) => {
+              const colInvoices = invoices.filter((inv) => inv.status === col.id);
+              
+              return (
+                <div key={col.id} className="flex h-full w-[310px] shrink-0 flex-col rounded-xl bg-slate-200/40 border border-slate-200/60 shadow-sm backdrop-blur-sm">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/80 bg-white/80 rounded-t-xl">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`p-1.5 rounded-lg ${col.badgeClassName.split(" ").filter(c => !c.includes("bg-") && !c.includes("border")).join(" ")} bg-white shadow-sm border border-slate-100`}>
+                        {col.icon}
+                      </div>
+                      <h3 className="font-bold text-slate-800 text-[14px] uppercase tracking-wide">{col.label}</h3>
+                    </div>
+                    <span className="flex items-center justify-center h-6 min-w-6 rounded-full bg-slate-800 text-[11px] font-bold text-white shadow-sm">
+                      {colInvoices.length}
                     </span>
                   </div>
 
-                  <div className="space-y-2 px-3 pb-4 flex-1 overflow-y-auto">
-                    {cardsByLane[lane.id]?.map((card) => {
-                      const isSelected = selectedAudit?.id === card.id;
-
-                      return (
-                        <button
-                          key={card.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedAuditId(card.id);
-                            setShowDetailPanel(true);
-                          }}
-                          className={`flex w-full items-start gap-2 rounded-lg border px-3 py-3 text-left transition-all ${
-                            isSelected
-                              ? "border-[#9cb1f6] bg-white shadow-[0_4px_12px_rgba(157,177,246,0.15)]"
-                              : "border-[#ece8e1] bg-white hover:border-[#cfc8bb]"
-                          }`}
-                        >
-                          <GripVertical className="mt-0.5 h-4 w-4 text-slate-300" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[14px] font-medium text-slate-700">
-                              {card.title}
-                            </p>
-                            <p className="mt-1 truncate text-[12px] text-slate-400">
-                              {card.practice}
-                            </p>
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+                    {colInvoices.map((inv) => (
+                      <Link
+                        key={inv.id}
+                        to={`/invoice/all-invoices`}
+                        className="group relative flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all duration-200"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div className={`px-2 py-1 text-[10px] font-bold rounded border ${col.badgeClassName}`}>
+                            {inv.invoiceNumber || "INV"}
                           </div>
-                        </button>
-                      );
-                    })}
+                          <span className="text-[14px] font-bold text-slate-900">
+                            {formatCurrency(inv.totalAmount)}
+                          </span>
+                        </div>
+                        
+                        <div className="font-bold text-slate-700 text-[13px] mb-4 leading-tight group-hover:text-indigo-600 transition-colors">
+                          {inv.practice?.name || "Unknown Practice"}
+                        </div>
 
-                    <button
-                      type="button"
-                      onClick={() => createAudit(lane.id)}
-                      className="flex w-full items-center gap-2 rounded-lg border border-dashed border-[#ece8e1] px-3 py-2 text-[13px] text-slate-400 hover:border-[#cfc8bb] hover:text-slate-600 transition-colors"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Add New
-                    </button>
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 pt-3 border-t border-slate-50 mt-auto">
+                          <div className="flex items-center gap-1.5 font-medium">
+                            <CalendarDays className="h-3 w-3" />
+                            <span>Due {formatDate(inv.dueDate)}</span>
+                          </div>
+                          <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                        </div>
+                      </Link>
+                    ))}
+
+                    {colInvoices.length === 0 && (
+                      <div className="flex flex-col items-center justify-center h-32 rounded-xl border-2 border-dashed border-slate-200/60 bg-slate-50/50 text-slate-400 text-[12px] font-medium italic">
+                        Empty Column
+                      </div>
+                    )}
                   </div>
-                </section>
-              ))}
-            </div>
+                </div>
+              );
+            })
+          )}
           </div>
         </div>
-
-        {showDetailPanel && selectedAudit ? (
-          <aside className="app-panel relative flex w-[340px] flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
-            <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
-              <button
-                type="button"
-                onClick={() => setShowDetailPanel(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className="rounded-md bg-[#f7f5f1] px-1.5 py-1 text-slate-300"
-              >
-                <Circle className="h-3.5 w-3.5" />
-              </button>
-              <input
-                value={selectedAudit.title}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  setCards((current) =>
-                    current.map((c) =>
-                      c.id === selectedAudit.id
-                        ? { ...c, title: nextValue }
-                        : c,
-                    ),
-                  );
-                }}
-                className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[14px] font-medium text-slate-700 outline-none focus:border-[#9cb1f6] focus:bg-white"
-              />
-              <span className="text-[13px] text-slate-400">Now</span>
-              <Sparkles className="h-4 w-4 text-slate-400" />
-            </div>
-
-            <div className="flex items-center gap-5 border-b border-[#f0ece6] px-4 pt-3">
-              {detailTabs.map((tab) => {
-                const isActive = tab.id === activeTab;
-
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`inline-flex items-center gap-2 border-b pb-3 text-[13px] font-medium ${
-                      isActive
-                        ? "border-slate-500 text-slate-700"
-                        : "border-transparent text-slate-400"
-                    }`}
-                  >
-                    {tab.icon}
-                    {tab.label}
-                    {tab.id === "more" ? (
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex-1 overflow-auto">
-              <div className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-[#f0ece6] px-4 py-4 text-[13px]">
-                <div>
-                  <p className="text-slate-400">Type</p>
-                </div>
-                <div>
-                  <span className="inline-flex rounded-md bg-[#e8f7ee] px-2 py-0.5 text-[#2ba36f]">
-                    {selectedAudit.type}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <Circle className="h-3.5 w-3.5" />
-                  <span>Created by</span>
-                </div>
-                <div>
-                  <AvatarPill name={selectedAudit.createdBy} />
-                </div>
-
-                <div className="text-slate-400">Overall Score</div>
-                <div className="text-slate-700">
-                  {selectedAudit.overallScore}
-                </div>
-
-                <div>
-                  <p className="text-slate-400">Status</p>
-                </div>
-                <div>
-                  <span
-                    className={`inline-flex rounded-md px-2 py-0.5 text-[12px] font-medium ${
-                      InvoiceStatusBoardProgress.find(
-                        (l) => l.id === selectedAudit.status,
-                      )?.badgeClassName
-                    }`}
-                  >
-                    {selectedAudit.status.toUpperCase()}
-                  </span>
-                </div>
-
-                <div>
-                  <p className="truncate text-slate-400">Suggested Service</p>
-                </div>
-                <div>
-                  <span className="inline-flex rounded-md bg-[#f7f5f1] px-2 py-0.5 text-slate-400">
-                    {selectedAudit.suggestedService}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  <span>Last update</span>
-                </div>
-                <div className="text-slate-700">{selectedAudit.lastUpdate}</div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <UserCircle2 className="h-3.5 w-3.5" />
-                  <span>Updated by</span>
-                </div>
-                <div>
-                  <AvatarPill name={selectedAudit.updatedBy} />
-                </div>
-              </div>
-
-              <div className="px-4 py-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="text-[13px] font-medium text-slate-700">
-                    Practice
-                  </p>
-                </div>
-                <div className="min-h-[260px] rounded-xl border border-dashed border-[#ece8e1] bg-white p-3 text-[13px] text-slate-500">
-                  {selectedAudit.practice || "No practice associated."}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-              <div className="relative" ref={menuRef}>
-                <button
-                  type="button"
-                  onClick={() => setShowOptionsMenu((current) => !current)}
-                  className="rounded-md border border-[#9cb1f6] px-3 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
-                >
-                  Options
-                </button>
-
-                {showOptionsMenu ? (
-                  <div className="absolute bottom-[calc(100%+8px)] left-0 w-[205px] rounded-xl border border-[#ece8e1] bg-white p-2 shadow-[0_8px_32px_rgba(15,23,42,0.12)] z-20">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCards((current) =>
-                          current.filter((c) => c.id !== selectedAudit.id),
-                        );
-                        setShowDetailPanel(false);
-                        setShowOptionsMenu(false);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete record
-                    </button>
-                    <button
-                      type="button"
-                      className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      Restore record
-                    </button>
-                    <button
-                      type="button"
-                      className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      Export
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-
-              <button
-                type="button"
-                className="rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
-              >
-                Open
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowOptionsMenu((current) => !current)}
-              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-          </aside>
-        ) : null}
       </div>
+      <style>{`
+        .custom-scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .custom-scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </AppLayout>
   );
 }
-
-export default InvoiceStatusBoardPage;

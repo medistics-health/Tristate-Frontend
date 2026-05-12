@@ -31,16 +31,23 @@ import ActivePracticesPage from "./components/practices/ActivePractices";
 import ProspectsPage from "./components/practices/Prospects";
 import ReminderDuePage from "./components/practices/RemindersDue";
 import OverdueInvoicePage from "./components/invoices/OverdueInvoices";
+import BillingRunsPage from "./components/billing/BillingRuns";
+import BillingStatusBoardPage from "./components/billing/BillingStatusBoard";
 import DealsPage from "./components/deal/Deals";
 import PersonsPage from "./components/contact/Persons";
 import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
-import OnboardingForm from "./components/onboarding/OnboardingFormV2";
 import OnboardingFormV2 from "./components/onboarding/OnboardingFormV2";
+import PricingEnginePage from "./components/pricing-terms/PricingEngine";
+import AccountingSyncDashboard from "./components/integrations/AccountingSyncDashboard";
+import VendorPayableDashboard from "./components/payables/VendorPayableDashboard";
+import ClientPortalDashboard from "./components/portal/ClientPortalDashboard";
+import SettingsPage from "./components/settings/Settings";
+import type { ReactNode } from "react";
 
 function App() {
-  function UUIDProtectedRoute({ children }) {
+  function UUIDProtectedRoute({ children }: { children: ReactNode }) {
     const { id } = useParams();
 
     const isValidUUID = (id: string | any) =>
@@ -55,7 +62,7 @@ function App() {
     return children;
   }
 
-  function SignPage({ children }) {
+  function SignPage({ children }: { children: ReactNode }) {
     const url = useParams();
     const token = url?.slug as string;
 
@@ -165,6 +172,33 @@ function App() {
         element={
           <ProtectedRoute>
             <CRMDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/integrations/accounting-sync"
+        element={
+          <ProtectedRoute>
+            <AccountingSyncDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/vendors/payables"
+        element={
+          <ProtectedRoute>
+            <VendorPayableDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/portal"
+        element={
+          <ProtectedRoute>
+            <ClientPortalDashboard />
           </ProtectedRoute>
         }
       />
@@ -313,6 +347,23 @@ function App() {
       />
 
       <Route
+        path="/billing/runs"
+        element={
+          <ProtectedRoute>
+            <BillingRunsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/billing/status-board"
+        element={
+          <ProtectedRoute>
+            <BillingStatusBoardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/vendors/all-vendors"
         element={
           <ProtectedRoute>
@@ -393,6 +444,46 @@ function App() {
         element={
           <ProtectedRoute>
             <AllCompaniesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pricing-engine/rate-finalization"
+        element={
+          <ProtectedRoute>
+            <PricingEnginePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/general"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/integrations"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/team"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/security"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
           </ProtectedRoute>
         }
       />

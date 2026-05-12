@@ -56,6 +56,10 @@ export type Invoice = {
   lineItems?: Array<{ id: string }>;
   purchaseOrders?: Array<{ id: string }>;
   invoiceNumber: string;
+  stripeInvoiceId?: string | null;
+  stripeHostedInvoiceUrl?: string | null;
+  stripeInvoicePdfUrl?: string | null;
+  quickbooksInvoiceId?: string | null;
 };
 
 export type InvoiceRow = {
@@ -71,6 +75,7 @@ export type InvoiceRow = {
     creationDate: string;
     lastUpdate: string;
     invoiceNumber: string;
+    quickbooksInvoiceId?: string | null;
   };
 };
 
@@ -168,6 +173,7 @@ function invoiceToRow(invoice: Invoice): InvoiceRow {
       creationDate: formatDateTime(invoice.createdAt),
       lastUpdate: formatDateTime(invoice.updatedAt),
       invoiceNumber: invoice.invoiceNumber,
+      quickbooksInvoiceId: invoice.quickbooksInvoiceId,
     },
   };
 }
@@ -297,5 +303,53 @@ export async function deleteInvoiceApi(id: string): Promise<void> {
     });
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to delete invoice."));
+  }
+}
+
+export type StripeEventLog = {
+  id: string;
+  invoiceId: string | null;
+  eventType: string;
+  stripeEventId: string;
+  payload: any;
+  createdAt: string;
+};
+
+export async function getInvoiceStripeEvents(id: string): Promise<StripeEventLog[]> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: `${GET(id)}/stripe-events`,
+      credentials: true,
+    });
+    return (response.data as { events: StripeEventLog[] }).events;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch stripe events."));
+  }
+}
+
+export async function resendStripeInvoice(id: string): Promise<void> {
+  try {
+    await apiConnector({
+      method: "POST",
+      url: `${GET(id)}/resend`,
+      credentials: true,
+    });
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to resend invoice."));
+  }
+}
+
+export async function syncInvoiceToQuickBooks(id: string): Promise<any> {
+  try {
+    const { quickbooksEndpoints } = await import("../apis");
+    const response = await apiConnector({
+      method: "POST",
+      url: quickbooksEndpoints.GET_LOGS.replace("/sync-logs", `/invoices/${id}/sync`),
+      credentials: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to sync to QuickBooks."));
   }
 }

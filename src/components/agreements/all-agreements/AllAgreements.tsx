@@ -10,11 +10,15 @@ import {
   ChevronLeft,
   Circle,
   LayoutList,
+  Pencil,
   Plus,
   Save,
   Trash2,
   X,
   ExternalLink,
+  FileText,
+  GitBranch,
+  Settings,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -33,7 +37,23 @@ import {
   type DocusealTemplate,
   getAgreementDocusealId,
 } from "../../../services/operations/agreements";
+import {
+  getAgreementVersions,
+  getAgreementServiceTerms,
+  createAgreementServiceTermApi,
+  createAgreementVersionApi,
+  updateAgreementVersionApi,
+  updateAgreementServiceTermApi,
+  deleteAgreementVersionApi,
+  deleteAgreementServiceTermApi,
+  type AgreementVersion,
+  type AgreementServiceTerm,
+  type PricingModel,
+  pricingModelOptions,
+} from "../../../services/operations/agreements";
 import { getAllPractices } from "../../../services/operations/practices";
+import { getAllServices } from "../../../services/operations/services";
+import { getAllVendorsApi } from "../../../services/operations/vendors";
 import type { Practice } from "../../practices/types";
 
 const statusStyles: Record<string, string> = {
@@ -78,6 +98,13 @@ function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
 
+function formatPricingModel(model: string) {
+  return model
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
@@ -116,6 +143,9 @@ function AllAgreementsPage() {
   const [rows, setRows] = useState<AgreementRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  // const [selectedRowVersionId, setSelectedRowVersionId] = useState<
+  //   string | null
+  // >(null);
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(
     null,
   );
@@ -147,6 +177,48 @@ function AllAgreementsPage() {
   const [signers, setSigners] = useState<any[]>([]);
   const [selectedSignerId, setSelectedSignerId] = useState("");
   const [isSending, setIsSending] = useState(false);
+
+  // Tabs for detail panel
+  const [activeTab, setActiveTab] = useState<"overview" | "versions" | "terms">(
+    "overview",
+  );
+
+  // Versions state
+  const [versions, setVersions] = useState<AgreementVersion[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [showVersionForm, setShowVersionForm] = useState(false);
+  const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
+  const [versionForm, setVersionForm] = useState({
+    versionNumber: 1,
+    isCurrent: true,
+    effectiveDate: "",
+    endDate: "",
+    notes: "",
+  });
+  const [isSavingVersion, setIsSavingVersion] = useState(false);
+
+  // Service Terms state
+  const [serviceTerms, setServiceTerms] = useState<AgreementServiceTerm[]>([]);
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [showTermForm, setShowTermForm] = useState(false);
+  const [editingTermId, setEditingTermId] = useState<string | null>(null);
+  const [termForm, setTermForm] = useState({
+    serviceId: "",
+    agreementVersionId: "",
+    vendorId: "",
+    pricingModel: "PER_PATIENT" as PricingModel,
+    pricingConfig: "{}",
+    currency: "USD",
+    priority: 1,
+    minimumFee: "",
+    effectiveDate: "",
+    endDate: "",
+    isActive: true,
+    externalReference: "",
+  });
+  const [isSavingTerm, setIsSavingTerm] = useState(false);
+  const [services, setServices] = useState<{ id: string; name: string }[]>([]);
+  const [vendors, setVendors] = useState<{ id: string; name: string }[]>([]);
 
   const columns = useMemo<ColumnDef<AgreementRow>[]>(
     () => [
@@ -261,6 +333,7 @@ function AllAgreementsPage() {
 
           const data = await getAgreementsView(params as any);
           setRows(data.rows);
+
           setPagination(data.pagination);
         } catch (err) {
           const message =
@@ -293,13 +366,16 @@ function AllAgreementsPage() {
 
   async function handleRowClick(rowId: string) {
     setSelectedRowId(rowId);
+
     setShowDetailPanel(true);
     setShowCreateForm(false);
+    setActiveTab("overview");
     setIsDetailLoading(true);
 
     try {
       const agreement = await getAgreement(rowId);
       setSelectedAgreement(agreement);
+
       setEditForm(buildFormState(agreement));
     } catch (err) {
       const message =
@@ -307,6 +383,57 @@ function AllAgreementsPage() {
       toast.error(message);
     } finally {
       setIsDetailLoading(false);
+    }
+  }
+
+  async function loadVersions(agreementId: string) {
+    setVersionsLoading(true);
+    try {
+      const data = await getAgreementVersions({
+        agreementId,
+        page: 1,
+        limit: 50,
+      });
+      setVersions(data.versions);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load versions";
+      toast.error(message);
+    } finally {
+      setVersionsLoading(false);
+    }
+  }
+
+  async function loadServiceTerms(agreementId: string) {
+    setTermsLoading(true);
+    try {
+      const data = await getAgreementServiceTerms({
+        agreementId,
+        page: 1,
+        limit: 50,
+      });
+      setServiceTerms(data.terms);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load service terms";
+      toast.error(message);
+    } finally {
+      setTermsLoading(false);
+    }
+  }
+
+  function handleTabChange(tab: "overview" | "versions" | "terms") {
+    setActiveTab(tab);
+    if (tab === "versions" && selectedRowId && versions.length === 0) {
+      loadVersions(selectedRowId);
+    } else if (tab === "terms" && selectedRowId && serviceTerms.length === 0) {
+      loadServiceTerms(selectedRowId);
+      if (services.length === 0) {
+        getAllServices().then(setServices).catch(console.error);
+      }
+      if (vendors.length === 0) {
+        getAllVendorsApi().then(setVendors).catch(console.error);
+      }
     }
   }
 
@@ -513,7 +640,7 @@ function AllAgreementsPage() {
   ];
 
   const detailPanel = (
-    <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+    <aside className="app-panel relative flex w-[500px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
         <button
           type="button"
@@ -528,268 +655,932 @@ function AllAgreementsPage() {
         </span>
       </div>
 
+      {/* Tabs */}
+      <div className="flex border-b border-[#f0ece6] px-4">
+        <button
+          type="button"
+          onClick={() => handleTabChange("overview")}
+          className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium ${
+            activeTab === "overview"
+              ? "border-[#4f63ea] text-[#4f63ea]"
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Overview
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange("versions")}
+          className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium ${
+            activeTab === "versions"
+              ? "border-[#4f63ea] text-[#4f63ea]"
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <GitBranch className="h-3.5 w-3.5" />
+          Versions
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange("terms")}
+          className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium ${
+            activeTab === "terms"
+              ? "border-[#4f63ea] text-[#4f63ea]"
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Settings className="h-3.5 w-3.5" />
+          Service Terms
+        </button>
+      </div>
+
       {isDetailLoading || !selectedAgreement ? (
         <div className="flex flex-1 items-center justify-center text-[13px] text-slate-400">
           Loading agreement...
         </div>
       ) : (
-        <form
-          onSubmit={handleUpdateAgreement}
-          className="flex flex-1 flex-col overflow-hidden"
-        >
-          <div className="flex-1 overflow-auto p-4">
-            <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Practice</span>
-                <span className="text-right text-slate-700">
-                  {selectedAgreement.practice?.name || "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Deal</span>
-                <span className="text-right text-slate-700">
-                  {selectedAgreement.deal?.name || "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Created</span>
-                <span className="text-right text-slate-700">
-                  {formatDateTime(selectedAgreement.createdAt)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Last Update</span>
-                <span className="text-right text-slate-700">
-                  {formatDateTime(selectedAgreement.updatedAt)}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {/*<div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Practice <span className="text-red-500">*</span>
-                </label>
-                {optionsLoading ? (
-                  <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
-                    Loading...
+        <>
+          {/* Overview Tab */}
+          {activeTab === "overview" && (
+            <form
+              onSubmit={handleUpdateAgreement}
+              className="flex flex-1 flex-col overflow-hidden"
+            >
+              <div className="flex-1 overflow-auto p-4">
+                <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Practice</span>
+                    <span className="text-right text-slate-700">
+                      {selectedAgreement.practice?.name || "-"}
+                    </span>
                   </div>
-                ) : (
-                  <select
-                    value={editForm.practiceId}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({
-                        ...prev,
-                        practiceId: event.target.value,
-                        dealId: "",
-                      }))
-                    }
-                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    required
-                  >
-                    <option value="">Select Practice</option>
-                    {practices.map((practice) => (
-                      <option key={practice.id} value={practice.id}>
-                        {practice.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>*/}
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Deal</span>
+                    <span className="text-right text-slate-700">
+                      {selectedAgreement.deal?.name || "-"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Created</span>
+                    <span className="text-right text-slate-700">
+                      {formatDateTime(selectedAgreement.createdAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Last Update</span>
+                    <span className="text-right text-slate-700">
+                      {formatDateTime(selectedAgreement.updatedAt)}
+                    </span>
+                  </div>
+                </div>
 
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Type <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={editForm.type}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      type: event.target.value,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                  required
-                >
-                  {agreementTypeOptions.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Status <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={editForm.status}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      status: event.target.value,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                  required
-                >
-                  {agreementStatusOptions.map((status) => (
-                    <option key={status} value={status}>
-                      {formatStatusLabel(status)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/*<div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Value
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={editForm.value}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      value: event.target.value,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                  placeholder="0.00"
-                />
-              </div>*/}
-
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Effective Date
-                </label>
-                <input
-                  type="date"
-                  value={editForm.effectiveDate}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      effectiveDate: event.target.value,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Renewal Date
-                </label>
-                <input
-                  type="date"
-                  value={editForm.renewalDate}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      renewalDate: event.target.value,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                />
-              </div>
-
-              {/*<div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Termination Date
-                </label>
-                <input
-                  type="date"
-                  value={editForm.terminationDate}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      terminationDate: event.target.value,
-                    }))
-                  }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                />
-              </div>*/}
-
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                  Agreement Templates
-                </label>
-
-                {editForm?.docusealTemplates?.length ? (
-                  editForm.docusealTemplates.map((init: any, index: number) => (
-                    <a
-                      key={index}
-                      href={init.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1] hover:underline"
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={editForm.type}
+                      onChange={(event) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          type: event.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      required
                     >
-                      Open Template
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  ))
-                ) : (
-                  <span className="text-[13px] text-slate-400">
-                    No template attached
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
+                      {agreementTypeOptions.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-          {/*{selectedAgreement?.docusealId && (
-            <div className="border-t border-[#f0ece6] pt-4 mt-4">
-              <label className="mb-2 block text-[13px] font-medium text-slate-700">
-                Send for Signature
-              </label>
-              <div className="flex gap-2">
-                <select
-                  value={selectedSignerId}
-                  onChange={(e) => setSelectedSignerId(e.target.value)}
-                  className="app-control flex-1 rounded-md px-3 py-2 text-[13px]"
-                >
-                  <option value="">Select Person</option>
-                  {signers.map((signer: any) => (
-                    <option key={signer.id} value={signer.id}>
-                      {signer.firstName} {signer.lastName}
-                    </option>
-                  ))}
-                </select>
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Status <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={editForm.status}
+                      onChange={(event) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          status: event.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      required
+                    >
+                      {agreementStatusOptions.map((status) => (
+                        <option key={status} value={status}>
+                          {formatStatusLabel(status)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Effective Date
+                    </label>
+                    <input
+                      type="date"
+                      value={editForm.effectiveDate}
+                      onChange={(event) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          effectiveDate: event.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Renewal Date
+                    </label>
+                    <input
+                      type="date"
+                      value={editForm.renewalDate}
+                      onChange={(event) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          renewalDate: event.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Agreement Templates
+                    </label>
+
+                    {editForm?.docusealTemplates?.length ? (
+                      editForm.docusealTemplates.map(
+                        (init: any, index: number) => (
+                          <a
+                            key={index}
+                            href={init.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1] hover:underline"
+                          >
+                            Open Template
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        ),
+                      )
+                    ) : (
+                      <span className="text-[13px] text-slate-400">
+                        No template attached
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
                 <button
                   type="button"
-                  onClick={handleSendForSignature}
-                  disabled={isSending || !selectedSignerId}
-                  className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+                  onClick={handleDeleteAgreement}
+                  disabled={isDeleting}
+                  className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
                 >
-                  {isSending ? "Sending..." : "Send"}
+                  <Trash2 className="h-4 w-4" />
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  {isSaving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
-            </div>
-          )}*/}
+            </form>
+          )}
 
-          <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-            <button
-              type="button"
-              onClick={handleDeleteAgreement}
-              disabled={isDeleting}
-              className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4" />
-              {isDeleting ? "Deleting..." : "Delete"}
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
-            >
-              <Save className="h-4 w-4" />
-              {isSaving ? "Saving..." : "Save Changes"}
-            </button>
-          </div>
-        </form>
+          {/* Versions Tab */}
+          {activeTab === "versions" && (
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
+                <h3 className="text-[14px] font-medium text-slate-700">
+                  Versions ({versions.length})
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingVersionId(null);
+                    setShowVersionForm(!showVersionForm);
+                    setVersionForm({
+                      versionNumber: versions.length + 1,
+                      isCurrent: true,
+                      effectiveDate: "",
+                      endDate: "",
+                      notes: "",
+                    });
+                  }}
+                  className="inline-flex items-center cursor-pointer gap-1.5 rounded-md bg-[#4f63ea] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#3d4ed1]"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Version
+                </button>
+              </div>
+
+              {showVersionForm && (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!selectedRowId) return;
+                    setIsSavingVersion(true);
+                    try {
+                      if (editingVersionId) {
+                        await updateAgreementVersionApi(editingVersionId, {
+                          versionNumber: versionForm.versionNumber,
+                          isCurrent: versionForm.isCurrent,
+                          effectiveDate: versionForm.effectiveDate
+                            ? new Date(versionForm.effectiveDate).toISOString()
+                            : undefined,
+                          endDate: versionForm.endDate
+                            ? new Date(versionForm.endDate).toISOString()
+                            : undefined,
+                          notes: versionForm.notes,
+                        });
+                        toast.success("Version updated successfully");
+                      } else {
+                        await createAgreementVersionApi({
+                          agreementId: selectedRowId,
+                          versionNumber: versionForm.versionNumber,
+                          isCurrent: versionForm.isCurrent,
+                          effectiveDate: versionForm.effectiveDate
+                            ? new Date(versionForm.effectiveDate).toISOString()
+                            : undefined,
+                          endDate: versionForm.endDate
+                            ? new Date(versionForm.endDate).toISOString()
+                            : undefined,
+                          notes: versionForm.notes,
+                        });
+                        toast.success("Version created successfully");
+                      }
+                      setShowVersionForm(false);
+                      setEditingVersionId(null);
+                      loadVersions(selectedRowId);
+                    } catch (err) {
+                      toast.error(
+                        err instanceof Error
+                          ? err.message
+                          : `Failed to ${editingVersionId ? "update" : "create"} version`,
+                      );
+                    } finally {
+                      setIsSavingVersion(false);
+                    }
+                  }}
+                  className="border-b border-[#f0ece6] bg-[#faf9f7] p-4 space-y-3"
+                >
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                      Version Number
+                    </label>
+                    <input
+                      type="number"
+                      value={versionForm.versionNumber}
+                      onChange={(e) =>
+                        setVersionForm((prev) => ({
+                          ...prev,
+                          versionNumber: parseInt(e.target.value) || 1,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                      required
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={versionForm.isCurrent}
+                      onChange={(e) =>
+                        setVersionForm((prev) => ({
+                          ...prev,
+                          isCurrent: e.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-[#4f63ea]"
+                    />
+                    <label className="text-[12px] text-slate-700">
+                      Set as current version
+                    </label>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                      Effective Date
+                    </label>
+                    <input
+                      type="date"
+                      value={versionForm.effectiveDate}
+                      onChange={(e) =>
+                        setVersionForm((prev) => ({
+                          ...prev,
+                          effectiveDate: e.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                      End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={versionForm.endDate}
+                      onChange={(e) =>
+                        setVersionForm((prev) => ({
+                          ...prev,
+                          endDate: e.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                      Notes
+                    </label>
+                    <textarea
+                      value={versionForm.notes}
+                      onChange={(e) =>
+                        setVersionForm((prev) => ({
+                          ...prev,
+                          notes: e.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={isSavingVersion}
+                      className="rounded-md bg-[#4f63ea] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+                    >
+                      {isSavingVersion
+                        ? "Saving..."
+                        : editingVersionId
+                          ? "Update"
+                          : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowVersionForm(false);
+                        setEditingVersionId(null);
+                      }}
+                      className="rounded-md border border-[#ece8e1] px-3 py-1.5 text-[12px] font-medium text-slate-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="flex-1 overflow-auto">
+                {versionsLoading ? (
+                  <div className="flex items-center justify-center p-4 text-[13px] text-slate-400">
+                    Loading versions...
+                  </div>
+                ) : versions.length === 0 ? (
+                  <div className="flex items-center justify-center p-4 text-[13px] text-slate-400">
+                    No versions found. Create one to get started.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#f0ece6]">
+                    {versions.map((version) => (
+                      <div
+                        key={version.id}
+                        className="flex items-center justify-between px-4 py-3 hover:bg-[#faf9f7]"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[13px] font-medium text-slate-700">
+                              Version {version.versionNumber}
+                            </span>
+                            {version.isCurrent && (
+                              <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-[12px] text-slate-500">
+                            {version.effectiveDate
+                              ? `Effective: ${new Date(version.effectiveDate).toLocaleDateString()}`
+                              : "No effective date"}
+                            {version.endDate &&
+                              ` - ${new Date(version.endDate).toLocaleDateString()}`}
+                          </div>
+                          {version.notes && (
+                            <div className="mt-1 text-[12px] text-slate-500">
+                              {version.notes}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingVersionId(version.id);
+                              setVersionForm({
+                                versionNumber: version.versionNumber,
+                                isCurrent: version.isCurrent,
+                                effectiveDate: version.effectiveDate
+                                  ? new Date(version.effectiveDate)
+                                      .toISOString()
+                                      .slice(0, 10)
+                                  : "",
+                                endDate: version.endDate
+                                  ? new Date(version.endDate)
+                                      .toISOString()
+                                      .slice(0, 10)
+                                  : "",
+                                notes: version.notes || "",
+                              });
+                              setShowVersionForm(true);
+                            }}
+                            className="text-slate-400 hover:text-slate-600"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!window.confirm("Delete this version?"))
+                                return;
+                              try {
+                                await deleteAgreementVersionApi(version.id);
+                                toast.success("Version deleted");
+                                if (selectedRowId) loadVersions(selectedRowId);
+                              } catch (err) {
+                                toast.error(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Failed to delete",
+                                );
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Service Terms Tab */}
+          {activeTab === "terms" && (
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
+                <h3 className="text-[14px] font-medium text-slate-700">
+                  Service Terms ({serviceTerms.length})
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTermId(null);
+                    setShowTermForm(!showTermForm);
+                    setTermForm({
+                      serviceId: "",
+                      agreementVersionId: "",
+                      vendorId: "",
+                      pricingModel: "PER_PATIENT" as PricingModel,
+                      pricingConfig: "{}",
+                      currency: "USD",
+                      priority: 1,
+                      minimumFee: "",
+                      effectiveDate: "",
+                      endDate: "",
+                      isActive: true,
+                      externalReference: "",
+                    });
+                  }}
+                  className="inline-flex items-center cursor-pointer gap-1.5 rounded-md bg-[#4f63ea] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#3d4ed1]"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Term
+                </button>
+              </div>
+
+              {showTermForm && (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!selectedRowId || !termForm.serviceId) {
+                      toast.error("Service is required");
+                      return;
+                    }
+                    setIsSavingTerm(true);
+                    try {
+                      if (editingTermId) {
+                        await updateAgreementServiceTermApi(editingTermId, {
+                          serviceId: termForm.serviceId,
+                          agreementVersionId: termForm.agreementVersionId,
+                          vendorId: termForm.vendorId || null,
+                          pricingModel: termForm.pricingModel,
+                          pricingConfig: JSON.parse(termForm.pricingConfig),
+                          currency: termForm.currency,
+                          priority: termForm.priority,
+                          minimumFee: termForm.minimumFee
+                            ? parseFloat(termForm.minimumFee)
+                            : undefined,
+                          effectiveDate: termForm.effectiveDate
+                            ? new Date(termForm.effectiveDate).toISOString()
+                            : undefined,
+                          endDate: termForm.endDate
+                            ? new Date(termForm.endDate).toISOString()
+                            : undefined,
+                          isActive: termForm.isActive,
+                          externalReference: termForm.externalReference,
+                        });
+                        toast.success("Service term updated successfully");
+                      } else {
+                        await createAgreementServiceTermApi({
+                          agreementId: selectedRowId,
+                          agreementVersionId: termForm.agreementVersionId,
+                          serviceId: termForm.serviceId,
+                          vendorId: termForm.vendorId || null,
+                          pricingModel: termForm.pricingModel,
+                          pricingConfig: JSON.parse(termForm.pricingConfig),
+                          currency: termForm.currency,
+                          priority: termForm.priority,
+                          minimumFee: termForm.minimumFee
+                            ? parseFloat(termForm.minimumFee)
+                            : undefined,
+                          effectiveDate: termForm.effectiveDate
+                            ? new Date(termForm.effectiveDate).toISOString()
+                            : undefined,
+                          endDate: termForm.endDate
+                            ? new Date(termForm.endDate).toISOString()
+                            : undefined,
+                          isActive: termForm.isActive,
+                          externalReference: termForm.externalReference,
+                        });
+                        toast.success("Service term created successfully");
+                      }
+                      setShowTermForm(false);
+                      setEditingTermId(null);
+                      loadServiceTerms(selectedRowId);
+                    } catch (err) {
+                      toast.error(
+                        err instanceof Error
+                          ? err.message
+                          : `Failed to ${editingTermId ? "update" : "create"} term`,
+                      );
+                    } finally {
+                      setIsSavingTerm(false);
+                    }
+                  }}
+                  className="border-b border-[#f0ece6] bg-[#faf9f7] p-4 space-y-3 max-h-[400px] overflow-y-auto"
+                >
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                      Service <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={termForm.serviceId}
+                      onChange={(e) =>
+                        setTermForm((prev) => ({
+                          ...prev,
+                          serviceId: e.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                      required
+                    >
+                      <option value="">Select Service</option>
+                      {services.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                      Agreement Version <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={termForm.agreementVersionId}
+                      onChange={(e) =>
+                        setTermForm((prev) => ({
+                          ...prev,
+                          agreementVersionId: e.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                      required
+                    >
+                      <option value="">Select Agreement Version</option>
+                      {selectedAgreement.versions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          Version: {s.versionNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                      Vendor
+                    </label>
+                    <select
+                      value={termForm.vendorId}
+                      onChange={(e) =>
+                        setTermForm((prev) => ({
+                          ...prev,
+                          vendorId: e.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                    >
+                      <option value="">None</option>
+                      {vendors.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                      Pricing Model <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={termForm.pricingModel}
+                      onChange={(e) =>
+                        setTermForm((prev) => ({
+                          ...prev,
+                          pricingModel: e.target.value as PricingModel,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                      required
+                    >
+                      {pricingModelOptions.map((model) => (
+                        <option key={model} value={model}>
+                          {model.replace(/_/g, " ")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                      Pricing Config (JSON)
+                    </label>
+                    <textarea
+                      value={termForm.pricingConfig}
+                      onChange={(e) =>
+                        setTermForm((prev) => ({
+                          ...prev,
+                          pricingConfig: e.target.value,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-1.5 text-[12px] font-mono"
+                      rows={3}
+                      placeholder='{"rate": 100}'
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                        Minimum Fee
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={termForm.minimumFee}
+                        onChange={(e) =>
+                          setTermForm((prev) => ({
+                            ...prev,
+                            minimumFee: e.target.value,
+                          }))
+                        }
+                        className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                        Priority
+                      </label>
+                      <input
+                        type="number"
+                        value={termForm.priority}
+                        onChange={(e) =>
+                          setTermForm((prev) => ({
+                            ...prev,
+                            priority: parseInt(e.target.value) || 1,
+                          }))
+                        }
+                        className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                        Effective Date
+                      </label>
+                      <input
+                        type="date"
+                        value={termForm.effectiveDate}
+                        onChange={(e) =>
+                          setTermForm((prev) => ({
+                            ...prev,
+                            effectiveDate: e.target.value,
+                          }))
+                        }
+                        className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={termForm.endDate}
+                        onChange={(e) =>
+                          setTermForm((prev) => ({
+                            ...prev,
+                            endDate: e.target.value,
+                          }))
+                        }
+                        className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={termForm.isActive}
+                      onChange={(e) =>
+                        setTermForm((prev) => ({
+                          ...prev,
+                          isActive: e.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-[#4f63ea]"
+                    />
+                    <label className="text-[12px] text-slate-700">Active</label>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={isSavingTerm}
+                      className="rounded-md bg-[#4f63ea] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+                    >
+                      {isSavingTerm
+                        ? "Saving..."
+                        : editingTermId
+                          ? "Update"
+                          : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTermForm(false);
+                        setEditingTermId(null);
+                      }}
+                      className="rounded-md border border-[#ece8e1] px-3 py-1.5 text-[12px] font-medium text-slate-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="flex-1 overflow-auto">
+                {termsLoading ? (
+                  <div className="flex items-center justify-center p-4 text-[13px] text-slate-400">
+                    Loading service terms...
+                  </div>
+                ) : serviceTerms.length === 0 ? (
+                  <div className="flex items-center justify-center p-4 text-[13px] text-slate-400">
+                    No service terms found. Add one to get started.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#f0ece6]">
+                    {serviceTerms.map((term) => (
+                      <div
+                        key={term.id}
+                        className="px-4 py-3 hover:bg-[#faf9f7]"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[13px] font-medium text-slate-700">
+                                {term.service?.name || "Unknown Service"}
+                              </span>
+                              {term.isActive && (
+                                <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-1 text-[12px] text-slate-500">
+                              {formatPricingModel(term.pricingModel)} •{" "}
+                              {term.currency}
+                              {term.vendor?.name &&
+                                ` • Vendor: ${term.vendor.name}`}
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-slate-400">
+                              Priority: {term.priority}
+                              {term.minimumFee &&
+                                ` • Min Fee: $${term.minimumFee}`}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingTermId(term.id);
+                                setTermForm({
+                                  serviceId: term.serviceId,
+                                  agreementVersionId: term.agreementVersionId,
+                                  vendorId: term.vendorId || "",
+                                  pricingModel:
+                                    term.pricingModel as PricingModel,
+                                  pricingConfig: JSON.stringify(
+                                    term.pricingConfig || {},
+                                  ),
+                                  currency: term.currency,
+                                  priority: term.priority,
+                                  minimumFee: term.minimumFee?.toString() || "",
+                                  effectiveDate: term.effectiveDate
+                                    ? new Date(term.effectiveDate)
+                                        .toISOString()
+                                        .slice(0, 10)
+                                    : "",
+                                  endDate: term.endDate
+                                    ? new Date(term.endDate)
+                                        .toISOString()
+                                        .slice(0, 10)
+                                    : "",
+                                  isActive: term.isActive,
+                                  externalReference:
+                                    term.externalReference || "",
+                                });
+                                setShowTermForm(true);
+                              }}
+                              className="text-slate-400 hover:text-slate-600"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (
+                                  !window.confirm("Delete this service term?")
+                                )
+                                  return;
+                                try {
+                                  await deleteAgreementServiceTermApi(term.id);
+                                  toast.success("Service term deleted");
+                                  if (selectedRowId)
+                                    loadServiceTerms(selectedRowId);
+                                } catch (err) {
+                                  toast.error(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Failed to delete",
+                                  );
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </aside>
   );
