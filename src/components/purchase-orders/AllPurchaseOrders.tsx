@@ -9,7 +9,7 @@ import {
 import { ChevronLeft, Circle, LayoutList, Plus, Trash2, X } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import AppLayout from "../layout/AppLayout";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import type { PurchaseOrderRow } from "./types";
 import {
   createPurchaseOrderApi,
@@ -505,6 +505,13 @@ function AllPurchaseOrdersPage() {
             </div>
 
             <div className="flex-1 overflow-auto p-4">
+              <DetailCard
+                title={String(selectedRow.values.vendorName || "Purchase Order")}
+                infoRows={[
+                  ...(selectedRow.values.invoiceId ? [{ label: "Invoice ID", value: String(selectedRow.values.invoiceId) }] : []),
+                  ...(selectedRow.values.totalCost ? [{ label: "Total Cost", value: String(selectedRow.values.totalCost) }] : []),
+                ]}
+              />
               <div className="space-y-3 text-[13px]">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">Vendor</span>

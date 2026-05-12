@@ -29,7 +29,7 @@ import type { PersonBody } from "../../components/contact/types";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { getStandardNavbarActions } from "../shared/PageComponents";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import type { PersonCellValue, PersonRow, PersonViewData } from "./types";
 import {
   createPersonApi,
@@ -1328,6 +1328,29 @@ export default function PersonsPage() {
             </div>
 
             <div className="flex-1 overflow-auto p-4">
+              {(() => {
+                const rColors: Record<string, string> = {
+                  OWNER: "bg-purple-100 text-purple-700",
+                  ADMIN: "bg-blue-100 text-blue-700",
+                  FINANCE: "bg-green-100 text-green-700",
+                  OPERATIONS: "bg-orange-100 text-orange-700",
+                  CLINICAL: "bg-cyan-100 text-cyan-700",
+                  PROCUREMENT: "bg-yellow-100 text-yellow-700",
+                  OTHER: "bg-gray-100 text-gray-700",
+                };
+                const role = String(selectedRow.values.role || "");
+                return (
+                  <DetailCard
+                    title={`${String(selectedRow.values.firstName || "")} ${String(selectedRow.values.lastName || "")}`}
+                    badge={role ? { label: role, className: rColors[role] || "bg-gray-100 text-gray-700" } : null}
+                    infoRows={[
+                      ...(selectedRow.values.email ? [{ label: "Email", value: String(selectedRow.values.email) }] : []),
+                      ...(selectedRow.values.phone ? [{ label: "Phone", value: String(selectedRow.values.phone) }] : []),
+                      ...(selectedRow.values.designation ? [{ label: "Designation", value: String(selectedRow.values.designation) }] : []),
+                    ]}
+                  />
+                );
+              })()}
               {/*{isEditing ? renderDetailEditForm() : renderDetailView()}*/}
               {renderDetailEditForm()}
             </div>

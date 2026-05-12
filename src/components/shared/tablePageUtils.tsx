@@ -128,3 +128,53 @@ export function EmptyStateIllustration() {
 export function CountPill({ children }: { children: ReactNode }) {
   return <span className="text-[14px] text-slate-400">{children}</span>;
 }
+
+export function DetailCard({
+  title,
+  badge,
+  infoRows,
+  metric,
+}: {
+  title: string;
+  badge?: { label: string; className: string } | null;
+  infoRows?: { label: string; value: string }[];
+  metric?: { label: string; value: string } | null;
+}) {
+  return (
+    <div className="mb-5 rounded-2xl border border-[#eadfcd] bg-gradient-to-br from-[#f9f4ec] via-white to-[#f4f7fb] p-4">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-[18px] font-semibold text-slate-800">
+            {title}
+          </h2>
+        </div>
+        {badge ? (
+          <span
+            className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${badge.className}`}
+          >
+            {badge.label}
+          </span>
+        ) : null}
+      </div>
+
+      {infoRows && infoRows.length > 0 ? (
+        <div className="space-y-2 text-[13px] text-slate-700">
+          {infoRows.map((row) => (
+            <div key={row.label}>
+              {row.label}: {row.value}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {metric ? (
+        <div className="mt-4 flex items-center justify-between rounded-xl border border-white/80 bg-white/80 px-3 py-2 text-[12px] text-slate-600">
+          <span>{metric.label}</span>
+          <span className="text-[18px] font-semibold text-slate-800">
+            {metric.value}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}

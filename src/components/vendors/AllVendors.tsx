@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import AppLayout from "../layout/AppLayout";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import type { VendorRow, Vendor } from "./types";
 import {
   createVendorApi,
@@ -617,24 +617,14 @@ function AllVendorsPage() {
                 className="flex flex-1 flex-col overflow-hidden"
               >
                 <div className="flex-1 overflow-auto p-4">
-                  <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Created</span>
-                      <span className="text-slate-700">
-                        {selectedVendor.createdAt
-                          ? new Date(selectedVendor.createdAt).toLocaleString()
-                          : "-"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Last Update</span>
-                      <span className="text-slate-700">
-                        {selectedVendor.updatedAt
-                          ? new Date(selectedVendor.updatedAt).toLocaleString()
-                          : "-"}
-                      </span>
-                    </div>
-                  </div>
+                  <DetailCard
+                    title={selectedVendor?.name || String(selectedRow.values.name)}
+                    badge={selectedVendor?.type ? { label: selectedVendor.type, className: "bg-blue-100 text-blue-700" } : null}
+                    infoRows={[
+                      ...(selectedVendor?.renewalDate ? [{ label: "Renewal Date", value: new Date(selectedVendor.renewalDate).toLocaleDateString() }] : []),
+                      ...(selectedVendor?.paymentTerms ? [{ label: "Payment Terms", value: selectedVendor.paymentTerms }] : []),
+                    ]}
+                  />
 
                   <div className="space-y-4">
                     <div>

@@ -18,7 +18,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import {
   getAllInvoices,
   type Invoice,
@@ -656,34 +656,15 @@ function AllInvoiceLineItems() {
                 className="flex flex-1 flex-col overflow-hidden"
               >
                 <div className="flex-1 overflow-auto p-4">
-                  <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Invoice</span>
-                      <span className="text-right text-slate-700">
-                        {selectedLineItem.invoice
-                          ? getInvoiceLabel(selectedLineItem.invoice)
-                          : "-"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Service</span>
-                      <span className="text-right text-slate-700">
-                        {selectedLineItem.service?.name || "-"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Created</span>
-                      <span className="text-right text-slate-700">
-                        {new Date(selectedLineItem.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Last Update</span>
-                      <span className="text-right text-slate-700">
-                        {new Date(selectedLineItem.updatedAt).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
+                  <DetailCard
+                    title={selectedLineItem?.service?.name || "Invoice Line Item"}
+                    infoRows={[
+                      ...(selectedLineItem?.invoice ? [{ label: "Invoice", value: getInvoiceLabel(selectedLineItem.invoice) }] : []),
+                      ...(selectedLineItem?.quantity ? [{ label: "Quantity", value: String(selectedLineItem.quantity) }] : []),
+                      ...(selectedLineItem?.unitPrice ? [{ label: "Unit Price", value: String(selectedLineItem.unitPrice) }] : []),
+                      ...(selectedLineItem?.totalPrice ? [{ label: "Total Price", value: String(selectedLineItem.totalPrice) }] : []),
+                    ]}
+                  />
 
                   <div className="space-y-4">
                     <div>

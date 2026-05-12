@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import type { NavbarAction } from "../layout/Navbar";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import {
   createAssessmentApi,
   deleteAssessmentApi,
@@ -277,33 +277,15 @@ function AssessmentsPage() {
         </div>
       ) : (
         <form onSubmit={handleUpdateAssessment} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-auto p-4">
-            <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Practice</span>
-                <span className="text-right text-slate-700">
-                  {selectedAssessment.practice?.name || "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Score</span>
-                <span className="text-slate-700">
-                  {selectedAssessment.score ?? "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Created</span>
-                <span className="text-right text-slate-700">
-                  {formatDateTime(selectedAssessment.createdAt)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Last Update</span>
-                <span className="text-right text-slate-700">
-                  {formatDateTime(selectedAssessment.updatedAt)}
-                </span>
-              </div>
-            </div>
+                <div className="flex-1 overflow-auto p-4">
+                  <DetailCard
+                    title={selectedAssessment.practice?.name || "Assessment"}
+                    badge={selectedAssessment?.score !== null && selectedAssessment?.score !== undefined ? { label: `Score: ${selectedAssessment.score}`, className: "bg-blue-100 text-blue-700" } : null}
+                    infoRows={[
+                      { label: "Created", value: formatDateTime(selectedAssessment.createdAt) },
+                      { label: "Last Update", value: formatDateTime(selectedAssessment.updatedAt) },
+                    ]}
+                  />
 
             <div className="space-y-4">
               <div>
