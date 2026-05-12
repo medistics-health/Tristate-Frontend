@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import { getAllPractices } from "../../services/operations/practices";
 import {
   getAllAgreements,
@@ -129,9 +129,12 @@ function AllInvoicePage() {
   const [resendInvoiceId, setResendInvoiceId] = useState<string | null>(null);
   const [isResendModalOpen, setIsResendModalOpen] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [actionLoading, setActionLoading] = useState<Record<string, Record<string, boolean>>>({});
+  const [actionLoading, setActionLoading] = useState<
+    Record<string, Record<string, boolean>>
+  >({});
 
-  const isActionLoading = (id: string, action: string) => actionLoading[id]?.[action] || false;
+  const isActionLoading = (id: string, action: string) =>
+    actionLoading[id]?.[action] || false;
   const setActionState = (id: string, action: string, state: boolean) => {
     setActionLoading((prev) => ({
       ...prev,
@@ -191,7 +194,10 @@ function AllInvoicePage() {
             return (
               <div className="flex items-center gap-1">
                 {invoice.values.quickbooksInvoiceId ? (
-                  <div className="p-1 text-green-600" title={`Synced to QB: ${invoice.values.quickbooksInvoiceId}`}>
+                  <div
+                    className="p-1 text-green-600"
+                    title={`Synced to QB: ${invoice.values.quickbooksInvoiceId}`}
+                  >
                     <CheckCircle2 className="h-4 w-4" />
                   </div>
                 ) : (
@@ -204,7 +210,11 @@ function AllInvoicePage() {
                     className="p-1 text-slate-400 hover:text-green-600 transition-colors disabled:opacity-50"
                     title="Sync to QuickBooks"
                   >
-                    <img src="https://quickbooks.intuit.com/cas/dam/IMAGE/A8u8GvpJS/apple-touch-icon-152x152.png" alt="QB" className="h-4 w-4 grayscale hover:grayscale-0 transition-all" />
+                    <img
+                      src="https://quickbooks.intuit.com/cas/dam/IMAGE/A8u8GvpJS/apple-touch-icon-152x152.png"
+                      alt="QB"
+                      className="h-4 w-4 grayscale hover:grayscale-0 transition-all"
+                    />
                   </button>
                 )}
               </div>
@@ -439,7 +449,9 @@ function AllInvoicePage() {
       await syncInvoiceToQuickBooks(invoiceId);
       toast.success("Synced to QuickBooks successfully.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to sync to QuickBooks.");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to sync to QuickBooks.",
+      );
     } finally {
       setActionState(invoiceId, "sync", false);
     }
@@ -454,7 +466,9 @@ function AllInvoicePage() {
       setIsResendModalOpen(false);
       await refreshRows();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to resend invoice");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to resend invoice",
+      );
     } finally {
       setIsResending(false);
     }
@@ -493,46 +507,33 @@ function AllInvoicePage() {
           className="flex flex-1 flex-col overflow-hidden"
         >
           <div className="flex-1 overflow-auto p-4">
-            <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Practice</span>
-                <span className="text-right text-slate-700">
-                  {selectedInvoice.practice?.name || "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Agreement</span>
-                <span className="text-right text-slate-700">
-                  {selectedInvoice.agreement
-                    ? `${selectedInvoice.agreement.type || "Agreement"} • ${selectedInvoice.agreement.id.slice(0, 8).toUpperCase()}`
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Line Items</span>
-                <span className="text-slate-700">
-                  {selectedInvoice.lineItems?.length || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Purchase Orders</span>
-                <span className="text-slate-700">
-                  {selectedInvoice.purchaseOrders?.length || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Created</span>
-                <span className="text-right text-slate-700">
-                  {formatDateTime(selectedInvoice.createdAt)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Last Update</span>
-                <span className="text-right text-slate-700">
-                  {formatDateTime(selectedInvoice.updatedAt)}
-                </span>
-              </div>
-            </div>
+              {(() => {
+                const invStatusColors: Record<string, string> = {
+                  DRAFT: "bg-slate-100 text-slate-700",
+                  SENT: "bg-blue-100 text-blue-700",
+                  PAID: "bg-green-100 text-green-700",
+                  PARTIALLY_PAID: "bg-amber-100 text-amber-700",
+                  OVERDUE: "bg-red-100 text-red-700",
+                  CANCELLED: "bg-gray-100 text-gray-700",
+                };
+                const invStatus = selectedInvoice?.status || "";
+                return (
+                  <DetailCard
+                    title={selectedInvoice?.invoiceNumber || "Invoice"}
+                    badge={invStatus ? { label: invStatus, className: invStatusColors[invStatus] || "bg-gray-100 text-gray-700" } : null}
+                    infoRows={[
+                      ...(selectedInvoice?.practice?.name ? [{ label: "Practice", value: selectedInvoice.practice.name }] : []),
+                      ...(selectedInvoice?.totalAmount ? [{ label: "Total Amount", value: String(selectedInvoice.totalAmount) }] : []),
+                      ...(selectedInvoice?.dueDate ? [{ label: "Due Date", value: new Date(selectedInvoice.dueDate).toLocaleDateString() }] : []),
+                    ]}
+                    metric={
+                      selectedInvoice?.lineItems?.length !== undefined
+                        ? { label: "Line Items", value: String(selectedInvoice.lineItems.length) }
+                        : null
+                    }
+                  />
+                );
+              })()}
 
             <div className="space-y-4">
               {/*<div>
@@ -679,14 +680,18 @@ function AllInvoicePage() {
               disabled={isResending}
               className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#e2e8f0] bg-white px-2.5 text-[12px] font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:opacity-50 shadow-sm"
             >
-              <RefreshCw className={`h-4 w-4 shrink-0 text-slate-400 ${isResending ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-4 w-4 shrink-0 text-slate-400 ${isResending ? "animate-spin" : ""}`}
+              />
               <span className="whitespace-nowrap">Resend</span>
             </button>
 
             {/* Sync QB Button */}
             <button
               type="button"
-              onClick={() => selectedInvoice && handleSyncToQB(selectedInvoice.id)}
+              onClick={() =>
+                selectedInvoice && handleSyncToQB(selectedInvoice.id)
+              }
               disabled={isActionLoading(selectedInvoice?.id || "", "sync")}
               className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#e2e8f0] bg-white px-2.5 transition-all hover:bg-slate-50 disabled:opacity-50 shadow-sm"
             >
@@ -696,8 +701,12 @@ function AllInvoicePage() {
                 className="h-4 w-4 shrink-0 rounded-sm"
               />
               <div className="flex flex-col items-start leading-none gap-0">
-                <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Sync</span>
-                <span className="text-[12px] font-extrabold text-slate-800">QB</span>
+                <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">
+                  Sync
+                </span>
+                <span className="text-[12px] font-extrabold text-slate-800">
+                  QB
+                </span>
               </div>
             </button>
 
@@ -720,8 +729,12 @@ function AllInvoicePage() {
             >
               <Save className="h-5 w-5 shrink-0 text-[#6366f1]" />
               <div className="flex flex-col items-start justify-center leading-none">
-                <span className="text-[12px] font-extrabold text-slate-800">Save</span>
-                <span className="text-[12px] font-extrabold text-slate-800">Changes</span>
+                <span className="text-[12px] font-extrabold text-slate-800">
+                  Save
+                </span>
+                <span className="text-[12px] font-extrabold text-slate-800">
+                  Changes
+                </span>
               </div>
             </button>
           </div>
@@ -1118,10 +1131,11 @@ function AllInvoicePage() {
                     key={page}
                     type="button"
                     onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${pagination.page === page
-                      ? "bg-[#4f63ea] text-white"
-                      : "text-slate-500 hover:bg-[#f0ece6]"
-                      }`}
+                    className={`rounded px-2 py-1 text-[13px] ${
+                      pagination.page === page
+                        ? "bg-[#4f63ea] text-white"
+                        : "text-slate-500 hover:bg-[#f0ece6]"
+                    }`}
                   >
                     {page}
                   </button>
