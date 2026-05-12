@@ -31,7 +31,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import type {
   CompanyCellValue,
   CompanyRow,
@@ -1316,6 +1316,31 @@ export default function AllCompaniesPage() {
             </div>
 
             <div className="flex-1 overflow-auto p-4">
+              {(() => {
+                const stColors: Record<string, string> = {
+                  LEAD: "bg-yellow-100 text-yellow-700",
+                  CUSTOMER: "bg-green-100 text-green-700",
+                  PARTNER: "bg-blue-100 text-blue-700",
+                  INACTIVE: "bg-gray-100 text-gray-700",
+                };
+                const status = String(selectedRow.values.status || "");
+                return (
+                  <DetailCard
+                    title={String(selectedRow.values.name || "Company")}
+                    badge={status ? { label: status, className: stColors[status] || "bg-gray-100 text-gray-700" } : null}
+                    infoRows={[
+                      ...(selectedRow.values.domain ? [{ label: "Domain", value: String(selectedRow.values.domain) }] : []),
+                      ...(selectedRow.values.industry ? [{ label: "Industry", value: String(selectedRow.values.industry) }] : []),
+                      ...(selectedRow.values.revenue ? [{ label: "Revenue", value: String(selectedRow.values.revenue) }] : []),
+                    ]}
+                    metric={
+                      selectedRow.values.practicesCount
+                        ? { label: "Practices", value: String(selectedRow.values.practicesCount) }
+                        : null
+                    }
+                  />
+                );
+              })()}
               {/*{isEditing ? renderDetailEditForm() : renderDetailView()}*/}
               {renderDetailEditForm()}
             </div>

@@ -125,8 +125,10 @@ export const agreementServiceTermEndpoints = {
   LIST: BACKEND_URL + "/api/v1/agreements/service-terms",
   CREATE: BACKEND_URL + "/api/v1/agreements/service-terms",
   GET: (id: string) => BACKEND_URL + `/api/v1/agreements/service-terms/${id}`,
-  UPDATE: (id: string) => BACKEND_URL + `/api/v1/agreements/service-terms/${id}`,
-  DELETE: (id: string) => BACKEND_URL + `/api/v1/agreements/service-terms/${id}`,
+  UPDATE: (id: string) =>
+    BACKEND_URL + `/api/v1/agreements/service-terms/${id}`,
+  DELETE: (id: string) =>
+    BACKEND_URL + `/api/v1/agreements/service-terms/${id}`,
 };
 
 export const assessmentEndpoints = {
@@ -167,12 +169,25 @@ export const dealEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/deals/${id}`,
 };
 
+export const monthlyReportEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/monthly-reports",
+  LIST: BACKEND_URL + "/api/v1/monthly-reports",
+  CREATE: BACKEND_URL + "/api/v1/monthly-reports",
+  GET: (id: string) => BACKEND_URL + `/api/v1/monthly-reports/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/monthly-reports/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/monthly-reports/${id}`,
+};
 export const quickbooksEndpoints = {
-  GET_LOGS: BACKEND_URL + '/api/v1/quickbooks/sync-logs',
-  RETRY_JOB: (jobId: string) => BACKEND_URL + '/api/v1/quickbooks/sync-logs/' + jobId + '/retry',
-  CONNECT: BACKEND_URL + '/api/v1/quickbooks/connect',
-  STATUS: (companyId: string) => BACKEND_URL + `/api/v1/quickbooks/connections/${companyId}`,
-  DISCONNECT: (companyId: string) => BACKEND_URL + `/api/v1/quickbooks/connections/${companyId}`,
+  GET_LOGS: BACKEND_URL + "/api/v1/quickbooks/sync-logs",
+  RETRY_JOB: (jobId: string) =>
+    BACKEND_URL + "/api/v1/quickbooks/sync-logs/" + jobId + "/retry",
+  CONNECT: BACKEND_URL + "/api/v1/quickbooks/connect",
+  STATUS: (companyId: string) =>
+    BACKEND_URL + `/api/v1/quickbooks/connections/${companyId}`,
+  DISCONNECT: (companyId: string) =>
+    BACKEND_URL + `/api/v1/quickbooks/connections/${companyId}`,
 };
 
-export const portalEndpoints = { GET_SNAPSHOT: BACKEND_URL + '/api/v1/portal/snapshot' };
+export const portalEndpoints = {
+  GET_SNAPSHOT: BACKEND_URL + "/api/v1/portal/snapshot",
+};

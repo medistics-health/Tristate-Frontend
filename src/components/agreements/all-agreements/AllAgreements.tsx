@@ -55,6 +55,7 @@ import { getAllPractices } from "../../../services/operations/practices";
 import { getAllServices } from "../../../services/operations/services";
 import { getAllVendorsApi } from "../../../services/operations/vendors";
 import type { Practice } from "../../practices/types";
+import { DetailCard } from "../../../components/shared/tablePageUtils";
 
 const statusStyles: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
@@ -65,9 +66,22 @@ const statusStyles: Record<string, string> = {
   ARCHIVED: "bg-zinc-100 text-zinc-600",
 };
 
-const agreementStatusOptions = ["DRAFT", "ACTIVE", "EXPIRED", "TERMINATED"];
+const agreementStatusOptions = [
+  "DRAFT",
+  "ACTIVE",
+  "EXPIRED",
+  "TERMINATED",
+  "SIGNED",
+];
 
 const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
+
+const AUTO_INCLUDE_TEMPLATE_NAMES = [
+  "Master Service Agreement",
+  "BAA",
+  "Credentialing Exhibit",
+  "Exhibit P",
+];
 
 type AgreementFormState = {
   practiceId: string;
@@ -616,18 +630,40 @@ function AllAgreementsPage() {
     }
   }
 
+  function applyAutoSelectTemplates(templates: DocusealTemplate[]) {
+    if (createForm.type !== "MSA") return;
+    const autoSelectIds = templates
+      .filter((t) =>
+        AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+          t.name.toLowerCase().includes(name.toLowerCase()),
+        ),
+      )
+      .map((t) => String(t.id));
+    setCreateForm((prev) => ({
+      ...prev,
+      docusealTemplates: [
+        ...new Set([...prev.docusealTemplates, ...autoSelectIds]),
+      ],
+    }));
+  }
+
   async function loadDocusealTemplates() {
-    if (docusealTemplates.length > 0) return;
-    setTemplatesLoading(true);
-    try {
-      const response = await getDocusealTemplates();
-      setDocusealTemplates(response.templates.data);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to fetch templates";
-      toast.error(message);
-    } finally {
-      setTemplatesLoading(false);
+    if (docusealTemplates.length === 0) {
+      setTemplatesLoading(true);
+      try {
+        const response = await getDocusealTemplates();
+        const templates = response.templates.data;
+        setDocusealTemplates(templates);
+        applyAutoSelectTemplates(templates);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to fetch templates";
+        toast.error(message);
+      } finally {
+        setTemplatesLoading(false);
+      }
+    } else {
+      applyAutoSelectTemplates(docusealTemplates);
     }
   }
 
@@ -708,32 +744,28 @@ function AllAgreementsPage() {
               className="flex flex-1 flex-col overflow-hidden"
             >
               <div className="flex-1 overflow-auto p-4">
-                <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Practice</span>
-                    <span className="text-right text-slate-700">
-                      {selectedAgreement.practice?.name || "-"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Deal</span>
-                    <span className="text-right text-slate-700">
-                      {selectedAgreement.deal?.name || "-"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Created</span>
-                    <span className="text-right text-slate-700">
-                      {formatDateTime(selectedAgreement.createdAt)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Last Update</span>
-                    <span className="text-right text-slate-700">
-                      {formatDateTime(selectedAgreement.updatedAt)}
-                    </span>
-                  </div>
-                </div>
+                  {(() => {
+                    const aStatusStyles: Record<string, string> = {
+                      DRAFT: "bg-slate-100 text-slate-700",
+                      ACTIVE: "bg-green-100 text-green-700",
+                      PENDING_SIGNATURE: "bg-amber-100 text-amber-700",
+                      SIGNED: "bg-blue-100 text-blue-700",
+                      EXPIRED: "bg-red-100 text-red-700",
+                      ARCHIVED: "bg-zinc-100 text-zinc-600",
+                    };
+                    const agStatus = selectedAgreement?.status || "";
+                    return (
+                      <DetailCard
+                        title={selectedAgreement?.type || "Agreement"}
+                        badge={agStatus ? { label: agStatus, className: aStatusStyles[agStatus] || "bg-gray-100 text-gray-700" } : null}
+                        infoRows={[
+                          ...(selectedAgreement?.practice?.name ? [{ label: "Practice", value: selectedAgreement.practice.name }] : []),
+                          ...(selectedAgreement?.deal?.name ? [{ label: "Deal", value: selectedAgreement.deal.name }] : []),
+                          ...(selectedAgreement?.value ? [{ label: "Value", value: String(selectedAgreement.value) }] : []),
+                        ]}
+                      />
+                    );
+                  })()}
 
                 <div className="space-y-4">
                   <div>
@@ -1771,32 +1803,59 @@ function AllAgreementsPage() {
                   </span>
                 ) : (
                   <div className="space-y-2">
-                    {docusealTemplates.map((template) => (
-                      <label
-                        key={template.id}
-                        className="flex cursor-pointer items-center gap-2"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={createForm.docusealTemplates.includes(
-                            String(template.id),
-                          )}
-                          onChange={(e) => {
-                            const templateId = String(template.id);
-                            setCreateForm((prev) => ({
-                              ...prev,
-                              docusealTemplates: e.target.checked
-                                ? [...prev.docusealTemplates, templateId]
-                                : prev.docusealTemplates.filter(
-                                    (id: string) => id !== templateId,
-                                  ),
-                            }));
-                          }}
-                          className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea]"
-                        />
-                        <span className="text-slate-700">{template.name}</span>
-                      </label>
-                    ))}
+                    {(() => {
+                      const autoIncludeIds = docusealTemplates
+                        .filter((t) =>
+                          AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+                            t.name.toLowerCase().includes(name.toLowerCase()),
+                          ),
+                        )
+                        .map((t) => String(t.id));
+                      return docusealTemplates.map((template) => {
+                        const templateId = String(template.id);
+                        const isAutoInclude =
+                          autoIncludeIds.includes(templateId);
+                        return (
+                          <label
+                            key={template.id}
+                            className={`flex items-center gap-2 ${isAutoInclude ? "" : "cursor-pointer"}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                isAutoInclude ||
+                                createForm.docusealTemplates.includes(
+                                  templateId,
+                                )
+                              }
+                              disabled={isAutoInclude}
+                              onChange={(e) => {
+                                if (isAutoInclude) return;
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  docusealTemplates: e.target.checked
+                                    ? [...prev.docusealTemplates, templateId]
+                                    : prev.docusealTemplates.filter(
+                                        (id: string) => id !== templateId,
+                                      ),
+                                }));
+                              }}
+                              className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea]"
+                            />
+                            <span
+                              className={`text-slate-700 ${isAutoInclude ? "font-medium" : ""}`}
+                            >
+                              {template.name}
+                              {isAutoInclude && (
+                                <span className="ml-1 text-xs text-slate-400">
+                                  (required)
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        );
+                      });
+                    })()}
                   </div>
                 )}
               </div>

@@ -27,7 +27,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import type {
   PracticeCellValue,
   PracticeRow,
@@ -757,9 +757,6 @@ export default function AllPracticePage() {
           (init.person?.role === "ADMIN" || init.person?.role === "OWNER") &&
           !!init.person?.email,
       );
-
-      console.log(practicePersons);
-      console.log(hasAdminWithEmail);
 
       if (!hasAdminWithEmail) {
         toast.error(
@@ -1718,6 +1715,30 @@ export default function AllPracticePage() {
             </div>
 
             <div className="flex-1 overflow-auto p-4">
+              {(() => {
+                const stColors: Record<string, string> = {
+                  LEAD: "bg-yellow-100 text-yellow-700",
+                  ACTIVE: "bg-green-100 text-green-700",
+                  INACTIVE: "bg-gray-100 text-gray-700",
+                  CLOSED: "bg-red-100 text-red-700",
+                };
+                const status = String(selectedRow.values.status || "");
+                return (
+                  <DetailCard
+                    title={String(selectedRow.values.name || "Practice")}
+                    badge={status ? { label: status, className: stColors[status] || "bg-gray-100 text-gray-700" } : null}
+                    infoRows={[
+                      ...(selectedRow.values.npi ? [{ label: "NPI", value: String(selectedRow.values.npi) }] : []),
+                      ...(selectedRow.values.region ? [{ label: "Region", value: String(selectedRow.values.region) }] : []),
+                    ]}
+                    metric={
+                      selectedRow.values.dealCount
+                        ? { label: "Deal count", value: String(selectedRow.values.dealCount) }
+                        : null
+                    }
+                  />
+                );
+              })()}
               {/*{isEditing ? renderDetailEditForm() : renderDetailView()}*/}
               {renderDetailEditForm()}
             </div>
