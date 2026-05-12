@@ -3,6 +3,8 @@ import { apiConnector } from "../apiConnector";
 import { practiceEndpoints } from "../apis";
 import type { Practice, PracticeBody, PracticeRow, PracticeViewData } from "../../components/practices/types";
 
+export type { Practice, PracticeBody, PracticeRow, PracticeViewData };
+
 const { LIST, CREATE, GET, UPDATE, DELETE } = practiceEndpoints;
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {

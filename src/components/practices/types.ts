@@ -78,7 +78,7 @@ export type PracticeCellValue = string | number | PracticeUserValue | null;
 
 export type PracticeRow = {
   id: string;
-  values: Record<string, PracticeCellValue | Record<string, string | undefined>>;
+  values: Record<string, any>;
 };
 
 export type PaginationInfo = {
