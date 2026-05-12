@@ -17,7 +17,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import AppLayout from "../layout/AppLayout";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import type { AuditRow, Audit } from "./types";
 import {
   createAuditApi,
@@ -732,30 +732,29 @@ function AuditListView({
                 className="flex flex-1 flex-col overflow-hidden"
               >
                 <div className="flex-1 overflow-auto p-4">
-                  <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Practice</span>
-                      <span className="text-slate-700">
-                        {selectedAudit.practice?.name || "-"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Created</span>
-                      <span className="text-slate-700">
-                        {selectedAudit.createdAt
-                          ? new Date(selectedAudit.createdAt).toLocaleString()
-                          : "-"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Last Update</span>
-                      <span className="text-slate-700">
-                        {selectedAudit.updatedAt
-                          ? new Date(selectedAudit.updatedAt).toLocaleString()
-                          : "-"}
-                      </span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const aTypeColors: Record<string, string> = {
+                      COMPLIANCE: "bg-green-100 text-green-700",
+                      CODING: "bg-blue-100 text-blue-700",
+                      DOCUMENTATION: "bg-orange-100 text-orange-700",
+                      REVENUE_CYCLE: "bg-cyan-100 text-cyan-700",
+                      OPERATIONAL: "bg-purple-100 text-purple-700",
+                      SECURITY: "bg-red-100 text-red-700",
+                      QUALITY: "bg-indigo-100 text-indigo-700",
+                      FINANCIAL: "bg-yellow-100 text-yellow-700",
+                    };
+                    const auditType = selectedAudit?.type || String(selectedRow.values.type || "");
+                    return (
+                      <DetailCard
+                        title={`${auditType} Audit`}
+                        badge={auditType ? { label: auditType, className: aTypeColors[auditType] || "bg-gray-100 text-gray-700" } : null}
+                        infoRows={[
+                          ...(selectedAudit?.practice?.name ? [{ label: "Practice", value: selectedAudit.practice.name }] : []),
+                          ...(selectedAudit?.score !== null && selectedAudit?.score !== undefined ? [{ label: "Score", value: String(selectedAudit.score) }] : []),
+                        ]}
+                      />
+                    );
+                  })()}
 
                   <div className="space-y-4">
                     <div>

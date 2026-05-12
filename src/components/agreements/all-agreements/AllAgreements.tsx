@@ -55,6 +55,7 @@ import { getAllPractices } from "../../../services/operations/practices";
 import { getAllServices } from "../../../services/operations/services";
 import { getAllVendorsApi } from "../../../services/operations/vendors";
 import type { Practice } from "../../practices/types";
+import { DetailCard } from "../../../components/shared/tablePageUtils";
 
 const statusStyles: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
@@ -743,32 +744,28 @@ function AllAgreementsPage() {
               className="flex flex-1 flex-col overflow-hidden"
             >
               <div className="flex-1 overflow-auto p-4">
-                <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Practice</span>
-                    <span className="text-right text-slate-700">
-                      {selectedAgreement.practice?.name || "-"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Deal</span>
-                    <span className="text-right text-slate-700">
-                      {selectedAgreement.deal?.name || "-"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Created</span>
-                    <span className="text-right text-slate-700">
-                      {formatDateTime(selectedAgreement.createdAt)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Last Update</span>
-                    <span className="text-right text-slate-700">
-                      {formatDateTime(selectedAgreement.updatedAt)}
-                    </span>
-                  </div>
-                </div>
+                  {(() => {
+                    const aStatusStyles: Record<string, string> = {
+                      DRAFT: "bg-slate-100 text-slate-700",
+                      ACTIVE: "bg-green-100 text-green-700",
+                      PENDING_SIGNATURE: "bg-amber-100 text-amber-700",
+                      SIGNED: "bg-blue-100 text-blue-700",
+                      EXPIRED: "bg-red-100 text-red-700",
+                      ARCHIVED: "bg-zinc-100 text-zinc-600",
+                    };
+                    const agStatus = selectedAgreement?.status || "";
+                    return (
+                      <DetailCard
+                        title={selectedAgreement?.type || "Agreement"}
+                        badge={agStatus ? { label: agStatus, className: aStatusStyles[agStatus] || "bg-gray-100 text-gray-700" } : null}
+                        infoRows={[
+                          ...(selectedAgreement?.practice?.name ? [{ label: "Practice", value: selectedAgreement.practice.name }] : []),
+                          ...(selectedAgreement?.deal?.name ? [{ label: "Deal", value: selectedAgreement.deal.name }] : []),
+                          ...(selectedAgreement?.value ? [{ label: "Value", value: String(selectedAgreement.value) }] : []),
+                        ]}
+                      />
+                    );
+                  })()}
 
                 <div className="space-y-4">
                   <div>

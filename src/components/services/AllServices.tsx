@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import AppLayout from "../layout/AppLayout";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import type { ServiceRow, Service } from "./types";
 import {
   createServiceApi,
@@ -565,24 +565,14 @@ function AllServicesPage() {
                 className="flex flex-1 flex-col overflow-hidden"
               >
                 <div className="flex-1 overflow-auto p-4">
-                  <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Created</span>
-                      <span className="text-slate-700">
-                        {selectedService.createdAt
-                          ? new Date(selectedService.createdAt).toLocaleString()
-                          : "-"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Last Update</span>
-                      <span className="text-slate-700">
-                        {selectedService.updatedAt
-                          ? new Date(selectedService.updatedAt).toLocaleString()
-                          : "-"}
-                      </span>
-                    </div>
-                  </div>
+                  <DetailCard
+                    title={selectedService?.name || String(selectedRow.values.name)}
+                    badge={selectedService ? { label: selectedService.isActive ? "Active" : "Inactive", className: selectedService.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700" } : null}
+                    infoRows={[
+                      ...(selectedService?.code ? [{ label: "Code", value: selectedService.code }] : []),
+                      ...(selectedService?.category ? [{ label: "Category", value: selectedService.category }] : []),
+                    ]}
+                  />
 
                   <div className="space-y-4">
                     <div>

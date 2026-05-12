@@ -32,7 +32,7 @@ import { getAllServices } from "../../services/operations/services";
 import type { MonthlyReportRow, MonthlyReport } from "./types";
 import type { Practice } from "../practices/types";
 import type { Service } from "../services/types";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 
 const statusStyles: Record<string, string> = {
   Submitted: "bg-emerald-100 text-emerald-700",
@@ -654,51 +654,14 @@ function MonthlyReportingDashboard() {
                     className="flex flex-1 flex-col overflow-hidden"
                   >
                     <div className="flex-1 overflow-auto p-4">
-                      <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Practice</span>
-                          <span className="text-right text-slate-700">
-                            {selectedReport.practiceName}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Service</span>
-                          <span className="text-right text-slate-700">
-                            {selectedReport.serviceName}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Status</span>
-                          <span
-                            className={`inline-block rounded-full px-2.5 py-0.5 text-[12px] font-medium ${
-                              statusStyles[selectedReport.status] ??
-                              "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {selectedReport.status}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Submitted By</span>
-                          <span className="text-right text-slate-700">
-                            {selectedReport.submittedBy || "-"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Due Date</span>
-                          <span className="text-right text-slate-700">
-                            {selectedReport.dueDate || "-"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Created</span>
-                          <span className="text-right text-slate-700">
-                            {new Date(
-                              selectedReport.createdAt,
-                            ).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
+                      <DetailCard
+                        title={`${selectedReport.practiceName} - ${selectedReport.serviceName}`}
+                        badge={selectedReport.status ? { label: selectedReport.status, className: statusStyles[selectedReport.status] ?? "bg-slate-100 text-slate-600" } : null}
+                        infoRows={[
+                          ...(selectedReport.submittedBy ? [{ label: "Submitted By", value: selectedReport.submittedBy }] : []),
+                          ...(selectedReport.dueDate ? [{ label: "Due Date", value: selectedReport.dueDate }] : []),
+                        ]}
+                      />
 
                       <div className="space-y-4">
                         <div>

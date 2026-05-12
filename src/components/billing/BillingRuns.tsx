@@ -24,7 +24,7 @@ import toast from "react-hot-toast";
 import type { Practice } from "../practices/types";
 import type { Service } from "../services/types";
 import AppLayout from "../layout/AppLayout";
-import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import { getAllInvoices, type Invoice } from "../../services/operations/invoices";
 import { getAllPractices } from "../../services/operations/practices";
 import { getAllServices } from "../../services/operations/services";
@@ -603,41 +603,15 @@ function BillingRunsPage() {
           </div>
 
           <div className="flex-1 overflow-auto p-4">
-            <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Status</span>
-                <span
-                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[selectedRun.status]}`}
-                >
-                  {formatStatusLabel(selectedRun.status)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Period</span>
-                <span className="text-right text-slate-700">
-                  {formatDateTime(selectedRun.periodStart).split(",")[0]} -{" "}
-                  {formatDateTime(selectedRun.periodEnd).split(",")[0]}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Snapshots</span>
-                <span className="text-slate-700">
-                  {selectedRun.inputSnapshots?.length || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Calculated Items</span>
-                <span className="text-slate-700">
-                  {selectedRun.items?.length || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Approved At</span>
-                <span className="text-right text-slate-700">
-                  {formatDateTime(selectedRun.approvedAt)}
-                </span>
-              </div>
-            </div>
+              <DetailCard
+                title={selectedRun?.practice?.name || "Billing Run"}
+                badge={selectedRun?.status ? { label: formatStatusLabel(selectedRun.status), className: statusStyles[selectedRun.status] } : null}
+                infoRows={[
+                  { label: "Period", value: `${formatDateTime(selectedRun.periodStart).split(",")[0]} - ${formatDateTime(selectedRun.periodEnd).split(",")[0]}` },
+                  ...(selectedRun.approvedAt ? [{ label: "Approved At", value: formatDateTime(selectedRun.approvedAt) }] : []),
+                ]}
+                metric={{ label: "Snapshots", value: String(selectedRun.inputSnapshots?.length || 0) }}
+              />
 
             <div className="space-y-5 text-[13px]">
               <div>
