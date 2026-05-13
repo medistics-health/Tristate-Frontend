@@ -127,6 +127,8 @@ export type Agreement = {
   practice?: { id: string; name: string };
   deal?: { id: string; name: string };
   docusealSubmissions?: DocusealSubmission[];
+  versions?: AgreementVersion[];
+  serviceTerms?: AgreementServiceTerm[];
 };
 
 export function getAgreementDocusealId(agreement: Agreement): number[] | null {

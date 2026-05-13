@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { DollarSign, RefreshCw, FileText, CheckCircle, Clock, Check, Plus, X } from "lucide-react";
+import { DollarSign, RefreshCw, FileText, CheckCircle, Clock, Check, Plus, X, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import {
   getVendorPayables,
   releasePayable,
   syncPayableToQuickBooks,
+  syncBillPaymentToQuickBooks,
   generatePayableStatement,
   createVendorPayable,
+  deletePayable,
   type VendorPayable,
 } from "../../services/operations/payables";
 import { getAllVendors, type Vendor } from "../../services/operations/vendors";
@@ -122,6 +124,19 @@ export default function VendorPayableDashboard() {
     }
   }
 
+  async function handleSyncPayment(id: string) {
+    try {
+      setActionState(id, "syncPayment", true);
+      await syncBillPaymentToQuickBooks(id);
+      toast.success("Bill payment synced to QuickBooks successfully.");
+      await loadPayables(pagination.page);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to sync bill payment.");
+    } finally {
+      setActionState(id, "syncPayment", false);
+    }
+  }
+
   async function handleGenerateStatement(id: string) {
     try {
       setActionState(id, "statement", true);
@@ -132,6 +147,20 @@ export default function VendorPayableDashboard() {
       toast.error(error instanceof Error ? error.message : "Failed to generate statement.");
     } finally {
       setActionState(id, "statement", false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("Are you sure you want to delete this payable?")) return;
+    try {
+      setActionState(id, "delete", true);
+      await deletePayable(id);
+      toast.success("Payable deleted successfully.");
+      await loadPayables(pagination.page);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete payable.");
+    } finally {
+      setActionState(id, "delete", false);
     }
   }
 
@@ -160,22 +189,22 @@ export default function VendorPayableDashboard() {
 
   return (
     <AppLayout title="Vendor Payables" activeModule="Vendors" activeSubItem="Vendor Payables">
-      <div className="flex h-full flex-col p-6 max-w-7xl mx-auto w-full">
-        <div className="flex items-center justify-between border-b border-[#ece8e1] bg-white px-6 py-4 shadow-sm z-10">
+      <div className="flex h-full flex-col   mx-auto w-full">
+        <div className="flex items-center justify-between  bg-white px-6 py-4 shadow-sm z-10">
           <div>
             <h1 className="text-lg font-bold text-slate-800 tracking-tight">Vendor Payables</h1>
             <p className="text-[13px] text-slate-500">Manage vendor splits, releases, and QuickBooks sync.</p>
           </div>
-          <button
+          {/* <button
             onClick={() => setIsCreateModalOpen(true)}
             className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition-all"
           >
             <Plus className="h-4 w-4" />
             Add Payable
-          </button>
+          </button> */}
         </div>
 
-        <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col">
+        <div className="flex-1 overflow-hidden  border border-slate-200 bg-white shadow-sm flex flex-col">
           <div className="flex-1 overflow-auto">
             <table className="w-full text-left text-sm text-slate-600 border-separate border-spacing-0">
               <thead className="sticky top-0 bg-[#f8fafc] text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200 z-10">
@@ -202,7 +231,8 @@ export default function VendorPayableDashboard() {
                   </tr>
                 ) : (
                   payables.map((payable) => {
-                    const isApproved = payable.status === "APPROVED" || payable.status === "PAID";
+                    const isReleased = payable.status === "RELEASED" || payable.status === "PAID" || (payable.status === "APPROVED" && !!payable.releasedAt);
+                    const isApproved = isReleased || (payable.status === "APPROVED");
 
                     return (
                       <tr key={payable.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -229,8 +259,8 @@ export default function VendorPayableDashboard() {
                         <td className="px-6 py-5 align-top w-[180px]">
                           <div className="flex flex-col items-start gap-2.5">
                             <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${getStatusStyle(payable.status)} shadow-sm`}>
-                              {isApproved ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                              {payable.status === "DRAFT" ? "ON HOLD" : payable.status.replace(/_/g, " ")}
+                              {isReleased ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                              {payable.status === "DRAFT" || (payable.status === "APPROVED" && !payable.releasedAt) ? "ON HOLD" : payable.status.replace(/_/g, " ")}
                             </span>
                             <div className="flex flex-col gap-0.5">
                               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -246,17 +276,17 @@ export default function VendorPayableDashboard() {
                           <div className="flex items-center justify-end gap-2.5">
                             <button
                               onClick={() => handleRelease(payable.id)}
-                              disabled={isApproved || isAnyActionLoading(payable.id)}
+                              disabled={isReleased || isAnyActionLoading(payable.id)}
                               className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
                             >
                               {isActionLoading(payable.id, "release") ? (
                                 <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-400" />
-                              ) : isApproved ? (
+                              ) : isReleased ? (
                                 <Check className="h-4 w-4 text-green-500" />
                               ) : (
                                 <DollarSign className="h-4 w-4 text-emerald-500" />
                               )}
-                              {isApproved ? "Released" : "Release"}
+                              {isReleased ? "Released" : "Release"}
                             </button>
 
                             <button
@@ -269,25 +299,66 @@ export default function VendorPayableDashboard() {
                               ) : (
                                 <FileText className="h-4 w-4 text-blue-500" />
                               )}
-                              Statement
+                              <div className="flex flex-col items-start leading-none gap-0 text-left">
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">View</span>
+                                <span className="text-[12px] font-extrabold uppercase text-slate-700">Stmt</span>
+                              </div>
                             </button>
 
                             <button
                               onClick={() => handleSync(payable.id)}
                               disabled={isAnyActionLoading(payable.id) || !!payable.quickbooksBillId}
                               className={`inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-[12px] font-bold transition-all shadow-sm ${payable.quickbooksBillId
-                                  ? "bg-emerald-50 border-emerald-100 text-emerald-700"
-                                  : "bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-200"
+                                ? "bg-emerald-50 border-emerald-100 text-emerald-700"
+                                : "bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-200"
                                 } disabled:opacity-50 disabled:cursor-not-allowed`}
+                              title={payable.quickbooksBillId ? "Synced to QB" : "Sync Bill to QB"}
                             >
                               {isActionLoading(payable.id, "sync") ? (
                                 <RefreshCw className="h-4 w-4 animate-spin" />
-                              ) : payable.quickbooksBillId ? (
-                                <CheckCircle className="h-4 w-4" />
                               ) : (
                                 <RefreshCw className="h-4 w-4" />
                               )}
-                              {payable.quickbooksBillId ? "Synced" : "Sync QB"}
+                              <div className="flex flex-col items-start leading-none gap-0 text-left">
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Sync</span>
+                                <span className="text-[12px] font-extrabold uppercase">{payable.quickbooksBillId ? "Synced" : "Inv"}</span>
+                              </div>
+                            </button>
+
+                            {/* Bill Payment Sync */}
+                            {payable.status === "PAID" && (
+                              <button
+                                onClick={() => handleSyncPayment(payable.id)}
+                                disabled={isAnyActionLoading(payable.id) || !!payable.quickbooksBillPaymentId}
+                                className={`inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-[12px] font-bold transition-all shadow-sm ${payable.quickbooksBillPaymentId
+                                  ? "bg-emerald-50 border-emerald-100 text-emerald-700"
+                                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                title={payable.quickbooksBillPaymentId ? "Payment Synced" : "Sync Payment to QB"}
+                              >
+                                {isActionLoading(payable.id, "syncPayment") ? (
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle className={`h-4 w-4 ${payable.quickbooksBillPaymentId ? "text-emerald-500" : "text-slate-400"}`} />
+                                )}
+                                <div className="flex flex-col items-start leading-none gap-0 text-left">
+                                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Sync</span>
+                                  <span className="text-[12px] font-extrabold uppercase">{payable.quickbooksBillPaymentId ? "Synced" : "Pmt"}</span>
+                                </div>
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => handleDelete(payable.id)}
+                              disabled={isAnyActionLoading(payable.id)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-red-50 hover:text-red-500 hover:border-red-100 disabled:opacity-50 transition-all shadow-sm"
+                              title="Delete Payable"
+                            >
+                              {isActionLoading(payable.id, "delete") ? (
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
                             </button>
                           </div>
                         </td>
@@ -522,7 +593,8 @@ export default function VendorPayableDashboard() {
           </div>
         </div>
       )}
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @media print {
           /* Hide everything by default */
           body * { visibility: hidden !important; }

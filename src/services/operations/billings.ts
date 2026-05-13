@@ -374,3 +374,16 @@ export async function recordPaymentApi(data: RecordPaymentBody) {
     throw new Error(getErrorMessage(error, "Unable to record payment."));
   }
 }
+
+export async function deleteBillingRunApi(id: string) {
+  try {
+    const response = await apiConnector({
+      method: "DELETE",
+      url: `${LIST_RUNS}/${id}`,
+      credentials: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to delete billing run."));
+  }
+}

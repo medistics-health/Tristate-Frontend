@@ -41,11 +41,15 @@ export type SyncLogsResponse = {
   };
 };
 
-export async function getSyncLogs(page = 1, limit = 20): Promise<SyncLogsResponse> {
+export async function getSyncLogs(page = 1, limit = 20, companyId?: string): Promise<SyncLogsResponse> {
   try {
+    let url = `${quickbooksEndpoints.GET_LOGS}?page=${page}&limit=${limit}`;
+    if (companyId) {
+      url += `&companyId=${companyId}`;
+    }
     const response = await apiConnector({
       method: "GET",
-      url: `${quickbooksEndpoints.GET_LOGS}?page=${page}&limit=${limit}`,
+      url,
       credentials: true,
     });
     return response.data as SyncLogsResponse;

@@ -31,7 +31,9 @@ export type VendorPayable = {
   practice: { id: string; name: string };
   createdAt: string;
   updatedAt: string;
+  releasedAt?: string | null;
   quickbooksBillId?: string | null;
+  quickbooksBillPaymentId?: string | null;
 };
 
 export type VendorPayablesResponse = {
@@ -112,5 +114,30 @@ export async function createVendorPayable(data: {
     return (response.data as { payable: VendorPayable }).payable;
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to create vendor payable."));
+  }
+}
+
+export async function deletePayable(id: string): Promise<void> {
+  try {
+    await apiConnector({
+      method: "DELETE",
+      url: `${BASE}/${id}`,
+      credentials: true,
+    });
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to delete payable."));
+  }
+}
+
+export async function syncBillPaymentToQuickBooks(id: string): Promise<any> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: `${BASE}/${id}/bill-payments/sync`,
+      credentials: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to sync bill payment to QuickBooks."));
   }
 }

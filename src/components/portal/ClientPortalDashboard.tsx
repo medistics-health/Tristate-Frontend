@@ -63,8 +63,8 @@ export default function ClientPortalDashboard() {
 
   return (
     <AppLayout title={`Portal: ${snapshot.practiceName}`} activeModule="Dashboard" activeSubItem="Client Portal">
-      <div className="flex h-full flex-col p-6 max-w-7xl mx-auto w-full space-y-6">
-        
+      <div className="flex h-full flex-col p-6 mx-auto w-full space-y-6">
+
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Welcome, {snapshot.practiceName}</h1>
@@ -184,8 +184,8 @@ export default function ClientPortalDashboard() {
         <div className="pt-4">
           <h2 className="text-lg font-bold text-slate-800 mb-6">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Link 
-              to="/invoice/all-invoices" 
+            <Link
+              to="/invoice/all-invoices"
               className="group flex flex-col items-start justify-between rounded-3xl border border-[#ece8e1] bg-white p-6 shadow-sm hover:border-[#4f63ea]/30 hover:shadow-xl hover:shadow-blue-500/5 transition-all"
             >
               <div className="flex items-center gap-4 mb-4">
@@ -200,8 +200,8 @@ export default function ClientPortalDashboard() {
               </div>
             </Link>
 
-            <Link 
-              to="/agreements/all-agreements" 
+            <Link
+              to="/agreements/all-agreements"
               className="group flex flex-col items-start justify-between rounded-3xl border border-[#ece8e1] bg-white p-6 shadow-sm hover:border-[#4f63ea]/30 hover:shadow-xl hover:shadow-blue-500/5 transition-all"
             >
               <div className="flex items-center gap-4 mb-4">
@@ -216,7 +216,7 @@ export default function ClientPortalDashboard() {
               </div>
             </Link>
 
-            <button 
+            <button
               onClick={() => toast.success("Support request opened! We will contact you shortly.")}
               className="group flex flex-col items-start justify-between rounded-3xl border border-[#ece8e1] bg-white p-6 shadow-sm hover:border-[#4f63ea]/30 hover:shadow-xl hover:shadow-blue-500/5 transition-all text-left"
             >

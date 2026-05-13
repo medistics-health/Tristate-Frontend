@@ -144,7 +144,7 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
     effectiveDate: formatDateForInput(agreement.effectiveDate),
     renewalDate: formatDateForInput(agreement.renewalDate),
     terminationDate: formatDateForInput(agreement.terminationDate),
-    docusealTemplates: agreement?.docusealSubmissions,
+    docusealTemplates: agreement?.docusealSubmissions || [],
   };
 }
 
@@ -220,6 +220,8 @@ function AllAgreementsPage() {
     serviceId: "",
     agreementVersionId: "",
     vendorId: "",
+    vendorFlatAmount: "",
+    vendorPercentOfClient: "",
     pricingModel: "PER_PATIENT" as PricingModel,
     pricingConfig: "{}",
     currency: "USD",
@@ -606,7 +608,7 @@ function AllAgreementsPage() {
       const result = await createDocusealSubmissionApi({
         agreementId: selectedAgreement.id,
         personId: selectedSignerId,
-        templateId: String(docusealId),
+        templateId: docusealId,
       });
 
       if (result.submission?.embedUrl) {
@@ -1195,6 +1197,8 @@ function AllAgreementsPage() {
                       serviceId: "",
                       agreementVersionId: "",
                       vendorId: "",
+                      vendorFlatAmount: "",
+                      vendorPercentOfClient: "",
                       pricingModel: "PER_PATIENT" as PricingModel,
                       pricingConfig: "{}",
                       currency: "USD",
@@ -1223,13 +1227,20 @@ function AllAgreementsPage() {
                     }
                     setIsSavingTerm(true);
                     try {
+                      const parsedConfig = JSON.parse(termForm.pricingConfig || "{}");
+                      const finalConfig = {
+                        ...parsedConfig,
+                        vendorFlatAmount: termForm.vendorFlatAmount ? parseFloat(termForm.vendorFlatAmount) : undefined,
+                        vendorPercentOfClient: termForm.vendorPercentOfClient ? parseFloat(termForm.vendorPercentOfClient) : undefined,
+                      };
+
                       if (editingTermId) {
                         await updateAgreementServiceTermApi(editingTermId, {
                           serviceId: termForm.serviceId,
                           agreementVersionId: termForm.agreementVersionId,
                           vendorId: termForm.vendorId || null,
                           pricingModel: termForm.pricingModel,
-                          pricingConfig: JSON.parse(termForm.pricingConfig),
+                          pricingConfig: finalConfig,
                           currency: termForm.currency,
                           priority: termForm.priority,
                           minimumFee: termForm.minimumFee
@@ -1252,7 +1263,7 @@ function AllAgreementsPage() {
                           serviceId: termForm.serviceId,
                           vendorId: termForm.vendorId || null,
                           pricingModel: termForm.pricingModel,
-                          pricingConfig: JSON.parse(termForm.pricingConfig),
+                          pricingConfig: finalConfig,
                           currency: termForm.currency,
                           priority: termForm.priority,
                           minimumFee: termForm.minimumFee
@@ -1323,7 +1334,7 @@ function AllAgreementsPage() {
                       required
                     >
                       <option value="">Select Agreement Version</option>
-                      {selectedAgreement.versions.map((s) => (
+                      {selectedAgreement?.versions?.map((s: any) => (
                         <option key={s.id} value={s.id}>
                           Version: {s.versionNumber}
                         </option>
@@ -1392,6 +1403,53 @@ function AllAgreementsPage() {
                       placeholder='{"rate": 100}'
                     />
                   </div>
+
+                  {termForm.vendorId && (
+                    <div className="rounded-lg border border-indigo-100 bg-indigo-50/30 p-3 space-y-3">
+                      <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">Vendor Payout Config</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                            Vendor Flat Amount ($)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={termForm.vendorFlatAmount}
+                            onChange={(e) =>
+                              setTermForm((prev) => ({
+                                ...prev,
+                                vendorFlatAmount: e.target.value,
+                              }))
+                            }
+                            className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                            placeholder="e.g. 3000"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                            Vendor % of Client
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={termForm.vendorPercentOfClient}
+                            onChange={(e) =>
+                              setTermForm((prev) => ({
+                                ...prev,
+                                vendorPercentOfClient: e.target.value,
+                              }))
+                            }
+                            className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                            placeholder="e.g. 70"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-400 italic">
+                        Note: Leave both empty if vendor pricing is defined inside the JSON config above.
+                      </p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1 block text-[12px] font-medium text-slate-700">
@@ -1547,17 +1605,17 @@ function AllAgreementsPage() {
                               type="button"
                               onClick={() => {
                                 setEditingTermId(term.id);
+                                const config = (term.pricingConfig as any) || {};
                                 setTermForm({
                                   serviceId: term.serviceId,
-                                  agreementVersionId: term.agreementVersionId,
+                                  agreementVersionId: term.agreementVersionId || "",
                                   vendorId: term.vendorId || "",
-                                  pricingModel:
-                                    term.pricingModel as PricingModel,
-                                  pricingConfig: JSON.stringify(
-                                    term.pricingConfig || {},
-                                  ),
-                                  currency: term.currency,
-                                  priority: term.priority,
+                                  vendorFlatAmount: config.vendorFlatAmount?.toString() || "",
+                                  vendorPercentOfClient: config.vendorPercentOfClient?.toString() || "",
+                                  pricingModel: term.pricingModel as PricingModel,
+                                  pricingConfig: JSON.stringify(config),
+                                  currency: term.currency || "USD",
+                                  priority: term.priority || 1,
                                   minimumFee: term.minimumFee?.toString() || "",
                                   effectiveDate: term.effectiveDate
                                     ? new Date(term.effectiveDate)
@@ -1569,7 +1627,7 @@ function AllAgreementsPage() {
                                         .toISOString()
                                         .slice(0, 10)
                                     : "",
-                                  isActive: term.isActive,
+                                  isActive: !!term.isActive,
                                   externalReference:
                                     term.externalReference || "",
                                 });

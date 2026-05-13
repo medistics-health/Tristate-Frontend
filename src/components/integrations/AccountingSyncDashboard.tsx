@@ -3,11 +3,9 @@ import { RefreshCw, AlertCircle, CheckCircle2, Clock, CalendarDays } from "lucid
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import {
+  getQuickBooksStatus,
   getSyncLogs,
   retrySyncJob,
-  connectQuickBooks,
-  getQuickBooksStatus,
-  disconnectQuickBooks,
   type ExternalSyncJob,
 } from "../../services/operations/quickbooks";
 import { getAllCompanies, type Company } from "../../services/operations/companies";
@@ -27,7 +25,7 @@ export default function AccountingSyncDashboard() {
   async function loadLogs(page = 1) {
     try {
       setIsLoading(true);
-      const data = await getSyncLogs(page, pagination.limit);
+      const data = await getSyncLogs(page, pagination.limit, selectedCompanyId);
       setLogs(data.logs);
       setPagination(data.pagination);
     } catch (error) {
@@ -41,32 +39,35 @@ export default function AccountingSyncDashboard() {
     loadLogs(1);
     loadCompanies();
 
-    // Listen for QuickBooks connection success from popup
     const handleMessage = (event: MessageEvent) => {
       if (event.data === 'qb-connected') {
         toast.success("QuickBooks connected successfully!");
-        if (selectedCompanyId) {
-          checkConnectionStatus(selectedCompanyId);
-        } else {
-          loadCompanies(); // Re-load to get the status for the first company
-        }
+        loadCompanies();
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
+  }, []); // Run once on mount
+
+  // Check status and refresh logs ONLY when company selection changes
+  useEffect(() => {
+    if (selectedCompanyId) {
+      checkConnectionStatus(selectedCompanyId);
+      loadLogs(1); // Refresh logs for the newly selected company
+    }
   }, [selectedCompanyId]);
 
   async function loadCompanies() {
     try {
       const data = await getAllCompanies();
       setCompanies(data);
-      if (data.length > 0) {
+      // Only auto-select the first one if we don't have a selection yet
+      if (data.length > 0 && !selectedCompanyId) {
         setSelectedCompanyId(data[0].id);
-        checkConnectionStatus(data[0].id);
       }
     } catch (error) {
-      console.error("Failed to load companies", error);
+      toast.error("Failed to load companies.");
     }
   }
 
@@ -88,38 +89,7 @@ export default function AccountingSyncDashboard() {
     }
   }
 
-  async function handleConnect() {
-    if (!selectedCompanyId) return;
-    try {
-      const { authUrl } = await connectQuickBooks(selectedCompanyId);
-      // Open in a popup window instead of redirecting the current page
-      const width = 600;
-      const height = 700;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-      
-      window.open(
-        authUrl, 
-        'QuickBooks', 
-        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Connection failed.");
-    }
-  }
-
-  async function handleDisconnect() {
-    if (!selectedCompanyId) return;
-    if (!confirm("Are you sure you want to disconnect this company from QuickBooks?")) return;
-    try {
-      await disconnectQuickBooks(selectedCompanyId);
-      toast.success("Disconnected successfully.");
-      checkConnectionStatus(selectedCompanyId);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Disconnect failed.");
-    }
-  }
-
+  // Handlers for sync logs
   async function handleRetry(jobId: string) {
     try {
       setIsRetryingMap(prev => ({ ...prev, [jobId]: true }));
@@ -202,8 +172,8 @@ export default function AccountingSyncDashboard() {
 
   return (
     <AppLayout title="Accounting Sync" activeModule="Integrations" activeSubItem="Accounting Sync">
-      <div className="flex h-full flex-col p-6 max-w-7xl mx-auto w-full">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex h-full flex-col mx-auto w-full">
+        <div className="flex items-center justify-between  bg-white px-6 py-4 shadow-sm z-10">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 tracking-tight">QuickBooks Sync Log</h1>
             <p className="mt-1 text-sm text-slate-500">Monitor and manage bidirectional syncs with QuickBooks Online.</p>
@@ -224,65 +194,34 @@ export default function AccountingSyncDashboard() {
               <AlertCircle className="h-4 w-4" />
               Retry Failed ({failedCount})
             </button>
-          </div>
-        </div>
-
-        {/* Connection Management */}
-        <div className="mb-8 rounded-xl border border-indigo-100 bg-indigo-50/30 p-6">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm border border-indigo-100">
-                <img src="https://quickbooks.intuit.com/cas/dam/IMAGE/A8u8GvpJS/apple-touch-icon-152x152.png" alt="QB" className="h-6 w-6" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-800">QuickBooks Connection</h2>
-                <p className="text-xs text-slate-500">Connect a company to enable automated accounting sync.</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="w-64">
+              <div className="flex-1 max-w-xs relative">
                 <select
                   value={selectedCompanyId}
-                  onChange={(e) => {
-                    setSelectedCompanyId(e.target.value);
-                    checkConnectionStatus(e.target.value);
-                  }}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  onChange={(e) => setSelectedCompanyId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 outline-none transition-all focus:border-indigo-500 shadow-sm"
                 >
-                  <option value="">Select a Company</option>
-                  {companies.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                  <option value="">Filter by Company</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
                   ))}
                 </select>
               </div>
-
-              {isStatusLoading ? (
-                <div className="text-sm text-slate-400 animate-pulse">Checking status...</div>
-              ) : connectionStatus?.isConnected ? (
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600 border border-emerald-100">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    CONNECTED ({connectionStatus.realmId})
-                  </div>
-                  <button
-                    onClick={handleDisconnect}
-                    className="text-xs font-bold text-red-600 hover:text-red-700 underline underline-offset-4"
-                  >
-                    Disconnect
-                  </button>
+              {selectedCompanyId && connectionStatus?.isConnected && (
+                <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-600 border border-emerald-100 shadow-sm">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Connected to QB
                 </div>
-              ) : (
-                <button
-                  onClick={handleConnect}
-                  disabled={!selectedCompanyId}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#2ca01c] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#258a17] focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
-                >
-                  Connect to QuickBooks
-                </button>
               )}
             </div>
           </div>
+
         </div>
+
+        {/* Company Selector */}
+
 
         <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col">
           <div className="flex-1 overflow-auto">
