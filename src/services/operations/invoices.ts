@@ -85,6 +85,7 @@ export type InvoiceRow = {
     lastUpdate: string;
     invoiceNumber: string;
     quickbooksInvoiceId?: string | null;
+    quickbooksPaymentId?: string | null;
   };
 };
 
@@ -183,6 +184,7 @@ function invoiceToRow(invoice: Invoice): InvoiceRow {
       lastUpdate: formatDateTime(invoice.updatedAt),
       invoiceNumber: invoice.invoiceNumber,
       quickbooksInvoiceId: invoice.quickbooksInvoiceId,
+      quickbooksPaymentId: invoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId || null,
     },
   };
 }
@@ -374,5 +376,19 @@ export async function syncPaymentToQuickBooks(paymentId: string): Promise<any> {
     return response.data;
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to sync payment to QuickBooks."));
+  }
+}
+
+export async function quickSyncInvoicePayment(invoiceId: string): Promise<any> {
+  try {
+    const { quickbooksEndpoints } = await import("../apis");
+    const response = await apiConnector({
+      method: "POST",
+      url: quickbooksEndpoints.GET_LOGS.replace("/sync-logs", `/invoices/${invoiceId}/quick-sync-payment`),
+      credentials: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to quick-sync payment to QuickBooks."));
   }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DollarSign, RefreshCw, FileText, CheckCircle, Clock, Check, Plus, X, Trash2 } from "lucide-react";
+import { DollarSign, RefreshCw, FileText, CheckCircle, Clock, Check, X, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import {
@@ -232,7 +232,6 @@ export default function VendorPayableDashboard() {
                 ) : (
                   payables.map((payable) => {
                     const isReleased = payable.status === "RELEASED" || payable.status === "PAID" || (payable.status === "APPROVED" && !!payable.releasedAt);
-                    const isApproved = isReleased || (payable.status === "APPROVED");
 
                     return (
                       <tr key={payable.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -326,7 +325,7 @@ export default function VendorPayableDashboard() {
                             </button>
 
                             {/* Bill Payment Sync */}
-                            {payable.status === "PAID" && (
+                            {isReleased && (
                               <button
                                 onClick={() => handleSyncPayment(payable.id)}
                                 disabled={isAnyActionLoading(payable.id) || !!payable.quickbooksBillPaymentId}
@@ -529,7 +528,7 @@ export default function VendorPayableDashboard() {
                     <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Remit To (Vendor)</h5>
                     <div className="space-y-1">
                       <p className="font-bold text-slate-800 text-lg">{previewPayable.vendor?.name}</p>
-                      <p className="text-sm text-slate-500">{previewPayable.vendor?.remitEmail || "billing@vendor.com"}</p>
+                      <p className="text-sm text-slate-500">{(previewPayable.vendor as any)?.remitEmail || "billing@vendor.com"}</p>
                       <p className="text-sm text-slate-500">Vendor ID: {previewPayable.vendorId.slice(0, 8)}</p>
                     </div>
                   </div>

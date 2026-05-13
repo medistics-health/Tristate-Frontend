@@ -17,7 +17,7 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
-export type VendorPayableStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "PAID" | "VOID";
+export type VendorPayableStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "RELEASED" | "PAID" | "VOID";
 
 export type VendorPayable = {
   id: string;
@@ -27,7 +27,7 @@ export type VendorPayable = {
   totalAmount: string | number;
   status: VendorPayableStatus;
   releasePolicy: string;
-  vendor: { id: string; name: string };
+  vendor: { id: string; name: string; remitEmail?: string | null | undefined };
   practice: { id: string; name: string };
   createdAt: string;
   updatedAt: string;
