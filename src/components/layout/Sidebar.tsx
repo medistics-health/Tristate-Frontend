@@ -72,6 +72,11 @@ const sidebarSections: SidebarSection[] = [
         icon: <Building2 className="h-3 w-3" />,
         to: "/company/all-companies",
       },
+      {
+        label: "Lead",
+        icon: <Target className="h-3 w-3" />,
+        to: "/lead/create",
+      },
       // { label: "Survey results" },
     ],
     menus: [
