@@ -60,6 +60,15 @@ export type Invoice = {
   stripeHostedInvoiceUrl?: string | null;
   stripeInvoicePdfUrl?: string | null;
   quickbooksInvoiceId?: string | null;
+  paymentAllocations?: Array<{
+    id: string;
+    allocatedAmount: number | string;
+    payment: {
+      id: string;
+      status: string;
+      quickbooksPaymentId?: string | null;
+    };
+  }>;
 };
 
 export type InvoiceRow = {
@@ -351,5 +360,19 @@ export async function syncInvoiceToQuickBooks(id: string): Promise<any> {
     return response.data;
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to sync to QuickBooks."));
+  }
+}
+
+export async function syncPaymentToQuickBooks(paymentId: string): Promise<any> {
+  try {
+    const { quickbooksEndpoints } = await import("../apis");
+    const response = await apiConnector({
+      method: "POST",
+      url: quickbooksEndpoints.GET_LOGS.replace("/sync-logs", `/payments/${paymentId}/sync`),
+      credentials: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to sync payment to QuickBooks."));
   }
 }

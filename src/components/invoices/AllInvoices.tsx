@@ -35,6 +35,7 @@ import {
   updateInvoiceApi,
   resendStripeInvoice,
   syncInvoiceToQuickBooks,
+  syncPaymentToQuickBooks,
   type Invoice,
   type InvoiceBody,
   type InvoiceRow,
@@ -457,6 +458,18 @@ function AllInvoicePage() {
     }
   }
 
+  async function handleSyncPaymentToQB(paymentId: string, invoiceId: string) {
+    try {
+      setActionState(invoiceId, "syncPayment", true);
+      await syncPaymentToQuickBooks(paymentId);
+      toast.success("Payment synced to QuickBooks successfully.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to sync payment to QuickBooks.");
+    } finally {
+      setActionState(invoiceId, "syncPayment", false);
+    }
+  }
+
   async function handleResendInvoice() {
     if (!resendInvoiceId) return;
     try {
@@ -507,33 +520,33 @@ function AllInvoicePage() {
           className="flex flex-1 flex-col overflow-hidden"
         >
           <div className="flex-1 overflow-auto p-4">
-              {(() => {
-                const invStatusColors: Record<string, string> = {
-                  DRAFT: "bg-slate-100 text-slate-700",
-                  SENT: "bg-blue-100 text-blue-700",
-                  PAID: "bg-green-100 text-green-700",
-                  PARTIALLY_PAID: "bg-amber-100 text-amber-700",
-                  OVERDUE: "bg-red-100 text-red-700",
-                  CANCELLED: "bg-gray-100 text-gray-700",
-                };
-                const invStatus = selectedInvoice?.status || "";
-                return (
-                  <DetailCard
-                    title={selectedInvoice?.invoiceNumber || "Invoice"}
-                    badge={invStatus ? { label: invStatus, className: invStatusColors[invStatus] || "bg-gray-100 text-gray-700" } : null}
-                    infoRows={[
-                      ...(selectedInvoice?.practice?.name ? [{ label: "Practice", value: selectedInvoice.practice.name }] : []),
-                      ...(selectedInvoice?.totalAmount ? [{ label: "Total Amount", value: String(selectedInvoice.totalAmount) }] : []),
-                      ...(selectedInvoice?.dueDate ? [{ label: "Due Date", value: new Date(selectedInvoice.dueDate).toLocaleDateString() }] : []),
-                    ]}
-                    metric={
-                      selectedInvoice?.lineItems?.length !== undefined
-                        ? { label: "Line Items", value: String(selectedInvoice.lineItems.length) }
-                        : null
-                    }
-                  />
-                );
-              })()}
+            {(() => {
+              const invStatusColors: Record<string, string> = {
+                DRAFT: "bg-slate-100 text-slate-700",
+                SENT: "bg-blue-100 text-blue-700",
+                PAID: "bg-green-100 text-green-700",
+                PARTIALLY_PAID: "bg-amber-100 text-amber-700",
+                OVERDUE: "bg-red-100 text-red-700",
+                CANCELLED: "bg-gray-100 text-gray-700",
+              };
+              const invStatus = selectedInvoice?.status || "";
+              return (
+                <DetailCard
+                  title={selectedInvoice?.invoiceNumber || "Invoice"}
+                  badge={invStatus ? { label: invStatus, className: invStatusColors[invStatus] || "bg-gray-100 text-gray-700" } : null}
+                  infoRows={[
+                    ...(selectedInvoice?.practice?.name ? [{ label: "Practice", value: selectedInvoice.practice.name }] : []),
+                    ...(selectedInvoice?.totalAmount ? [{ label: "Total Amount", value: String(selectedInvoice.totalAmount) }] : []),
+                    ...(selectedInvoice?.dueDate ? [{ label: "Due Date", value: new Date(selectedInvoice.dueDate).toLocaleDateString() }] : []),
+                  ]}
+                  metric={
+                    selectedInvoice?.lineItems?.length !== undefined
+                      ? { label: "Line Items", value: String(selectedInvoice.lineItems.length) }
+                      : null
+                  }
+                />
+              );
+            })()}
 
             <div className="space-y-4">
               {/*<div>
@@ -667,7 +680,7 @@ function AllInvoicePage() {
             />
           </div>
 
-          <div className="flex items-center gap-2 border-t border-[#f1f5f9] px-3 py-3 bg-white sticky bottom-0 z-20 overflow-hidden">
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-[#f1f5f9] px-2 py-3 bg-white sticky bottom-0 z-20">
             {/* Resend Button */}
             <button
               type="button"
@@ -680,10 +693,11 @@ function AllInvoicePage() {
               disabled={isResending}
               className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#e2e8f0] bg-white px-2.5 text-[12px] font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:opacity-50 shadow-sm"
             >
-              <RefreshCw
-                className={`h-4 w-4 shrink-0 text-slate-400 ${isResending ? "animate-spin" : ""}`}
-              />
-              <span className="whitespace-nowrap">Resend</span>
+              <RefreshCw className={`h-4 w-4 shrink-0 text-slate-400 ${isResending ? "animate-spin" : ""}`} />
+              <div className="flex flex-col items-start leading-none gap-0 text-left">
+                <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Resend</span>
+                <span className="text-[12px] font-extrabold text-slate-800 uppercase">Inv</span>
+              </div>
             </button>
 
             {/* Sync QB Button */}
@@ -694,6 +708,7 @@ function AllInvoicePage() {
               }
               disabled={isActionLoading(selectedInvoice?.id || "", "sync")}
               className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#e2e8f0] bg-white px-2.5 transition-all hover:bg-slate-50 disabled:opacity-50 shadow-sm"
+              title="Sync Invoice to QuickBooks"
             >
               <img
                 src="https://quickbooks.intuit.com/cas/dam/IMAGE/A8u8GvpJS/apple-touch-icon-152x152.png"
@@ -701,14 +716,33 @@ function AllInvoicePage() {
                 className="h-4 w-4 shrink-0 rounded-sm"
               />
               <div className="flex flex-col items-start leading-none gap-0">
-                <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">
-                  Sync
-                </span>
-                <span className="text-[12px] font-extrabold text-slate-800">
-                  QB
-                </span>
+                <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Sync</span>
+                <span className="text-[12px] font-extrabold text-slate-800">INV</span>
               </div>
             </button>
+
+            {/* Sync Payment Button */}
+            {selectedInvoice?.status === "PAID" && selectedInvoice.paymentAllocations && selectedInvoice.paymentAllocations.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const paymentId = selectedInvoice.paymentAllocations?.[0].payment.id;
+                  if (paymentId) handleSyncPaymentToQB(paymentId, selectedInvoice.id);
+                }}
+                disabled={isActionLoading(selectedInvoice?.id || "", "syncPayment") || !!selectedInvoice.paymentAllocations?.[0].payment.quickbooksPaymentId}
+                className={`flex h-9 shrink-0 items-center gap-2 rounded-lg border px-2.5 transition-all shadow-sm ${selectedInvoice.paymentAllocations?.[0].payment.quickbooksPaymentId
+                    ? "bg-emerald-50 border-emerald-100 text-emerald-700"
+                    : "bg-white border-[#e2e8f0] hover:bg-slate-50"
+                  } disabled:opacity-50`}
+                title={selectedInvoice.paymentAllocations?.[0].payment.quickbooksPaymentId ? "Payment already synced" : "Sync Payment to QuickBooks"}
+              >
+                <CheckCircle2 className={`h-4 w-4 shrink-0 ${selectedInvoice.paymentAllocations?.[0].payment.quickbooksPaymentId ? "text-emerald-500" : "text-slate-400"}`} />
+                <div className="flex flex-col items-start leading-none gap-0 text-left">
+                  <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Sync</span>
+                  <span className="text-[12px] font-extrabold text-slate-800">PMT</span>
+                </div>
+              </button>
+            )}
 
             {/* Delete Button */}
             <button
@@ -718,24 +752,20 @@ function AllInvoicePage() {
               className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#fee2e2] bg-white px-2.5 text-[12px] font-bold text-[#ef4444] transition-all hover:bg-red-50 disabled:opacity-50 shadow-sm"
             >
               <Trash2 className="h-4 w-4 shrink-0" />
-              <span className="whitespace-nowrap">Delete</span>
+              <div className="flex flex-col items-start leading-none gap-0 text-left">
+                <span className="text-[8px] font-bold text-[#fca5a5] uppercase tracking-tighter">Delete</span>
+                <span className="text-[12px] font-extrabold text-red-600 uppercase">Inv</span>
+              </div>
             </button>
 
             {/* Save Changes Button */}
             <button
               type="submit"
               disabled={isSaving}
-              className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-[#e2e8f0] bg-white px-3 ml-auto text-left shadow-sm transition-all hover:border-[#6366f1] disabled:opacity-50"
+              className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-[#4f63ea] px-3 ml-auto text-white shadow-lg transition-all hover:bg-[#3d50d6] disabled:opacity-50"
             >
-              <Save className="h-5 w-5 shrink-0 text-[#6366f1]" />
-              <div className="flex flex-col items-start justify-center leading-none">
-                <span className="text-[12px] font-extrabold text-slate-800">
-                  Save
-                </span>
-                <span className="text-[12px] font-extrabold text-slate-800">
-                  Changes
-                </span>
-              </div>
+              <Save className="h-5 w-5 shrink-0" />
+              <span className="text-[12px] font-extrabold uppercase tracking-tight whitespace-nowrap">Save</span>
             </button>
           </div>
         </form>
@@ -1131,11 +1161,10 @@ function AllInvoicePage() {
                     key={page}
                     type="button"
                     onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
+                    className={`rounded px-2 py-1 text-[13px] ${pagination.page === page
                         ? "bg-[#4f63ea] text-white"
                         : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
+                      }`}
                   >
                     {page}
                   </button>

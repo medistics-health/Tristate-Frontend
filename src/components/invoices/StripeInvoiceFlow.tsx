@@ -64,13 +64,10 @@ export default function StripeInvoiceFlow({ invoice, onUpdate }: Props) {
 
   return (
     <div className="mt-6 border-t border-[#f0ece6] pt-6">
-      <h3 className="mb-4 flex items-center gap-2 text-[14px] font-semibold text-slate-800">
-        <CreditCard className="h-4 w-4 text-indigo-500" />
-        Stripe Flow
-      </h3>
+
 
       {/* Stripe Actions */}
-      <div className="mb-5 flex flex-col gap-2.5">
+      <div className="mb-5 flex flex-row gap-2">
         <button
           type="button"
           onClick={() => {
@@ -80,20 +77,24 @@ export default function StripeInvoiceFlow({ invoice, onUpdate }: Props) {
               toast.error("No Stripe URL available for this invoice.");
             }
           }}
-          className="inline-flex items-center w-fit gap-2 rounded-xl border border-[#e2e8f0] bg-white px-3.5 py-2 text-[12px] font-bold text-[#6366f1] shadow-sm transition-all hover:bg-slate-50"
+          className="flex items-center w-fit gap- rounded-xl border border-[#e2e8f0] bg-white px-4 py-1 text-[#6366f1] shadow-sm transition-all hover:bg-slate-50 group"
         >
-          <ExternalLink className="h-4 w-4" />
-          View Stripe Invoice
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-100">
+            <ExternalLink className="h-4 w-4" />
+          </div>
+          <span className="text-[12px] font-extrabold uppercase">View Stripe Invoice</span>
         </button>
 
         <button
           type="button"
           onClick={handleResend}
           disabled={isResending}
-          className="inline-flex items-center w-fit gap-2 rounded-xl bg-[#f5f3ff] px-3.5 py-2 text-[12px] font-bold text-[#6366f1] transition-all hover:bg-[#ede9fe] disabled:opacity-50"
+          className="flex items-center w-fit gap-3 rounded-xl border border-transparent bg-indigo-50 px-4 py-1 text-indigo-700 transition-all hover:bg-indigo-100 disabled:opacity-50 group"
         >
-          <Mail className="h-4 w-4" />
-          Resend Invoice
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 text-indigo-600 transition-colors group-hover:bg-white">
+            <Mail className="h-4 w-4" />
+          </div>
+          <span className="text-[12px] font-extrabold uppercase tracking-tight">Resend via Stripe</span>
         </button>
       </div>
 
@@ -102,7 +103,7 @@ export default function StripeInvoiceFlow({ invoice, onUpdate }: Props) {
         <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.1em] text-[#94a3b8]">
           Stripe Event Timeline
         </h4>
-        
+
         {isLoading ? (
           <div className="text-[12px] text-slate-400">Loading events...</div>
         ) : events.length === 0 ? (

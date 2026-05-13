@@ -17,6 +17,7 @@ import {
   Receipt,
   Save,
   Send,
+  Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -37,6 +38,7 @@ import {
   getBillingRun,
   getBillingRunsView,
   postBillingRunApi,
+  deleteBillingRunApi,
   recordPaymentApi,
   type BillingReadinessResponse,
   type BillingRunDetail,
@@ -490,6 +492,26 @@ function BillingRunsPage() {
     }
   }
 
+  async function handleDeleteRun() {
+    if (!selectedRun) return;
+    if (!window.confirm("Are you sure you want to delete this billing run? All associated items and snapshots will be removed. This cannot be undone.")) return;
+    
+    setIsActionLoading("calculate"); // Reuse loading state
+    try {
+      await deleteBillingRunApi(selectedRun.id);
+      toast.success("Billing run deleted successfully");
+      setShowDetailPanel(false);
+      setSelectedRowId(null);
+      setSelectedRun(null);
+      await refreshRows();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete billing run";
+      toast.error(message);
+    } finally {
+      setIsActionLoading(null);
+    }
+  }
+
   async function handleRecordPayment(event: React.FormEvent) {
     event.preventDefault();
     if (!paymentForm.practiceId || !paymentForm.amount) {
@@ -599,6 +621,20 @@ function BillingRunsPage() {
             >
               <Send className="h-3.5 w-3.5" />
               {isActionLoading === "post" ? "Posting..." : "Post"}
+            </button>
+            <button
+              type="button"
+              disabled={
+                isActionLoading !== null || 
+                selectedRun.status === "POSTED" || 
+                selectedRun.status === "CLOSED"
+              }
+              onClick={handleDeleteRun}
+              className="inline-flex items-center gap-2 rounded-md bg-white border border-slate-200 px-3 py-2 text-[12px] font-medium text-red-600 hover:bg-red-50 hover:border-red-100 disabled:opacity-50"
+              title="Delete Billing Run"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {isActionLoading === "calculate" && selectedRun.status !== "PENDING" ? "Deleting..." : "Delete"}
             </button>
           </div>
 
