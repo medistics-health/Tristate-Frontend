@@ -624,9 +624,9 @@ function AuditRow({ audit }: AuditRowProps) {
         <p className="text-[12px] text-slate-400">{audit.status}</p>
       </div>
       <div className="text-right">
-        <p className="text-[13px] font-semibold text-slate-700">
+        {/*<p className="text-[13px] font-semibold text-slate-700">
           {audit.recommendations} recs
-        </p>
+        </p>*/}
         <span
           className={`text-[11px] px-2 py-0.5 rounded-full ${audit.completed ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"}`}
         >
@@ -702,7 +702,14 @@ export default function CRMDashboardPage() {
     async function fetchData() {
       try {
         setLoading(true);
-        const [invoicesData, practicesData, agreementsData, servicesData, auditsData, dealsData] = await Promise.all([
+        const [
+          invoicesData,
+          practicesData,
+          agreementsData,
+          servicesData,
+          auditsData,
+          dealsData,
+        ] = await Promise.all([
           getAllInvoices().catch(() => []),
           getAllPractices().catch(() => []),
           getAllAgreements().catch(() => []),
@@ -711,53 +718,75 @@ export default function CRMDashboardPage() {
           getAllDeals().catch(() => []),
         ]);
 
-        setInvoices(invoicesData.slice(0, 10).map((inv: any) => ({
-          id: inv.id,
-          client: inv.practice?.name || "Unknown",
-          amount: parseFloat(inv.totalAmount) || 0,
-          dueDate: inv.dueDate || "N/A",
-          status: inv.status === "PAID" ? "paid" as const : inv.status === "OVERDUE" ? "overdue" as const : "pending" as const,
-        })));
+        setInvoices(
+          invoicesData.slice(0, 10).map((inv: any) => ({
+            id: inv.id,
+            client: inv.practice?.name || "Unknown",
+            amount: parseFloat(inv.totalAmount) || 0,
+            dueDate: inv.dueDate || "N/A",
+            status:
+              inv.status === "PAID"
+                ? ("paid" as const)
+                : inv.status === "OVERDUE"
+                  ? ("overdue" as const)
+                  : ("pending" as const),
+          })),
+        );
 
-        setPractices(practicesData.slice(0, 10).map((prac: any) => ({
-          id: prac.id,
-          name: prac.name,
-          status: prac.status || "Active",
-          servicesCount: prac._count?.deals || 0,
-          lastActivity: prac.updatedAt || "Today",
-          revenue: 0,
-        })));
+        setPractices(
+          practicesData.slice(0, 10).map((prac: any) => ({
+            id: prac.id,
+            name: prac.name,
+            status: prac.status || "Active",
+            servicesCount: prac._count?.deals || 0,
+            lastActivity: prac.updatedAt || "Today",
+            revenue: 0,
+          })),
+        );
 
-        setAgreements(agreementsData.slice(0, 10).map((agr: any) => ({
-          id: agr.id,
-          name: agr.practice?.name || "Unknown",
-          status: agr.status === "SIGNED" ? "signed" as const : agr.status === "PENDING" ? "pending" as const : "sent" as const,
-          sentDate: agr.createdAt || "N/A",
-          value: agr.value || 0,
-        })));
+        setAgreements(
+          agreementsData.slice(0, 10).map((agr: any) => ({
+            id: agr.id,
+            name: agr.practice?.name || "Unknown",
+            status:
+              agr.status === "SIGNED"
+                ? ("signed" as const)
+                : agr.status === "PENDING"
+                  ? ("pending" as const)
+                  : ("sent" as const),
+            sentDate: agr.createdAt || "N/A",
+            value: agr.value || 0,
+          })),
+        );
 
-        setServices((servicesData as any)?.rows?.slice(0, 10).map((srv: any) => ({
-          name: srv.values?.name || "Unknown",
-          revenue: 0,
-          clients: 0,
-        })) || []);
+        setServices(
+          (servicesData as any)?.rows?.slice(0, 10).map((srv: any) => ({
+            name: srv.values?.name || "Unknown",
+            revenue: 0,
+            clients: 0,
+          })) || [],
+        );
 
-        setAudits((auditsData as any)?.rows?.slice(0, 10).map((aud: any) => ({
-          id: aud.id,
-          client: aud.values?.practiceName || "Unknown",
-          status: aud.values?.status || "Scheduled",
-          recommendations: aud.values?.recommendations || 0,
-          completed: aud.values?.status === "Completed",
-        })) || []);
+        setAudits(
+          (auditsData as any)?.rows?.slice(0, 10).map((aud: any) => ({
+            id: aud.id,
+            client: aud.values?.practiceName || "Unknown",
+            status: aud.values?.status || "Scheduled",
+            recommendations: aud.values?.recommendations || 0,
+            completed: aud.values?.status === "Completed",
+          })) || [],
+        );
 
-        setDeals(dealsData.slice(0, 10).map((deal: any) => ({
-          id: deal.id,
-          name: deal.practice?.name || "Unknown",
-          value: deal.value || 0,
-          stage: deal.stage || "LEAD",
-          daysInStage: 0,
-          closeDate: deal.expectedCloseDate || "N/A",
-        })));
+        setDeals(
+          dealsData.slice(0, 10).map((deal: any) => ({
+            id: deal.id,
+            name: deal.practice?.name || "Unknown",
+            value: deal.value || 0,
+            stage: deal.stage || "LEAD",
+            daysInStage: 0,
+            closeDate: deal.expectedCloseDate || "N/A",
+          })),
+        );
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -768,19 +797,31 @@ export default function CRMDashboardPage() {
   }, []);
 
   const stats = useMemo(() => {
-    const totalPipeline = deals.reduce((sum, deal) => sum + (deal.value || 0), 0);
+    const totalPipeline = deals.reduce(
+      (sum, deal) => sum + (deal.value || 0),
+      0,
+    );
     const dealsClosingThisMonth = deals.filter((d) => {
       if (!d.closeDate) return false;
       const closeDate = new Date(d.closeDate);
       const now = new Date();
-      return closeDate.getMonth() === now.getMonth() && closeDate.getFullYear() === now.getFullYear();
+      return (
+        closeDate.getMonth() === now.getMonth() &&
+        closeDate.getFullYear() === now.getFullYear()
+      );
     }).length;
-    const contractsPending = agreements.filter((c) => c.status !== "signed").length;
+    const contractsPending = agreements.filter(
+      (c) => c.status !== "signed",
+    ).length;
     const activeClients = practices.filter((c) => c.status === "Active").length;
-    const clientsAtRisk = practices.filter((c) => c.status === "At Risk").length;
+    const clientsAtRisk = practices.filter(
+      (c) => c.status === "At Risk",
+    ).length;
     const totalRevenue = services.reduce((sum, s) => sum + (s.revenue || 0), 0);
     const invoicesDue = invoices.filter((i) => i.status === "pending").length;
-    const overdueInvoices = invoices.filter((i) => i.status === "overdue").length;
+    const overdueInvoices = invoices.filter(
+      (i) => i.status === "overdue",
+    ).length;
     const totalInvoices = invoices.reduce((sum, i) => sum + i.amount, 0);
     const auditsOpen = audits.filter((a) => !a.completed).length;
 
@@ -824,9 +865,7 @@ export default function CRMDashboardPage() {
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       ) : deals.length > 0 ? (
-        deals.map((deal) => (
-          <DealRow key={deal.id} deal={deal} />
-        ))
+        deals.map((deal) => <DealRow key={deal.id} deal={deal} />)
       ) : (
         <p className="text-[13px] text-slate-400">No deals available</p>
       )}
@@ -856,9 +895,7 @@ export default function CRMDashboardPage() {
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       ) : practices.length > 0 ? (
-        practices.map((client) => (
-          <ClientRow key={client.id} client={client} />
-        ))
+        practices.map((client) => <ClientRow key={client.id} client={client} />)
       ) : (
         <p className="text-[13px] text-slate-400">No clients available</p>
       )}
@@ -904,9 +941,7 @@ export default function CRMDashboardPage() {
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       ) : audits.length > 0 ? (
-        audits.map((audit) => (
-          <AuditRow key={audit.id} audit={audit} />
-        ))
+        audits.map((audit) => <AuditRow key={audit.id} audit={audit} />)
       ) : (
         <p className="text-[13px] text-slate-400">No audits available</p>
       )}
