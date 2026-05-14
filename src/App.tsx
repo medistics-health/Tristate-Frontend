@@ -46,6 +46,7 @@ import AccountingSyncDashboard from "./components/integrations/AccountingSyncDas
 import VendorPayableDashboard from "./components/payables/VendorPayableDashboard";
 import ClientPortalDashboard from "./components/portal/ClientPortalDashboard";
 import SettingsPage from "./components/settings/Settings";
+import CreateLeadPage from "./components/leads/CreateLead";
 import type { ReactNode } from "react";
 
 function App() {
@@ -414,6 +415,14 @@ function App() {
         element={
           <ProtectedRoute>
             <ProspectsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lead/create"
+        element={
+          <ProtectedRoute>
+            <CreateLeadPage />
           </ProtectedRoute>
         }
       />

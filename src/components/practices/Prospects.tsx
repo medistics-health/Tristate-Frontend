@@ -4,7 +4,7 @@ function ProspectsPage() {
   return (
     <MetricFilterTablePage
       title="Practice"
-      activeModule="Practice"
+      activeModule="Practices"
       activeSubItem="Prospects"
       tableHeading="Prospects"
       rowIdPrefix="prospects"
