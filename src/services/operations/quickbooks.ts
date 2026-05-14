@@ -4,10 +4,14 @@ import { quickbooksEndpoints } from "../apis";
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError(error)) {
-    const apiMessage = (
-      error.response?.data as { message?: string } | undefined
-    )?.message;
-    return apiMessage ?? fallbackMessage;
+    const data = error.response?.data as { message?: string; error?: string } | undefined;
+    
+    // Prefer the detailed 'error' field if it exists (usually contains specific validation reasons)
+    if (data?.error && typeof data.error === "string") {
+      return data.error;
+    }
+    
+    return data?.message ?? fallbackMessage;
   }
   if (error instanceof Error) {
     return error.message;
@@ -107,5 +111,25 @@ export async function disconnectQuickBooks(companyId: string): Promise<void> {
     });
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to disconnect QuickBooks."));
+  }
+}
+
+export type SyncSummary = {
+  COMPLETED: number;
+  FAILED: number;
+  IN_PROGRESS: number;
+  total: number;
+};
+
+export async function getSyncSummary(): Promise<SyncSummary> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: quickbooksEndpoints.GET_LOGS.replace("/sync-logs", "/sync-summary"),
+      credentials: true,
+    });
+    return (response.data as { summary: SyncSummary }).summary;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch sync summary."));
   }
 }

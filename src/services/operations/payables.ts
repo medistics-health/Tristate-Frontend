@@ -6,10 +6,14 @@ const BASE = quickbooksEndpoints.GET_LOGS.replace("/quickbooks/sync-logs", "/ven
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError(error)) {
-    const apiMessage = (
-      error.response?.data as { message?: string } | undefined
-    )?.message;
-    return apiMessage ?? fallbackMessage;
+    const data = error.response?.data as { message?: string; error?: string } | undefined;
+    
+    // Prefer the detailed 'error' field if it exists (usually contains specific validation reasons)
+    if (data?.error && typeof data.error === "string") {
+      return data.error;
+    }
+    
+    return data?.message ?? fallbackMessage;
   }
   if (error instanceof Error) {
     return error.message;

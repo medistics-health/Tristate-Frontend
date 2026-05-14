@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { useRef, useState, useEffect, type ReactNode } from "react";
 import type { NavbarAction } from "../layout/Navbar";
-import { LOGOUT_ACTION } from "../layout/Navbar";
 
 /**
  * Common tabs used in the DetailSidePanel
@@ -51,7 +50,6 @@ export function getStandardNavbarActions(onAddNew: () => void): NavbarAction[] {
       icon: <Plus className="h-4 w-4" />,
       onClick: onAddNew,
     },
-    LOGOUT_ACTION,
   ];
 }
 

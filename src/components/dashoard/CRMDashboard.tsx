@@ -15,8 +15,9 @@ import {
   BarChart3,
   Target,
   Zap,
-  Plus,
   Loader2,
+  RefreshCw,
+  CalendarDays,
 } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
 import { getAllInvoices } from "../../services/operations/invoices";
@@ -25,6 +26,7 @@ import { getAllAgreements } from "../../services/operations/agreements";
 import { getServicesView } from "../../services/operations/services";
 import { getAuditsView } from "../../services/operations/audits";
 import { getAllDeals } from "../../services/operations/deals";
+import { getSyncSummary, type SyncSummary } from "../../services/operations/quickbooks";
 
 type DashboardRole = "executive" | "sales" | "operations" | "finance";
 
@@ -93,226 +95,7 @@ type PartnerItem = {
   deals: number;
 };
 
-const mockTasks: TaskItem[] = [
-  {
-    id: "1",
-    title: "Follow up with Dr. Smith",
-    dueDate: "Today",
-    priority: "high",
-    relatedTo: "Dr. Smith Medical",
-    type: "proposal",
-  },
-  {
-    id: "2",
-    title: "Review onboarding form for ABC Practice",
-    dueDate: "Today",
-    priority: "high",
-    relatedTo: "ABC Practice",
-    type: "onboarding",
-  },
-  {
-    id: "3",
-    title: "Send contract reminder",
-    dueDate: "Tomorrow",
-    priority: "medium",
-    relatedTo: "XYZ Healthcare",
-    type: "contract",
-  },
-  {
-    id: "4",
-    title: "Fix billing issue for XYZ",
-    dueDate: "In 2 days",
-    priority: "high",
-    relatedTo: "XYZ Clinic",
-    type: "billing",
-  },
-  {
-    id: "5",
-    title: "Send proposal to New Client",
-    dueDate: "In 3 days",
-    priority: "medium",
-    relatedTo: "New Hope Medical",
-    type: "proposal",
-  },
-];
-
-const mockDeals: DealItem[] = [
-  {
-    id: "1",
-    name: "Dr. Smith Medical",
-    value: 24000,
-    stage: "Proposal",
-    daysInStage: 5,
-    closeDate: "Apr 30",
-  },
-  {
-    id: "2",
-    name: "ABC Practice",
-    value: 18000,
-    stage: "Contract",
-    daysInStage: 12,
-    closeDate: "Apr 25",
-  },
-  {
-    id: "3",
-    name: "XYZ Healthcare",
-    value: 36000,
-    stage: "Negotiation",
-    daysInStage: 3,
-    closeDate: "May 15",
-  },
-  {
-    id: "4",
-    name: "MedPlus Clinic",
-    value: 15000,
-    stage: "Lead",
-    daysInStage: 2,
-    closeDate: "May 30",
-  },
-  {
-    id: "5",
-    name: "City Medical",
-    value: 42000,
-    stage: "Proposal",
-    daysInStage: 8,
-    closeDate: "Apr 20",
-  },
-];
-
-const mockContracts: ContractItem[] = [
-  {
-    id: "1",
-    name: "ABC Practice",
-    status: "sent",
-    sentDate: "Apr 10",
-    value: 18000,
-  },
-  {
-    id: "2",
-    name: "Dr. Smith Medical",
-    status: "pending",
-    sentDate: "Apr 12",
-    value: 24000,
-  },
-  {
-    id: "3",
-    name: "XYZ Healthcare",
-    status: "signed",
-    sentDate: "Apr 5",
-    value: 36000,
-  },
-  {
-    id: "4",
-    name: "MedPlus Clinic",
-    status: "sent",
-    sentDate: "Apr 11",
-    value: 15000,
-  },
-];
-
-const mockClients: ClientItem[] = [
-  {
-    id: "1",
-    name: "ABC Practice",
-    status: "Active",
-    servicesCount: 3,
-    lastActivity: "Today",
-    revenue: 6000,
-  },
-  {
-    id: "2",
-    name: "XYZ Healthcare",
-    status: "Active",
-    servicesCount: 2,
-    lastActivity: "Yesterday",
-    revenue: 4500,
-  },
-  {
-    id: "3",
-    name: "MedPlus Clinic",
-    status: "At Risk",
-    servicesCount: 1,
-    lastActivity: "30 days ago",
-    revenue: 2000,
-  },
-  {
-    id: "4",
-    name: "City Medical",
-    status: "Active",
-    servicesCount: 4,
-    lastActivity: "Today",
-    revenue: 8000,
-  },
-];
-
-const mockServiceRevenue: ServiceRevenue[] = [
-  { name: "RCM", revenue: 120000, clients: 15 },
-  { name: "Credentialing", revenue: 60000, clients: 12 },
-  { name: "Marketing", revenue: 40000, clients: 8 },
-  { name: "Billing", revenue: 35000, clients: 6 },
-  { name: "Consulting", revenue: 25000, clients: 4 },
-];
-
-const mockInvoices: InvoiceItem[] = [
-  {
-    id: "1",
-    client: "ABC Practice",
-    amount: 6000,
-    dueDate: "Apr 20",
-    status: "pending",
-  },
-  {
-    id: "2",
-    client: "XYZ Healthcare",
-    amount: 4500,
-    dueDate: "Apr 15",
-    status: "overdue",
-  },
-  {
-    id: "3",
-    client: "MedPlus Clinic",
-    amount: 2000,
-    dueDate: "Apr 18",
-    status: "pending",
-  },
-  {
-    id: "4",
-    client: "City Medical",
-    amount: 8000,
-    dueDate: "Apr 10",
-    status: "paid",
-  },
-];
-
-const mockAudits: AuditItem[] = [
-  {
-    id: "1",
-    client: "ABC Practice",
-    status: "Completed",
-    recommendations: 3,
-    completed: true,
-  },
-  {
-    id: "2",
-    client: "XYZ Healthcare",
-    status: "In Progress",
-    recommendations: 5,
-    completed: false,
-  },
-  {
-    id: "3",
-    client: "MedPlus Clinic",
-    status: "Scheduled",
-    recommendations: 0,
-    completed: false,
-  },
-];
-
-const mockPartners: PartnerItem[] = [
-  { id: "1", name: "Partner A", leads: 12, revenue: 45000, deals: 3 },
-  { id: "2", name: "Partner B", leads: 8, revenue: 32000, deals: 2 },
-  { id: "3", name: "Partner C", leads: 5, revenue: 18000, deals: 1 },
-];
+// Mock data removed as we are using real API data
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -403,7 +186,7 @@ function SectionCard({
 }: SectionCardProps) {
   return (
     <div
-      className={`app-panel flex flex-col overflow-hidden rounded-2xl border border-[#e8e3db] bg-white ${className}`}
+      className={`flex flex-col overflow-hidden rounded-lg border border-[#e8e3db] bg-white ${className}`}
     >
       <div className="flex items-center justify-between border-b border-[#eeebe5] px-4 py-3">
         <div className="flex items-center gap-2">
@@ -414,7 +197,7 @@ function SectionCard({
         </div>
         {action}
       </div>
-      <div className="flex-1 overflow-auto p-4">{children}</div>
+      <div className="flex-1 p-4">{children}</div>
     </div>
   );
 }
@@ -437,7 +220,7 @@ function StatCard({
   const isPositive = change && change > 0;
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-[#ece8e1] bg-white p-4">
+    <div className="flex items-center justify-between rounded-lg border border-[#ece8e1] bg-white p-4">
       <div>
         <p className="text-[12px] text-slate-500">{label}</p>
         <p className="mt-1 text-[20px] font-semibold text-slate-700">{value}</p>
@@ -453,12 +236,12 @@ function StatCard({
             >
               {Math.abs(change)}%
             </span>
-            <span className="text-[12px] text-slate-400">vs last month</span>
+            <span className="text-[12px] text-slate-400 ml-1">vs last month</span>
           </div>
         )}
       </div>
       <div
-        className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconBg}`}
+        className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBg}`}
       >
         {icon}
       </div>
@@ -466,37 +249,7 @@ function StatCard({
   );
 }
 
-interface TaskRowProps {
-  task: TaskItem;
-}
-
-function TaskRow({ task }: TaskRowProps) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-[#f1ede8] p-3 hover:bg-[#faf9f7]">
-      <div
-        className={`flex h-5 w-5 items-center justify-center rounded-full ${getPriorityColor(task.priority)}`}
-      >
-        <CheckCircle className="h-3 w-3" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-slate-700 truncate">
-          {task.title}
-        </p>
-        <p className="text-[12px] text-slate-400">{task.relatedTo}</p>
-      </div>
-      <div className="flex flex-col items-end">
-        <span
-          className={`text-[12px] font-medium ${task.dueDate === "Today" ? "text-red-500" : "text-slate-500"}`}
-        >
-          {task.dueDate}
-        </span>
-        <span className="text-[11px] capitalize text-slate-400">
-          {task.type}
-        </span>
-      </div>
-    </div>
-  );
-}
+// TaskRow removed as we use real data components
 
 interface DealRowProps {
   deal: DealItem;
@@ -510,18 +263,13 @@ function DealRow({ deal }: DealRowProps) {
           {deal.name}
         </p>
         <p className="text-[12px] text-slate-400">
-          {deal.stage} • {deal.daysInStage} days
+          {deal.stage} • {deal.daysInStage}d
         </p>
       </div>
       <div className="text-right">
         <p className="text-[13px] font-semibold text-slate-700">
           {formatCurrency(deal.value)}
         </p>
-        <span
-          className={`text-[11px] ${getStageColor(deal.stage)} px-2 py-0.5 rounded-full`}
-        >
-          {deal.stage}
-        </span>
       </div>
     </div>
   );
@@ -566,7 +314,7 @@ function ClientRow({ client }: ClientRowProps) {
           {client.name}
         </p>
         <p className="text-[12px] text-slate-400">
-          {client.servicesCount} services • {client.lastActivity}
+          {client.servicesCount} services
         </p>
       </div>
       <div className="text-right">
@@ -616,50 +364,26 @@ interface AuditRowProps {
 
 function AuditRow({ audit }: AuditRowProps) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-[#f1ede8] p-3 hover:bg-[#faf9f7]">
+    <div className="flex items-center justify-between rounded-xl border border-slate-50 p-3 hover:bg-slate-50/50 transition-all group">
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-slate-700 truncate">
+        <p className="text-[13px] font-bold text-slate-700 truncate group-hover:text-indigo-600 transition-colors">
           {audit.client}
         </p>
-        <p className="text-[12px] text-slate-400">{audit.status}</p>
+        <p className="mt-0.5 text-[11px] text-slate-400 font-medium uppercase tracking-tighter">{audit.status}</p>
       </div>
-      <div className="text-right">
-        <p className="text-[13px] font-semibold text-slate-700">
-          {audit.recommendations} recs
-        </p>
+      <div className="text-right flex items-center gap-2">
+        <span className="text-[12px] font-bold text-slate-600">{audit.recommendations} Recs</span>
         <span
-          className={`text-[11px] px-2 py-0.5 rounded-full ${audit.completed ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"}`}
+          className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${audit.completed ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}
         >
-          {audit.completed ? "Completed" : "In Progress"}
+          {audit.completed ? "Done" : "Pending"}
         </span>
       </div>
     </div>
   );
 }
 
-interface PartnerRowProps {
-  partner: PartnerItem;
-}
-
-function PartnerRow({ partner }: PartnerRowProps) {
-  return (
-    <div className="flex items-center justify-between rounded-lg border border-[#f1ede8] p-3 hover:bg-[#faf9f7]">
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-slate-700 truncate">
-          {partner.name}
-        </p>
-        <p className="text-[12px] text-slate-400">
-          {partner.leads} leads • {partner.deals} deals
-        </p>
-      </div>
-      <div className="text-right">
-        <p className="text-[13px] font-semibold text-slate-700">
-          {formatCurrency(partner.revenue)}
-        </p>
-      </div>
-    </div>
-  );
-}
+// PartnerRow removed as we use real data components
 
 interface ServiceRevenueRowProps {
   service: ServiceRevenue;
@@ -697,18 +421,20 @@ export default function CRMDashboardPage() {
   const [services, setServices] = useState<ServiceRevenue[]>([]);
   const [audits, setAudits] = useState<AuditItem[]>([]);
   const [deals, setDeals] = useState<DealItem[]>([]);
+  const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
 
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
-        const [invoicesData, practicesData, agreementsData, servicesData, auditsData, dealsData] = await Promise.all([
+        const [invoicesData, practicesData, agreementsData, servicesData, auditsData, dealsData, syncSummaryData] = await Promise.all([
           getAllInvoices().catch(() => []),
           getAllPractices().catch(() => []),
           getAllAgreements().catch(() => []),
           getServicesView({ limit: 100 }).catch(() => ({ rows: [] })),
           getAuditsView({ limit: 100 }).catch(() => ({ rows: [] })),
           getAllDeals().catch(() => []),
+          getSyncSummary().catch(() => null),
         ]);
 
         setInvoices(invoicesData.slice(0, 10).map((inv: any) => ({
@@ -758,6 +484,10 @@ export default function CRMDashboardPage() {
           daysInStage: 0,
           closeDate: deal.expectedCloseDate || "N/A",
         })));
+
+        if (syncSummaryData) {
+          setSyncSummary(syncSummaryData);
+        }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -981,6 +711,46 @@ export default function CRMDashboardPage() {
     );
   };
 
+  const renderSyncSection = () => (
+    <div className="space-y-4">
+      {loading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        </div>
+      ) : syncSummary ? (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3">
+              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Synced</p>
+              <p className="mt-1 text-xl font-black text-emerald-700">{syncSummary.COMPLETED}</p>
+            </div>
+            <div className="rounded-lg border border-red-100 bg-red-50/50 p-3">
+              <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Failed</p>
+              <p className="mt-1 text-xl font-black text-red-700">{syncSummary.FAILED}</p>
+            </div>
+          </div>
+          <div className="rounded-lg border border-[#ece8e1] bg-white p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] font-medium text-slate-500">Sync Success Rate</span>
+              <span className="text-[12px] font-bold text-slate-700">
+                {syncSummary.total > 0 ? Math.round((syncSummary.COMPLETED / syncSummary.total) * 100) : 0}%
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+              <div 
+                className="h-full bg-emerald-500 transition-all duration-500" 
+                style={{ width: `${syncSummary.total > 0 ? (syncSummary.COMPLETED / syncSummary.total) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-center text-slate-400 italic">Data from last 30 days</p>
+        </>
+      ) : (
+        <p className="text-[13px] text-slate-400">Sync data unavailable</p>
+      )}
+    </div>
+  );
+
   // const navbarActions = [
   //   {
   //     label: "New Task",
@@ -1007,8 +777,8 @@ export default function CRMDashboardPage() {
                 onClick={() => setSelectedRole(role)}
                 className={`rounded-lg px-4 py-2 text-[13px] font-medium transition-colors ${
                   selectedRole === role
-                    ? "bg-[#4f63ea] text-white"
-                    : "bg-white text-slate-600 hover:bg-[#f7f5f1]"
+                    ? "bg-[#4f63ea] text-white shadow-sm"
+                    : "bg-white border border-[#e8e3db] text-slate-600 hover:bg-[#f7f5f1]"
                 }`}
               >
                 {roleLabels[role]}
@@ -1049,7 +819,7 @@ export default function CRMDashboardPage() {
 
         {selectedRole === "executive" && (
           <>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <SectionCard
                 title="My Tasks & Action Items"
                 icon={<Clock className="h-4 w-4" />}
@@ -1067,10 +837,10 @@ export default function CRMDashboardPage() {
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <SectionCard
-                title="Contracts & Onboarding"
-                icon={<FileText className="h-4 w-4" />}
+                title="QuickBooks Sync Health"
+                icon={<RefreshCw className="h-4 w-4" />}
               >
-                {renderContractsSection()}
+                {renderSyncSection()}
               </SectionCard>
 
               <SectionCard
@@ -1090,10 +860,10 @@ export default function CRMDashboardPage() {
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <SectionCard
-                title="Billing & Cash Flow"
-                icon={<Briefcase className="h-4 w-4" />}
+                title="Contracts & Onboarding"
+                icon={<FileText className="h-4 w-4" />}
               >
-                {renderBillingSection()}
+                {renderContractsSection()}
               </SectionCard>
 
               <SectionCard
@@ -1180,7 +950,7 @@ export default function CRMDashboardPage() {
 
         {selectedRole === "finance" && (
           <>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <StatCard
                 label="Revenue (Monthly)"
                 value={formatCurrency(stats.totalRevenue)}
@@ -1206,6 +976,12 @@ export default function CRMDashboardPage() {
                 icon={<Briefcase className="h-5 w-5 text-amber-500" />}
                 iconBg="bg-amber-50"
               />
+              <StatCard
+                label="Sync Health"
+                value={syncSummary ? `${Math.round((syncSummary.COMPLETED / (syncSummary.total || 1)) * 100)}%` : "0%"}
+                icon={<RefreshCw className={`h-5 w-5 ${syncSummary && syncSummary.FAILED > 0 ? "text-amber-500" : "text-emerald-500"}`} />}
+                iconBg={syncSummary && syncSummary.FAILED > 0 ? "bg-amber-50" : "bg-emerald-50"}
+              />
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1217,10 +993,25 @@ export default function CRMDashboardPage() {
               </SectionCard>
 
               <SectionCard
+                title="QuickBooks Sync Health"
+                icon={<RefreshCw className="h-4 w-4" />}
+              >
+                {renderSyncSection()}
+              </SectionCard>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <SectionCard
                 title="Revenue by Service"
                 icon={<TrendingUp className="h-4 w-4" />}
               >
                 {renderServicesSection()}
+              </SectionCard>
+              <SectionCard
+                title="Financial Alerts"
+                icon={<AlertTriangle className="h-4 w-4" />}
+              >
+                {renderAlertsSection()}
               </SectionCard>
             </div>
           </>
