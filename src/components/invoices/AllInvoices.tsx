@@ -16,6 +16,7 @@ import {
   Circle,
   RefreshCw,
   CheckCircle2,
+  DollarSign,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -36,6 +37,7 @@ import {
   resendStripeInvoice,
   syncInvoiceToQuickBooks,
   syncPaymentToQuickBooks,
+  quickSyncInvoicePayment,
   type Invoice,
   type InvoiceBody,
   type InvoiceRow,
@@ -71,13 +73,6 @@ const initialFormState: InvoiceFormState = {
 
 function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString();
 }
 
 function formatDateForInput(value?: string | null) {
@@ -128,7 +123,6 @@ function AllInvoicePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [resendInvoiceId, setResendInvoiceId] = useState<string | null>(null);
-  const [isResendModalOpen, setIsResendModalOpen] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [actionLoading, setActionLoading] = useState<
     Record<string, Record<string, boolean>>
@@ -195,11 +189,21 @@ function AllInvoicePage() {
             return (
               <div className="flex items-center gap-1">
                 {invoice.values.quickbooksInvoiceId ? (
-                  <div
-                    className="p-1 text-green-600"
-                    title={`Synced to QB: ${invoice.values.quickbooksInvoiceId}`}
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
+                  <div className="flex items-center gap-1">
+                    <div
+                      className="p-1 text-green-600"
+                      title={`Invoice synced: ${invoice.values.quickbooksInvoiceId}`}
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                    </div>
+                    {invoice.values.quickbooksPaymentId && (
+                      <div
+                        className="p-1 text-emerald-600"
+                        title={`Payment synced: ${invoice.values.quickbooksPaymentId}`}
+                      >
+                        <DollarSign className="h-4 w-4" />
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -463,8 +467,26 @@ function AllInvoicePage() {
       setActionState(invoiceId, "syncPayment", true);
       await syncPaymentToQuickBooks(paymentId);
       toast.success("Payment synced to QuickBooks successfully.");
+      // Refresh invoice to show the checkmark
+      const refreshed = await getInvoice(invoiceId);
+      setSelectedInvoice(refreshed);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to sync payment to QuickBooks.");
+    } finally {
+      setActionState(invoiceId, "syncPayment", false);
+    }
+  }
+
+  async function handleQuickSyncPaymentToQB(invoiceId: string) {
+    try {
+      setActionState(invoiceId, "syncPayment", true);
+      await quickSyncInvoicePayment(invoiceId);
+      toast.success("Payment recorded and synced to QuickBooks!");
+      // Refresh invoice to show the checkmark
+      const refreshed = await getInvoice(invoiceId);
+      setSelectedInvoice(refreshed);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to quick-sync payment.");
     } finally {
       setActionState(invoiceId, "syncPayment", false);
     }
@@ -476,7 +498,6 @@ function AllInvoicePage() {
       setIsResending(true);
       await resendStripeInvoice(resendInvoiceId);
       toast.success("Invoice resent successfully");
-      setIsResendModalOpen(false);
       await refreshRows();
     } catch (err) {
       toast.error(
@@ -722,21 +743,31 @@ function AllInvoicePage() {
             </button>
 
             {/* Sync Payment Button */}
-            {selectedInvoice?.status === "PAID" && selectedInvoice.paymentAllocations && selectedInvoice.paymentAllocations.length > 0 && (
+            {selectedInvoice?.status === "PAID" && (
               <button
                 type="button"
                 onClick={() => {
-                  const paymentId = selectedInvoice.paymentAllocations?.[0].payment.id;
-                  if (paymentId) handleSyncPaymentToQB(paymentId, selectedInvoice.id);
+                  const paymentId = selectedInvoice.paymentAllocations?.[0]?.payment?.id;
+                  if (paymentId) {
+                    handleSyncPaymentToQB(paymentId, selectedInvoice.id);
+                  } else {
+                    handleQuickSyncPaymentToQB(selectedInvoice.id);
+                  }
                 }}
-                disabled={isActionLoading(selectedInvoice?.id || "", "syncPayment") || !!selectedInvoice.paymentAllocations?.[0].payment.quickbooksPaymentId}
-                className={`flex h-9 shrink-0 items-center gap-2 rounded-lg border px-2.5 transition-all shadow-sm ${selectedInvoice.paymentAllocations?.[0].payment.quickbooksPaymentId
+                disabled={isActionLoading(selectedInvoice?.id || "", "syncPayment") || !!selectedInvoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId}
+                className={`flex h-9 shrink-0 items-center gap-2 rounded-lg border px-2.5 transition-all shadow-sm ${selectedInvoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId
                     ? "bg-emerald-50 border-emerald-100 text-emerald-700"
                     : "bg-white border-[#e2e8f0] hover:bg-slate-50"
                   } disabled:opacity-50`}
-                title={selectedInvoice.paymentAllocations?.[0].payment.quickbooksPaymentId ? "Payment already synced" : "Sync Payment to QuickBooks"}
+                title={
+                  !selectedInvoice.paymentAllocations?.length 
+                    ? "No payment record found" 
+                    : selectedInvoice.paymentAllocations[0].payment.quickbooksPaymentId 
+                      ? "Payment already synced" 
+                      : "Sync Payment to QuickBooks"
+                }
               >
-                <CheckCircle2 className={`h-4 w-4 shrink-0 ${selectedInvoice.paymentAllocations?.[0].payment.quickbooksPaymentId ? "text-emerald-500" : "text-slate-400"}`} />
+                <CheckCircle2 className={`h-4 w-4 shrink-0 ${selectedInvoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId ? "text-emerald-500" : "text-slate-400"}`} />
                 <div className="flex flex-col items-start leading-none gap-0 text-left">
                   <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Sync</span>
                   <span className="text-[12px] font-extrabold text-slate-800">PMT</span>

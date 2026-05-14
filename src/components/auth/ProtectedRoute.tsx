@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { authMe } from "../../services/operations/auth";
 import { Spinner } from "../layout/Spinner";
 
@@ -13,7 +13,7 @@ function ProtectedRoute({ children }: { children: JSX.Element }) {
 
       if (response.id) {
         setIsAuth(true);
-        localStorage.setItem("user", response.name);
+        localStorage.setItem("user", JSON.stringify(response));
       }
     } catch (_) {
     } finally {

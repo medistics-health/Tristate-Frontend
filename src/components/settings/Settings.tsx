@@ -381,12 +381,20 @@ export default function SettingsPage() {
                               </td>
                               <td className="px-8 py-5 text-right">
                                 {isConnected ? (
-                                  <button 
-                                    onClick={() => handleDisconnectQB(company.id)}
-                                    className="text-xs font-bold text-rose-500 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"
-                                  >
-                                    Disconnect
-                                  </button>
+                                  <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all">
+                                    <button 
+                                      onClick={() => handleConnectQB(company.id)}
+                                      className="text-xs font-bold text-[#4f63ea] hover:text-[#3d4ed1]"
+                                    >
+                                      Re-connect
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDisconnectQB(company.id)}
+                                      className="text-xs font-bold text-rose-500 hover:text-rose-600"
+                                    >
+                                      Disconnect
+                                    </button>
+                                  </div>
                                 ) : (
                                   <button 
                                     onClick={() => handleConnectQB(company.id)}

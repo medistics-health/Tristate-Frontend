@@ -1,5 +1,5 @@
-import { LogOut, Menu } from "lucide-react";
-import type { ReactNode } from "react";
+import { LogOut, Menu, ChevronDown } from "lucide-react";
+import { useState, useEffect, type ReactNode } from "react";
 import { logout } from "../../services/operations/auth";
 import toast from "react-hot-toast";
 
@@ -44,6 +44,7 @@ async function handleLogout() {
       toast.success("Logged Out Successfully.", {
         id: loadingToast,
       });
+      localStorage.removeItem("user");
       window.location.href = "/login";
     }
   } catch (error) {
@@ -62,17 +63,37 @@ export const LOGOUT_ACTION: NavbarAction = {
 function Navbar({
   title,
   icon = <DefaultDocumentIcon />,
-  actions = [LOGOUT_ACTION],
+  actions = [],
   onMenuClick,
 }: NavbarProps) {
-  // Ensure logout is always at the end if actions are provided manually but logout is missing
-  const finalActions = [...actions];
-  if (!finalActions.some((a) => a.label === "Logout")) {
-    finalActions.push(LOGOUT_ACTION);
-  }
+  const [userData, setUserData] = useState<any>(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        setUserData(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Error parsing user data", e);
+      }
+    }
+  }, []);
+
+  const getInitials = () => {
+    if (!userData) return "U";
+    if (userData.firstName && userData.lastName) {
+      return `${userData.firstName[0]}${userData.lastName[0]}`.toUpperCase();
+    }
+    return userData.name ? userData.name.substring(0, 2).toUpperCase() : "U";
+  };
+
+  const fullName = userData
+    ? (userData.firstName && userData.lastName ? `${userData.firstName} ${userData.lastName}` : userData.name)
+    : "Loading...";
 
   return (
-    <header className="flex h-15 items-center border-b border-[#ece8e1] bg-[#fbfaf8] px-5 font-app-sans w-full">
+    <header className="flex h-14 items-center border-b border-[#ece8e1] bg-[#fbfaf8] px-5 font-app-sans w-full z-30">
       <div className="flex min-w-0 items-center gap-3 text-[15px] font-medium text-slate-800">
         {onMenuClick && (
           <button
@@ -83,24 +104,71 @@ function Navbar({
             <Menu className="h-5 w-5" />
           </button>
         )}
-        <span className="flex items-center gap-2 truncate">
-          {icon}
+        <span className="flex items-center gap-2.5 truncate text-[16px] font-semibold text-slate-700">
+          <div className="p-1.5 bg-slate-100 rounded-lg text-slate-500">
+            {icon}
+          </div>
           {title}
         </span>
       </div>
 
       <div className="ml-auto flex items-center gap-4 shrink-0">
-        {finalActions.map((action) => (
+        {/* Custom Actions */}
+        <div className="hidden md:flex items-center gap-2 mr-2">
+          {actions.map((action) => (
+            <button
+              key={action.label}
+              onClick={action.onClick}
+              className={`rounded-md border border-[#e4e0d8] bg-white px-3 cursor-pointer flex items-center py-1.5 text-[13px] font-medium shadow-sm transition-all hover:bg-slate-50 active:scale-95 ${action.muted ? "text-slate-500" : "text-slate-700"
+                }`}
+            >
+              {action.icon} {action.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div className="h-6 w-px bg-[#ece8e1] hidden sm:block"></div>
+        {/* User Profile Section */}
+        <div className="relative">
           <button
-            key={action.label}
-            onClick={action.onClick}
-            className={`rounded-md border border-[#e4e0d8] bg-white px-3 cursor-pointer flex items-center py-1.5 text-[14px] shadow-sm transition-colors hover:bg-slate-50 ${
-              action.muted ? "text-slate-500" : "text-slate-700"
-            }`}
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-lg border border-[#e4e0d8] bg-white hover:bg-slate-50 cursor-pointer active:scale-[0.98]"
           >
-            {action.icon} {action.label}
+            <div className="flex flex-col items-end hidden sm:flex">
+              <span className="text-[12px] font-bold text-slate-700 leading-none mb-0.5">{fullName}</span>
+              <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{userData?.role || "User"}</span>
+            </div>
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[12px] font-bold shadow-md border-2 border-white">
+              {getInitials()}
+            </div>
+            <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
           </button>
-        ))}
+
+          {/* Profile Dropdown */}
+          {isProfileOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setIsProfileOpen(false)}
+              ></div>
+              <div className="absolute right-0 mt-2 w-56 rounded-xl border border-[#ece8e1] bg-white p-1.5 shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="px-3 py-2.5 mb-1 border-b border-slate-50">
+                  <p className="text-[14px] font-bold text-slate-800">{fullName}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{userData?.email}</p>
+                </div>
+
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );
