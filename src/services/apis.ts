@@ -191,3 +191,14 @@ export const quickbooksEndpoints = {
 export const portalEndpoints = {
   GET_SNAPSHOT: BACKEND_URL + "/api/v1/portal/snapshot",
 };
+
+export const mercuryEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/mercury",
+  GET_ACCOUNTS: BACKEND_URL + "/api/v1/mercury/accounts",
+  GET_ACCOUNT_TRANSACTIONS: (accountId: string) =>
+    BACKEND_URL + `/api/v1/mercury/accounts/${accountId}/transactions`,
+  LIST_TRANSACTIONS: BACKEND_URL + "/api/v1/mercury/transactions",
+  RECONCILE: (id: string) => BACKEND_URL + `/api/v1/mercury/transactions/${id}/reconcile`,
+  SYNC: BACKEND_URL + "/api/v1/mercury/sync",
+};
+

@@ -165,7 +165,6 @@ function BillingRunsPage() {
   const [practices, setPractices] = useState<Practice[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [optionsLoading, setOptionsLoading] = useState(false);
   const [createForm, setCreateForm] =
     useState<CreateRunFormState>(initialCreateRunForm);
   const [paymentForm, setPaymentForm] =
@@ -294,7 +293,6 @@ function BillingRunsPage() {
       (showCreateForm || showPaymentForm || showDetailPanel) &&
       practices.length === 0
     ) {
-      setOptionsLoading(true);
       Promise.all([getAllPractices(), getAllInvoices(), getAllServices()])
         .then(([practiceList, invoiceList, serviceList]) => {
           setPractices(practiceList);
@@ -305,8 +303,7 @@ function BillingRunsPage() {
           const message =
             err instanceof Error ? err.message : "Failed to load billing options";
           toast.error(message);
-        })
-        .finally(() => setOptionsLoading(false));
+        });
     }
   }, [showCreateForm, showPaymentForm, showDetailPanel, practices.length]);
 
@@ -683,10 +680,20 @@ function BillingRunsPage() {
 
               <div>
                 <h3 className="mb-2 font-medium text-slate-700">Calculated Items</h3>
+                {/* Pricing chain info banner */}
+                {(selectedRun.items || []).length > 0 && (
+                  <div className="mb-3 flex items-start gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-[11px] text-indigo-600">
+                    <span>
+                      Each item is calculated from an <strong>Agreement Service Term</strong>. 
+                      The chain is: <strong>Rate Term → Billing Item → Invoice Line</strong>.
+                      Rates are never entered again — they come from finalized pricing.
+                    </span>
+                  </div>
+                )}
                 <div className="space-y-2">
                   {(selectedRun.items || []).length === 0 ? (
                     <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-slate-400">
-                      No billing items yet.
+                      No billing items yet. Run Calculate to apply pricing terms.
                     </div>
                   ) : (
                     selectedRun.items?.map((item) => (
@@ -695,19 +702,41 @@ function BillingRunsPage() {
                         className="rounded-lg border border-[#f0ece6] px-3 py-3"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <div className="font-medium text-slate-700">
                               {item.service?.name || item.serviceId}
                             </div>
                             <div className="mt-1 text-[12px] text-slate-400">
-                              Vendor: {item.vendor?.name || "-"}
+                              Vendor: {item.vendor?.name || "—"}
                             </div>
+                            {/* Agreement Service Term chain link */}
+                            {item.agreementServiceTermId && (
+                              <div className="mt-1.5 flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-1 text-[11px] text-indigo-600">
+                                <span className="font-medium">Rate Term linked</span>
+                                <span className="text-indigo-400">· {item.agreementServiceTermId.slice(0, 8)}…</span>
+                              </div>
+                            )}
+                            {/* Formula snapshot preview */}
+                            {(item as any).formulaSnapshot && (
+                              <div className="mt-1 text-[11px] text-slate-400 font-mono">
+                                {typeof (item as any).formulaSnapshot === "object"
+                                  ? Object.entries((item as any).formulaSnapshot as Record<string, unknown>)
+                                      .filter(([, v]) => v !== null && v !== undefined)
+                                      .slice(0, 2)
+                                      .map(([k, v]) => `${k}: ${v}`)
+                                      .join(" · ")
+                                  : String((item as any).formulaSnapshot)}
+                              </div>
+                            )}
                           </div>
-                          <div className="text-right">
-                            <div className="font-medium text-slate-700">
+                          <div className="text-right shrink-0">
+                            <div className="font-semibold text-slate-700">
                               {formatMoney(item.clientAmount)}
                             </div>
                             <div className="text-[12px] text-slate-400">
+                              Vendor {formatMoney(item.vendorAmount)}
+                            </div>
+                            <div className="text-[11px] text-emerald-600">
                               Margin {formatMoney(item.marginAmount)}
                             </div>
                           </div>
@@ -719,7 +748,7 @@ function BillingRunsPage() {
                                 key={flag}
                                 className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700"
                               >
-                                {flag}
+                                ! {flag}
                               </span>
                             ))}
                           </div>
@@ -729,6 +758,30 @@ function BillingRunsPage() {
                   )}
                 </div>
               </div>
+
+              {/* Pricing → Invoice chain explanation (only after POSTED) */}
+              {selectedRun.status === "POSTED" && (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-[12px] text-emerald-700">
+                  <div className="font-semibold mb-1.5">Billing Run Posted — Invoice Created</div>
+                  <div className="space-y-1 text-emerald-600">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-200 text-[10px] font-bold">1</span>
+                      Agreement Service Terms (active pricing rules)
+                    </div>
+                    <div className="pl-3 text-[11px] text-emerald-500">↓ Used by billing engine</div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-200 text-[10px] font-bold">2</span>
+                      Billing Run Items (calculated charges)
+                    </div>
+                    <div className="pl-3 text-[11px] text-emerald-500">↓ Approved → posted as line items</div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-200 text-[10px] font-bold">3</span>
+                      Invoice Line Items → Client Invoice → Stripe
+                    </div>
+                  </div>
+                </div>
+              )}
+
 
               <div>
                 <h3 className="mb-2 font-medium text-slate-700">Vendor Payables</h3>
