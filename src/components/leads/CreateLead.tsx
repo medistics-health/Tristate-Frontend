@@ -8,24 +8,43 @@ import {
   Save,
   Target,
   UserCircle2,
+  Users,
+  Search,
+  Plus,
+  ArrowRight,
+  CheckCircle2,
+  X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import { LOGOUT_ACTION, type NavbarAction } from "../layout/Navbar";
-import type { CompanyBody } from "../companies/types";
+import type { CompanyBody, Company } from "../companies/types";
 import type { PersonBody } from "../contact/types";
 import type { DealApiError, DealBody } from "../../services/operations/deals";
 import {
   createCompanyApi,
   getCompany,
+  getCompaniesView,
 } from "../../services/operations/companies";
 import { createDealApi } from "../../services/operations/deals";
-import { createPersonApi } from "../../services/operations/persons";
-import { createPracticeApi } from "../../services/operations/practices";
+import {
+  createPersonApi,
+  getPersonsView,
+} from "../../services/operations/persons";
+import {
+  createPracticeApi,
+  getPracticesView,
+} from "../../services/operations/practices";
 import { getAllServices } from "../../services/operations/services";
-import type { PracticeBody, PracticeSource } from "../practices/types";
+import { getAllUsers } from "../../services/operations/users";
+import type {
+  PracticeBody,
+  PracticeSource,
+  Practice,
+} from "../practices/types";
 import type { Service } from "../services/types";
+import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 
 type TaxIdFormState = {
   taxIdNumber: string;
@@ -33,12 +52,12 @@ type TaxIdFormState = {
   notes: string;
 };
 
+type RelationType = "existing" | "new";
+
 type LeadFormState = {
-  practiceName: string;
-  practiceNpi: string;
-  practiceRegion: string;
-  practiceSource: PracticeSource;
-  practiceBucket: string;
+  // Company
+  companyRelation: RelationType;
+  selectedCompanyId: string;
   companyName: string;
   companyIndustry: string;
   companySize: string;
@@ -50,17 +69,34 @@ type LeadFormState = {
   companyState: string;
   companyCountry: string;
   companyZip: string;
+  taxIds: TaxIdFormState[];
+
+  // Practice
+  practiceRelation: RelationType;
+  selectedPracticeId: string;
+  practiceName: string;
+  practiceNpi: string;
+  practiceRegion: string;
+  practiceSource: PracticeSource;
+  practiceBucket: string;
+
+  // Contact
+  contactRelation: RelationType;
+  selectedContactId: string;
   primaryContactName: string;
   primaryContactEmail: string;
   primaryContactPhone: string;
   primaryContactDesignation: string;
+
+  // Deal
   interestedServiceIds: string[];
   estimatedValue: string;
   probability: string;
   followUpTaskTitle: string;
   followUpTaskDueAt: string;
+  assignedOwnerId: string;
+  channelPartnerId: string;
   notes: string;
-  taxIds: TaxIdFormState[];
 };
 
 type SavedLeadSummary = {
@@ -82,11 +118,8 @@ const initialTaxId: TaxIdFormState = {
 };
 
 const initialFormState: LeadFormState = {
-  practiceName: "",
-  practiceNpi: "",
-  practiceRegion: "",
-  practiceSource: "DIRECT",
-  practiceBucket: "",
+  companyRelation: "new",
+  selectedCompanyId: "",
   companyName: "",
   companyIndustry: "",
   companySize: "",
@@ -98,17 +131,31 @@ const initialFormState: LeadFormState = {
   companyState: "",
   companyCountry: "",
   companyZip: "",
+  taxIds: [initialTaxId],
+
+  practiceRelation: "new",
+  selectedPracticeId: "",
+  practiceName: "",
+  practiceNpi: "",
+  practiceRegion: "",
+  practiceSource: "DIRECT",
+  practiceBucket: "",
+
+  contactRelation: "new",
+  selectedContactId: "",
   primaryContactName: "",
   primaryContactEmail: "",
   primaryContactPhone: "",
   primaryContactDesignation: "",
+
   interestedServiceIds: [],
   estimatedValue: "",
   probability: "10",
   followUpTaskTitle: "",
   followUpTaskDueAt: "",
+  assignedOwnerId: "",
+  channelPartnerId: "",
   notes: "",
-  taxIds: [initialTaxId],
 };
 
 const practiceSourceOptions: Array<{ value: PracticeSource; label: string }> = [
@@ -153,6 +200,7 @@ function buildErrorMessage(error: unknown) {
 function CreateLeadPage() {
   const [form, setForm] = useState<LeadFormState>(initialFormState);
   const [services, setServices] = useState<Service[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [isLoadingServices, setIsLoadingServices] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedLead, setLastSavedLead] = useState<SavedLeadSummary | null>(
@@ -160,11 +208,15 @@ function CreateLeadPage() {
   );
 
   useEffect(() => {
-    async function loadServices() {
+    async function loadInitialData() {
       try {
         setIsLoadingServices(true);
-        const serviceList = await getAllServices();
+        const [serviceList, userList] = await Promise.all([
+          getAllServices(),
+          getAllUsers(),
+        ]);
         setServices(serviceList.filter((service) => service.isActive));
+        setUsers(userList);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unable to load services.";
@@ -174,37 +226,37 @@ function CreateLeadPage() {
       }
     }
 
-    loadServices();
+    loadInitialData();
   }, []);
 
-  function updateField<K extends keyof LeadFormState>(
-    field: K,
-    value: LeadFormState[K],
-  ) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
+  const updateField = useCallback(
+    <K extends keyof LeadFormState>(field: K, value: LeadFormState[K]) => {
+      setForm((current) => ({ ...current, [field]: value }));
+    },
+    [],
+  );
 
-  function updateTaxId(
+  const updateTaxId = (
     index: number,
     field: keyof TaxIdFormState,
     value: string,
-  ) {
+  ) => {
     setForm((current) => ({
       ...current,
       taxIds: current.taxIds.map((taxId, taxIndex) =>
         taxIndex === index ? { ...taxId, [field]: value } : taxId,
       ),
     }));
-  }
+  };
 
-  function addTaxId() {
+  const addTaxId = () => {
     setForm((current) => ({
       ...current,
       taxIds: [...current.taxIds, { ...initialTaxId }],
     }));
-  }
+  };
 
-  function removeTaxId(index: number) {
+  const removeTaxId = (index: number) => {
     setForm((current) => ({
       ...current,
       taxIds:
@@ -212,148 +264,240 @@ function CreateLeadPage() {
           ? [{ ...initialTaxId }]
           : current.taxIds.filter((_, taxIndex) => taxIndex !== index),
     }));
-  }
+  };
 
-  function toggleService(serviceId: string) {
+  const toggleService = (serviceId: string) => {
     setForm((current) => ({
       ...current,
       interestedServiceIds: current.interestedServiceIds.includes(serviceId)
         ? current.interestedServiceIds.filter((id) => id !== serviceId)
         : [...current.interestedServiceIds, serviceId],
     }));
-  }
+  };
 
-  function resetForm() {
+  const resetForm = () => {
     setForm(initialFormState);
-  }
+  };
+
+  // Search Functions
+  const handleSearchCompanies = async (
+    query: string,
+  ): Promise<SearchSelectOption[]> => {
+    const view = await getCompaniesView({
+      search: query || undefined,
+      limit: 10,
+    });
+    return view.rows.map((row) => ({
+      label: row.values.name as string,
+      value: row.id,
+      subLabel: `${row.values.industry} • ${row.values.city}, ${row.values.state}`,
+    }));
+  };
+
+  const handleSearchPractices = async (
+    query: string,
+  ): Promise<SearchSelectOption[]> => {
+    const view = await getPracticesView({
+      search: query || undefined,
+      limit: 10,
+      companyId: form.selectedCompanyId || undefined,
+    });
+    return view.rows.map((row) => ({
+      label: row.values.name as string,
+      value: row.id,
+      subLabel: `NPI: ${row.values.npi} • ${row.values.region}`,
+    }));
+  };
+
+  const handleSearchPersons = async (
+    query: string,
+  ): Promise<SearchSelectOption[]> => {
+    const view = await getPersonsView({
+      search: query || undefined,
+      limit: 10,
+      practiceId: form.selectedPracticeId || undefined,
+    });
+    return view.rows.map((row) => ({
+      label: row.values.fullName as string,
+      value: row.id,
+      subLabel: `${row.values.role} • ${row.values.email}`,
+    }));
+  };
+
+  const handleSearchChannelPartners = async (
+    query: string,
+  ): Promise<SearchSelectOption[]> => {
+    const view = await getCompaniesView({
+      search: query || undefined,
+      limit: 10,
+      status: "PARTNER",
+    });
+    return view.rows.map((row) => ({
+      label: row.values.name as string,
+      value: row.id,
+      subLabel: row.values.industry as string,
+    }));
+  };
 
   async function handleSaveLead(event: React.FormEvent) {
     event.preventDefault();
 
-    const requiredFields: Array<[string, string]> = [
-      [form.practiceName, "Practice name is required."],
-      [form.practiceNpi, "Practice NPI is required."],
-      [form.practiceRegion, "Practice region is required."],
-      [form.practiceBucket, "Practice bucket is required."],
-      [form.companyName, "Company name is required."],
-      [form.companyIndustry, "Company industry is required."],
-      [form.companySize, "Company size is required."],
-      [form.primaryContactName, "Primary contact name is required."],
-      [form.primaryContactEmail, "Primary contact email is required."],
-      [form.estimatedValue, "Estimated deal value is required."],
-      [form.followUpTaskDueAt, "Follow-up due date is required."],
-    ];
-
-    const missing = requiredFields.find(([value]) => !value.trim());
-    if (missing) {
-      toast.error(missing[1]);
-      return;
+    // Validations
+    if (form.companyRelation === "new") {
+      if (!form.companyName.trim()) {
+        toast.error("Company name is required.");
+        return;
+      }
+      if (!form.companyIndustry.trim()) {
+        toast.error("Company industry is required.");
+        return;
+      }
+    } else {
+      if (!form.selectedCompanyId) {
+        toast.error("Please select an existing company.");
+        return;
+      }
     }
 
-    const companySize = Number(form.companySize);
-    if (!Number.isFinite(companySize) || companySize < 1) {
-      toast.error("Company size must be a positive number.");
-      return;
+    if (form.practiceRelation === "new") {
+      if (!form.practiceName.trim()) {
+        toast.error("Practice name is required.");
+        return;
+      }
+      if (!form.practiceNpi.trim()) {
+        toast.error("Practice NPI is required.");
+        return;
+      }
+    } else {
+      if (!form.selectedPracticeId) {
+        toast.error("Please select an existing practice.");
+        return;
+      }
     }
 
-    const estimatedValue = Number(form.estimatedValue);
-    if (!Number.isFinite(estimatedValue) || estimatedValue < 0) {
-      toast.error("Estimated deal value must be zero or greater.");
-      return;
+    if (form.contactRelation === "new") {
+      if (!form.primaryContactName.trim()) {
+        toast.error("Contact name is required.");
+        return;
+      }
+      if (!form.primaryContactEmail.trim()) {
+        toast.error("Contact email is required.");
+        return;
+      }
+    } else {
+      if (!form.selectedContactId) {
+        toast.error("Please select an existing contact.");
+        return;
+      }
     }
 
-    const probability = Number(form.probability);
-    if (!Number.isFinite(probability) || probability < 0 || probability > 100) {
-      toast.error("Probability must be between 0 and 100.");
+    if (!form.estimatedValue) {
+      toast.error("Estimated deal value is required.");
       return;
     }
-
-    const parsedContact = parseContactName(form.primaryContactName);
-    const activityTimestamp = new Date().toISOString();
-    const followUpTaskTitle =
-      form.followUpTaskTitle.trim() ||
-      defaultFollowUpTitle(parsedContact.fullName, form.practiceName.trim());
-
-    const validTaxIds = form.taxIds.filter(
-      (taxId) => taxId.taxIdNumber.trim() && taxId.legalEntityName.trim(),
-    );
+    if (!form.followUpTaskDueAt) {
+      toast.error("Follow-up due date is required.");
+      return;
+    }
 
     setIsSaving(true);
 
     try {
-      const companyPayload: CompanyBody = {
-        name: form.companyName.trim(),
-        industry: form.companyIndustry.trim(),
-        size: companySize,
-        phone: form.companyPhone.trim() || undefined,
-        email: form.companyEmail.trim() || undefined,
-        website: form.companyWebsite.trim() || undefined,
-        status: "LEAD",
-        address: {
-          street: form.companyStreet.trim() || undefined,
-          city: form.companyCity.trim() || undefined,
-          state: form.companyState.trim() || undefined,
-          country: form.companyCountry.trim() || undefined,
-          zip: form.companyZip.trim() || undefined,
-        },
-        ...(validTaxIds.length > 0
-          ? {
-              taxIds: validTaxIds.map((taxId) => ({
-                taxIdNumber: taxId.taxIdNumber.trim(),
-                legalEntityName: taxId.legalEntityName.trim(),
-                notes: taxId.notes.trim() || undefined,
-              })),
-            }
-          : {}),
-      };
+      let companyId = form.selectedCompanyId;
+      let practiceId = form.selectedPracticeId;
+      let contactId = form.selectedContactId;
 
-      const companyRow = await createCompanyApi(companyPayload);
-      const createdCompany = await getCompany(companyRow.id);
-      const createdTaxIdId =
-        validTaxIds.length > 0
-          ? createdCompany.taxIds?.find(
-              (taxId) =>
-                taxId.taxIdNumber === validTaxIds[0].taxIdNumber.trim(),
-            )?.id
-          : undefined;
+      // 1. Handle Company
+      if (form.companyRelation === "new") {
+        const validTaxIds = form.taxIds.filter(
+          (taxId) => taxId.taxIdNumber.trim() && taxId.legalEntityName.trim(),
+        );
+        const companyPayload: CompanyBody = {
+          name: form.companyName.trim(),
+          industry: form.companyIndustry.trim(),
+          size: Number(form.companySize) || undefined,
+          phone: form.companyPhone.trim() || undefined,
+          email: form.companyEmail.trim() || undefined,
+          website: form.companyWebsite.trim() || undefined,
+          status: "LEAD",
+          address: {
+            street: form.companyStreet.trim() || undefined,
+            city: form.companyCity.trim() || undefined,
+            state: form.companyState.trim() || undefined,
+            country: form.companyCountry.trim() || undefined,
+            zip: form.companyZip.trim() || undefined,
+          },
+          taxIds:
+            validTaxIds.length > 0
+              ? validTaxIds.map((t) => ({
+                  taxIdNumber: t.taxIdNumber.trim(),
+                  legalEntityName: t.legalEntityName.trim(),
+                  notes: t.notes.trim() || undefined,
+                }))
+              : undefined,
+        };
+        const companyRow = await createCompanyApi(companyPayload);
+        companyId = companyRow.id;
+      }
 
-      const practicePayload: PracticeBody = {
-        name: form.practiceName.trim(),
-        npi: form.practiceNpi.trim(),
-        status: "LEAD",
-        region: form.practiceRegion.trim(),
-        source: form.practiceSource,
-        bucket: form.practiceBucket
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
-        companyId: companyRow.id,
-        taxIdId: createdTaxIdId,
-      };
-      const practiceRow = await createPracticeApi(practicePayload);
+      // 2. Handle Practice
+      if (form.practiceRelation === "new") {
+        const practicePayload: PracticeBody = {
+          name: form.practiceName.trim(),
+          npi: form.practiceNpi.trim(),
+          status: "LEAD",
+          region: form.practiceRegion.trim(),
+          source: form.practiceSource,
+          bucket: form.practiceBucket
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+          companyId: companyId,
+        };
+        const practiceRow = await createPracticeApi(practicePayload);
+        practiceId = practiceRow.id;
+      }
 
-      const personPayload: PersonBody = {
-        firstName: parsedContact.firstName,
-        lastName: parsedContact.lastName,
-        role: "ADMIN",
-        influence: "HIGH",
-        email: form.primaryContactEmail.trim(),
-        phone: form.primaryContactPhone.trim() || undefined,
-        designation: form.primaryContactDesignation.trim() || undefined,
-        practiceIds: [practiceRow.id],
-        companyIds: [companyRow.id],
-      };
-      const personRow = await createPersonApi(personPayload);
+      // 3. Handle Contact
+      if (form.contactRelation === "new") {
+        const parsedContact = parseContactName(form.primaryContactName);
+        const personPayload: PersonBody = {
+          firstName: parsedContact.firstName,
+          lastName: parsedContact.lastName,
+          role: "ADMIN",
+          influence: "HIGH",
+          email: form.primaryContactEmail.trim(),
+          phone: form.primaryContactPhone.trim() || undefined,
+          designation: form.primaryContactDesignation.trim() || undefined,
+          practiceIds: [practiceId],
+          companyIds: [companyId],
+        };
+        const personRow = await createPersonApi(personPayload);
+        contactId = personRow.id;
+      }
+
+      // 4. Handle Deal
+      const activityTimestamp = new Date().toISOString();
+      const contactName =
+        form.contactRelation === "new"
+          ? form.primaryContactName
+          : "Selected Contact";
+      const pName =
+        form.practiceRelation === "new"
+          ? form.practiceName
+          : "Selected Practice";
 
       const dealPayload: DealBody = {
-        practiceId: practiceRow.id,
-        companyId: companyRow.id,
-        primaryContactId: personRow.id,
+        practiceId: practiceId,
+        companyId: companyId,
+        primaryContactId: contactId,
         stage: "PROSPECTING",
-        value: estimatedValue,
-        probability,
+        value: Number(form.estimatedValue),
+        probability: Number(form.probability),
         selectedServiceIds: form.interestedServiceIds,
-        nextTaskTitle: followUpTaskTitle,
+        nextTaskTitle:
+          form.followUpTaskTitle.trim() ||
+          defaultFollowUpTitle(contactName, pName),
         nextTaskDueAt: new Date(form.followUpTaskDueAt).toISOString(),
         lastActivityAt: activityTimestamp,
         activityCount: 1,
@@ -361,19 +505,24 @@ function CreateLeadPage() {
       const dealRow = await createDealApi(dealPayload);
 
       setLastSavedLead({
-        practiceId: practiceRow.id,
-        companyId: companyRow.id,
-        contactId: personRow.id,
+        practiceId,
+        companyId,
+        contactId,
         dealId: dealRow.id,
-        practiceName: form.practiceName.trim(),
-        companyName: form.companyName.trim(),
-        contactName: parsedContact.fullName,
+        practiceName: pName,
+        companyName:
+          form.companyRelation === "new"
+            ? form.companyName
+            : "Selected Company",
+        contactName: contactName,
         dealStage: "PROSPECTING",
         savedAt: activityTimestamp,
       });
+
       resetForm();
-      toast.success("Lead saved successfully.");
+      toast.success("Lead flow completed successfully.");
     } catch (error) {
+      console.error(error);
       toast.error(buildErrorMessage(error));
     } finally {
       setIsSaving(false);
@@ -384,19 +533,7 @@ function CreateLeadPage() {
     form.interestedServiceIds.includes(service.id),
   );
 
-  const navbarActions: NavbarAction[] = [
-    // {
-    //   label: isSaving ? "Saving..." : "Save Lead",
-    //   icon: <Save className="h-4 w-4" />,
-    //   onClick: () => {
-    //     const formElement = document.getElementById("create-lead-form");
-    //     if (formElement instanceof HTMLFormElement) {
-    //       formElement.requestSubmit();
-    //     }
-    //   },
-    // },
-    LOGOUT_ACTION,
-  ];
+  const navbarActions: NavbarAction[] = [LOGOUT_ACTION];
 
   return (
     <AppLayout
@@ -406,730 +543,746 @@ function CreateLeadPage() {
       navbarIcon={<Target className="h-4 w-4 text-slate-500" />}
       navbarActions={navbarActions}
     >
-      <div className="grid h-full gap-2 lg:grid-cols-[minmax(0,1.4fr)_380px]">
-        <section className="app-panel overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
-          <div className="border-b border-[#f0ece6] px-6 py-4">
-            <h1 className="text-[18px] font-semibold text-slate-800">
-              Create New Lead
-            </h1>
-            <p className="mt-1 text-[13px] text-slate-500">
-              Capture the required practice and company details before
-              generating downstream CRM records.
-            </p>
-          </div>
+      <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+        <div className="flex flex-col gap-4 pb-8">
+          <section className="app-panel rounded-2xl border border-[#f0ece6] bg-white shadow-sm overflow-hidden">
+            <div className="border-b border-[#f0ece6] px-6 py-4 flex items-center justify-between bg-slate-50/30">
+              <div>
+                <h1 className="text-[18px] font-semibold text-slate-800">
+                  Lead Creation Flow
+                </h1>
+                <p className="mt-1 text-[13px] text-slate-500">
+                  Follow the steps to link existing records or create new ones
+                  for this lead.
+                </p>
+              </div>
+              {/*<div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-[#4f63ea]/10 flex items-center justify-center text-[#4f63ea] font-bold text-sm">1</div>
+                  <div className="h-px w-4 bg-slate-200"></div>
+                  <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-sm">2</div>
+                  <div className="h-px w-4 bg-slate-200"></div>
+                  <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-sm">3</div>
+              </div>*/}
+            </div>
 
-          <form
-            id="create-lead-form"
-            onSubmit={handleSaveLead}
-            className="flex h-[calc(100%-76px)] flex-col"
-          >
-            <div className="flex-1 space-y-6 overflow-auto px-6 py-5">
-              <section className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <LayoutGrid className="h-4 w-4 text-slate-400" />
-                  <h2 className="text-[14px] font-semibold text-slate-700">
-                    Practice Details
-                  </h2>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Practice Name <span className="text-red-500">*</span>
-                    </span>
-                    <input
-                      type="text"
-                      value={form.practiceName}
-                      onChange={(event) =>
-                        updateField("practiceName", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      NPI <span className="text-red-500">*</span>
-                    </span>
-                    <input
-                      type="text"
-                      value={form.practiceNpi}
-                      onChange={(event) =>
-                        updateField("practiceNpi", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    />
-                  </label>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Region <span className="text-red-500">*</span>
-                    </span>
-                    <input
-                      type="text"
-                      value={form.practiceRegion}
-                      onChange={(event) =>
-                        updateField("practiceRegion", event.target.value)
-                      }
-                      placeholder="Northeast"
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Source <span className="text-red-500">*</span>
-                    </span>
-                    <select
-                      value={form.practiceSource}
-                      onChange={(event) =>
-                        updateField(
-                          "practiceSource",
-                          event.target.value as PracticeSource,
-                        )
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    >
-                      {practiceSourceOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Bucket / Specialty <span className="text-red-500">*</span>
-                    </span>
-                    <input
-                      type="text"
-                      value={form.practiceBucket}
-                      onChange={(event) =>
-                        updateField("practiceBucket", event.target.value)
-                      }
-                      placeholder="Radiology, Multi-site"
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    />
-                  </label>
-                </div>
-              </section>
-
-              <section className="space-y-4 rounded-2xl border border-[#f0ece6] bg-[#faf9f7] p-4">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-slate-400" />
-                  <h2 className="text-[14px] font-semibold text-slate-700">
-                    Company Details
-                  </h2>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Company Name <span className="text-red-500">*</span>
-                    </span>
-                    <input
-                      type="text"
-                      value={form.companyName}
-                      onChange={(event) =>
-                        updateField("companyName", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Industry <span className="text-red-500">*</span>
-                    </span>
-                    <input
-                      type="text"
-                      value={form.companyIndustry}
-                      onChange={(event) =>
-                        updateField("companyIndustry", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    />
-                  </label>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-4">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Size <span className="text-red-500">*</span>
-                    </span>
-                    <input
-                      type="number"
-                      min="1"
-                      value={form.companySize}
-                      onChange={(event) =>
-                        updateField("companySize", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Phone
-                    </span>
-                    <input
-                      type="text"
-                      value={form.companyPhone}
-                      onChange={(event) =>
-                        updateField("companyPhone", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Email
-                    </span>
-                    <input
-                      type="email"
-                      value={form.companyEmail}
-                      onChange={(event) =>
-                        updateField("companyEmail", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Website
-                    </span>
-                    <input
-                      type="text"
-                      value={form.companyWebsite}
-                      onChange={(event) =>
-                        updateField("companyWebsite", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Street
-                    </span>
-                    <input
-                      type="text"
-                      value={form.companyStreet}
-                      onChange={(event) =>
-                        updateField("companyStreet", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      City
-                    </span>
-                    <input
-                      type="text"
-                      value={form.companyCity}
-                      onChange={(event) =>
-                        updateField("companyCity", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      State
-                    </span>
-                    <input
-                      type="text"
-                      value={form.companyState}
-                      onChange={(event) =>
-                        updateField("companyState", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Country
-                    </span>
-                    <input
-                      type="text"
-                      value={form.companyCountry}
-                      onChange={(event) =>
-                        updateField("companyCountry", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      ZIP
-                    </span>
-                    <input
-                      type="text"
-                      value={form.companyZip}
-                      onChange={(event) =>
-                        updateField("companyZip", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-medium text-slate-700">
-                      Tax IDs
-                    </span>
+            <form onSubmit={handleSaveLead} className="p-6 space-y-8">
+              {/* Step 1: Company */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-[#4f63ea]" />
+                    <h2 className="text-[16px] font-semibold text-slate-800">
+                      Company / Client
+                    </h2>
+                  </div>
+                  <div className="flex bg-slate-100 p-1 rounded-lg">
                     <button
                       type="button"
-                      onClick={addTaxId}
-                      className="text-[13px] font-medium text-[#4f63ea] hover:underline"
+                      onClick={() => updateField("companyRelation", "existing")}
+                      className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
+                        form.companyRelation === "existing"
+                          ? "bg-white text-[#4f63ea] shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
                     >
-                      Add Tax ID
+                      Existing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateField("companyRelation", "new")}
+                      className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
+                        form.companyRelation === "new"
+                          ? "bg-white text-[#4f63ea] shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      New
                     </button>
                   </div>
-                  {form.taxIds.map((taxId, index) => (
-                    <div
-                      key={index}
-                      className="grid gap-3 rounded-xl border border-[#ece8e1] bg-white p-3 md:grid-cols-[1fr_1fr_1fr_auto]"
-                    >
-                      <input
-                        type="text"
-                        value={taxId.taxIdNumber}
-                        onChange={(event) =>
-                          updateTaxId(index, "taxIdNumber", event.target.value)
+                </div>
+
+                {form.companyRelation === "existing" ? (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="block">
+                      <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                        Search Existing Company
+                      </span>
+                      <SearchSelect
+                        value={form.selectedCompanyId}
+                        onChange={(val) =>
+                          updateField("selectedCompanyId", val)
                         }
-                        placeholder="Tax ID Number"
-                        className="app-control rounded-md px-3 py-2 text-[13px]"
+                        onSearch={handleSearchCompanies}
+                        placeholder="Search by company name, city, or industry..."
                       />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 p-4 rounded-xl border border-[#f0ece6] bg-[#fafafa] animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="block">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Company Name *
+                      </span>
                       <input
                         type="text"
-                        value={taxId.legalEntityName}
-                        onChange={(event) =>
-                          updateTaxId(
-                            index,
-                            "legalEntityName",
-                            event.target.value,
+                        value={form.companyName}
+                        onChange={(e) =>
+                          updateField("companyName", e.target.value)
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        placeholder="e.g. Acme Medical Group"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Industry *
+                      </span>
+                      <input
+                        type="text"
+                        value={form.companyIndustry}
+                        onChange={(e) =>
+                          updateField("companyIndustry", e.target.value)
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        placeholder="e.g. Healthcare Services"
+                      />
+                    </label>
+                    <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
+                      <label className="block">
+                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                          Size
+                        </span>
+                        <input
+                          type="number"
+                          value={form.companySize}
+                          onChange={(e) =>
+                            updateField("companySize", e.target.value)
+                          }
+                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                          Phone
+                        </span>
+                        <input
+                          type="text"
+                          value={form.companyPhone}
+                          onChange={(e) =>
+                            updateField("companyPhone", e.target.value)
+                          }
+                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                          Email
+                        </span>
+                        <input
+                          type="email"
+                          value={form.companyEmail}
+                          onChange={(e) =>
+                            updateField("companyEmail", e.target.value)
+                          }
+                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Step 2: Practice */}
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <LayoutGrid className="h-5 w-5 text-[#4f63ea]" />
+                    <h2 className="text-[16px] font-semibold text-slate-800">
+                      Practice Details
+                    </h2>
+                  </div>
+                  <div className="flex bg-slate-100 p-1 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateField("practiceRelation", "existing")
+                      }
+                      className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
+                        form.practiceRelation === "existing"
+                          ? "bg-white text-[#4f63ea] shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      Existing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateField("practiceRelation", "new")}
+                      className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
+                        form.practiceRelation === "new"
+                          ? "bg-white text-[#4f63ea] shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      New
+                    </button>
+                  </div>
+                </div>
+
+                {form.practiceRelation === "existing" ? (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="block">
+                      <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                        Search Existing Practice
+                      </span>
+                      <SearchSelect
+                        value={form.selectedPracticeId}
+                        onChange={(val) =>
+                          updateField("selectedPracticeId", val)
+                        }
+                        onSearch={handleSearchPractices}
+                        placeholder={
+                          form.selectedCompanyId
+                            ? "Search practices for selected company..."
+                            : "Search all practices..."
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 p-4 rounded-xl border border-[#f0ece6] bg-[#fafafa] animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="block">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Practice Name *
+                      </span>
+                      <input
+                        type="text"
+                        value={form.practiceName}
+                        onChange={(e) =>
+                          updateField("practiceName", e.target.value)
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        NPI *
+                      </span>
+                      <input
+                        type="text"
+                        value={form.practiceNpi}
+                        onChange={(e) =>
+                          updateField("practiceNpi", e.target.value)
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </label>
+                    <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
+                      <label className="block">
+                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                          Region
+                        </span>
+                        <input
+                          type="text"
+                          value={form.practiceRegion}
+                          onChange={(e) =>
+                            updateField("practiceRegion", e.target.value)
+                          }
+                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          placeholder="e.g. Northeast"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                          Lead Source
+                        </span>
+                        <select
+                          value={form.practiceSource}
+                          onChange={(e) =>
+                            updateField(
+                              "practiceSource",
+                              e.target.value as PracticeSource,
+                            )
+                          }
+                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        >
+                          {practiceSourceOptions.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                          Bucket / Specialty
+                        </span>
+                        <input
+                          type="text"
+                          value={form.practiceBucket}
+                          onChange={(e) =>
+                            updateField("practiceBucket", e.target.value)
+                          }
+                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          placeholder="e.g. Radiology"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Step 3: Contact */}
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <UserCircle2 className="h-5 w-5 text-[#4f63ea]" />
+                    <h2 className="text-[16px] font-semibold text-slate-800">
+                      Primary Contact
+                    </h2>
+                  </div>
+                  <div className="flex bg-slate-100 p-1 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => updateField("contactRelation", "existing")}
+                      className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
+                        form.contactRelation === "existing"
+                          ? "bg-white text-[#4f63ea] shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      Existing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateField("contactRelation", "new")}
+                      className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
+                        form.contactRelation === "new"
+                          ? "bg-white text-[#4f63ea] shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      New
+                    </button>
+                  </div>
+                </div>
+
+                {form.contactRelation === "existing" ? (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="block">
+                      <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                        Search Existing Person
+                      </span>
+                      <SearchSelect
+                        value={form.selectedContactId}
+                        onChange={(val) =>
+                          updateField("selectedContactId", val)
+                        }
+                        onSearch={handleSearchPersons}
+                        placeholder={
+                          form.selectedPracticeId
+                            ? "Search contacts for selected practice..."
+                            : "Search all persons..."
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 p-4 rounded-xl border border-[#f0ece6] bg-[#fafafa] animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="block">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Contact Name *
+                      </span>
+                      <input
+                        type="text"
+                        value={form.primaryContactName}
+                        onChange={(e) =>
+                          updateField("primaryContactName", e.target.value)
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Email *
+                      </span>
+                      <input
+                        type="email"
+                        value={form.primaryContactEmail}
+                        onChange={(e) =>
+                          updateField("primaryContactEmail", e.target.value)
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Phone
+                      </span>
+                      <input
+                        type="text"
+                        value={form.primaryContactPhone}
+                        onChange={(e) =>
+                          updateField("primaryContactPhone", e.target.value)
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Designation
+                      </span>
+                      <input
+                        type="text"
+                        value={form.primaryContactDesignation}
+                        onChange={(e) =>
+                          updateField(
+                            "primaryContactDesignation",
+                            e.target.value,
                           )
                         }
-                        placeholder="Legal Entity Name"
-                        className="app-control rounded-md px-3 py-2 text-[13px]"
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Deal Section */}
+              <div className="space-y-6 pt-6 border-t border-slate-200">
+                <div className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-[#4f63ea]" />
+                  <h2 className="text-[16px] font-semibold text-slate-800">
+                    Deal / Opportunity Setup
+                  </h2>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-3">
+                  <label className="block">
+                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Estimated Value *
+                    </span>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-medium">
+                        $
+                      </span>
                       <input
-                        type="text"
-                        value={taxId.notes}
-                        onChange={(event) =>
-                          updateTaxId(index, "notes", event.target.value)
+                        type="number"
+                        value={form.estimatedValue}
+                        onChange={(e) =>
+                          updateField("estimatedValue", e.target.value)
                         }
-                        placeholder="Notes"
-                        className="app-control rounded-md px-3 py-2 text-[13px]"
+                        className="app-control w-full rounded-md pl-7 pr-3 py-2 text-[13px]"
+                        placeholder="0"
                       />
-                      <button
-                        type="button"
-                        onClick={() => removeTaxId(index)}
-                        className="rounded-md border border-[#ece8e1] px-3 py-2 text-[13px] text-red-500 hover:bg-[#fff6f6]"
-                      >
-                        Remove
-                      </button>
                     </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <UserCircle2 className="h-4 w-4 text-slate-400" />
-                  <h2 className="text-[14px] font-semibold text-slate-700">
-                    Primary Contact
-                  </h2>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Contact Name <span className="text-red-500">*</span>
-                    </span>
-                    <input
-                      type="text"
-                      value={form.primaryContactName}
-                      onChange={(event) =>
-                        updateField("primaryContactName", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    />
                   </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Designation
-                    </span>
-                    <input
-                      type="text"
-                      value={form.primaryContactDesignation}
-                      onChange={(event) =>
-                        updateField(
-                          "primaryContactDesignation",
-                          event.target.value,
-                        )
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Contact Email <span className="text-red-500">*</span>
-                    </span>
-                    <input
-                      type="email"
-                      value={form.primaryContactEmail}
-                      onChange={(event) =>
-                        updateField("primaryContactEmail", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Contact Phone
-                    </span>
-                    <input
-                      type="text"
-                      value={form.primaryContactPhone}
-                      onChange={(event) =>
-                        updateField("primaryContactPhone", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-                </div>
-              </section>
-
-              <section className="space-y-4 rounded-2xl border border-[#f0ece6] bg-[#faf9f7] p-4">
-                <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4 text-slate-400" />
-                  <h2 className="text-[14px] font-semibold text-slate-700">
-                    Lead / Deal Setup
-                  </h2>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Estimated Value <span className="text-red-500">*</span>
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.estimatedValue}
-                      onChange={(event) =>
-                        updateField("estimatedValue", event.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    />
-                  </label>
-
                   <label className="block">
                     <span className="mb-1 block text-[13px] font-medium text-slate-700">
                       Probability (%)
                     </span>
                     <input
                       type="number"
-                      min="0"
-                      max="100"
                       value={form.probability}
-                      onChange={(event) =>
-                        updateField("probability", event.target.value)
+                      onChange={(e) =>
+                        updateField("probability", e.target.value)
                       }
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </label>
-
                   <label className="block">
                     <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Follow-Up Due <span className="text-red-500">*</span>
+                      Follow-Up Due *
                     </span>
                     <input
                       type="date"
                       value={form.followUpTaskDueAt}
-                      onChange={(event) =>
-                        updateField("followUpTaskDueAt", event.target.value)
+                      onChange={(e) =>
+                        updateField("followUpTaskDueAt", e.target.value)
                       }
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
                     />
                   </label>
                 </div>
 
-                <label className="block">
-                  <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Follow-Up Task Title
-                  </span>
-                  <input
-                    type="text"
-                    value={form.followUpTaskTitle}
-                    onChange={(event) =>
-                      updateField("followUpTaskTitle", event.target.value)
-                    }
-                    placeholder="Follow up with contact about onboarding needs"
-                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                  />
-                </label>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Assigned Owner
+                    </span>
+                    <select
+                      value={form.assignedOwnerId}
+                      onChange={(e) =>
+                        updateField("assignedOwnerId", e.target.value)
+                      }
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    >
+                      <option value="">Select Owner</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.firstName} {u.lastName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Channel Partner (if applicable)
+                    </span>
+                    <SearchSelect
+                      value={form.channelPartnerId}
+                      onChange={(val) => updateField("channelPartnerId", val)}
+                      onSearch={handleSearchChannelPartners}
+                      placeholder="Search channel partners..."
+                    />
+                  </label>
+                </div>
 
-                <div>
-                  <span className="mb-2 block text-[13px] font-medium text-slate-700">
+                <div className="space-y-3">
+                  <span className="text-[13px] font-medium text-slate-700">
                     Interested Services
                   </span>
-                  <div className="rounded-xl border border-[#ece8e1] bg-white p-3">
-                    {isLoadingServices ? (
-                      <div className="py-4 text-center text-[13px] text-slate-400">
-                        Loading services...
-                      </div>
-                    ) : services.length === 0 ? (
-                      <div className="py-4 text-center text-[13px] text-slate-400">
-                        No active services available.
-                      </div>
-                    ) : (
-                      <div className="grid gap-2 md:grid-cols-2">
-                        {services.map((service) => {
-                          const checked = form.interestedServiceIds.includes(
-                            service.id,
-                          );
-                          return (
-                            <label
-                              key={service.id}
-                              className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 ${
-                                checked
-                                  ? "border-[#9cb1f6] bg-[#f5f7ff]"
-                                  : "border-[#ece8e1] bg-[#fcfbf9]"
-                              }`}
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {services.map((service) => {
+                      const isSelected = form.interestedServiceIds.includes(
+                        service.id,
+                      );
+                      return (
+                        <button
+                          key={service.id}
+                          type="button"
+                          onClick={() => toggleService(service.id)}
+                          className={`flex items-start gap-3 p-3 text-left rounded-xl border transition-all ${
+                            isSelected
+                              ? "border-[#4f63ea] bg-[#4f63ea]/5 shadow-sm"
+                              : "border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200"
+                          }`}
+                        >
+                          <div
+                            className={`mt-0.5 h-4 w-4 shrink-0 rounded border flex items-center justify-center ${
+                              isSelected
+                                ? "bg-[#4f63ea] border-[#4f63ea]"
+                                : "bg-white border-slate-300"
+                            }`}
+                          >
+                            {isSelected && (
+                              <CheckCircle2 className="h-3 w-3 text-white" />
+                            )}
+                          </div>
+                          <div>
+                            <div
+                              className={`text-[13px] font-semibold ${isSelected ? "text-[#4f63ea]" : "text-slate-700"}`}
                             >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleService(service.id)}
-                                className="mt-0.5 h-4 w-4 rounded border border-[#cec8bf]"
-                              />
-                              <span>
-                                <span className="block text-[13px] font-medium text-slate-700">
-                                  {service.name}
-                                </span>
-                                <span className="block text-[12px] text-slate-500">
-                                  {service.category ||
-                                    service.code ||
-                                    "Uncategorized"}
-                                </span>
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
+                              {service.name}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              {service.category || "General Service"}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 <label className="block">
                   <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Notes
+                    Internal Notes
                   </span>
                   <textarea
                     value={form.notes}
-                    onChange={(event) =>
-                      updateField("notes", event.target.value)
-                    }
+                    onChange={(e) => updateField("notes", e.target.value)}
                     rows={4}
-                    placeholder="Lead context, concerns, timeline, or internal notes."
-                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    className="app-control w-full rounded-xl px-4 py-3 text-[13px] bg-slate-50/50"
+                    placeholder="Enter lead context, timeline, or specific requirements..."
                   />
                 </label>
-              </section>
-            </div>
+              </div>
 
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-6 py-4">
-              <button
-                type="button"
-                onClick={resetForm}
-                disabled={isSaving}
-                className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1] disabled:opacity-50"
-              >
-                Clear
-              </button>
+              <div className="pt-6 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="px-6 py-2.5 text-[14px] font-medium text-slate-600 hover:text-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex items-center gap-2 px-8 py-2.5 rounded-xl bg-[#4f63ea] text-white text-[14px] font-semibold hover:bg-[#3d4ecf] shadow-lg shadow-[#4f63ea]/20 transition-all disabled:opacity-50 disabled:shadow-none"
+                >
+                  {isSaving ? (
+                    <>
+                      <Search className="h-4 w-4 animate-spin" />
+                      Saving Lead...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Create Lead
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
 
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="app-control inline-flex items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" />
-                {isSaving ? "Saving Lead..." : "Save Lead"}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <aside className="space-y-2">
+        <aside className="flex flex-col gap-4 sticky top-0">
           <section className="app-panel rounded-2xl border border-[#f0ece6] bg-white p-5 shadow-sm">
-            <h2 className="text-[14px] font-semibold text-slate-700">
-              What Save Creates
+            <h2 className="text-[15px] font-bold text-slate-800 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              Submission Summary
             </h2>
-            <div className="mt-4 space-y-3 text-[13px] text-slate-600">
-              <p>
-                Company record with the entered profile, address, and tax IDs.
-              </p>
-              <p>Practice record with NPI, region, source, and bucket data.</p>
-              <p>Primary contact linked to both the company and practice.</p>
-              <p>
-                Initial deal in `PROSPECTING` with services and follow-up task.
-              </p>
+            <div className="mt-5 space-y-4">
+              <div className="flex gap-3">
+                <div
+                  className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${
+                    form.companyRelation === "existing" &&
+                    form.selectedCompanyId
+                      ? "bg-green-100 text-green-600"
+                      : "bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  {form.companyRelation === "existing" &&
+                  form.selectedCompanyId ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <Building2 className="h-3.5 w-3.5" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-[12px] font-bold text-slate-700 uppercase tracking-wider">
+                    Company
+                  </div>
+                  <div className="text-[13px] text-slate-500 mt-0.5">
+                    {form.companyRelation === "existing"
+                      ? form.selectedCompanyId
+                        ? "Link to existing"
+                        : "Select a company"
+                      : form.companyName || "Create new company"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div
+                  className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${
+                    form.practiceRelation === "existing" &&
+                    form.selectedPracticeId
+                      ? "bg-green-100 text-green-600"
+                      : "bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  {form.practiceRelation === "existing" &&
+                  form.selectedPracticeId ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-[12px] font-bold text-slate-700 uppercase tracking-wider">
+                    Practice
+                  </div>
+                  <div className="text-[13px] text-slate-500 mt-0.5">
+                    {form.practiceRelation === "existing"
+                      ? form.selectedPracticeId
+                        ? "Link to existing"
+                        : "Select a practice"
+                      : form.practiceName || "Create new practice"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div
+                  className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${
+                    form.contactRelation === "existing" &&
+                    form.selectedContactId
+                      ? "bg-green-100 text-green-600"
+                      : "bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  {form.contactRelation === "existing" &&
+                  form.selectedContactId ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <UserCircle2 className="h-3.5 w-3.5" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-[12px] font-bold text-slate-700 uppercase tracking-wider">
+                    Primary Contact
+                  </div>
+                  <div className="text-[13px] text-slate-500 mt-0.5">
+                    {form.contactRelation === "existing"
+                      ? form.selectedContactId
+                        ? "Link to existing"
+                        : "Select a contact"
+                      : form.primaryContactName || "Create new contact"}
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
-          <section className="app-panel rounded-2xl border border-[#f0ece6] bg-white p-5 shadow-sm">
-            <h2 className="text-[14px] font-semibold text-slate-700">
-              Preview
-            </h2>
-            <div className="mt-4 space-y-4 text-[13px] text-slate-600">
-              <div>
-                <div className="text-[12px] uppercase tracking-[0.08em] text-slate-400">
-                  Practice
-                </div>
-                <div className="mt-1 font-medium text-slate-700">
-                  {form.practiceName || "Practice Name"}
-                </div>
+          {lastSavedLead && (
+            <div className="app-panel rounded-2xl border border-green-100 bg-green-50/50 p-5 shadow-sm animate-in zoom-in-95 duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-[14px] font-bold text-green-800">
+                  Recently Created
+                </h2>
+                <button
+                  onClick={() => setLastSavedLead(null)}
+                  className="text-green-600 hover:text-green-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <div>
-                <div className="text-[12px] uppercase tracking-[0.08em] text-slate-400">
-                  Company
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="text-green-600/70">Practice</span>
+                  <span className="font-semibold text-green-800">
+                    {lastSavedLead.practiceName}
+                  </span>
                 </div>
-                <div className="mt-1 font-medium text-slate-700">
-                  {form.companyName || "Company Name"}
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="text-green-600/70">Deal Stage</span>
+                  <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold">
+                    {lastSavedLead.dealStage}
+                  </span>
                 </div>
-              </div>
-              <div>
-                <div className="text-[12px] uppercase tracking-[0.08em] text-slate-400">
-                  Contact
-                </div>
-                <div className="mt-1 font-medium text-slate-700">
-                  {form.primaryContactName || "Primary Contact"}
-                </div>
-              </div>
-              <div>
-                <div className="text-[12px] uppercase tracking-[0.08em] text-slate-400">
-                  Services
-                </div>
-                <div className="mt-1 text-slate-700">
-                  {selectedServices.length > 0
-                    ? selectedServices.map((service) => service.name).join(", ")
-                    : "No services selected"}
-                </div>
+                <button className="w-full mt-2 py-2 rounded-lg bg-green-600 text-white text-[12px] font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
+                  View Deal <ArrowRight className="h-3 w-3" />
+                </button>
               </div>
             </div>
-          </section>
+          )}
 
-          {lastSavedLead ? (
-            <section className="app-panel rounded-2xl border border-[#d9e7cb] bg-[#f7fbf2] p-5 shadow-sm">
-              <h2 className="text-[14px] font-semibold text-slate-700">
-                Last Saved Lead
-              </h2>
-              <div className="mt-4 space-y-3 text-[13px] text-slate-700">
-                <div className="text-slate-500">
-                  {formatDateTime(lastSavedLead.savedAt)}
-                </div>
-                <div className="grid gap-3">
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.08em] text-slate-400">
-                      Practice ID
-                    </div>
-                    <div className="mt-1 break-all">
-                      {lastSavedLead.practiceId}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.08em] text-slate-400">
-                      Company ID
-                    </div>
-                    <div className="mt-1 break-all">
-                      {lastSavedLead.companyId}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.08em] text-slate-400">
-                      Contact ID
-                    </div>
-                    <div className="mt-1 break-all">
-                      {lastSavedLead.contactId}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.08em] text-slate-400">
-                      Deal ID
-                    </div>
-                    <div className="mt-1 break-all">{lastSavedLead.dealId}</div>
-                  </div>
-                </div>
-                <div className="rounded-full bg-[#eef6ff] px-3 py-1 text-[12px] font-medium text-[#4366a8]">
-                  Deal stage: {lastSavedLead.dealStage}
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          <section className="app-panel rounded-2xl border border-[#f0ece6] bg-white p-5 shadow-sm">
-            <h2 className="text-[14px] font-semibold text-slate-700">
-              Field Mapping
+          <section className="app-panel rounded-2xl border border-[#f0ece6] bg-slate-50 p-5 shadow-sm">
+            <h2 className="text-[14px] font-bold text-slate-800 mb-3">
+              System Behavior
             </h2>
-            <div className="mt-4 space-y-3 text-[13px] text-slate-600">
-              <div className="flex items-start gap-3">
-                <MapPin className="mt-0.5 h-4 w-4 text-slate-400" />
-                <span>Company address is saved on the company record.</span>
-              </div>
-              <div className="flex items-start gap-3">
-                <Mail className="mt-0.5 h-4 w-4 text-slate-400" />
-                <span>
-                  Contact email is required because the lead creates a real
-                  contact.
-                </span>
-              </div>
-              <div className="flex items-start gap-3">
-                <Phone className="mt-0.5 h-4 w-4 text-slate-400" />
-                <span>
-                  Follow-up is stored on the deal using the current task fields.
-                </span>
-              </div>
-              <div className="flex items-start gap-3">
-                <Globe className="mt-0.5 h-4 w-4 text-slate-400" />
-                <span>
-                  `NEW LEAD` is still mapped to `PROSPECTING` because that is
-                  the current API stage.
-                </span>
-              </div>
-            </div>
+            <ul className="space-y-3">
+              {[
+                "Creates or links Company/Client record",
+                "Creates or links Practice profile",
+                "Establishes primary contact relationship",
+                "Generates CRM Deal in Prospecting stage",
+                "Logs initial discovery activity",
+                "Sets up follow-up task for owner",
+              ].map((item, i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-2 text-[12px] text-slate-500"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
           </section>
         </aside>
       </div>
