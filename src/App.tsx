@@ -39,6 +39,7 @@ import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
 import OnboardingFormV3 from "./components/onboarding/OnboardingFormV3";
+import AdminOnboardingReview from "./components/onboarding/AdminOnboardingReview";
 import MonthlyReportingDashboard from "./components/monthly-reporting/MonthlyReportingDashboard";
 import SubmitMonthlyReport from "./components/monthly-reporting/SubmitMonthlyReport";
 import PricingEnginePage from "./components/pricing-terms/PricingEngine";
@@ -96,6 +97,15 @@ function App() {
             {/*<OnboardingForm />*/}
             <OnboardingFormV3 />
           </UUIDProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding/review"
+        element={
+          <ProtectedRoute>
+            <AdminOnboardingReview />
+          </ProtectedRoute>
         }
       />
 
