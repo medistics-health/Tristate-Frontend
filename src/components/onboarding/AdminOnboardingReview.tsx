@@ -10,14 +10,19 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
+  ArrowRight,
+  Building2,
   CheckCircle,
   ChevronDown,
   Clock,
   FileText,
+  LayoutGrid,
   MapPin,
   Plus,
   Search,
+  Target,
   User,
+  Users,
   X,
   XCircle,
 } from "lucide-react";
@@ -68,6 +73,83 @@ const statusLabels: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
+const onboardingTypeOptions = [
+  { label: "Single Practice", value: "SINGLE_PRACTICE" },
+  {
+    label: "Multi Practice Organization",
+    value: "MULTI_PRACTICE_ORGANIZATION",
+  },
+  {
+    label: "Single Practice Organization",
+    value: "SINGLE_PRACTICE_ORGANIZATION",
+  },
+];
+
+const organizationTypeOptions = [
+  { label: "Independent Practice", value: "INDEPENDENT_PRACTICE" },
+  { label: "Medical Group", value: "MEDICAL_GROUP" },
+  { label: "Multi-Specialty Group", value: "MULTI_SPECIALTY_GROUP" },
+  { label: "MSO", value: "MSO" },
+  { label: "IPA", value: "IPA" },
+  { label: "DSO", value: "DSO" },
+  { label: "FQHC", value: "FQHC" },
+  { label: "Hospital-Affiliated Group", value: "HOSPITAL_AFFILIATED_GROUP" },
+  { label: "Pharmacy Organization", value: "PHARMACY_ORGANIZATION" },
+  { label: "Other", value: "OTHER" },
+];
+
+const ownershipTypeOptions = [
+  { label: "Physician-Owned", value: "PHYSICIAN_OWNED" },
+  { label: "Corporate-Owned", value: "CORPORATE_OWNED" },
+  { label: "Private Equity Backed", value: "PRIVATE_EQUITY_BACKED" },
+  { label: "Hospital-Affiliated", value: "HOSPITAL_AFFILIATED" },
+  { label: "Family-Owned", value: "FAMILY_OWNED" },
+  { label: "Partnership", value: "PARTNERSHIP" },
+  { label: "Other", value: "OTHER" },
+];
+
+const contactRoleOptions = [
+  { label: "Executive / Owner", value: "EXECUTIVE_OWNER" },
+  { label: "Practice Manager", value: "PRACTICE_MANAGER" },
+  { label: "Office Manager", value: "OFFICE_MANAGER" },
+  { label: "Billing Contact", value: "BILLING_CONTACT" },
+  { label: "Credentialing Contact", value: "CREDENTIALING_CONTACT" },
+  { label: "Clinical Lead", value: "CLINICAL_LEAD" },
+  { label: "IT / Technical Contact", value: "IT_TECHNICAL_CONTACT" },
+  { label: "Compliance Contact", value: "COMPLIANCE_CONTACT" },
+  { label: "Marketing Contact", value: "MARKETING_CONTACT" },
+  { label: "Authorized Signer", value: "AUTHORIZED_SIGNER" },
+  { label: "Other", value: "OTHER" },
+];
+
+const specialtyOptions = [
+  { label: "Family Medicine", value: "FAMILY_MEDICINE" },
+  { label: "Internal Medicine", value: "INTERNAL_MEDICINE" },
+  { label: "Primary Care", value: "PRIMARY_CARE" },
+  { label: "Pediatrics", value: "PEDIATRICS" },
+  { label: "Cardiology", value: "CARDIOLOGY" },
+  { label: "Gastroenterology", value: "GASTROENTEROLOGY" },
+  { label: "Endocrinology", value: "ENDOCRINOLOGY" },
+  { label: "Pulmonology", value: "PULMONOLOGY" },
+  { label: "Nephrology", value: "NEPHROLOGY" },
+  { label: "Neurology", value: "NEUROLOGY" },
+  { label: "Psychiatry", value: "PSYCHIATRY_BEHAVIORAL_HEALTH" },
+  { label: "Multi-Specialty", value: "MULTI_SPECIALTY" },
+  { label: "Other", value: "OTHER" },
+];
+
+const priorityOptions = [
+  { label: "High", value: "HIGH" },
+  { label: "Medium", value: "MEDIUM" },
+  { label: "Low", value: "LOW" },
+];
+
+const centralizationOptions = [
+  { label: "Yes", value: "YES" },
+  { label: "No", value: "NO" },
+  { label: "Partially", value: "PARTIALLY" },
+];
+
 const priorityColors: Record<string, string> = {
   HIGH: "bg-red-100 text-red-700",
   MEDIUM: "bg-yellow-100 text-yellow-700",
@@ -112,6 +194,12 @@ export default function AdminOnboardingReview() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // Review Flow State
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [reviewingData, setReviewingData] = useState<Onboarding | null>(null);
+  const [reviewStep, setReviewStep] = useState(1);
+  const [showEmptyFields, setShowEmptyFields] = useState(true);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -238,14 +326,17 @@ export default function AdminOnboardingReview() {
         header: "Services",
         cell: (info) => (
           <div className="flex flex-wrap gap-1">
-            {info.getValue().slice(0, 2).map((s) => (
-              <span
-                key={s}
-                className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-600"
-              >
-                {s}
-              </span>
-            ))}
+            {info
+              .getValue()
+              .slice(0, 2)
+              .map((s) => (
+                <span
+                  key={s}
+                  className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-600"
+                >
+                  {s}
+                </span>
+              ))}
             {info.getValue().length > 2 && (
               <span className="text-[11px] text-slate-400">
                 +{info.getValue().length - 2}
@@ -301,6 +392,64 @@ export default function AdminOnboardingReview() {
     setSelectedRowId(null);
   };
 
+  const startReview = () => {
+    if (!selectedRow) return;
+    setReviewingData(selectedRow.original);
+    setIsReviewing(true);
+    setReviewStep(1);
+  };
+
+  const closeReview = () => {
+    setIsReviewing(false);
+    setReviewingData(null);
+  };
+
+  const handleUpdateReviewField = (field: keyof Onboarding, value: any) => {
+    if (!reviewingData) return;
+    let finalValue = value;
+    if (value === "true") finalValue = true;
+    if (value === "false") finalValue = false;
+    setReviewingData({ ...reviewingData, [field]: finalValue });
+  };
+
+  const handleSaveReview = async (finalStatus?: string) => {
+    if (!reviewingData) return;
+    setIsUpdating(true);
+    try {
+      const updateData: Partial<Onboarding> = { ...reviewingData };
+      if (finalStatus) updateData.status = finalStatus;
+
+      const updated = await updateOnboarding(reviewingData.id, updateData);
+      toast.success("Onboarding updated successfully.");
+
+      // Update local state
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === reviewingData.id
+            ? {
+                ...r,
+                status: updated.status || r.status,
+                companyName:
+                  updated.legalCompanyName || updated.dbaName || r.companyName,
+                original: updated,
+              }
+            : r,
+        ),
+      );
+
+      if (finalStatus) {
+        closeReview();
+        closeDetailPanel();
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unable to update onboarding.";
+      toast.error(message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleStatusUpdate = async (newStatus: string) => {
     if (!selectedRow) return;
     setIsUpdating(true);
@@ -310,7 +459,11 @@ export default function AdminOnboardingReview() {
       setRows((prev) =>
         prev.map((r) =>
           r.id === selectedRow.id
-            ? { ...r, status: newStatus, original: { ...r.original, status: newStatus } }
+            ? {
+                ...r,
+                status: newStatus,
+                original: { ...r.original, status: newStatus },
+              }
             : r,
         ),
       );
@@ -321,6 +474,981 @@ export default function AdminOnboardingReview() {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  const handleUpdateNestedField = (
+    section: string,
+    field: string,
+    value: any,
+  ) => {
+    if (!reviewingData) return;
+    const currentSection = (reviewingData as any)[section] || {};
+    let finalValue = value;
+    if (value === "true") finalValue = true;
+    if (value === "false") finalValue = false;
+
+    setReviewingData({
+      ...reviewingData,
+      [section]: {
+        ...currentSection,
+        [field]: finalValue,
+      },
+    });
+  };
+
+  const toggleArrayValue = (field: keyof Onboarding, value: string) => {
+    if (!reviewingData) return;
+    const currentValues = ((reviewingData[field] as string[]) || []).slice();
+    const nextValues = currentValues.includes(value)
+      ? currentValues.filter((v) => v !== value)
+      : [...currentValues, value];
+    setReviewingData({ ...reviewingData, [field]: nextValues });
+  };
+
+  const reviewSteps = [
+    { id: 1, title: "Company & Structure" },
+    { id: 2, title: "Contacts" },
+    { id: 3, title: "Practices & Providers" },
+    { id: 4, title: "Operational Details" },
+    { id: 5, title: "Clinical & Outreach" },
+    { id: 6, title: "Compliance & Marketing" },
+    { id: 7, title: "Admin Decision" },
+  ];
+
+  const renderReviewFlow = () => {
+    if (!reviewingData) return null;
+
+    const renderField = (
+      label: string,
+      field: keyof Onboarding,
+      type: string = "text",
+      options?: { label: string; value: string }[],
+    ) => {
+      const val = reviewingData[field];
+      const isEmpty = val === undefined || val === null || val === "";
+      const displayValue =
+        val === true
+          ? "true"
+          : val === false
+            ? "false"
+            : (val as string | number) || "";
+
+      if (!showEmptyFields && isEmpty) return null;
+
+      return (
+        <div
+          className={`space-y-1 transition-opacity ${isEmpty ? "opacity-60 grayscale-[0.5]" : "opacity-100"}`}
+        >
+          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            {label}
+          </label>
+          {type === "select" ? (
+            <select
+              value={displayValue.toString()}
+              onChange={(e) => handleUpdateReviewField(field, e.target.value)}
+              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+            >
+              <option value="">Select...</option>
+              {options?.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ) : type === "textarea" ? (
+            <textarea
+              value={displayValue.toString()}
+              onChange={(e) => handleUpdateReviewField(field, e.target.value)}
+              rows={3}
+              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+            />
+          ) : (
+            <input
+              type={type}
+              value={displayValue.toString()}
+              onChange={(e) =>
+                handleUpdateReviewField(
+                  field,
+                  type === "number" ? Number(e.target.value) : e.target.value,
+                )
+              }
+              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+            />
+          )}
+        </div>
+      );
+    };
+
+    const renderNestedField = (
+      section: string,
+      label: string,
+      field: string,
+      type: string = "text",
+      options?: { label: string; value: string }[],
+    ) => {
+      const sectData = (reviewingData as any)[section] || {};
+      const val = sectData[field];
+      const isEmpty = val === undefined || val === null || val === "";
+      const displayValue =
+        val === true
+          ? "true"
+          : val === false
+            ? "false"
+            : (val as string | number) || "";
+
+      if (!showEmptyFields && isEmpty) return null;
+
+      return (
+        <div
+          className={`space-y-1 transition-opacity ${isEmpty ? "opacity-60" : "opacity-100"}`}
+        >
+          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            {label}
+          </label>
+          {type === "select" ? (
+            <select
+              value={displayValue.toString()}
+              onChange={(e) =>
+                handleUpdateNestedField(section, field, e.target.value)
+              }
+              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+            >
+              <option value="">Select...</option>
+              {options?.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ) : type === "textarea" ? (
+            <textarea
+              value={displayValue.toString()}
+              onChange={(e) =>
+                handleUpdateNestedField(section, field, e.target.value)
+              }
+              rows={3}
+              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+            />
+          ) : (
+            <input
+              type={type}
+              value={displayValue.toString()}
+              onChange={(e) =>
+                handleUpdateNestedField(
+                  section,
+                  field,
+                  type === "number" ? Number(e.target.value) : e.target.value,
+                )
+              }
+              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+            />
+          )}
+        </div>
+      );
+    };
+
+    const renderMultiSelect = (
+      label: string,
+      field: keyof Onboarding,
+      options: { label: string; value: string }[],
+    ) => {
+      const values = (reviewingData[field] as string[]) || [];
+      const isEmpty = values.length === 0;
+
+      if (!showEmptyFields && isEmpty) return null;
+
+      return (
+        <div className={`space-y-3 ${isEmpty ? "opacity-60" : "opacity-100"}`}>
+          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            {label}
+          </label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {options.map((opt) => {
+              const isSelected = values.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => toggleArrayValue(field, opt.value)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[12px] font-medium transition-all ${
+                    isSelected
+                      ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm"
+                      : "bg-white border-slate-100 text-slate-500 hover:border-slate-200"
+                  }`}
+                >
+                  <div
+                    className={`h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors ${isSelected ? "bg-indigo-600 border-indigo-600" : "bg-white border-slate-200"}`}
+                  >
+                    {isSelected && (
+                      <CheckCircle className="h-2.5 w-2.5 text-white" />
+                    )}
+                  </div>
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+        <div className="flex h-full max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/40 bg-white/95 shadow-2xl backdrop-blur-md">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-[#f0ece6] bg-slate-50/50 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-[16px] font-bold text-slate-800">
+                  Review Onboarding:{" "}
+                  {reviewingData.legalCompanyName || reviewingData.dbaName}
+                </h2>
+                <div className="flex items-center gap-3 mt-0.5">
+                  <p className="text-[12px] text-slate-500">
+                    Admin Review and Data Verification
+                  </p>
+                  <div className="h-3 w-px bg-slate-200" />
+                  <button
+                    type="button"
+                    onClick={() => setShowEmptyFields(!showEmptyFields)}
+                    className={`text-[11px] font-bold transition-colors ${showEmptyFields ? "text-indigo-600" : "text-slate-400"}`}
+                  >
+                    {showEmptyFields
+                      ? "Showing All Fields"
+                      : "Showing Filled Only"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={closeReview}
+              className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Stepper */}
+          <div className="border-b border-[#f0ece6] px-6 py-3">
+            <div className="flex items-center justify-between">
+              {reviewSteps.map((step, idx) => {
+                const isActive = reviewStep === step.id;
+                const isPast = reviewStep > step.id;
+                return (
+                  <div key={step.id} className="flex flex-1 items-center">
+                    <button
+                      type="button"
+                      onClick={() => setReviewStep(step.id)}
+                      className={`flex flex-col items-center gap-1.5 focus:outline-none ${isActive ? "text-indigo-600" : isPast ? "text-slate-600" : "text-slate-400"}`}
+                    >
+                      <div
+                        className={`flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-bold transition-all ${
+                          isActive
+                            ? "bg-indigo-600 text-white ring-4 ring-indigo-100"
+                            : isPast
+                              ? "bg-indigo-100 text-indigo-600"
+                              : "bg-slate-100 text-slate-400"
+                        }`}
+                      >
+                        {isPast ? <CheckCircle className="h-4 w-4" /> : step.id}
+                      </div>
+                      <span className="hidden text-[11px] font-semibold md:block">
+                        {step.title}
+                      </span>
+                    </button>
+                    {idx < reviewSteps.length - 1 && (
+                      <div
+                        className={`h-[2px] flex-1 mx-2 ${reviewStep > step.id + 1 ? "bg-indigo-200" : "bg-slate-100"}`}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+            {reviewStep === 1 && (
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <section>
+                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <Building2 className="h-4.5 w-4.5" />
+                    </div>
+                    Company Foundation
+                  </h3>
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {renderField("Legal Company Name", "legalCompanyName")}
+                    {renderField("DBA Name", "dbaName")}
+                    {renderField("Tax ID / EIN", "taxIdEin")}
+                    {renderField(
+                      "Organization Type",
+                      "organizationType",
+                      "select",
+                      organizationTypeOptions,
+                    )}
+                    {renderField(
+                      "Ownership Type",
+                      "ownershipType",
+                      "select",
+                      ownershipTypeOptions,
+                    )}
+                    {renderField(
+                      "Onboarding Type",
+                      "onboardingType",
+                      "select",
+                      onboardingTypeOptions,
+                    )}
+                  </div>
+                </section>
+                <section>
+                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <MapPin className="h-4.5 w-4.5" />
+                    </div>
+                    Primary Headquarters
+                  </h3>
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {renderField("Address Line 1", "companyAddressLine1")}
+                    {renderField("Address Line 2", "companyAddressLine2")}
+                    {renderField("City", "companyCity")}
+                    {renderField("State", "companyState")}
+                    {renderField("ZIP Code", "companyZip")}
+                    {renderField("Main Phone", "mainCompanyPhone")}
+                    {renderField("Main Email", "mainCompanyEmail", "email")}
+                    {renderField("Website", "companyWebsite")}
+                  </div>
+                </section>
+                <section>
+                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <CheckCircle className="h-4.5 w-4.5" />
+                    </div>
+                    Authorization & Entity Roles
+                  </h3>
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {renderField(
+                      "Is Legal Contracting Entity?",
+                      "isLegalContractingEntity",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderField(
+                      "Is Billing Entity?",
+                      "isBillingEntity",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderField(
+                      "Is Credentialing Entity?",
+                      "isCredentialingEntity",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {reviewStep === 2 && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <h3 className="text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                    <User className="h-4.5 w-4.5" />
+                  </div>
+                  Onboarding Contacts
+                </h3>
+                <div className="grid gap-6">
+                  {reviewingData.contacts?.map((contact, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-3xl border border-slate-100 bg-slate-50/30 p-6"
+                    >
+                      <div className="flex items-center justify-between mb-6">
+                        <span className="text-[12px] font-bold text-indigo-600 uppercase tracking-widest">
+                          Contact {idx + 1}
+                        </span>
+                        {contact.isPrimaryDecisionMaker && (
+                          <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg">
+                            Primary Decision Maker
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid gap-6 md:grid-cols-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Full Name
+                          </label>
+                          <input
+                            className="app-control w-full rounded-xl px-4 py-2 text-[13px] bg-white border-transparent focus:border-indigo-500"
+                            value={contact.fullName || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.contacts || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                fullName: e.target.value,
+                              };
+                              handleUpdateReviewField("contacts", next);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Email Address
+                          </label>
+                          <input
+                            className="app-control w-full rounded-xl px-4 py-2 text-[13px] bg-white border-transparent focus:border-indigo-500"
+                            value={contact.email || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.contacts || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                email: e.target.value,
+                              };
+                              handleUpdateReviewField("contacts", next);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Contact Role
+                          </label>
+                          <select
+                            className="app-control w-full rounded-xl px-4 py-2 text-[13px] bg-white border-transparent focus:border-indigo-500"
+                            value={contact.contactRole || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.contacts || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                contactRole: e.target.value,
+                              };
+                              handleUpdateReviewField("contacts", next);
+                            }}
+                          >
+                            <option value="">Select Role...</option>
+                            {contactRoleOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {reviewStep === 3 && (
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <h3 className="text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                    <LayoutGrid className="h-4.5 w-4.5" />
+                  </div>
+                  Practices & Scope
+                </h3>
+                <div className="grid gap-10">
+                  {reviewingData.practices?.map((practice, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-3xl border-2 border-slate-100 p-8 space-y-8 relative overflow-hidden"
+                    >
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500" />
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-indigo-600 font-bold text-sm tracking-widest uppercase">
+                          Practice {idx + 1}: {practice.practiceName}
+                        </h4>
+                        <span className="text-[11px] font-bold text-slate-400">
+                          {practice.locations?.length || 0} Locations •{" "}
+                          {practice.providers?.length || 0} Providers
+                        </span>
+                      </div>
+                      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Practice Name
+                          </label>
+                          <input
+                            className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500"
+                            value={practice.practiceName || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.practices || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                practiceName: e.target.value,
+                              };
+                              handleUpdateReviewField("practices", next);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Primary Specialty
+                          </label>
+                          <select
+                            className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500"
+                            value={practice.practiceType || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.practices || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                practiceType: e.target.value,
+                              };
+                              handleUpdateReviewField("practices", next);
+                            }}
+                          >
+                            <option value="">Select Specialty...</option>
+                            {specialtyOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Group NPI
+                          </label>
+                          <input
+                            className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500"
+                            value={practice.groupNpi || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.practices || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                groupNpi: e.target.value,
+                              };
+                              handleUpdateReviewField("practices", next);
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-3 pt-4 border-t border-slate-100">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          Volume & Demographics
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {[
+                            {
+                              label: "Providers",
+                              field: "approximateNumberOfProviders",
+                            },
+                            {
+                              label: "Locations",
+                              field: "approximateNumberOfLocations",
+                            },
+                            {
+                              label: "Monthly Patient Vol",
+                              field: "approximateMonthlyPatientVolume",
+                            },
+                            {
+                              label: "Medicare Vol %",
+                              field: "approximateMedicarePatientVolume",
+                            },
+                          ].map((f) => (
+                            <div key={f.field} className="space-y-1">
+                              <label className="text-[10px] font-medium text-slate-400">
+                                {f.label}
+                              </label>
+                              <input
+                                type="number"
+                                className="app-control w-full rounded-lg px-3 py-1.5 text-[12px] bg-slate-50"
+                                value={(practice as any)[f.field] || 0}
+                                onChange={(e) => {
+                                  const next = [
+                                    ...(reviewingData.practices || []),
+                                  ];
+                                  (next[idx] as any)[f.field] = Number(
+                                    e.target.value,
+                                  );
+                                  handleUpdateReviewField("practices", next);
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {reviewStep === 4 && (
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <section>
+                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <Clock className="h-4.5 w-4.5" />
+                    </div>
+                    Technology & Operations
+                  </h3>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {renderNestedField("technology", "EHR System", "ehrSystem")}
+                    {renderNestedField(
+                      "technology",
+                      "Practice Management System",
+                      "practiceManagementSystem",
+                    )}
+                    {renderField(
+                      "Billing Managed Centrally?",
+                      "billingManagedCentrally",
+                      "select",
+                      centralizationOptions,
+                    )}
+                    {renderField(
+                      "Credentialing Managed Centrally?",
+                      "credentialingManagedCentrally",
+                      "select",
+                      centralizationOptions,
+                    )}
+                  </div>
+                </section>
+                <section>
+                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <Target className="h-4.5 w-4.5" />
+                    </div>
+                    Service Scope & Strategy
+                  </h3>
+                  <div className="space-y-8">
+                    {renderMultiSelect(
+                      "Requested Services",
+                      "requestedServices",
+                      [
+                        { label: "Credentialing", value: "CREDENTIALING" },
+                        { label: "Billing / RCM", value: "BILLING_RCM" },
+                        { label: "APCM", value: "APCM" },
+                        { label: "CCM", value: "CCM" },
+                        { label: "RPM", value: "RPM" },
+                        {
+                          label: "Patient Acquisition",
+                          value: "PATIENT_ACQUISITION",
+                        },
+                        { label: "Brand Growth", value: "BRAND_GROWTH" },
+                      ],
+                    )}
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                      {renderField(
+                        "Priority Level",
+                        "priorityLevel",
+                        "select",
+                        priorityOptions,
+                      )}
+                      {renderField("Primary Service", "primaryServiceToLaunch")}
+                      {renderField(
+                        "Requested Go-Live",
+                        "requestedGoLiveDate",
+                        "date",
+                      )}
+                    </div>
+                    {renderField(
+                      "Engagement Goals",
+                      "engagementGoals",
+                      "textarea",
+                    )}
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {reviewStep === 5 && (
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <section>
+                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <Plus className="h-4.5 w-4.5" />
+                    </div>
+                    Care Programs & Outreach
+                  </h3>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {renderNestedField(
+                      "careProgram",
+                      "Eligible Patients",
+                      "estimatedEligiblePatients",
+                      "number",
+                    )}
+                    {renderNestedField(
+                      "careProgram",
+                      "Current Enrolled",
+                      "currentEnrolledPatients",
+                      "number",
+                    )}
+                    {renderNestedField(
+                      "careProgram",
+                      "Outreach Channel",
+                      "patientEnrollmentHandler",
+                    )}
+                    {renderNestedField(
+                      "outreach",
+                      "Approved Outreach Hours",
+                      "approvedOutreachHours",
+                    )}
+                    {renderNestedField(
+                      "outreach",
+                      "Messaging Requirements",
+                      "messagingRequirements",
+                      "textarea",
+                    )}
+                  </div>
+                </section>
+                <section>
+                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <Building2 className="h-4.5 w-4.5" />
+                    </div>
+                    Lab & Pharmacy Relations
+                  </h3>
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {renderNestedField(
+                      "labPharmacy",
+                      "Preferred Lab",
+                      "preferredLab",
+                    )}
+                    {renderNestedField(
+                      "labPharmacy",
+                      "Lab Interface Status",
+                      "labInterfaceStatus",
+                    )}
+                    {renderNestedField(
+                      "labPharmacy",
+                      "Pharmacy Partner",
+                      "pharmacyPartnerName",
+                    )}
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {reviewStep === 6 && (
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <section>
+                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <CheckCircle className="h-4.5 w-4.5" />
+                    </div>
+                    Compliance & Marketing
+                  </h3>
+                  <div className="space-y-8">
+                    <div className="grid gap-6 md:grid-cols-2">
+                      {renderNestedField(
+                        "compliance",
+                        "HIPAA Contact Name",
+                        "hipaaContactName",
+                      )}
+                      {renderNestedField(
+                        "compliance",
+                        "HIPAA Contact Email",
+                        "hipaaContactEmail",
+                        "email",
+                      )}
+                      {renderNestedField(
+                        "marketing",
+                        "Website URL",
+                        "websiteUrl",
+                      )}
+                      {renderNestedField(
+                        "marketing",
+                        "Monthly Budget",
+                        "monthlyMarketingBudget",
+                      )}
+                    </div>
+                    {renderNestedField(
+                      "marketing",
+                      "Patient Acquisition Goals",
+                      "patientAcquisitionGoals",
+                      "textarea",
+                    )}
+                  </div>
+                </section>
+                <section>
+                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <FileText className="h-4.5 w-4.5" />
+                    </div>
+                    Documents Verification
+                  </h3>
+                  <div className="grid gap-4">
+                    {reviewingData.documents?.map((doc: any, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/30"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-sm">
+                            <FileText className="h-5 w-5 text-indigo-400" />
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-bold text-slate-700">
+                              {doc.fileName || "Unnamed Doc"}
+                            </p>
+                            <p className="text-[11px] text-slate-400 font-medium">
+                              {Array.isArray(doc.documentType)
+                                ? doc.documentType.join(", ")
+                                : doc.documentType}
+                            </p>
+                          </div>
+                        </div>
+                        <select
+                          className="app-control rounded-xl px-3 py-1.5 text-[11px] font-bold bg-white border-slate-200"
+                          value={doc.status || ""}
+                          onChange={(e) => {
+                            const next = [...(reviewingData.documents || [])];
+                            next[idx] = {
+                              ...next[idx],
+                              status: e.target.value,
+                            };
+                            handleUpdateReviewField("documents", next);
+                          }}
+                        >
+                          <option value="NOT_REQUESTED">Not Requested</option>
+                          <option value="REQUESTED">Requested</option>
+                          <option value="RECEIVED">Received</option>
+                          <option value="UNDER_REVIEW">Under Review</option>
+                          <option value="APPROVED">Approved</option>
+                          <option value="REJECTED">Rejected</option>
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {reviewStep === 7 && (
+              <div className="flex flex-col items-center justify-center py-10 space-y-8 animate-in zoom-in-95 duration-500">
+                <div className="text-center space-y-2">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 mb-4">
+                    <Target className="h-8 w-8" />
+                  </div>
+                  <h3 className="text-[20px] font-bold text-slate-800">
+                    Finalize Admin Review
+                  </h3>
+                  <p className="text-[14px] text-slate-500 max-w-md mx-auto">
+                    Please select the final status for this onboarding. This
+                    will conclude the review process and notify relevant
+                    stakeholders.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 w-full max-w-lg">
+                  <button
+                    type="button"
+                    disabled={isUpdating}
+                    onClick={() => handleSaveReview("IN_PROGRESS")}
+                    className="flex items-center justify-between p-5 rounded-2xl border-2 border-transparent bg-blue-50 text-blue-700 hover:border-blue-400 transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                        <Clock className="h-6 w-6" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-[15px]">
+                          Set to In-Progress
+                        </p>
+                        <p className="text-[12px] opacity-70">
+                          Marks the onboarding as currently being handled.
+                        </p>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isUpdating}
+                    onClick={() => handleSaveReview("COMPLETED")}
+                    className="flex items-center justify-between p-5 rounded-2xl border-2 border-transparent bg-green-50 text-green-700 hover:border-green-400 transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                        <CheckCircle className="h-6 w-6" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-[15px]">
+                          Approve & Complete
+                        </p>
+                        <p className="text-[12px] opacity-70">
+                          Finalizes the onboarding process successfully.
+                        </p>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isUpdating}
+                    onClick={() => handleSaveReview("CANCELLED")}
+                    className="flex items-center justify-between p-5 rounded-2xl border-2 border-transparent bg-red-50 text-red-700 hover:border-red-400 transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                        <XCircle className="h-6 w-6" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-[15px]">Reject / Cancel</p>
+                        <p className="text-[12px] opacity-70">
+                          Stops the onboarding and marks it as cancelled.
+                        </p>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between border-t border-[#f0ece6] bg-slate-50/30 px-6 py-4">
+            <button
+              type="button"
+              onClick={() => setReviewStep(Math.max(1, reviewStep - 1))}
+              disabled={reviewStep === 1 || isUpdating}
+              className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-[13px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Back
+            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => handleSaveReview()}
+                disabled={isUpdating || reviewStep === 7}
+                className="rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-2 text-[13px] font-medium text-indigo-600 hover:bg-indigo-100 disabled:opacity-40"
+              >
+                Save Changes
+              </button>
+              {reviewStep < 7 && (
+                <button
+                  type="button"
+                  onClick={() => setReviewStep(Math.min(7, reviewStep + 1))}
+                  disabled={isUpdating}
+                  className="flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-2 text-[13px] font-medium text-white hover:bg-slate-800 disabled:opacity-40"
+                >
+                  Next Step
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const tabs = [
@@ -350,10 +1478,7 @@ export default function AdminOnboardingReview() {
     );
   };
 
-  const renderDetailArray = (
-    label: string,
-    values: string[] | undefined,
-  ) => {
+  const renderDetailArray = (label: string, values: string[] | undefined) => {
     if (!values || values.length === 0) return null;
     return (
       <div>
@@ -390,14 +1515,30 @@ export default function AdminOnboardingReview() {
           {renderDetailField("Fax", ob.mainCompanyFax)}
           {renderDetailField(
             "Address",
-            `${ob.companyAddressLine1 || ""} ${ob.companyAddressLine2 || ""}, ${ob.companyCity || ""} ${ob.companyState || ""} ${ob.companyZip || ""}`.trim() || undefined,
+            `${ob.companyAddressLine1 || ""} ${ob.companyAddressLine2 || ""}, ${ob.companyCity || ""} ${ob.companyState || ""} ${ob.companyZip || ""}`.trim()
+              ? `${ob.companyAddressLine1 || ""} ${ob.companyAddressLine2 || ""}, ${ob.companyCity || ""} ${ob.companyState || ""} ${ob.companyZip || ""}`.trim()
+              : undefined,
           )}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <BoolBadge value={ob.isLegalContractingEntity} label="Legal Contracting" />
-          <BoolBadge value={ob.isBillingEntity} label="Billing Entity" />
-          <BoolBadge value={ob.isCredentialingEntity} label="Credentialing Entity" />
-          <BoolBadge value={ob.oneMainContact} label="One Main Contact" />
+          {ob.isLegalContractingEntity && (
+            <BoolBadge
+              value={ob.isLegalContractingEntity}
+              label="Legal Contracting"
+            />
+          )}
+          {ob.isBillingEntity && (
+            <BoolBadge value={ob.isBillingEntity} label="Billing Entity" />
+          )}
+          {ob.isCredentialingEntity && (
+            <BoolBadge
+              value={ob.isCredentialingEntity}
+              label="Credentialing Entity"
+            />
+          )}
+          {ob.oneMainContact && (
+            <BoolBadge value={ob.oneMainContact} label="One Main Contact" />
+          )}
         </div>
       </div>
 
@@ -453,8 +1594,12 @@ export default function AdminOnboardingReview() {
           {renderDetailField("Type", ob.onboardingType)}
         </div>
         <div className="mt-2 flex gap-2">
-          <BoolBadge value={ob.informationAccurate} label="Info Accurate" />
-          <BoolBadge value={ob.authorizeUse} label="Authorized Use" />
+          {ob.informationAccurate && (
+            <BoolBadge value={ob.informationAccurate} label="Info Accurate" />
+          )}
+          {ob.authorizeUse && (
+            <BoolBadge value={ob.authorizeUse} label="Authorized Use" />
+          )}
         </div>
       </div>
     </div>
@@ -563,14 +1708,8 @@ export default function AdminOnboardingReview() {
               />
             </div>
             <div className="mt-2">
-              {renderDetailArray(
-                "Specialty Areas",
-                p.additionalSpecialtyAreas,
-              )}
-              {renderDetailArray(
-                "Services Offered",
-                p.currentServicesOffered,
-              )}
+              {renderDetailArray("Specialty Areas", p.additionalSpecialtyAreas)}
+              {renderDetailArray("Services Offered", p.currentServicesOffered)}
               {renderDetailArray("Pain Points", p.operationalPainPoints)}
             </div>
             {renderDetailField("Notes", p.additionalNotes)}
@@ -643,7 +1782,10 @@ export default function AdminOnboardingReview() {
                         <span>Status: {pr.employmentStatus}</span>
                       </div>
                       <div className="mt-1">
-                        <BoolBadge value={pr.boardCertified} label="Board Certified" />
+                        <BoolBadge
+                          value={pr.boardCertified}
+                          label="Board Certified"
+                        />
                       </div>
                       {renderDetailField("Notes", pr.notes)}
                     </div>
@@ -660,7 +1802,9 @@ export default function AdminOnboardingReview() {
   const renderBillingTab = (ob: Onboarding) => {
     const b = ob.billing as any;
     if (!b)
-      return <p className="text-[13px] text-slate-400">No billing information.</p>;
+      return (
+        <p className="text-[13px] text-slate-400">No billing information.</p>
+      );
     return (
       <div className="space-y-3 text-[13px]">
         {renderDetailField("Billing Model", b.currentBillingModel)}
@@ -726,8 +1870,14 @@ export default function AdminOnboardingReview() {
         {renderDetailField("IT Contact Email", t.itContactEmail)}
         <div className="flex flex-wrap gap-2">
           <BoolBadge value={t.patientPortalAvailable} label="Patient Portal" />
-          <BoolBadge value={t.patientListExportable} label="Patient List Export" />
-          <BoolBadge value={t.appointmentListExportable} label="Appointment List Export" />
+          <BoolBadge
+            value={t.patientListExportable}
+            label="Patient List Export"
+          />
+          <BoolBadge
+            value={t.appointmentListExportable}
+            label="Appointment List Export"
+          />
           <BoolBadge value={t.apiAccessAvailable} label="API Access" />
         </div>
         {renderDetailField("Technical Notes", t.additionalTechnicalNotes)}
@@ -747,7 +1897,10 @@ export default function AdminOnboardingReview() {
         <BoolBadge value={o.patientTextConsent} label="Patient Text Consent" />
         {renderDetailArray("Preferred Languages", o.preferredLanguages)}
         <BoolBadge value={o.interpreterServices} label="Interpreter Services" />
-        <BoolBadge value={o.outreachFromPractice} label="Outreach From Practice" />
+        <BoolBadge
+          value={o.outreachFromPractice}
+          label="Outreach From Practice"
+        />
         {renderDetailField("Approved Hours", o.approvedOutreachHours)}
         {renderDetailField("Messaging Requirements", o.messagingRequirements)}
       </div>
@@ -765,7 +1918,10 @@ export default function AdminOnboardingReview() {
         {renderDetailField("HIPAA Contact", c.hipaaContactName)}
         {renderDetailField("HIPAA Email", c.hipaaContactEmail)}
         <BoolBadge value={c.baaRequired} label="BAA Required" />
-        <BoolBadge value={c.securityQuestionnaire} label="Security Questionnaire" />
+        <BoolBadge
+          value={c.securityQuestionnaire}
+          label="Security Questionnaire"
+        />
         {renderDetailArray("Concerns", c.currentConcerns)}
         {renderDetailField("Notes", c.additionalNotes)}
       </div>
@@ -1036,9 +2192,7 @@ export default function AdminOnboardingReview() {
                   <button
                     key={page}
                     type="button"
-                    onClick={() =>
-                      setPagination((prev) => ({ ...prev, page }))
-                    }
+                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
                     className={`rounded px-2 py-1 text-[13px] ${
                       pagination.page === page
                         ? "bg-[#4f63ea] text-white"
@@ -1100,9 +2254,18 @@ export default function AdminOnboardingReview() {
               {renderTabContent(selectedRow.original)}
             </div>
 
-            <div className="border-t border-[#f0ece6] px-4 py-3">
+            <div className="border-t border-[#f0ece6] px-4 py-3 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={startReview}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 text-white text-[13px] font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10 mb-4"
+              >
+                <Target className="h-4 w-4" />
+                Full Admin Review
+              </button>
+
               <p className="mb-2 text-[11px] font-medium text-slate-500">
-                Update Status
+                Quick Status Update
               </p>
               <div className="flex gap-2">
                 <button
@@ -1149,6 +2312,7 @@ export default function AdminOnboardingReview() {
           </aside>
         )}
       </div>
+      {isReviewing && renderReviewFlow()}
     </AppLayout>
   );
 }
