@@ -32,6 +32,7 @@ import {
   getOnboardings,
   updateOnboarding,
   type Onboarding,
+  type OnboardingDocument,
   type OnboardingContact,
   type OnboardingPractice,
   type OnboardingLocation,
@@ -150,6 +151,43 @@ const centralizationOptions = [
   { label: "Partially", value: "PARTIALLY" },
 ];
 
+const yesNoMaybeOptions = [
+  { label: "Yes", value: "YES" },
+  { label: "No", value: "NO" },
+  { label: "Not Sure", value: "NOT_SURE" },
+];
+
+const minutesTrackerOptions = [
+  { label: "EHR", value: "EHR" },
+  { label: "Spreadsheet", value: "SPREADSHEET" },
+  { label: "Vendor Platform", value: "VENDOR_PLATFORM" },
+  { label: "Not Tracked", value: "NOT_TRACKED" },
+  { label: "Other", value: "OTHER" },
+];
+
+const credentialingForOptions = [
+  { label: "Group / Practice", value: "GROUP_PRACTICE" },
+  { label: "Individual Providers", value: "INDIVIDUAL_PROVIDERS" },
+  { label: "Both", value: "BOTH" },
+];
+
+const servicePracticeOptions = [
+  { label: "All Practices", value: "ALL_PRACTICES" },
+  { label: "Selected Practices", value: "SELECTED_PRACTICES" },
+  { label: "Single Practice Only", value: "SINGLE_PRACTICE_ONLY" },
+];
+
+const complianceConcernOptions = [
+  { label: "HIPAA", value: "HIPAA" },
+  { label: "Audit Risk", value: "AUDIT_RISK" },
+  { label: "Documentation", value: "DOCUMENTATION" },
+  { label: "Consent", value: "CONSENT" },
+  { label: "Billing Compliance", value: "BILLING_COMPLIANCE" },
+  { label: "State-Specific Rules", value: "STATE_SPECIFIC_RULES" },
+  { label: "None", value: "NONE" },
+  { label: "Other", value: "OTHER" },
+];
+
 const priorityColors: Record<string, string> = {
   HIGH: "bg-red-100 text-red-700",
   MEDIUM: "bg-yellow-100 text-yellow-700",
@@ -201,6 +239,9 @@ export default function AdminOnboardingReview() {
   const [reviewStep, setReviewStep] = useState(1);
   const [showEmptyFields, setShowEmptyFields] = useState(true);
 
+  const parseNumericInput = (value: string) =>
+    value.trim() === "" ? undefined : Number(value);
+
   const loadData = async () => {
     setIsLoading(true);
     setError(null);
@@ -248,7 +289,7 @@ export default function AdminOnboardingReview() {
 
   useEffect(() => {
     loadData();
-  }, [pagination.page, filters.status]);
+  }, [pagination.page, filters.status, filters.search]);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
@@ -518,6 +559,45 @@ export default function AdminOnboardingReview() {
   const renderReviewFlow = () => {
     if (!reviewingData) return null;
 
+    const requestedServices = reviewingData.requestedServices || [];
+    const isMultiPracticeOrg =
+      reviewingData.onboardingType === "MULTI_PRACTICE_ORGANIZATION";
+    const isIndividualPractice =
+      reviewingData.onboardingType === "SINGLE_PRACTICE";
+    const hasBillingSelected = requestedServices.includes("BILLING_RCM");
+    const hasCredentialingSelected =
+      requestedServices.includes("CREDENTIALING");
+    const hasMarketingSelected =
+      requestedServices.includes("PATIENT_ACQUISITION") ||
+      requestedServices.includes("BRAND_GROWTH");
+    const hasCareProgramsSelected =
+      requestedServices.some((service) =>
+        ["APCM", "CCM", "RPM"].includes(service),
+      ) || !!reviewingData.careProgram?.programsPlanned?.length;
+    const lockedTopLevelFields = new Set<keyof Onboarding>([
+      "onboardingType",
+      "isAuthorizedPerson",
+      "requestedServices",
+      "servicesForAllPractices",
+      "replacingExistingVendor",
+    ]);
+    const lockedNestedFields = new Set([
+      "credentialing.credentialingNeeded",
+    ]);
+    const completedSectionCount = [
+      reviewingData.legalCompanyName || reviewingData.dbaName,
+      reviewingData.contacts?.length,
+      reviewingData.practices?.length,
+      reviewingData.billing,
+      reviewingData.credentialing,
+      reviewingData.technology,
+      reviewingData.outreach,
+      reviewingData.compliance,
+      reviewingData.documents?.length,
+    ].filter(Boolean).length;
+    const statusTone =
+      statusColors[reviewingData.status || ""] || "bg-slate-100 text-slate-700";
+
     const renderField = (
       label: string,
       field: keyof Onboarding,
@@ -526,6 +606,7 @@ export default function AdminOnboardingReview() {
     ) => {
       const val = reviewingData[field];
       const isEmpty = val === undefined || val === null || val === "";
+      const isLocked = lockedTopLevelFields.has(field);
       const displayValue =
         val === true
           ? "true"
@@ -537,16 +618,39 @@ export default function AdminOnboardingReview() {
 
       return (
         <div
-          className={`space-y-1 transition-opacity ${isEmpty ? "opacity-60 grayscale-[0.5]" : "opacity-100"}`}
+          className={`space-y-2 rounded-2xl border px-4 py-3 transition-all ${
+            isLocked
+              ? "border-amber-200 bg-amber-50/70"
+              : isEmpty
+                ? "border-slate-200 bg-slate-50/70"
+                : "border-slate-200 bg-white shadow-sm"
+          } ${isEmpty ? "opacity-70" : "opacity-100"}`}
         >
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            {label}
-          </label>
+          <div className="flex items-start justify-between gap-3">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              {label}
+            </label>
+            {isLocked && (
+              <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                Locked
+              </span>
+            )}
+          </div>
+          {isLocked && (
+            <p className="text-[11px] text-amber-700">
+              Locked to avoid changing the review structure.
+            </p>
+          )}
           {type === "select" ? (
             <select
               value={displayValue.toString()}
               onChange={(e) => handleUpdateReviewField(field, e.target.value)}
-              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+              disabled={isLocked}
+              className={`app-control w-full rounded-xl px-4 py-2.5 text-[13px] border-transparent transition-all ${
+                isLocked
+                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                  : "bg-slate-50 focus:bg-white focus:border-indigo-500"
+              }`}
             >
               <option value="">Select...</option>
               {options?.map((opt) => (
@@ -560,19 +664,31 @@ export default function AdminOnboardingReview() {
               value={displayValue.toString()}
               onChange={(e) => handleUpdateReviewField(field, e.target.value)}
               rows={3}
-              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+              disabled={isLocked}
+              className={`app-control w-full rounded-xl px-4 py-2.5 text-[13px] border-transparent transition-all ${
+                isLocked
+                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                  : "bg-slate-50 focus:bg-white focus:border-indigo-500"
+              }`}
             />
           ) : (
             <input
               type={type}
               value={displayValue.toString()}
+              disabled={isLocked}
               onChange={(e) =>
                 handleUpdateReviewField(
                   field,
-                  type === "number" ? Number(e.target.value) : e.target.value,
+                  type === "number"
+                    ? parseNumericInput(e.target.value)
+                    : e.target.value,
                 )
               }
-              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+              className={`app-control w-full rounded-xl px-4 py-2.5 text-[13px] border-transparent transition-all ${
+                isLocked
+                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                  : "bg-slate-50 focus:bg-white focus:border-indigo-500"
+              }`}
             />
           )}
         </div>
@@ -589,6 +705,7 @@ export default function AdminOnboardingReview() {
       const sectData = (reviewingData as any)[section] || {};
       const val = sectData[field];
       const isEmpty = val === undefined || val === null || val === "";
+      const isLocked = lockedNestedFields.has(`${section}.${field}`);
       const displayValue =
         val === true
           ? "true"
@@ -600,18 +717,41 @@ export default function AdminOnboardingReview() {
 
       return (
         <div
-          className={`space-y-1 transition-opacity ${isEmpty ? "opacity-60" : "opacity-100"}`}
+          className={`space-y-2 rounded-2xl border px-4 py-3 transition-all ${
+            isLocked
+              ? "border-amber-200 bg-amber-50/70"
+              : isEmpty
+                ? "border-slate-200 bg-slate-50/70"
+                : "border-slate-200 bg-white shadow-sm"
+          } ${isEmpty ? "opacity-70" : "opacity-100"}`}
         >
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            {label}
-          </label>
+          <div className="flex items-start justify-between gap-3">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              {label}
+            </label>
+            {isLocked && (
+              <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                Locked
+              </span>
+            )}
+          </div>
+          {isLocked && (
+            <p className="text-[11px] text-amber-700">
+              Locked to avoid opening dependent fields.
+            </p>
+          )}
           {type === "select" ? (
             <select
               value={displayValue.toString()}
+              disabled={isLocked}
               onChange={(e) =>
                 handleUpdateNestedField(section, field, e.target.value)
               }
-              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+              className={`app-control w-full rounded-xl px-4 py-2.5 text-[13px] border-transparent transition-all ${
+                isLocked
+                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                  : "bg-slate-50 focus:bg-white focus:border-indigo-500"
+              }`}
             >
               <option value="">Select...</option>
               {options?.map((opt) => (
@@ -623,24 +763,36 @@ export default function AdminOnboardingReview() {
           ) : type === "textarea" ? (
             <textarea
               value={displayValue.toString()}
+              disabled={isLocked}
               onChange={(e) =>
                 handleUpdateNestedField(section, field, e.target.value)
               }
               rows={3}
-              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+              className={`app-control w-full rounded-xl px-4 py-2.5 text-[13px] border-transparent transition-all ${
+                isLocked
+                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                  : "bg-slate-50 focus:bg-white focus:border-indigo-500"
+              }`}
             />
           ) : (
             <input
               type={type}
               value={displayValue.toString()}
+              disabled={isLocked}
               onChange={(e) =>
                 handleUpdateNestedField(
                   section,
                   field,
-                  type === "number" ? Number(e.target.value) : e.target.value,
+                  type === "number"
+                    ? parseNumericInput(e.target.value)
+                    : e.target.value,
                 )
               }
-              className="app-control w-full rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 transition-all"
+              className={`app-control w-full rounded-xl px-4 py-2.5 text-[13px] border-transparent transition-all ${
+                isLocked
+                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                  : "bg-slate-50 focus:bg-white focus:border-indigo-500"
+              }`}
             />
           )}
         </div>
@@ -654,14 +806,35 @@ export default function AdminOnboardingReview() {
     ) => {
       const values = (reviewingData[field] as string[]) || [];
       const isEmpty = values.length === 0;
+      const isLocked = lockedTopLevelFields.has(field);
 
       if (!showEmptyFields && isEmpty) return null;
 
       return (
-        <div className={`space-y-3 ${isEmpty ? "opacity-60" : "opacity-100"}`}>
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            {label}
-          </label>
+        <div
+          className={`space-y-3 rounded-2xl border px-4 py-3 transition-all ${
+            isLocked
+              ? "border-amber-200 bg-amber-50/70"
+              : isEmpty
+                ? "border-slate-200 bg-slate-50/70"
+                : "border-slate-200 bg-white shadow-sm"
+          } ${isEmpty ? "opacity-70" : "opacity-100"}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              {label}
+            </label>
+            {isLocked && (
+              <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                Locked
+              </span>
+            )}
+          </div>
+          {isLocked && (
+            <p className="text-[11px] text-amber-700">
+              Locked to avoid changing the review structure.
+            </p>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {options.map((opt) => {
               const isSelected = values.includes(opt.value);
@@ -669,12 +842,13 @@ export default function AdminOnboardingReview() {
                 <button
                   key={opt.value}
                   type="button"
+                  disabled={isLocked}
                   onClick={() => toggleArrayValue(field, opt.value)}
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[12px] font-medium transition-all ${
                     isSelected
                       ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm"
                       : "bg-white border-slate-100 text-slate-500 hover:border-slate-200"
-                  }`}
+                  } ${isLocked ? "cursor-not-allowed opacity-60" : ""}`}
                 >
                   <div
                     className={`h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors ${isSelected ? "bg-indigo-600 border-indigo-600" : "bg-white border-slate-200"}`}
@@ -692,21 +866,115 @@ export default function AdminOnboardingReview() {
       );
     };
 
+    const renderNestedMultiSelect = (
+      section: string,
+      label: string,
+      field: string,
+      options: { label: string; value: string }[],
+    ) => {
+      const values = (((reviewingData as any)[section] || {})[field] ||
+        []) as string[];
+      const isEmpty = values.length === 0;
+      const isLocked = lockedNestedFields.has(`${section}.${field}`);
+
+      if (!showEmptyFields && isEmpty) return null;
+
+      return (
+        <div
+          className={`space-y-3 rounded-2xl border px-4 py-3 transition-all ${
+            isLocked
+              ? "border-amber-200 bg-amber-50/70"
+              : isEmpty
+                ? "border-slate-200 bg-slate-50/70"
+                : "border-slate-200 bg-white shadow-sm"
+          } ${isEmpty ? "opacity-70" : "opacity-100"}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              {label}
+            </label>
+            {isLocked && (
+              <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                Locked
+              </span>
+            )}
+          </div>
+          {isLocked && (
+            <p className="text-[11px] text-amber-700">
+              Locked to avoid opening dependent fields.
+            </p>
+          )}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {options.map((opt) => {
+              const isSelected = values.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => {
+                    const currentValues = [
+                      ...((((reviewingData as any)[section] || {})[field] ||
+                        []) as string[]),
+                    ];
+                    const nextValues = currentValues.includes(opt.value)
+                      ? currentValues.filter((value) => value !== opt.value)
+                      : [...currentValues, opt.value];
+                    handleUpdateNestedField(section, field, nextValues);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[12px] font-medium transition-all ${
+                    isSelected
+                      ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm"
+                      : "bg-white border-slate-100 text-slate-500 hover:border-slate-200"
+                  } ${isLocked ? "cursor-not-allowed opacity-60" : ""}`}
+                >
+                  <div
+                    className={`h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors ${
+                      isSelected
+                        ? "bg-indigo-600 border-indigo-600"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
+                    {isSelected && (
+                      <CheckCircle className="h-2.5 w-2.5 text-white" />
+                    )}
+                  </div>
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    };
+
     return (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div className="flex h-full max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/40 bg-white/95 shadow-2xl backdrop-blur-md">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 backdrop-blur-md p-4">
+        <div className="flex h-full max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-[#f0ece6] bg-slate-50/50 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(79,99,234,0.16),transparent_42%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-6 py-5">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20">
                 <FileText className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-[16px] font-bold text-slate-800">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusTone}`}
+                  >
+                    {statusLabels[reviewingData.status || ""] ||
+                      reviewingData.status ||
+                      "Draft"}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                    Step {reviewStep} of {reviewSteps.length}
+                  </span>
+                </div>
+                <h2 className="text-[18px] font-bold tracking-tight text-slate-900">
                   Review Onboarding:{" "}
                   {reviewingData.legalCompanyName || reviewingData.dbaName}
                 </h2>
-                <div className="flex items-center gap-3 mt-0.5">
+                <div className="mt-1 flex items-center gap-3">
                   <p className="text-[12px] text-slate-500">
                     Admin Review and Data Verification
                   </p>
@@ -725,14 +993,14 @@ export default function AdminOnboardingReview() {
             </div>
             <button
               onClick={closeReview}
-              className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="rounded-full border border-slate-200 bg-white p-2 text-slate-400 shadow-sm hover:bg-slate-50 hover:text-slate-600"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* Stepper */}
-          <div className="border-b border-[#f0ece6] px-6 py-3">
+          <div className="border-b border-slate-200 bg-white/80 px-6 py-4">
             <div className="flex items-center justify-between">
               {reviewSteps.map((step, idx) => {
                 const isActive = reviewStep === step.id;
@@ -770,8 +1038,44 @@ export default function AdminOnboardingReview() {
             </div>
           </div>
 
+          <div className="grid gap-3 border-b border-slate-200 bg-slate-50/80 px-6 py-4 md:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                Submitted By
+              </p>
+              <p className="mt-1 text-[14px] font-semibold text-slate-800">
+                {reviewingData.submittedByName || "Unknown"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                Requested Services
+              </p>
+              <p className="mt-1 text-[14px] font-semibold text-slate-800">
+                {requestedServices.length}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                Contacts / Practices
+              </p>
+              <p className="mt-1 text-[14px] font-semibold text-slate-800">
+                {reviewingData.contacts?.length || 0} /{" "}
+                {reviewingData.practices?.length || 0}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                Sections With Data
+              </p>
+              <p className="mt-1 text-[14px] font-semibold text-slate-800">
+                {completedSectionCount}
+              </p>
+            </div>
+          </div>
+
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(248,250,252,0.9)_0%,rgba(255,255,255,1)_20%)] p-8 custom-scrollbar">
             {reviewStep === 1 && (
               <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <section>
@@ -832,6 +1136,28 @@ export default function AdminOnboardingReview() {
                   </h3>
                   <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {renderField(
+                      "Authorized Person?",
+                      "isAuthorizedPerson",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {!reviewingData.isAuthorizedPerson &&
+                      renderField("Role In Onboarding", "nonAuthorizedRole")}
+                    {isMultiPracticeOrg &&
+                      renderField(
+                        "Practices Being Onboarded",
+                        "numberOfPractices",
+                        "number",
+                      )}
+                    {renderField(
+                      "Total Locations Being Onboarded",
+                      "numberOfLocations",
+                      "number",
+                    )}
+                    {renderField(
                       "Is Legal Contracting Entity?",
                       "isLegalContractingEntity",
                       "select",
@@ -858,6 +1184,37 @@ export default function AdminOnboardingReview() {
                         { label: "No", value: "false" },
                       ],
                     )}
+                    {!isIndividualPractice &&
+                      renderField(
+                        "Billing Managed Centrally?",
+                        "billingManagedCentrally",
+                        "select",
+                        centralizationOptions,
+                      )}
+                    {!isIndividualPractice &&
+                      renderField(
+                        "Credentialing Managed Centrally?",
+                        "credentialingManagedCentrally",
+                        "select",
+                        centralizationOptions,
+                      )}
+                    {!isIndividualPractice &&
+                      renderField(
+                        "Contracting Managed Centrally?",
+                        "contractingManagedCentrally",
+                        "select",
+                        centralizationOptions,
+                      )}
+                    {!isIndividualPractice &&
+                      renderField(
+                        "One Main Contact For All Practices?",
+                        "oneMainContact",
+                        "select",
+                        [
+                          { label: "Yes", value: "true" },
+                          { label: "No", value: "false" },
+                        ],
+                      )}
                   </div>
                 </section>
               </div>
@@ -1104,17 +1461,31 @@ export default function AdminOnboardingReview() {
                       "Practice Management System",
                       "practiceManagementSystem",
                     )}
-                    {renderField(
-                      "Billing Managed Centrally?",
-                      "billingManagedCentrally",
-                      "select",
-                      centralizationOptions,
+                    {renderNestedField(
+                      "technology",
+                      "Clearinghouse",
+                      "clearinghouse",
                     )}
-                    {renderField(
-                      "Credentialing Managed Centrally?",
-                      "credentialingManagedCentrally",
-                      "select",
-                      centralizationOptions,
+                    {renderNestedField(
+                      "technology",
+                      "Fax Platform",
+                      "faxPlatform",
+                    )}
+                    {renderNestedField(
+                      "technology",
+                      "Phone Platform",
+                      "phonePlatform",
+                    )}
+                    {renderNestedField(
+                      "technology",
+                      "IT Contact Name",
+                      "itContactName",
+                    )}
+                    {renderNestedField(
+                      "technology",
+                      "IT Contact Email",
+                      "itContactEmail",
+                      "email",
                     )}
                   </div>
                 </section>
@@ -1155,6 +1526,45 @@ export default function AdminOnboardingReview() {
                         "requestedGoLiveDate",
                         "date",
                       )}
+                      {renderField(
+                        "Services For Practices",
+                        "servicesForAllPractices",
+                        "select",
+                        servicePracticeOptions,
+                      )}
+                      {reviewingData.servicesForAllPractices ===
+                        "SELECTED_PRACTICES" &&
+                        renderMultiSelect(
+                          "Selected Practices",
+                          "selectedPractices",
+                          (reviewingData.practices || []).map((practice) => ({
+                            label:
+                              practice.practiceName ||
+                              practice.practiceDbaName ||
+                              "Unnamed Practice",
+                            value:
+                              practice.practiceName ||
+                              practice.practiceDbaName ||
+                              "Unnamed Practice",
+                          })),
+                        )}
+                      {renderField(
+                        "Replacing Existing Vendor?",
+                        "replacingExistingVendor",
+                        "select",
+                        [
+                          { label: "Yes", value: "true" },
+                          { label: "No", value: "false" },
+                        ],
+                      )}
+                      {reviewingData.replacingExistingVendor &&
+                        renderField("Current Vendor Name", "currentVendorName")}
+                      {reviewingData.replacingExistingVendor &&
+                        renderField(
+                          "Current Vendor End Date",
+                          "currentVendorEndDate",
+                          "date",
+                        )}
                     </div>
                     {renderField(
                       "Engagement Goals",
@@ -1168,6 +1578,7 @@ export default function AdminOnboardingReview() {
 
             {reviewStep === 5 && (
               <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {hasCareProgramsSelected && (
                 <section>
                   <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
                     <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -1176,6 +1587,11 @@ export default function AdminOnboardingReview() {
                     Care Programs & Outreach
                   </h3>
                   <div className="grid gap-6 md:grid-cols-2">
+                    {renderNestedMultiSelect("careProgram", "Programs Planned", "programsPlanned", [
+                      { label: "APCM", value: "APCM" },
+                      { label: "CCM", value: "CCM" },
+                      { label: "RPM", value: "RPM" },
+                    ])}
                     {renderNestedField(
                       "careProgram",
                       "Eligible Patients",
@@ -1190,13 +1606,97 @@ export default function AdminOnboardingReview() {
                     )}
                     {renderNestedField(
                       "careProgram",
-                      "Outreach Channel",
+                      "Minutes Tracker",
+                      "patientMinutesTracker",
+                      "select",
+                      minutesTrackerOptions,
+                    )}
+                    {renderNestedField(
+                      "careProgram",
+                      "Enrollment Handler",
                       "patientEnrollmentHandler",
+                      "select",
+                      [
+                        { label: "Practice Staff", value: "PRACTICE_STAFF" },
+                        { label: "Vendor", value: "VENDOR" },
+                        { label: "Provider", value: "PROVIDER" },
+                        { label: "Nobody Currently", value: "NOBODY_CURRENTLY" },
+                        { label: "Other", value: "OTHER" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "careProgram",
+                      "Monthly Follow-up Handler",
+                      "monthlyFollowUpHandler",
+                      "select",
+                      [
+                        { label: "Practice Staff", value: "PRACTICE_STAFF" },
+                        { label: "Vendor", value: "VENDOR" },
+                        { label: "Provider", value: "PROVIDER" },
+                        { label: "Nobody Currently", value: "NOBODY_CURRENTLY" },
+                        { label: "Other", value: "OTHER" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "careProgram",
+                      "Consent Forms In Place",
+                      "consentFormsInPlace",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "careProgram",
+                      "Existing Care Plan Workflow",
+                      "existingCarePlanWorkflow",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "careProgram",
+                      "Compliance Concerns",
+                      "complianceConcerns",
+                      "textarea",
                     )}
                     {renderNestedField(
                       "outreach",
                       "Approved Outreach Hours",
                       "approvedOutreachHours",
+                    )}
+                    {renderNestedField(
+                      "outreach",
+                      "Patient Text Consent",
+                      "patientTextConsent",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "outreach",
+                      "Interpreter Services",
+                      "interpreterServices",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "outreach",
+                      "Outreach From Practice",
+                      "outreachFromPractice",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
                     )}
                     {renderNestedField(
                       "outreach",
@@ -1206,6 +1706,7 @@ export default function AdminOnboardingReview() {
                     )}
                   </div>
                 </section>
+                )}
                 <section>
                   <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
                     <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -1229,6 +1730,43 @@ export default function AdminOnboardingReview() {
                       "Pharmacy Partner",
                       "pharmacyPartnerName",
                     )}
+                    {renderNestedField(
+                      "labPharmacy",
+                      "Lab Contact Name",
+                      "labContactName",
+                    )}
+                    {renderNestedField(
+                      "labPharmacy",
+                      "Lab Contact Email",
+                      "labContactEmail",
+                      "email",
+                    )}
+                    {renderNestedField(
+                      "labPharmacy",
+                      "Existing Lab Relationship",
+                      "existingLabRelationship",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "labPharmacy",
+                      "Pharmacy Partner Involved",
+                      "pharmacyPartnerInvolved",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "labPharmacy",
+                      "Additional Notes",
+                      "additionalNotes",
+                      "textarea",
+                    )}
                   </div>
                 </section>
               </div>
@@ -1236,6 +1774,153 @@ export default function AdminOnboardingReview() {
 
             {reviewStep === 6 && (
               <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {hasBillingSelected && (
+                  <section>
+                    <h3 className="mb-6 text-[15px] font-bold text-slate-800">
+                      Billing Setup
+                    </h3>
+                    <div className="grid gap-6 md:grid-cols-2">
+                      {renderNestedField(
+                        "billing",
+                        "Current Billing Model",
+                        "currentBillingModel",
+                        "select",
+                        [
+                          { label: "In-House", value: "IN_HOUSE" },
+                          { label: "Outsourced", value: "OUTSOURCED" },
+                          { label: "Hybrid", value: "HYBRID" },
+                        ],
+                      )}
+                      {renderNestedField(
+                        "billing",
+                        "Billing Company Name",
+                        "billingCompanyName",
+                      )}
+                      {renderNestedField(
+                        "billing",
+                        "Main Billing Contact Name",
+                        "mainBillingContactName",
+                      )}
+                      {renderNestedField(
+                        "billing",
+                        "Main Billing Contact Email",
+                        "mainBillingContactEmail",
+                        "email",
+                      )}
+                      {renderNestedField(
+                        "billing",
+                        "Main Billing Contact Phone",
+                        "mainBillingContactPhone",
+                      )}
+                      {renderNestedField(
+                        "billing",
+                        "Active Payers",
+                        "activePayers",
+                        "textarea",
+                      )}
+                      {renderNestedField(
+                        "billing",
+                        "EFT / ERA Setup",
+                        "eftEraSetup",
+                        "select",
+                        yesNoMaybeOptions,
+                      )}
+                      {renderNestedField(
+                        "billing",
+                        "Invoice Recipient",
+                        "invoiceRecipient",
+                      )}
+                      {renderNestedField(
+                        "billing",
+                        "Invoice Email",
+                        "invoiceEmail",
+                        "email",
+                      )}
+                      {renderNestedField(
+                        "billing",
+                        "Preferred Reporting Cadence",
+                        "preferredReportingCadence",
+                        "select",
+                        [
+                          { label: "Weekly", value: "WEEKLY" },
+                          { label: "Biweekly", value: "BIWEEKLY" },
+                          { label: "Monthly", value: "MONTHLY" },
+                          { label: "Custom", value: "CUSTOM" },
+                        ],
+                      )}
+                      {renderNestedField(
+                        "billing",
+                        "Additional Billing Notes",
+                        "additionalNotes",
+                        "textarea",
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                {hasCredentialingSelected && (
+                  <section>
+                    <h3 className="mb-6 text-[15px] font-bold text-slate-800">
+                      Credentialing / Payer Enrollment
+                    </h3>
+                    <div className="grid gap-6 md:grid-cols-2">
+                      {renderNestedField(
+                        "credentialing",
+                        "Credentialing Needed",
+                        "credentialingNeeded",
+                        "select",
+                        [
+                          { label: "Yes", value: "true" },
+                          { label: "No", value: "false" },
+                        ],
+                      )}
+                      {reviewingData.credentialing?.credentialingNeeded &&
+                        renderNestedMultiSelect(
+                          "credentialing",
+                          "Credentialing Needed For",
+                          "credentialingFor",
+                          credentialingForOptions,
+                        )}
+                      {renderNestedField(
+                        "credentialing",
+                        "Payers To Enroll / Update",
+                        "payersToEnroll",
+                        "textarea",
+                      )}
+                      {renderNestedField(
+                        "credentialing",
+                        "Medicare PTAN Available",
+                        "medicarePtanAvailable",
+                        "select",
+                        yesNoMaybeOptions,
+                      )}
+                      {renderNestedField(
+                        "credentialing",
+                        "Medicaid Enrollment Active",
+                        "medicaidEnrollmentActive",
+                        "select",
+                        yesNoMaybeOptions,
+                      )}
+                      {renderNestedField(
+                        "credentialing",
+                        "CAQH Maintained",
+                        "caqhMaintained",
+                        "select",
+                        [
+                          { label: "Yes", value: "true" },
+                          { label: "No", value: "false" },
+                        ],
+                      )}
+                      {renderNestedField(
+                        "credentialing",
+                        "Additional Credentialing Notes",
+                        "additionalNotes",
+                        "textarea",
+                      )}
+                    </div>
+                  </section>
+                )}
+
                 <section>
                   <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
                     <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -1257,22 +1942,96 @@ export default function AdminOnboardingReview() {
                         "email",
                       )}
                       {renderNestedField(
+                        "compliance",
+                        "BAA Required",
+                        "baaRequired",
+                        "select",
+                        [
+                          { label: "Yes", value: "true" },
+                          { label: "No", value: "false" },
+                        ],
+                      )}
+                      {renderNestedField(
+                        "compliance",
+                        "Security Questionnaire",
+                        "securityQuestionnaire",
+                        "select",
+                        [
+                          { label: "Yes", value: "true" },
+                          { label: "No", value: "false" },
+                        ],
+                      )}
+                    </div>
+                    {renderNestedMultiSelect(
+                      "compliance",
+                      "Current Concerns",
+                      "currentConcerns",
+                      complianceConcernOptions,
+                    )}
+                    {renderNestedField(
+                      "compliance",
+                      "Additional Notes",
+                      "additionalNotes",
+                      "textarea",
+                    )}
+                    {hasMarketingSelected &&
+                      renderNestedField(
                         "marketing",
                         "Website URL",
                         "websiteUrl",
                       )}
-                      {renderNestedField(
+                    {hasMarketingSelected &&
+                      renderNestedField(
                         "marketing",
                         "Monthly Budget",
                         "monthlyMarketingBudget",
                       )}
-                    </div>
-                    {renderNestedField(
+                    {hasMarketingSelected &&
+                      renderNestedField(
+                        "marketing",
+                        "Google Business Profile Claimed",
+                        "googleBusinessProfileClaimed",
+                        "select",
+                        [
+                          { label: "Yes", value: "true" },
+                          { label: "No", value: "false" },
+                        ],
+                      )}
+                    {hasMarketingSelected &&
+                    renderNestedField(
                       "marketing",
                       "Patient Acquisition Goals",
                       "patientAcquisitionGoals",
                       "textarea",
                     )}
+                    {hasMarketingSelected &&
+                      renderNestedField(
+                        "marketing",
+                        "Target Patient Demographics",
+                        "targetPatientDemographics",
+                        "textarea",
+                      )}
+                    {hasMarketingSelected &&
+                      renderNestedField(
+                        "marketing",
+                        "Existing Brand Assets",
+                        "existingBrandAssets",
+                        "textarea",
+                      )}
+                    {hasMarketingSelected &&
+                      renderNestedField(
+                        "marketing",
+                        "AI Tools Used",
+                        "aiToolsUsed",
+                        "textarea",
+                      )}
+                    {hasMarketingSelected &&
+                      renderNestedField(
+                        "marketing",
+                        "Additional Marketing Notes",
+                        "additionalMarketingNotes",
+                        "textarea",
+                      )}
                   </div>
                 </section>
                 <section>
@@ -1459,7 +2218,10 @@ export default function AdminOnboardingReview() {
     { key: "credentialing", label: "Credentialing" },
     { key: "technology", label: "Technology" },
     { key: "outreach", label: "Outreach" },
+    { key: "care-program", label: "Care Program" },
+    { key: "lab-pharmacy", label: "Lab & Pharmacy" },
     { key: "compliance", label: "Compliance" },
+    { key: "marketing", label: "Marketing" },
     { key: "documents", label: "Documents" },
   ];
 
@@ -1521,24 +2283,16 @@ export default function AdminOnboardingReview() {
           )}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          {ob.isLegalContractingEntity && (
-            <BoolBadge
-              value={ob.isLegalContractingEntity}
-              label="Legal Contracting"
-            />
-          )}
-          {ob.isBillingEntity && (
-            <BoolBadge value={ob.isBillingEntity} label="Billing Entity" />
-          )}
-          {ob.isCredentialingEntity && (
-            <BoolBadge
-              value={ob.isCredentialingEntity}
-              label="Credentialing Entity"
-            />
-          )}
-          {ob.oneMainContact && (
-            <BoolBadge value={ob.oneMainContact} label="One Main Contact" />
-          )}
+          <BoolBadge
+            value={ob.isLegalContractingEntity}
+            label="Legal Contracting"
+          />
+          <BoolBadge value={ob.isBillingEntity} label="Billing Entity" />
+          <BoolBadge
+            value={ob.isCredentialingEntity}
+            label="Credentialing Entity"
+          />
+          <BoolBadge value={ob.oneMainContact} label="One Main Contact" />
         </div>
       </div>
 
@@ -1594,12 +2348,8 @@ export default function AdminOnboardingReview() {
           {renderDetailField("Type", ob.onboardingType)}
         </div>
         <div className="mt-2 flex gap-2">
-          {ob.informationAccurate && (
-            <BoolBadge value={ob.informationAccurate} label="Info Accurate" />
-          )}
-          {ob.authorizeUse && (
-            <BoolBadge value={ob.authorizeUse} label="Authorized Use" />
-          )}
+          <BoolBadge value={ob.informationAccurate} label="Info Accurate" />
+          <BoolBadge value={ob.authorizeUse} label="Authorized Use" />
         </div>
       </div>
     </div>
@@ -1907,6 +2657,77 @@ export default function AdminOnboardingReview() {
     );
   };
 
+  const renderCareProgramTab = (ob: Onboarding) => {
+    const cp = ob.careProgram as any;
+    if (!cp)
+      return (
+        <p className="text-[13px] text-slate-400">
+          No care program information.
+        </p>
+      );
+    return (
+      <div className="space-y-3 text-[13px]">
+        {renderDetailArray("Programs Planned", cp.programsPlanned)}
+        {renderDetailField(
+          "Estimated Eligible Patients",
+          cp.estimatedEligiblePatients,
+        )}
+        {renderDetailField(
+          "Current Enrolled Patients",
+          cp.currentEnrolledPatients,
+        )}
+        {renderDetailField(
+          "Patient Enrollment Handler",
+          cp.patientEnrollmentHandler,
+        )}
+        {renderDetailField(
+          "Monthly Follow-up Handler",
+          cp.monthlyFollowUpHandler,
+        )}
+        <div className="flex flex-wrap gap-2">
+          <BoolBadge
+            value={cp.consentFormsInPlace}
+            label="Consent Forms In Place"
+          />
+          <BoolBadge
+            value={cp.existingCarePlanWorkflow}
+            label="Care Plan Workflow"
+          />
+        </div>
+        {renderDetailField("Minutes Tracker", cp.patientMinutesTracker)}
+        {renderDetailField("Compliance Concerns", cp.complianceConcerns)}
+      </div>
+    );
+  };
+
+  const renderLabPharmacyTab = (ob: Onboarding) => {
+    const lp = ob.labPharmacy as any;
+    if (!lp)
+      return (
+        <p className="text-[13px] text-slate-400">
+          No lab or pharmacy information.
+        </p>
+      );
+    return (
+      <div className="space-y-3 text-[13px]">
+        {renderDetailField("Preferred Lab", lp.preferredLab)}
+        <BoolBadge
+          value={lp.existingLabRelationship}
+          label="Existing Lab Relationship"
+        />
+        {renderDetailField("Lab Interface Status", lp.labInterfaceStatus)}
+        {renderDetailField("Lab Contact Name", lp.labContactName)}
+        {renderDetailField("Lab Contact Email", lp.labContactEmail)}
+        {renderDetailField("Pharmacy Partner", lp.pharmacyPartnerName)}
+        <BoolBadge
+          value={lp.pharmacyPartnerInvolved}
+          label="Pharmacy Partner Involved"
+        />
+        {renderDetailField("Notes", lp.additionalNotes)}
+      </div>
+    );
+  };
+
   const renderComplianceTab = (ob: Onboarding) => {
     const c = ob.compliance as any;
     if (!c)
@@ -1928,15 +2749,49 @@ export default function AdminOnboardingReview() {
     );
   };
 
+  const renderMarketingTab = (ob: Onboarding) => {
+    const m = ob.marketing as any;
+    if (!m)
+      return (
+        <p className="text-[13px] text-slate-400">No marketing information.</p>
+      );
+    return (
+      <div className="space-y-3 text-[13px]">
+        {renderDetailField("Website URL", m.websiteUrl)}
+        {renderDetailArray("Social Media Channels", m.socialMediaChannels)}
+        {renderDetailArray(
+          "Current Marketing Channels",
+          m.currentMarketingChannels,
+        )}
+        {renderDetailField(
+          "Target Patient Demographics",
+          m.targetPatientDemographics,
+        )}
+        {renderDetailField("Monthly Budget", m.monthlyMarketingBudget)}
+        {renderDetailField("Existing Brand Assets", m.existingBrandAssets)}
+        <BoolBadge
+          value={m.googleBusinessProfileClaimed}
+          label="Google Business Profile"
+        />
+        {renderDetailField(
+          "Patient Acquisition Goals",
+          m.patientAcquisitionGoals,
+        )}
+        {renderDetailField("AI Tools Used", m.aiToolsUsed)}
+        {renderDetailField("Notes", m.additionalMarketingNotes)}
+      </div>
+    );
+  };
+
   const renderDocumentsTab = (ob: Onboarding) => {
-    const docs = ob.documents as any[] | undefined;
+    const docs = ob.documents as OnboardingDocument[] | undefined;
     if (!docs || docs.length === 0)
       return (
         <p className="text-[13px] text-slate-400">No documents uploaded.</p>
       );
     return (
       <div className="space-y-2">
-        {docs.map((d: any, i: number) => (
+        {docs.map((d, i: number) => (
           <div
             key={d.id || i}
             className="flex items-center justify-between rounded-lg border border-[#e8e4dc] bg-[#faf9f7] p-2.5"
@@ -1991,8 +2846,14 @@ export default function AdminOnboardingReview() {
         return renderTechnologyTab(ob);
       case "outreach":
         return renderOutreachTab(ob);
+      case "care-program":
+        return renderCareProgramTab(ob);
+      case "lab-pharmacy":
+        return renderLabPharmacyTab(ob);
       case "compliance":
         return renderComplianceTab(ob);
+      case "marketing":
+        return renderMarketingTab(ob);
       case "documents":
         return renderDocumentsTab(ob);
       default:
