@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import { LOGOUT_ACTION, type NavbarAction } from "../layout/Navbar";
@@ -45,6 +46,7 @@ import type {
 } from "../practices/types";
 import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import ConfirmModal from "../shared/ConfirmModal";
 
 type TaxIdFormState = {
   taxIdNumber: string;
@@ -198,6 +200,7 @@ function buildErrorMessage(error: unknown) {
 }
 
 function CreateLeadPage() {
+  const navigate = useNavigate();
   const [form, setForm] = useState<LeadFormState>(initialFormState);
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -206,6 +209,142 @@ function CreateLeadPage() {
   const [lastSavedLead, setLastSavedLead] = useState<SavedLeadSummary | null>(
     null,
   );
+
+  // Agreement Redirect State
+  const [showAgreementModal, setShowAgreementModal] = useState(false);
+
+  const performLeadCreation = async (autoRedirect: boolean = false) => {
+    setIsSaving(true);
+    try {
+      let companyId = form.selectedCompanyId;
+      let practiceId = form.selectedPracticeId;
+      let contactId = form.selectedContactId;
+
+      // 1. Handle Company
+      if (form.companyRelation === "new") {
+        const validTaxIds = form.taxIds.filter(
+          (taxId) => taxId.taxIdNumber.trim() && taxId.legalEntityName.trim(),
+        );
+        const companyPayload: CompanyBody = {
+          name: form.companyName.trim(),
+          industry: form.companyIndustry.trim(),
+          size: Number(form.companySize) || undefined,
+          phone: form.companyPhone.trim() || undefined,
+          email: form.companyEmail.trim() || undefined,
+          website: form.companyWebsite.trim() || undefined,
+          status: "LEAD",
+          address: {
+            street: form.companyStreet.trim() || undefined,
+            city: form.companyCity.trim() || undefined,
+            state: form.companyState.trim() || undefined,
+            country: form.companyCountry.trim() || undefined,
+            zip: form.companyZip.trim() || undefined,
+          },
+          taxIds:
+            validTaxIds.length > 0
+              ? validTaxIds.map((t) => ({
+                  taxIdNumber: t.taxIdNumber.trim(),
+                  legalEntityName: t.legalEntityName.trim(),
+                  notes: t.notes.trim() || undefined,
+                }))
+              : undefined,
+        };
+        const companyRow = await createCompanyApi(companyPayload);
+        companyId = companyRow.id;
+      }
+
+      // 2. Handle Practice
+      if (form.practiceRelation === "new") {
+        const practicePayload: PracticeBody = {
+          name: form.practiceName.trim(),
+          npi: form.practiceNpi.trim(),
+          status: "LEAD",
+          region: form.practiceRegion.trim(),
+          source: form.practiceSource,
+          bucket: form.practiceBucket
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+          companyId: companyId,
+        };
+        const practiceRow = await createPracticeApi(practicePayload);
+        practiceId = practiceRow.id;
+      }
+
+      // 3. Handle Contact
+      if (form.contactRelation === "new") {
+        const parsedContact = parseContactName(form.primaryContactName);
+        const personPayload: PersonBody = {
+          firstName: parsedContact.firstName,
+          lastName: parsedContact.lastName,
+          role: "ADMIN",
+          influence: "HIGH",
+          email: form.primaryContactEmail.trim(),
+          phone: form.primaryContactPhone.trim() || undefined,
+          designation: form.primaryContactDesignation.trim() || undefined,
+          practiceIds: [practiceId],
+          companyIds: [companyId],
+        };
+        const personRow = await createPersonApi(personPayload);
+        contactId = personRow.id;
+      }
+
+      // 4. Handle Deal
+      const activityTimestamp = new Date().toISOString();
+      const contactName =
+        form.contactRelation === "new"
+          ? form.primaryContactName
+          : "Selected Contact";
+      const pName =
+        form.practiceRelation === "new"
+          ? form.practiceName
+          : "Selected Practice";
+
+      const dealPayload: DealBody = {
+        practiceId: practiceId,
+        companyId: companyId,
+        primaryContactId: contactId,
+        stage: "PROSPECTING",
+        value: Number(form.estimatedValue),
+        probability: Number(form.probability),
+        selectedServiceIds: form.interestedServiceIds,
+        nextTaskTitle:
+          form.followUpTaskTitle.trim() ||
+          defaultFollowUpTitle(contactName, pName),
+        nextTaskDueAt: new Date(form.followUpTaskDueAt).toISOString(),
+        lastActivityAt: activityTimestamp,
+        activityCount: 1,
+      };
+      const dealRow = await createDealApi(dealPayload);
+
+      setLastSavedLead({
+        practiceId,
+        companyId,
+        contactId,
+        dealId: dealRow.id,
+        practiceName: pName,
+        companyName:
+          form.companyRelation === "new"
+            ? form.companyName
+            : "Selected Company",
+        contactName: contactName,
+        dealStage: "PROSPECTING",
+        savedAt: activityTimestamp,
+      });
+
+      resetForm();
+      toast.success("Lead created successfully.");
+
+      if (autoRedirect) {
+          navigate(`/agreements/all-agreements?practiceId=${practiceId}&dealId=${dealRow.id}&autoOpen=true`);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(buildErrorMessage(error));
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   useEffect(() => {
     async function loadInitialData() {
@@ -400,134 +539,22 @@ function CreateLeadPage() {
       return;
     }
 
-    setIsSaving(true);
-
-    try {
-      let companyId = form.selectedCompanyId;
-      let practiceId = form.selectedPracticeId;
-      let contactId = form.selectedContactId;
-
-      // 1. Handle Company
-      if (form.companyRelation === "new") {
-        const validTaxIds = form.taxIds.filter(
-          (taxId) => taxId.taxIdNumber.trim() && taxId.legalEntityName.trim(),
-        );
-        const companyPayload: CompanyBody = {
-          name: form.companyName.trim(),
-          industry: form.companyIndustry.trim(),
-          size: Number(form.companySize) || undefined,
-          phone: form.companyPhone.trim() || undefined,
-          email: form.companyEmail.trim() || undefined,
-          website: form.companyWebsite.trim() || undefined,
-          status: "LEAD",
-          address: {
-            street: form.companyStreet.trim() || undefined,
-            city: form.companyCity.trim() || undefined,
-            state: form.companyState.trim() || undefined,
-            country: form.companyCountry.trim() || undefined,
-            zip: form.companyZip.trim() || undefined,
-          },
-          taxIds:
-            validTaxIds.length > 0
-              ? validTaxIds.map((t) => ({
-                  taxIdNumber: t.taxIdNumber.trim(),
-                  legalEntityName: t.legalEntityName.trim(),
-                  notes: t.notes.trim() || undefined,
-                }))
-              : undefined,
-        };
-        const companyRow = await createCompanyApi(companyPayload);
-        companyId = companyRow.id;
-      }
-
-      // 2. Handle Practice
-      if (form.practiceRelation === "new") {
-        const practicePayload: PracticeBody = {
-          name: form.practiceName.trim(),
-          npi: form.practiceNpi.trim(),
-          status: "LEAD",
-          region: form.practiceRegion.trim(),
-          source: form.practiceSource,
-          bucket: form.practiceBucket
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-          companyId: companyId,
-        };
-        const practiceRow = await createPracticeApi(practicePayload);
-        practiceId = practiceRow.id;
-      }
-
-      // 3. Handle Contact
-      if (form.contactRelation === "new") {
-        const parsedContact = parseContactName(form.primaryContactName);
-        const personPayload: PersonBody = {
-          firstName: parsedContact.firstName,
-          lastName: parsedContact.lastName,
-          role: "ADMIN",
-          influence: "HIGH",
-          email: form.primaryContactEmail.trim(),
-          phone: form.primaryContactPhone.trim() || undefined,
-          designation: form.primaryContactDesignation.trim() || undefined,
-          practiceIds: [practiceId],
-          companyIds: [companyId],
-        };
-        const personRow = await createPersonApi(personPayload);
-        contactId = personRow.id;
-      }
-
-      // 4. Handle Deal
-      const activityTimestamp = new Date().toISOString();
-      const contactName =
-        form.contactRelation === "new"
-          ? form.primaryContactName
-          : "Selected Contact";
-      const pName =
-        form.practiceRelation === "new"
-          ? form.practiceName
-          : "Selected Practice";
-
-      const dealPayload: DealBody = {
-        practiceId: practiceId,
-        companyId: companyId,
-        primaryContactId: contactId,
-        stage: "PROSPECTING",
-        value: Number(form.estimatedValue),
-        probability: Number(form.probability),
-        selectedServiceIds: form.interestedServiceIds,
-        nextTaskTitle:
-          form.followUpTaskTitle.trim() ||
-          defaultFollowUpTitle(contactName, pName),
-        nextTaskDueAt: new Date(form.followUpTaskDueAt).toISOString(),
-        lastActivityAt: activityTimestamp,
-        activityCount: 1,
-      };
-      const dealRow = await createDealApi(dealPayload);
-
-      setLastSavedLead({
-        practiceId,
-        companyId,
-        contactId,
-        dealId: dealRow.id,
-        practiceName: pName,
-        companyName:
-          form.companyRelation === "new"
-            ? form.companyName
-            : "Selected Company",
-        contactName: contactName,
-        dealStage: "PROSPECTING",
-        savedAt: activityTimestamp,
-      });
-
-      resetForm();
-      toast.success("Lead flow completed successfully.");
-    } catch (error) {
-      console.error(error);
-      toast.error(buildErrorMessage(error));
-    } finally {
-      setIsSaving(false);
+    // If services are selected, show modal first
+    if (form.interestedServiceIds.length > 0) {
+        setShowAgreementModal(true);
+    } else {
+        // No services, just create immediately
+        performLeadCreation(false);
     }
   }
+
+  const handleConfirmWithAgreements = () => {
+      performLeadCreation(true);
+  };
+
+  const handleConfirmLeadOnly = () => {
+      performLeadCreation(false);
+  };
 
   const selectedServices = services.filter((service) =>
     form.interestedServiceIds.includes(service.id),
@@ -556,13 +583,6 @@ function CreateLeadPage() {
                   for this lead.
                 </p>
               </div>
-              {/*<div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-[#4f63ea]/10 flex items-center justify-center text-[#4f63ea] font-bold text-sm">1</div>
-                  <div className="h-px w-4 bg-slate-200"></div>
-                  <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-sm">2</div>
-                  <div className="h-px w-4 bg-slate-200"></div>
-                  <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-sm">3</div>
-              </div>*/}
             </div>
 
             <form onSubmit={handleSaveLead} className="p-6 space-y-8">
@@ -1115,7 +1135,7 @@ function CreateLeadPage() {
                   {isSaving ? (
                     <>
                       <Search className="h-4 w-4 animate-spin" />
-                      Saving Lead...
+                      Creating Lead...
                     </>
                   ) : (
                     <>
@@ -1286,6 +1306,19 @@ function CreateLeadPage() {
           </section>
         </aside>
       </div>
+
+      <ConfirmModal
+        isOpen={showAgreementModal}
+        onClose={() => setShowAgreementModal(false)}
+        onConfirm={handleConfirmWithAgreements}
+        onSecondaryConfirm={handleConfirmLeadOnly}
+        title="Create Lead & Send Agreements?"
+        message="You have selected interested services for this lead. Would you like to create the lead and proceed to the agreements section to send documents now, or just create the lead?"
+        confirmLabel="Create & Send Agreements"
+        secondaryLabel="Create Lead Only"
+        cancelLabel="Cancel"
+        type="primary"
+      />
     </AppLayout>
   );
 }
