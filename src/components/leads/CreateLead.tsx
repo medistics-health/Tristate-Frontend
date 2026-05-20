@@ -14,6 +14,8 @@ import {
   ArrowRight,
   CheckCircle2,
   X,
+  FileText,
+  Clock,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -37,6 +39,15 @@ import {
   createPracticeApi,
   getPracticesView,
 } from "../../services/operations/practices";
+import {
+  createAgreementApi,
+  createDocusealSubmissionApi,
+  sendAgreementEmailApi,
+  getDocusealTemplates,
+  getAgreementsByPractice,
+  type Agreement,
+  type DocusealTemplate,
+} from "../../services/operations/agreements";
 import { getAllServices } from "../../services/operations/services";
 import { getAllUsers } from "../../services/operations/users";
 import type {
@@ -55,6 +66,15 @@ type TaxIdFormState = {
 };
 
 type RelationType = "existing" | "new";
+
+type IntegratedAgreementState = {
+  action: "none" | "link" | "create";
+  existingAgreementId: string;
+  type: string;
+  effectiveDate: string;
+  renewalDate: string;
+  templateIds: string[];
+};
 
 type LeadFormState = {
   // Company
@@ -99,6 +119,9 @@ type LeadFormState = {
   assignedOwnerId: string;
   channelPartnerId: string;
   notes: string;
+
+  // Integrated Agreement
+  agreement: IntegratedAgreementState;
 };
 
 type SavedLeadSummary = {
@@ -106,6 +129,7 @@ type SavedLeadSummary = {
   companyId: string;
   contactId: string;
   dealId: string;
+  agreementId?: string;
   practiceName: string;
   companyName: string;
   contactName: string;
@@ -158,7 +182,24 @@ const initialFormState: LeadFormState = {
   assignedOwnerId: "",
   channelPartnerId: "",
   notes: "",
-};
+
+  agreement: {
+  action: "create",
+  existingAgreementId: "",
+  type: "MSA",
+  effectiveDate: new Date().toISOString().split("T")[0],
+  renewalDate: "",
+  templateIds: [],
+  },
+  };
+const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
+
+const AUTO_INCLUDE_TEMPLATE_NAMES = [
+  "Master Service Agreement",
+  "BAA",
+  "Credentialing Exhibit",
+  "Exhibit P",
+];
 
 const practiceSourceOptions: Array<{ value: PracticeSource; label: string }> = [
   { value: "DIRECT", label: "Direct" },
@@ -204,6 +245,8 @@ function CreateLeadPage() {
   const [form, setForm] = useState<LeadFormState>(initialFormState);
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<DocusealTemplate[]>([]);
+  const [existingAgreements, setExistingAgreements] = useState<Agreement[]>([]);
   const [isLoadingServices, setIsLoadingServices] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedLead, setLastSavedLead] = useState<SavedLeadSummary | null>(
@@ -213,7 +256,7 @@ function CreateLeadPage() {
   // Agreement Redirect State
   const [showAgreementModal, setShowAgreementModal] = useState(false);
 
-  const performLeadCreation = async (autoRedirect: boolean = false) => {
+  const performLeadCreation = async (withAgreement: boolean = false) => {
     setIsSaving(true);
     try {
       let companyId = form.selectedCompanyId;
@@ -317,11 +360,84 @@ function CreateLeadPage() {
       };
       const dealRow = await createDealApi(dealPayload);
 
+      // 5. Handle Agreement (if requested)
+      let agreementId: string | undefined = undefined;
+      if (withAgreement && form.agreement.action !== "none") {
+        if (form.agreement.action === "create") {
+          const autoIncludeIds = templates
+            .filter((t) =>
+                AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+                    t.name.toLowerCase().includes(name.toLowerCase()),
+                ),
+            )
+            .map((t) => String(t.id));
+
+          const allSelectedIds = form.agreement.type === "MSA"
+            ? [...new Set([...form.agreement.templateIds, ...autoIncludeIds])]
+            : form.agreement.templateIds;
+
+          const submissions = allSelectedIds.map((id) => {
+            const template = templates.find((t) => t.id === Number(id));
+            return {
+              externalId: Number(id),
+              status: "PENDING",
+              templateId: Number(id),
+              url: template?.documents?.[0]?.url || undefined,
+              slug: template?.slug,
+              submitters: template?.submitters?.map((init: any) => ({
+                role: init.name,
+                uuid: init.uuid,
+              })),
+            };
+          });
+
+          const agreementPayload = {
+            practiceId: practiceId,
+            dealId: dealRow.id,
+            type: form.agreement.type,
+            status: "PENDING_SIGNATURE",
+            effectiveDate: form.agreement.effectiveDate
+              ? new Date(form.agreement.effectiveDate).toISOString()
+              : undefined,
+            renewalDate: form.agreement.renewalDate
+              ? new Date(form.agreement.renewalDate).toISOString()
+              : undefined,
+            docusealSubmissions:
+              submissions.length > 0 ? submissions : undefined,
+          };
+          const agreementRow = await createAgreementApi(
+            agreementPayload as any,
+          );
+          agreementId = agreementRow.id;
+
+          // Send signature requests if templates selected
+          if (allSelectedIds.length > 0) {
+            await createDocusealSubmissionApi({
+              agreementId: agreementId,
+              personId: contactId,
+              templateId: allSelectedIds.map(Number),
+            });
+            await sendAgreementEmailApi({
+              agreementId: agreementId,
+              personId: contactId,
+            });
+          }
+        } else if (form.agreement.action === "link") {
+          agreementId = form.agreement.existingAgreementId;
+          // Potentially update dealId on existing agreement if needed
+          await createAgreementApi({
+              id: agreementId,
+              dealId: dealRow.id,
+          } as any);
+        }
+      }
+
       setLastSavedLead({
         practiceId,
         companyId,
         contactId,
         dealId: dealRow.id,
+        agreementId,
         practiceName: pName,
         companyName:
           form.companyRelation === "new"
@@ -333,11 +449,11 @@ function CreateLeadPage() {
       });
 
       resetForm();
-      toast.success("Lead created successfully.");
-
-      if (autoRedirect) {
-          navigate(`/agreements/all-agreements?practiceId=${practiceId}&dealId=${dealRow.id}&autoOpen=true`);
-      }
+      toast.success(
+        agreementId
+          ? "Lead and Agreement created successfully."
+          : "Lead created successfully.",
+      );
     } catch (error) {
       console.error(error);
       toast.error(buildErrorMessage(error));
@@ -350,12 +466,14 @@ function CreateLeadPage() {
     async function loadInitialData() {
       try {
         setIsLoadingServices(true);
-        const [serviceList, userList] = await Promise.all([
+        const [serviceList, userList, templateRes] = await Promise.all([
           getAllServices(),
           getAllUsers(),
+          getDocusealTemplates(),
         ]);
         setServices(serviceList.filter((service) => service.isActive));
         setUsers(userList);
+        setTemplates(templateRes.templates.data);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unable to load services.";
@@ -368,12 +486,49 @@ function CreateLeadPage() {
     loadInitialData();
   }, []);
 
+  // Fetch existing agreements when practice changes
+  useEffect(() => {
+    if (form.selectedPracticeId) {
+      getAgreementsByPractice(form.selectedPracticeId)
+        .then((res) => {
+          setExistingAgreements(res);
+          if (res.length > 0) {
+            setForm((prev) => ({
+              ...prev,
+              agreement: {
+                ...prev.agreement,
+                action: "link",
+                existingAgreementId: res[0].id,
+              },
+            }));
+          }
+        })
+        .catch((err) => console.error("Error fetching agreements:", err));
+    } else {
+      setExistingAgreements([]);
+      setForm((prev) => ({
+        ...prev,
+        agreement: { ...prev.agreement, action: "create" },
+      }));
+    }
+  }, [form.selectedPracticeId]);
+
   const updateField = useCallback(
     <K extends keyof LeadFormState>(field: K, value: LeadFormState[K]) => {
       setForm((current) => ({ ...current, [field]: value }));
     },
     [],
   );
+
+  const updateAgreementField = <K extends keyof IntegratedAgreementState>(
+    field: K,
+    value: IntegratedAgreementState[K],
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      agreement: { ...prev.agreement, [field]: value },
+    }));
+  };
 
   const updateTaxId = (
     index: number,
@@ -539,21 +694,30 @@ function CreateLeadPage() {
       return;
     }
 
+    if (
+      form.agreement.action === "create" &&
+      form.interestedServiceIds.length > 0 &&
+      form.agreement.templateIds.length === 0
+    ) {
+      toast.error("Please select at least one agreement template.");
+      return;
+    }
+
     // If services are selected, show modal first
     if (form.interestedServiceIds.length > 0) {
-        setShowAgreementModal(true);
+      setShowAgreementModal(true);
     } else {
-        // No services, just create immediately
-        performLeadCreation(false);
+      // No services, just create immediately
+      performLeadCreation(false);
     }
   }
 
   const handleConfirmWithAgreements = () => {
-      performLeadCreation(true);
+    performLeadCreation(true);
   };
 
   const handleConfirmLeadOnly = () => {
-      performLeadCreation(false);
+    performLeadCreation(false);
   };
 
   const selectedServices = services.filter((service) =>
@@ -1119,6 +1283,205 @@ function CreateLeadPage() {
                 </label>
               </div>
 
+              {/* Integrated Agreement Section */}
+              {form.interestedServiceIds.length > 0 && (
+                <div className="animate-in fade-in slide-in-from-top-2 space-y-6 border-t border-slate-200 pt-6 duration-500">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-indigo-600" />
+                      <h2 className="text-[16px] font-semibold text-slate-800">
+                        Agreement Setup
+                      </h2>
+                    </div>
+                    <div className="flex rounded-lg bg-slate-100 p-1">
+                      <button
+                        type="button"
+                        onClick={() => updateAgreementField("action", "create")}
+                        className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
+                          form.agreement.action === "create"
+                            ? "bg-white text-indigo-600 shadow-sm"
+                            : "text-slate-500"
+                        }`}
+                      >
+                        Create New
+                      </button>
+                      {existingAgreements.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => updateAgreementField("action", "link")}
+                          className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
+                            form.agreement.action === "link"
+                              ? "bg-white text-indigo-600 shadow-sm"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          Link Existing
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => updateAgreementField("action", "none")}
+                        className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
+                          form.agreement.action === "none"
+                            ? "bg-white text-indigo-600 shadow-sm"
+                            : "text-slate-500"
+                        }`}
+                      >
+                        Skip for Now
+                      </button>
+                    </div>
+                  </div>
+
+                  {form.agreement.action === "link" &&
+                    existingAgreements.length > 0 && (
+                      <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+                        <label className="block">
+                          <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                            Select Existing Agreement
+                          </span>
+                          <select
+                            value={form.agreement.existingAgreementId}
+                            onChange={(e) =>
+                              updateAgreementField(
+                                "existingAgreementId",
+                                e.target.value,
+                              )
+                            }
+                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          >
+                            {existingAgreements.map((ag) => (
+                              <option key={ag.id} value={ag.id}>
+                                {ag.type} - Created{" "}
+                                {new Date(ag.createdAt).toLocaleDateString()}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    )}
+
+                  {form.agreement.action === "create" && (
+                    <div className="grid gap-6 rounded-2xl border border-slate-100 bg-slate-50/50 p-5 md:grid-cols-2">
+                      <div className="space-y-6">
+                        <label className="block">
+                          <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                            Agreement Type *
+                          </span>
+                          <select
+                            value={form.agreement.type}
+                            onChange={(e) => updateAgreementField("type", e.target.value)}
+                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          >
+                            {agreementTypeOptions.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                            Effective Date
+                          </span>
+                          <input
+                            type="date"
+                            value={form.agreement.effectiveDate}
+                            onChange={(e) =>
+                              updateAgreementField("effectiveDate", e.target.value)
+                            }
+                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                            Renewal Date
+                          </span>
+                          <input
+                            type="date"
+                            value={form.agreement.renewalDate}
+                            onChange={(e) => updateAgreementField("renewalDate", e.target.value)}
+                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="flex flex-col h-full">
+                        <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                          DocuSeal Templates *
+                        </span>
+                        <div className="flex-1 min-h-0 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 custom-scrollbar">
+                            {templates.length === 0 ? (
+                                <p className="text-[12px] text-slate-400 text-center py-4">Loading templates...</p>
+                            ) : (
+                                <div className="space-y-1">
+                                    {(() => {
+                                        const autoIncludeIds = templates
+                                          .filter((t) =>
+                                            AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+                                              t.name.toLowerCase().includes(name.toLowerCase())
+                                            )
+                                          )
+                                          .map((t) => String(t.id));
+
+                                        return templates.map(template => {
+                                            const templateId = String(template.id);
+                                            const isAutoInclude = form.agreement.type === "MSA" && autoIncludeIds.includes(templateId);
+                                            const isSelected = isAutoInclude || form.agreement.templateIds.includes(templateId);
+                                            
+                                            return (
+                                                <label key={template.id} className={`flex items-center gap-3 p-2 rounded-lg transition-all border ${
+                                                    isSelected ? "bg-indigo-50 border-indigo-100" : "hover:bg-slate-50 border-transparent hover:border-slate-100"
+                                                } ${isAutoInclude ? "cursor-default opacity-80" : "cursor-pointer"}`}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        disabled={isAutoInclude}
+                                                        onChange={() => {
+                                                            if (isAutoInclude) return;
+                                                            const next = isSelected 
+                                                                ? form.agreement.templateIds.filter(t => t !== templateId)
+                                                                : [...form.agreement.templateIds, templateId];
+                                                            updateAgreementField("templateIds", next);
+                                                        }}
+                                                        className={`h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 ${isAutoInclude ? "bg-indigo-100" : ""}`}
+                                                    />
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-[13px] line-clamp-1 ${isSelected ? "font-semibold text-indigo-700" : "text-slate-600"}`}>
+                                                            {template.name}
+                                                        </span>
+                                                        {isAutoInclude && <span className="text-[10px] text-indigo-400 font-bold uppercase">Required for MSA</span>}
+                                                    </div>
+                                                </label>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+                            )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3 rounded-xl bg-blue-50 p-3 text-blue-700 md:col-span-2">
+                        <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+                        <p className="text-[12px] leading-relaxed">
+                          <strong>Signature Workflow:</strong> Saving this lead
+                          will automatically create the agreement and send signature
+                          request emails for <strong>{form.agreement.templateIds.length}</strong> selected template(s) to{" "}
+                          <strong>
+                            {form.contactRelation === "new"
+                              ? form.primaryContactName || "the primary contact"
+                              : "the selected contact"}
+                          </strong>
+                          .
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
               <div className="pt-6 flex items-center justify-end gap-3 border-t border-slate-100">
                 <button
                   type="button"
@@ -1245,6 +1608,36 @@ function CreateLeadPage() {
                   </div>
                 </div>
               </div>
+
+              {form.interestedServiceIds.length > 0 && (
+                <div className="flex gap-3">
+                  <div
+                    className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${
+                      form.agreement.action === "none"
+                        ? "bg-slate-100 text-slate-400"
+                        : "bg-green-100 text-green-600"
+                    }`}
+                  >
+                    {form.agreement.action === "none" ? (
+                      <FileText className="h-3.5 w-3.5" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-[12px] font-bold text-slate-700 uppercase tracking-wider">
+                      Agreement
+                    </div>
+                    <div className="text-[13px] text-slate-500 mt-0.5">
+                      {form.agreement.action === "create"
+                        ? `Generate New ${form.agreement.type}`
+                        : form.agreement.action === "link"
+                          ? "Link to Existing"
+                          : "Skip creation"}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
@@ -1274,6 +1667,14 @@ function CreateLeadPage() {
                     {lastSavedLead.dealStage}
                   </span>
                 </div>
+                {lastSavedLead.agreementId && (
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="text-green-600/70">Agreement</span>
+                    <span className="font-semibold text-green-800">
+                      Sent for Sign
+                    </span>
+                  </div>
+                )}
                 <button className="w-full mt-2 py-2 rounded-lg bg-green-600 text-white text-[12px] font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
                   View Deal <ArrowRight className="h-3 w-3" />
                 </button>
@@ -1293,6 +1694,12 @@ function CreateLeadPage() {
                 "Generates CRM Deal in Prospecting stage",
                 "Logs initial discovery activity",
                 "Sets up follow-up task for owner",
+                ...(form.agreement.action === "create"
+                  ? [
+                      "Generates new legal agreement",
+                      "Triggers signature request email",
+                    ]
+                  : []),
               ].map((item, i) => (
                 <li
                   key={i}
@@ -1312,9 +1719,19 @@ function CreateLeadPage() {
         onClose={() => setShowAgreementModal(false)}
         onConfirm={handleConfirmWithAgreements}
         onSecondaryConfirm={handleConfirmLeadOnly}
-        title="Create Lead & Send Agreements?"
-        message="You have selected interested services for this lead. Would you like to create the lead and proceed to the agreements section to send documents now, or just create the lead?"
-        confirmLabel="Create & Send Agreements"
+        title={
+          form.agreement.action === "create"
+            ? "Create Lead & Send Agreement?"
+            : "Create Lead & Link Agreement?"
+        }
+        message={
+          form.agreement.action === "create"
+            ? `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and trigger the signature request now?`
+            : "Would you like to create the lead and link it to the existing agreement, or just create the lead?"
+        }
+        confirmLabel={
+          form.agreement.action === "create" ? "Create & Send Now" : "Create & Link"
+        }
         secondaryLabel="Create Lead Only"
         cancelLabel="Cancel"
         type="primary"
