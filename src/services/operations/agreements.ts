@@ -12,6 +12,7 @@ const {
   GET_DOCUSEAL_FORM,
   SEND_AGREEMENT_EMAIL,
   CREATE_DOCUSEAL_SUBMISSION,
+  RESUBMIT_DOCUSEAL_SUBMISSION,
 } = agreementEndpoints;
 
 const {
@@ -475,6 +476,27 @@ export async function createDocusealSubmissionApi(data: {
   } catch (error) {
     throw new Error(
       getErrorMessage(error, "Unable to create DocuSeal submission."),
+    );
+  }
+}
+
+export async function resubmitDocusealSubmissionApi(data: {
+  agreementId: string;
+  personId: string;
+  templateId: number;
+  fieldValues: Record<string, string>;
+}): Promise<any> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: RESUBMIT_DOCUSEAL_SUBMISSION,
+      body: data,
+      credentials: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to resubmit Docuseal template fields."),
     );
   }
 }
