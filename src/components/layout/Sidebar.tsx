@@ -11,6 +11,7 @@ import {
   Users,
   ShoppingCart,
   ListOrdered,
+  FileText,
   Briefcase,
   Share2,
   ClipboardCheck,
@@ -191,6 +192,10 @@ const sidebarSections: SidebarSection[] = [
           { label: "Dashboard", to: "/monthly-reporting/dashboard" },
           { label: "Submit Report", to: "/monthly-reporting/submit" },
         ],
+      },
+      {
+        label: "Onboarding",
+        items: [{ label: "Review Submissions", to: "/onboarding/review" }],
       },
       {
         label: "Integrations",
@@ -463,6 +468,8 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                           return <Truck className="h-3.5 w-3.5" />;
                         if (label.includes("practice"))
                           return <Stethoscope className="h-3.5 w-3.5" />;
+                        if (label.includes("onboarding"))
+                          return <FileText className="h-3.5 w-3.5" />;
                         if (label.includes("integration"))
                           return <Zap className="h-3.5 w-3.5" />;
                         if (label.includes("settings"))

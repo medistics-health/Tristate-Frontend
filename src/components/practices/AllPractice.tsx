@@ -45,10 +45,11 @@ import {
 import { getAllCompanies } from "../../services/operations/companies";
 import {
   getAgreementsByPractice,
-  sendAgreementEmail,
-  createDocusealSubmissionApi,
-  getAgreementDocusealId,
 } from "../../services/operations/agreements";
+import {
+  activatePracticeWithAgreementEmail,
+  validatePracticeActivation,
+} from "../../services/operations/practiceActivation";
 import type { Company } from "../companies/types";
 import toast from "react-hot-toast";
 
@@ -749,25 +750,13 @@ export default function AllPracticePage() {
     const wasActive = String(selectedRow.values.status) === "ACTIVE";
     const willBecomeActive = formData.status === "ACTIVE" && !wasActive;
 
-    const fullPractice = await getPractice(selectedRow.id);
-    const practicePersons = fullPractice.persons ?? [];
     if (willBecomeActive) {
-      const hasAdminWithEmail = practicePersons.some(
-        (init: any) =>
-          (init.person?.role === "ADMIN" || init.person?.role === "OWNER") &&
-          !!init.person?.email,
-      );
-
-      if (!hasAdminWithEmail) {
-        toast.error(
-          "Practice must have at least one ADMIN/OWNER person with email to set status to ACTIVE",
-        );
-        return;
-      }
-
-      const agreements = await getAgreementsByPractice(selectedRow.id);
-      if (agreements.length === 0) {
-        toast.error("This practice has no agreement, please create agreement");
+      try {
+        await validatePracticeActivation(selectedRow.id);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to validate practice";
+        toast.error(message);
         return;
       }
     }
@@ -799,9 +788,8 @@ export default function AllPracticePage() {
         taxIdId: formData.taxIdId?.trim() || undefined,
       };
 
-      if (practiceData.status !== "ACTIVE") {
+      if (!willBecomeActive) {
         await updatePracticeApi(selectedRow.id, practiceData);
-        await getPracticesView();
       }
       const params: PracticeQueryParams = {
         page: pagination.page,
@@ -814,32 +802,11 @@ export default function AllPracticePage() {
       toast.success("Practice updated successfully");
 
       if (willBecomeActive) {
-        const agreements = await getAgreementsByPractice(selectedRow.id);
-        const persons = practicePersons?.find(
-          (init) =>
-            (init.person.role === "ADMIN" || init.person.role === "OWNER") &&
-            init.person.email,
-        );
-
-        if (agreements.length > 0) {
-          const agreement = agreements[0];
-          const docusealIds = getAgreementDocusealId(agreement);
-          if (docusealIds?.length) {
-            await createDocusealSubmissionApi({
-              agreementId: agreement.id,
-              personId: persons?.person.id ?? "",
-              templateId: docusealIds,
-            });
-          }
-          await sendAgreementEmail({
-            agreementId: agreement.id,
-            personId: persons?.person.id ?? "",
-          });
-          await updatePracticeApi(selectedRow.id, practiceData);
-          toast.success("Agreement email sent successfully");
-
-          await getPracticesView();
-        }
+        await activatePracticeWithAgreementEmail(selectedRow.id, practiceData);
+        const refreshedData = await getPracticesView(params);
+        setRows(refreshedData.rows);
+        setPagination(refreshedData.pagination);
+        toast.success("Agreement email sent successfully");
       }
     } catch (err) {
       const message =

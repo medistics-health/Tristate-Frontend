@@ -11,6 +11,7 @@ import {
   Circle,
   Clock3,
   LayoutList,
+  PenLine,
   Save,
   Search,
   Trash2,
@@ -23,10 +24,13 @@ import {
   deleteAgreementApi,
   getAgreement,
   getAgreementsView,
+  getDocusealTemplates,
+  resubmitDocusealSubmissionApi,
   updateAgreementApi,
   type Agreement,
   type AgreementBody,
   type AgreementsViewData,
+  type DocusealTemplate,
 } from "../../../services/operations/agreements";
 
 const statusStyles: Record<string, string> = {
@@ -125,6 +129,16 @@ function AgreementPendingSignaturesPage() {
     useState<AgreementFormState>(initialFormState);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [templates, setTemplates] = useState<DocusealTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(
+    null,
+  );
+  const [templateFieldValues, setTemplateFieldValues] = useState<
+    Record<string, string>
+  >({});
+  const [templateFieldsDirty, setTemplateFieldsDirty] = useState(false);
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [isTemplatesLoading, setIsTemplatesLoading] = useState(false);
 
   const columns = useMemo<ColumnDef<AgreementRow>[]>(
     () => [
@@ -258,6 +272,49 @@ function AgreementPendingSignaturesPage() {
     loadAgreement();
   }, [selectedRowId]);
 
+  useEffect(() => {
+    if (!selectedAgreement) {
+      setTemplates([]);
+      setSelectedTemplateId(null);
+      setTemplateFieldValues({});
+      setSelectedPersonId(null);
+      return;
+    }
+
+    const templateIds = (
+      selectedAgreement.docusealSubmissions || []
+    ).map((s) => s.templateId);
+
+    const firstPersonId =
+      selectedAgreement.docusealSubmissions?.find((s) => s.personId)
+        ?.personId || null;
+    setSelectedPersonId(firstPersonId);
+
+    if (templateIds.length === 0) return;
+
+    setIsTemplatesLoading(true);
+
+    async function loadTemplates() {
+      try {
+        const res = await getDocusealTemplates();
+        const allTemplates = res.templates.data || [];
+        const matched = allTemplates.filter((t) =>
+          templateIds.includes(t.id),
+        );
+        setTemplates(matched);
+        if (matched.length > 0) {
+          setSelectedTemplateId(matched[0].id);
+        }
+      } catch {
+        // ignore template load errors
+      } finally {
+        setIsTemplatesLoading(false);
+      }
+    }
+
+    loadTemplates();
+  }, [selectedAgreement]);
+
   function buildPayload(form: AgreementFormState): Partial<AgreementBody> {
     return {
       type: form.type,
@@ -298,11 +355,26 @@ function AgreementPendingSignaturesPage() {
     setIsSaving(true);
     try {
       await updateAgreementApi(selectedRowId, buildPayload(editForm));
+
+      if (templateFieldsDirty && selectedPersonId && selectedTemplateId) {
+        await resubmitDocusealSubmissionApi({
+          agreementId: selectedRowId,
+          personId: selectedPersonId,
+          templateId: selectedTemplateId,
+          fieldValues: templateFieldValues,
+        });
+      }
+
       await refreshPendingSignatures();
       const agreement = await getAgreement(selectedRowId);
       setSelectedAgreement(agreement);
       setEditForm(buildFormState(agreement));
-      toast.success("Agreement updated successfully");
+      setTemplateFieldsDirty(false);
+      toast.success(
+        templateFieldsDirty
+          ? "Agreement updated and template fields resubmitted"
+          : "Agreement updated successfully",
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to update agreement";
@@ -310,6 +382,26 @@ function AgreementPendingSignaturesPage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function handleSelectTemplate(templateId: number) {
+    setSelectedTemplateId(templateId);
+    setTemplateFieldsDirty(false);
+    const template = templates.find((t) => t.id === templateId);
+    if (template) {
+      const initialValues: Record<string, string> = {};
+      for (const field of template.fields || []) {
+        initialValues[field.name] = field.default_value
+          ? String(field.default_value)
+          : "";
+      }
+      setTemplateFieldValues(initialValues);
+    }
+  }
+
+  function handleFieldValueChange(fieldName: string, value: string) {
+    setTemplateFieldsDirty(true);
+    setTemplateFieldValues((prev) => ({ ...prev, [fieldName]: value }));
   }
 
   async function handleDeleteAgreement() {
@@ -653,6 +745,117 @@ function AgreementPendingSignaturesPage() {
                     />
                   </div>
                 </div>
+
+                {(isTemplatesLoading || templates.length > 0) && (
+                  <div className="mt-6">
+                    <div className="mb-3 flex items-center gap-2">
+                      <PenLine className="h-3.5 w-3.5 text-slate-400" />
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                        Template Fields
+                      </span>
+                    </div>
+
+                    {isTemplatesLoading ? (
+                      <div className="flex items-center justify-center gap-2 rounded-lg border border-[#f0ece6] bg-[#faf9f7] py-8 text-[12px] text-slate-400">
+                        <svg
+                          className="h-4 w-4 animate-spin"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                          />
+                        </svg>
+                        Loading template fields...
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-3 flex flex-wrap gap-1.5">
+                          {templates.map((tmpl) => (
+                            <button
+                              key={tmpl.id}
+                              type="button"
+                              onClick={() => handleSelectTemplate(tmpl.id)}
+                              className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                                selectedTemplateId === tmpl.id
+                                  ? "bg-[#4f63ea] text-white shadow-sm"
+                                  : "border border-[#e8e3db] bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                              }`}
+                            >
+                              {tmpl.name}
+                            </button>
+                          ))}
+                        </div>
+
+                        {selectedTemplateId &&
+                          (() => {
+                            const currentTemplate = templates.find(
+                              (t) => t.id === selectedTemplateId,
+                            );
+                            if (!currentTemplate) return null;
+                            const fields = currentTemplate.fields || [];
+                            return (
+                              <div className="rounded-lg border border-[#f0ece6] bg-[#faf9f7] p-3">
+                                <div className="mb-2.5 flex items-center justify-between">
+                                  <span className="text-[11px] font-medium text-slate-500">
+                                    {currentTemplate.name}
+                                  </span>
+                                  {fields.length > 0 && (
+                                    <span className="text-[10px] text-slate-400">
+                                      {fields.length} field{fields.length !== 1 ? "s" : ""}
+                                    </span>
+                                  )}
+                                </div>
+                                {fields.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {fields.map((field) => (
+                                      <div key={field.uuid}>
+                                        <label className="mb-0.5 block text-[11px] font-medium text-slate-500">
+                                          {field.name}
+                                          {field.required && (
+                                            <span className="ml-0.5 text-red-400">*</span>
+                                          )}
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={
+                                            templateFieldValues[field.name] ?? ""
+                                          }
+                                          onChange={(e) =>
+                                            handleFieldValueChange(
+                                              field.name,
+                                              e.target.value,
+                                            )
+                                          }
+                                          className="app-control w-full rounded-md border-[#e8e3db] bg-white px-2.5 py-1.5 text-[12px] placeholder:text-slate-300"
+                                          placeholder={`Enter ${field.name}`}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="py-2 text-center text-[11px] text-slate-400">
+                                    No editable fields
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">

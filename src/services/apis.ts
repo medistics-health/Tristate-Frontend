@@ -109,6 +109,8 @@ export const agreementEndpoints = {
   SEND_AGREEMENT_EMAIL: BACKEND_URL + "/api/v1/agreements/send-email",
   CREATE_DOCUSEAL_SUBMISSION:
     BACKEND_URL + "/api/v1/agreements/docuseal/submission",
+  RESUBMIT_DOCUSEAL_SUBMISSION:
+    BACKEND_URL + "/api/v1/agreements/docuseal/submission/resubmit",
 };
 
 export const agreementVersionEndpoints = {

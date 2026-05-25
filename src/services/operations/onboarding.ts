@@ -95,7 +95,7 @@ export type OnboardingPractice = {
 
 export type OnboardingDocument = {
   id?: string;
-  documentType?: string;
+  documentType?: string[];
   fileName?: string;
   fileUrl?: string;
   required?: boolean;
@@ -340,12 +340,25 @@ export type Onboarding = {
   marketing?: OnboardingMarketing;
 };
 
+type BackendOnboarding = Onboarding & {
+  OnboardingMarketing?: OnboardingMarketing;
+};
+
+function normalizeOnboarding(onboarding: BackendOnboarding): Onboarding {
+  return {
+    ...onboarding,
+    marketing: onboarding.marketing ?? onboarding.OnboardingMarketing,
+  };
+}
+
 export async function createExternalOnboarding(
   data: OnboardingBody
 ): Promise<Onboarding> {
   try {
     const response = await axios.post(EXTERNAL, data);
-    return (response.data as { onboarding: Onboarding }).onboarding;
+    return normalizeOnboarding(
+      (response.data as { onboarding: BackendOnboarding }).onboarding
+    );
   } catch (error) {
     throw new Error(
       getErrorMessage(error, "Unable to submit onboarding.")
@@ -376,7 +389,15 @@ export async function getOnboardings(params?: {
       credentials: true,
     });
 
-    return response.data as { onboardings: Onboarding[]; pagination: any };
+    const data = response.data as {
+      onboardings: BackendOnboarding[];
+      pagination: any;
+    };
+
+    return {
+      ...data,
+      onboardings: (data.onboardings || []).map(normalizeOnboarding),
+    };
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch onboardings."));
   }
@@ -389,7 +410,9 @@ export async function getOnboarding(id: string): Promise<Onboarding> {
       url: GET(id),
       credentials: true,
     });
-    return (response.data as { onboarding: Onboarding }).onboarding;
+    return normalizeOnboarding(
+      (response.data as { onboarding: BackendOnboarding }).onboarding
+    );
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch onboarding."));
   }
@@ -405,7 +428,9 @@ export async function createOnboarding(
       body: data,
       credentials: true,
     });
-    return (response.data as { onboarding: Onboarding }).onboarding;
+    return normalizeOnboarding(
+      (response.data as { onboarding: BackendOnboarding }).onboarding
+    );
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to create onboarding."));
   }
@@ -422,7 +447,9 @@ export async function updateOnboarding(
       body: data,
       credentials: true,
     });
-    return (response.data as { onboarding: Onboarding }).onboarding;
+    return normalizeOnboarding(
+      (response.data as { onboarding: BackendOnboarding }).onboarding
+    );
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to update onboarding."));
   }

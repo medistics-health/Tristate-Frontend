@@ -1,23 +1,25 @@
 import {
-  CalendarDays,
-  CheckSquare,
   ChevronDown,
   ChevronLeft,
   Circle,
-  ExternalLink,
   GripVertical,
-  Home,
   LayoutGrid,
-  MoreHorizontal,
   Plus,
-  RotateCcw,
-  Sparkles,
+  Save,
   Trash2,
-  UserCircle2,
 } from "lucide-react";
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import type { NavbarAction } from "../layout/Navbar";
+import {
+  getAllPractices,
+  getPractice,
+  updatePracticeApi,
+  deletePracticeApi,
+  type Practice,
+  type PracticeBody,
+} from "../../services/operations/practices";
 
 type PipelineContractsStatus =
   | "scheduled"
@@ -41,13 +43,13 @@ type PipelineContractsCard = {
   practice: string;
 };
 
-type PipelineContracts = {
+type PipelineContractsProgress = {
   id: PipelineContractsStatus;
   label: string;
   badgeClassName: string;
 };
 
-const Pipeline: PipelineContracts[] = [
+const pipelineLanes: PipelineContractsProgress[] = [
   {
     id: "scheduled",
     label: "SCHEDULED",
@@ -75,178 +77,266 @@ const Pipeline: PipelineContracts[] = [
   },
 ];
 
-const initialCards: PipelineContractsCard[] = [
-  {
-    id: "audit-1",
-    title: "Untitled",
-    status: "scheduled",
-    type: "COMPLIANCE",
-    createdBy: "Siddhi Gajjar",
-    createdAt: "Created now",
-    overallScore: "Overall Score",
-    scoreLabel: "Overall Score",
-    suggestedService: "Suggested Services",
-    lastUpdate: "Apr 8, 2026 2:50 PM",
-    updatedBy: "Siddhi Gajjar",
-    practice: "TriState Specialty Imaging",
-  },
-  {
-    id: "audit-2",
-    title: "Untitled",
-    status: "in-progress",
-    type: "COMPLIANCE",
-    createdBy: "Siddhi Gajjar",
-    createdAt: "Created now",
-    overallScore: "Overall Score",
-    scoreLabel: "Overall Score",
-    suggestedService: "Suggested Services",
-    lastUpdate: "Apr 8, 2026 2:50 PM",
-    updatedBy: "Siddhi Gajjar",
-    practice: "Hudson Valley Imaging",
-  },
-  {
-    id: "audit-3",
-    title: "Untitled",
-    status: "in-progress",
-    type: "COMPLIANCE",
-    createdBy: "Siddhi Gajjar",
-    createdAt: "Created now",
-    overallScore: "Overall Score",
-    scoreLabel: "Overall Score",
-    suggestedService: "Suggested Services",
-    lastUpdate: "Apr 8, 2026 2:50 PM",
-    updatedBy: "Siddhi Gajjar",
-    practice: "Metro Practice Group",
-  },
-  {
-    id: "audit-4",
-    title: "Untitled",
-    status: "completed",
-    type: "COMPLIANCE",
-    createdBy: "Siddhi Gajjar",
-    createdAt: "Created now",
-    overallScore: "Overall Score",
-    scoreLabel: "Overall Score",
-    suggestedService: "Suggested Services",
-    lastUpdate: "Apr 8, 2026 2:50 PM",
-    updatedBy: "Siddhi Gajjar",
-    practice: "Northfield Medical",
-  },
-  {
-    id: "audit-5",
-    title: "Untitled",
-    status: "closed",
-    type: "COMPLIANCE",
-    createdBy: "Siddhi Gajjar",
-    createdAt: "Created now",
-    overallScore: "Overall Score",
-    scoreLabel: "Overall Score",
-    suggestedService: "Suggested Services",
-    lastUpdate: "Apr 8, 2026 2:50 PM",
-    updatedBy: "Siddhi Gajjar",
-    practice: "TriState Specialty Imaging",
-  },
-];
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString();
+}
 
-const detailTabs = [
-  { id: "home", label: "Home", icon: <Home className="h-4 w-4" /> },
-  { id: "tasks", label: "Tasks", icon: <CheckSquare className="h-4 w-4" /> },
-  { id: "more", label: "+2 More", icon: null },
-] as const;
+function formatStatusLabel(value: string) {
+  return value.replace(/_/g, " ");
+}
 
-function AvatarPill({ name }: { name: string }) {
-  return (
-    <span className="inline-flex items-center gap-2 text-slate-700">
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#fff1bd] text-[11px] text-[#b78800]">
-        {name.charAt(0)}
-      </span>
-      {name}
-    </span>
-  );
+function mapPracticeStatusToLane(status: string): PipelineContractsStatus {
+  switch (status) {
+    case "LEAD":
+      return "scheduled";
+    case "ACTIVE":
+      return "in-progress";
+    case "INACTIVE":
+      return "completed";
+    case "CLOSED":
+      return "closed";
+    default:
+      return "scheduled";
+  }
+}
+
+function mapPracticeToCard(practice: Practice): PipelineContractsCard {
+  return {
+    id: practice.id,
+    title: practice.name,
+    status: mapPracticeStatusToLane(practice.status),
+    type: practice.status,
+    createdBy: "System",
+    createdAt: formatDateTime(practice.createdAt),
+    overallScore: "-",
+    scoreLabel: "Score",
+    suggestedService: "Practice Record",
+    lastUpdate: formatDateTime(practice.updatedAt),
+    updatedBy: "System",
+    practice: practice.name,
+  };
 }
 
 function PipelineBoardPage() {
-  const [cards, setCards] = useState(initialCards);
-  const [selectedAuditId, setSelectedAuditId] = useState<string | null>(
-    initialCards[4]?.id ?? null,
+  const [cards, setCards] = useState<PipelineContractsCard[]>([]);
+  const [selectedPracticeId, setSelectedPracticeId] = useState("");
+  const [selectedPractice, setSelectedPractice] = useState<Practice | null>(
+    null,
   );
-  const [activeTab, setActiveTab] =
-    useState<(typeof detailTabs)[number]["id"]>("home");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPracticeLoading, setIsPracticeLoading] = useState(false);
   const [hideClosed, setHideClosed] = useState(false);
-  const [showDetailPanel, setShowDetailPanel] = useState(true);
-  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [sortNewestFirst, setSortNewestFirst] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  type PracticeFormState = {
+    name: string;
+    npi: string;
+    status: string;
+    region: string;
+    source: string;
+  };
+
+  const initialFormState: PracticeFormState = {
+    name: "",
+    npi: "",
+    status: "LEAD",
+    region: "",
+    source: "DIRECT",
+  };
+
+  const [editForm, setEditForm] = useState<PracticeFormState>(initialFormState);
 
   useEffect(() => {
-    function handleOutsideClick(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowOptionsMenu(false);
+    async function loadPractices() {
+      try {
+        setIsLoading(true);
+        const practices = await getAllPractices();
+        const nextCards = practices.map(mapPracticeToCard);
+        setCards(nextCards);
+        setSelectedPracticeId((current) => current || nextCards[0]?.id || "");
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to load practice pipeline";
+        toast.error(message);
+      } finally {
+        setIsLoading(false);
       }
     }
 
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
+    loadPractices();
   }, []);
+
+  useEffect(() => {
+    if (!selectedPracticeId) {
+      setSelectedPractice(null);
+      return;
+    }
+
+    async function loadPracticeDetail() {
+      try {
+        setIsPracticeLoading(true);
+        const practice = await getPractice(selectedPracticeId);
+        setSelectedPractice(practice);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to load practice details";
+        toast.error(message);
+      } finally {
+        setIsPracticeLoading(false);
+      }
+    }
+
+    loadPracticeDetail();
+  }, [selectedPracticeId]);
+
+  function buildFormState(
+    practice?: Practice | null,
+  ): PracticeFormState {
+    if (!practice) return initialFormState;
+    return {
+      name: practice.name,
+      npi: practice.npi || "",
+      status: practice.status,
+      region: practice.region,
+      source: practice.source,
+    };
+  }
+
+  useEffect(() => {
+    if (selectedPractice) {
+      setEditForm(buildFormState(selectedPractice));
+    }
+  }, [selectedPractice]);
+
+  function buildPayload(form: PracticeFormState): Partial<PracticeBody> {
+    return {
+      name: form.name,
+      npi: form.npi || undefined,
+      status: form.status as PracticeBody["status"],
+      region: form.region,
+      source: form.source as PracticeBody["source"],
+    };
+  }
+
+  async function handleUpdatePractice(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editForm.name) {
+      toast.error("Name is required");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updatePracticeApi(selectedPracticeId, buildPayload(editForm));
+      const practices = await getAllPractices();
+      const nextCards = practices.map(mapPracticeToCard);
+      setCards(nextCards);
+      const updated = await getPractice(selectedPracticeId);
+      setSelectedPractice(updated);
+      toast.success("Practice updated successfully");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to update practice";
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeletePractice() {
+    if (!selectedPracticeId) return;
+    if (!window.confirm("Are you sure you want to delete this practice?")) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deletePracticeApi(selectedPracticeId);
+      const practices = await getAllPractices();
+      const nextCards = practices.map(mapPracticeToCard);
+      setCards(nextCards);
+      setShowDetailPanel(false);
+      setSelectedPracticeId("");
+      setSelectedPractice(null);
+      toast.success("Practice deleted successfully");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to delete practice";
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   const visibleLanes = useMemo(
     () =>
-      hideClosed ? Pipeline.filter((lane) => lane.id !== "closed") : Pipeline,
+      hideClosed
+        ? pipelineLanes.filter((lane) => lane.id !== "closed")
+        : pipelineLanes,
     [hideClosed],
   );
 
-  const cardsByLane = useMemo(
-    () =>
-      Object.fromEntries(
-        visibleLanes.map((lane) => [
-          lane.id,
-          cards.filter((card) => card.status === lane.id),
-        ]),
-      ) as Record<PipelineContractsStatus, PipelineContractsCard[]>,
-    [cards, visibleLanes],
-  );
+  const cardsByLane = useMemo(() => {
+    const sortedCards = [...cards].sort((left, right) =>
+      sortNewestFirst
+        ? right.lastUpdate.localeCompare(left.lastUpdate)
+        : left.lastUpdate.localeCompare(right.lastUpdate),
+    );
 
-  const selectedAudit = useMemo(
-    () => cards.find((card) => card.id === selectedAuditId) || null,
-    [cards, selectedAuditId],
-  );
+    return Object.fromEntries(
+      visibleLanes.map((lane) => [
+        lane.id,
+        sortedCards.filter((card) => card.status === lane.id),
+      ]),
+    ) as Record<PipelineContractsStatus, PipelineContractsCard[]>;
+  }, [cards, sortNewestFirst, visibleLanes]);
 
-  function addAudit(status: PipelineContractsStatus) {
-    const nextId = `audit-${cards.length + 1}`;
-    const newCard: PipelineContractsCard = {
-      id: nextId,
-      title: "Untitled",
-      status,
-      type: "COMPLIANCE",
-      createdBy: "Siddhi Gajjar",
-      createdAt: "Created now",
-      overallScore: "Overall Score",
-      scoreLabel: "Overall Score",
-      suggestedService: "Suggested Services",
-      lastUpdate: "Apr 8, 2026 2:50 PM",
-      updatedBy: "Siddhi Gajjar",
-      practice: "New Practice",
-    };
+  const selectedPipelineCard =
+    cards.find((card) => card.id === selectedPracticeId) ??
+    cards.find((card) =>
+      visibleLanes.some((lane) => lane.id === card.status),
+    ) ??
+    null;
 
-    setCards((current) => [newCard, ...current]);
-    setSelectedAuditId(nextId);
+  function openPractice(cardId: string) {
+    setSelectedPracticeId(cardId);
     setShowDetailPanel(true);
   }
 
-  function sortLanesByCount() {
-    setCards((current) =>
-      [...current].sort((left, right) =>
-        left.status.localeCompare(right.status),
-      ),
-    );
+  function handleCreateAttempt() {
+    toast("Create new practices from All Practices.");
   }
 
   const navbarActions: NavbarAction[] = [
     {
       label: "New record",
       icon: <Plus className="h-4 w-4" />,
-      onClick: () => addAudit("scheduled"),
+      onClick: handleCreateAttempt,
     },
   ];
+
+  const practiceStatusOptions = ["LEAD", "ACTIVE", "INACTIVE", "CLOSED"] as const;
+  const practiceSourceOptions = [
+    "DIRECT",
+    "REFERRAL",
+    "CHANNEL_PARTNER",
+    "OUTBOUND",
+    "INBOUND",
+  ] as const;
 
   return (
     <AppLayout
@@ -276,12 +366,15 @@ function PipelineBoardPage() {
               >
                 Filter
               </button>
-              <button type="button" onClick={sortLanesByCount}>
+              <button
+                type="button"
+                onClick={() => setSortNewestFirst((current) => !current)}
+              >
                 Sort
               </button>
               <button
                 type="button"
-                onClick={() => setShowDetailPanel((prev) => !prev)}
+                onClick={() => setShowDetailPanel((current) => !current)}
               >
                 Options
               </button>
@@ -307,39 +400,47 @@ function PipelineBoardPage() {
                   </div>
 
                   <div className="space-y-2 px-3 pb-4 flex-1 overflow-y-auto">
-                    {cardsByLane[lane.id]?.map((card) => {
-                      const isSelected = selectedAudit?.id === card.id;
+                    {isLoading ? (
+                      <div className="rounded-lg border border-[#ece8e1] bg-white px-3 py-3 text-[13px] text-slate-400">
+                        Loading...
+                      </div>
+                    ) : cardsByLane[lane.id]?.length ? (
+                      cardsByLane[lane.id].map((card) => {
+                        const isSelected =
+                          selectedPipelineCard?.id === card.id;
 
-                      return (
-                        <button
-                          key={card.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedAuditId(card.id);
-                            setShowDetailPanel(true);
-                          }}
-                          className={`flex w-full items-start gap-2 rounded-lg border px-3 py-3 text-left transition-all ${
-                            isSelected
-                              ? "border-[#9cb1f6] bg-white shadow-[0_4px_12px_rgba(157,177,246,0.15)]"
-                              : "border-[#ece8e1] bg-white hover:border-[#cfc8bb]"
-                          }`}
-                        >
-                          <GripVertical className="mt-0.5 h-4 w-4 text-slate-300" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[14px] font-medium text-slate-700">
-                              {card.title}
-                            </p>
-                            <p className="mt-1 truncate text-[12px] text-slate-400">
-                              {card.practice}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                        return (
+                          <button
+                            key={card.id}
+                            type="button"
+                            onClick={() => openPractice(card.id)}
+                            className={`flex w-full items-start gap-2 rounded-lg border px-3 py-3 text-left transition-all ${
+                              isSelected
+                                ? "border-[#9cb1f6] bg-white shadow-[0_4px_12px_rgba(157,177,246,0.15)]"
+                                : "border-[#ece8e1] bg-white hover:border-[#cfc8bb]"
+                            }`}
+                          >
+                            <GripVertical className="mt-0.5 h-4 w-4 text-slate-300" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[14px] font-medium text-slate-700">
+                                {card.title}
+                              </p>
+                              <p className="mt-1 truncate text-[12px] text-slate-400">
+                                {card.practice}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-[#ece8e1] px-3 py-3 text-[13px] text-slate-400">
+                        No practices
+                      </div>
+                    )}
 
                     <button
                       type="button"
-                      onClick={() => addAudit(lane.id)}
+                      onClick={handleCreateAttempt}
                       className="flex w-full items-center gap-2 rounded-lg border border-dashed border-[#ece8e1] px-3 py-2 text-[13px] text-slate-400 hover:border-[#cfc8bb] hover:text-slate-600 transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
@@ -352,8 +453,8 @@ function PipelineBoardPage() {
           </div>
         </div>
 
-        {showDetailPanel && selectedAudit ? (
-          <aside className="app-panel relative flex w-[340px] flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
+        {showDetailPanel && selectedPipelineCard ? (
+          <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
               <button
                 type="button"
@@ -362,188 +463,155 @@ function PipelineBoardPage() {
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                className="rounded-md bg-[#f7f5f1] px-1.5 py-1 text-slate-300"
+              <Circle className="h-4 w-4 text-slate-300" />
+              <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
+                {selectedPractice?.name || "Practice"}
+              </span>
+            </div>
+
+            {isPracticeLoading || !selectedPractice ? (
+              <div className="flex flex-1 items-center justify-center text-[13px] text-slate-400">
+                Loading practice...
+              </div>
+            ) : (
+              <form
+                onSubmit={handleUpdatePractice}
+                className="flex flex-1 flex-col overflow-hidden"
               >
-                <Circle className="h-3.5 w-3.5" />
-              </button>
-              <input
-                value={selectedAudit.title}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  setCards((current) =>
-                    current.map((c) =>
-                      c.id === selectedAudit.id
-                        ? { ...c, title: nextValue }
-                        : c,
-                    ),
-                  );
-                }}
-                className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[14px] font-medium text-slate-700 outline-none focus:border-[#9cb1f6] focus:bg-white"
-              />
-              <span className="text-[13px] text-slate-400">Now</span>
-              <Sparkles className="h-4 w-4 text-slate-400" />
-            </div>
-
-            <div className="flex items-center gap-5 border-b border-[#f0ece6] px-4 pt-3">
-              {detailTabs.map((tab) => {
-                const isActive = tab.id === activeTab;
-
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`inline-flex items-center gap-2 border-b pb-3 text-[13px] font-medium ${
-                      isActive
-                        ? "border-slate-500 text-slate-700"
-                        : "border-transparent text-slate-400"
-                    }`}
-                  >
-                    {tab.icon}
-                    {tab.label}
-                    {tab.id === "more" ? (
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex-1 overflow-auto">
-              <div className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-[#f0ece6] px-4 py-4 text-[13px]">
-                <div>
-                  <p className="text-slate-400">Type</p>
-                </div>
-                <div>
-                  <span className="inline-flex rounded-md bg-[#e8f7ee] px-2 py-0.5 text-[#2ba36f]">
-                    {selectedAudit.type}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <Circle className="h-3.5 w-3.5" />
-                  <span>Created by</span>
-                </div>
-                <div>
-                  <AvatarPill name={selectedAudit.createdBy} />
-                </div>
-
-                <div className="text-slate-400">Overall Score</div>
-                <div className="text-slate-700">
-                  {selectedAudit.overallScore}
-                </div>
-
-                <div>
-                  <p className="text-slate-400">Status</p>
-                </div>
-                <div>
-                  <span
-                    className={`inline-flex rounded-md px-2 py-0.5 text-[12px] font-medium ${
-                      Pipeline.find((l) => l.id === selectedAudit.status)
-                        ?.badgeClassName
-                    }`}
-                  >
-                    {selectedAudit.status.toUpperCase()}
-                  </span>
-                </div>
-
-                <div>
-                  <p className="truncate text-slate-400">Suggested Service</p>
-                </div>
-                <div>
-                  <span className="inline-flex rounded-md bg-[#f7f5f1] px-2 py-0.5 text-slate-400">
-                    {selectedAudit.suggestedService}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  <span>Last update</span>
-                </div>
-                <div className="text-slate-700">{selectedAudit.lastUpdate}</div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <UserCircle2 className="h-3.5 w-3.5" />
-                  <span>Updated by</span>
-                </div>
-                <div>
-                  <AvatarPill name={selectedAudit.updatedBy} />
-                </div>
-              </div>
-
-              <div className="px-4 py-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="text-[13px] font-medium text-slate-700">
-                    Practice
-                  </p>
-                </div>
-                <div className="min-h-[260px] rounded-xl border border-dashed border-[#ece8e1] bg-white p-3 text-[13px] text-slate-500">
-                  {selectedAudit.practice || "No practice associated."}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-              <div className="relative" ref={menuRef}>
-                <button
-                  type="button"
-                  onClick={() => setShowOptionsMenu((current) => !current)}
-                  className="rounded-md border border-[#9cb1f6] px-3 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
-                >
-                  Options
-                </button>
-
-                {showOptionsMenu ? (
-                  <div className="absolute bottom-[calc(100%+8px)] left-0 w-[205px] rounded-xl border border-[#ece8e1] bg-white p-2 shadow-[0_8px_32px_rgba(15,23,42,0.12)] z-20">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCards((current) =>
-                          current.filter((c) => c.id !== selectedAudit.id),
-                        );
-                        setShowDetailPanel(false);
-                        setShowOptionsMenu(false);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete record
-                    </button>
-                    <button
-                      type="button"
-                      className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      Restore record
-                    </button>
-                    <button
-                      type="button"
-                      className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      Export
-                    </button>
+                <div className="flex-1 overflow-auto p-4">
+                  <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">NPI</span>
+                      <span className="text-right text-slate-700">
+                        {selectedPractice.npi || "-"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Bucket</span>
+                      <span className="text-right text-slate-700">
+                        {selectedPractice.bucket.join(", ") || "-"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Created</span>
+                      <span className="text-right text-slate-700">
+                        {formatDateTime(selectedPractice.createdAt)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Last Update</span>
+                      <span className="text-right text-slate-700">
+                        {formatDateTime(selectedPractice.updatedAt)}
+                      </span>
+                    </div>
                   </div>
-                ) : null}
-              </div>
 
-              <button
-                type="button"
-                className="rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
-              >
-                Open
-              </button>
-            </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={(event) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            name: event.target.value,
+                          }))
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        required
+                      />
+                    </div>
 
-            <button
-              type="button"
-              onClick={() => setShowOptionsMenu((current) => !current)}
-              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Status <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={editForm.status}
+                        onChange={(event) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            status: event.target.value,
+                          }))
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        required
+                      >
+                        {practiceStatusOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {formatStatusLabel(status)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Region <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.region}
+                        onChange={(event) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            region: event.target.value,
+                          }))
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Source <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={editForm.source}
+                        onChange={(event) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            source: event.target.value,
+                          }))
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        required
+                      >
+                        {practiceSourceOptions.map((source) => (
+                          <option key={source} value={source}>
+                            {formatStatusLabel(source)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={handleDeletePractice}
+                    disabled={isDeleting}
+                    className="flex cursor-pointer items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            )}
           </aside>
         ) : null}
       </div>
