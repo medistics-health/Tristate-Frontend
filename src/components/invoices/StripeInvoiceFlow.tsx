@@ -37,13 +37,13 @@ export default function StripeInvoiceFlow({ invoice, onUpdate }: Props) {
     try {
       setIsResending(true);
       await resendStripeInvoice(invoice.id);
-      toast.success("Invoice resent via Stripe successfully!");
+      toast.success("Payment email resent successfully!");
       // Reload events
       const data = await getInvoiceStripeEvents(invoice.id);
       setEvents(data);
       onUpdate();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resend invoice.");
+      toast.error(error instanceof Error ? error.message : "Failed to resend payment email.");
     } finally {
       setIsResending(false);
     }
@@ -94,7 +94,7 @@ export default function StripeInvoiceFlow({ invoice, onUpdate }: Props) {
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 text-indigo-600 transition-colors group-hover:bg-white">
             <Mail className="h-4 w-4" />
           </div>
-          <span className="text-[12px] font-extrabold uppercase tracking-tight">Resend via Stripe</span>
+          <span className="text-[12px] font-extrabold uppercase tracking-tight">Resend Payment Email</span>
         </button>
       </div>
 

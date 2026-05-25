@@ -165,7 +165,6 @@ function BillingRunsPage() {
   const [practices, setPractices] = useState<Practice[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [optionsLoading, setOptionsLoading] = useState(false);
   const [createForm, setCreateForm] =
     useState<CreateRunFormState>(initialCreateRunForm);
   const [paymentForm, setPaymentForm] =
@@ -294,7 +293,6 @@ function BillingRunsPage() {
       (showCreateForm || showPaymentForm || showDetailPanel) &&
       practices.length === 0
     ) {
-      setOptionsLoading(true);
       Promise.all([getAllPractices(), getAllInvoices(), getAllServices()])
         .then(([practiceList, invoiceList, serviceList]) => {
           setPractices(practiceList);
@@ -305,8 +303,7 @@ function BillingRunsPage() {
           const message =
             err instanceof Error ? err.message : "Failed to load billing options";
           toast.error(message);
-        })
-        .finally(() => setOptionsLoading(false));
+        });
     }
   }, [showCreateForm, showPaymentForm, showDetailPanel, practices.length]);
 
@@ -686,39 +683,117 @@ function BillingRunsPage() {
                 <div className="space-y-2">
                   {(selectedRun.items || []).length === 0 ? (
                     <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-slate-400">
-                      No billing items yet.
+                      No billing items yet. Run Calculate to apply pricing terms.
                     </div>
                   ) : (
                     selectedRun.items?.map((item) => (
                       <div
                         key={item.id}
-                        className="rounded-lg border border-[#f0ece6] px-3 py-3"
+                        className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-3.5 transition-all duration-200 hover:border-indigo-100 hover:shadow-[0_4px_16px_rgba(0,0,0,0.035)]"
                       >
+                        {/* Premium left accent indicator on hover */}
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500/80 opacity-0 transition-opacity group-hover:opacity-100" />
+                        
+                        {/* Top Row: Service details & Client charge */}
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="font-medium text-slate-700">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-semibold text-slate-800 text-[14px] leading-tight truncate">
                               {item.service?.name || item.serviceId}
-                            </div>
-                            <div className="mt-1 text-[12px] text-slate-400">
-                              Vendor: {item.vendor?.name || "-"}
+                            </h4>
+                            
+                            <div className="mt-1 flex items-center gap-1.5 text-[12px] text-slate-500">
+                              <span className="text-slate-400">Vendor</span>
+                              <span className="font-medium text-slate-700 truncate">
+                                {item.vendor?.name || "—"}
+                              </span>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <div className="font-medium text-slate-700">
+
+                          <div className="text-right shrink-0">
+                            <span className="inline-flex rounded-lg bg-slate-50 px-2.5 py-1 text-[13.5px] font-bold text-slate-800 border border-slate-100">
                               {formatMoney(item.clientAmount)}
-                            </div>
-                            <div className="text-[12px] text-slate-400">
-                              Margin {formatMoney(item.marginAmount)}
-                            </div>
+                            </span>
                           </div>
                         </div>
+
+                        {/* Mid Row: Agreement Connection & Formula Snapshots */}
+                        <div className="mt-2.5 space-y-2 border-t border-slate-50 pt-2.5">
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                            {item.agreementServiceTermId && (
+                              <span className="inline-flex items-center gap-1 rounded bg-indigo-50/80 px-2 py-0.5 font-medium text-indigo-700 border border-indigo-100/40">
+                                <span className="h-1 w-1 rounded-full bg-indigo-500 animate-pulse" />
+                                Rate linked
+                                <span className="opacity-60">· {item.agreementServiceTermId.slice(0, 8)}</span>
+                              </span>
+                            )}
+
+                            {/* Formula snapshot badge */}
+                            {(item as any).formulaSnapshot && (
+                              <>
+                                {typeof (item as any).formulaSnapshot === "object" ? (
+                                  Object.entries((item as any).formulaSnapshot as Record<string, unknown>)
+                                    .filter(([k, v]) => 
+                                      v !== null && 
+                                      v !== undefined && 
+                                      typeof v !== "object" && 
+                                      !["id", "createdAt", "updatedAt", "agreementVersionId", "agreementServiceTermId", "releasePolicy", "billingFrequency", "pricingConfig"].includes(k)
+                                    )
+                                    .slice(0, 2)
+                                    .map(([k, v]) => {
+                                      const humanKey = k.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase());
+                                      return (
+                                        <span key={k} className="inline-flex items-center rounded bg-slate-50 px-2 py-0.5 text-slate-600 border border-slate-100 font-mono text-[10px]">
+                                          <span className="text-slate-400 mr-1">{humanKey}:</span>
+                                          <span className="font-semibold text-slate-700">{String(v)}</span>
+                                        </span>
+                                      );
+                                    })
+                                ) : (
+                                  <span className="inline-flex items-center rounded bg-slate-50 px-2 py-0.5 text-slate-600 border border-slate-100 font-mono text-[10px]">
+                                    {String((item as any).formulaSnapshot)}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Bottom Row: Cost and Margin summary */}
+                        <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-slate-50/50 p-2 border border-slate-100/40 text-[11px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400">Vendor Cost</span>
+                            <span className="font-semibold text-slate-700">
+                              {formatMoney(item.vendorAmount)}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400">Margin</span>
+                            {(() => {
+                              const margin = Number(item.marginAmount || 0);
+                              const isNegative = margin < 0;
+                              return (
+                                <span className={`inline-flex items-center rounded px-1.5 py-0.5 font-bold text-[10.5px] ${
+                                  isNegative 
+                                    ? 'bg-rose-50 text-rose-700 border border-rose-100/50' 
+                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-100/50'
+                                }`}>
+                                  {formatMoney(item.marginAmount)}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* Exceptions list if any exist */}
                         {item.exceptionFlags && item.exceptionFlags.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1">
+                          <div className="mt-2.5 flex flex-wrap gap-1">
                             {item.exceptionFlags.map((flag) => (
                               <span
                                 key={flag}
-                                className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700"
+                                className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-100/50"
                               >
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                                 {flag}
                               </span>
                             ))}

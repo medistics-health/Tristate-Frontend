@@ -43,6 +43,7 @@ import MonthlyReportingDashboard from "./components/monthly-reporting/MonthlyRep
 import SubmitMonthlyReport from "./components/monthly-reporting/SubmitMonthlyReport";
 import PricingEnginePage from "./components/pricing-terms/PricingEngine";
 import AccountingSyncDashboard from "./components/integrations/AccountingSyncDashboard";
+import MercuryBankingDashboard from "./components/integrations/MercuryBankingDashboard";
 import VendorPayableDashboard from "./components/payables/VendorPayableDashboard";
 import ClientPortalDashboard from "./components/portal/ClientPortalDashboard";
 import SettingsPage from "./components/settings/Settings";
@@ -184,6 +185,15 @@ function App() {
         element={
           <ProtectedRoute>
             <AccountingSyncDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/integrations/mercury-banking"
+        element={
+          <ProtectedRoute>
+            <MercuryBankingDashboard />
           </ProtectedRoute>
         }
       />

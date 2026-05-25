@@ -196,6 +196,7 @@ const sidebarSections: SidebarSection[] = [
         label: "Integrations",
         items: [
           { label: "Accounting Sync", to: "/integrations/accounting-sync" },
+          { label: "Mercury Banking", to: "/integrations/mercury-banking" },
         ],
       },
       {
