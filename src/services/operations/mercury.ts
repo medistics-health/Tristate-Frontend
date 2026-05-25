@@ -1,3 +1,4 @@
+import axios from "axios";
 import { apiConnector } from "../apiConnector";
 import { mercuryEndpoints } from "../apis";
 
@@ -53,9 +54,27 @@ export type MercuryAccountsResponse = {
   message?: string;
 };
 
+function getErrorMessage(error: unknown, fallbackMessage: string): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { message?: string; error?: string } | undefined;
+    if (data?.error && typeof data.error === "string") {
+      return data.error;
+    }
+    return data?.message ?? fallbackMessage;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallbackMessage;
+}
+
 export async function getMercuryAccounts(): Promise<MercuryAccountsResponse> {
-  const response = await apiConnector({ method: "GET", url: mercuryEndpoints.GET_ACCOUNTS, credentials: true });
-  return response.data;
+  try {
+    const response = await apiConnector({ method: "GET", url: mercuryEndpoints.GET_ACCOUNTS, credentials: true });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Failed to fetch Mercury accounts."));
+  }
 }
 
 export async function getMercuryTransactions(params?: {
@@ -65,16 +84,20 @@ export async function getMercuryTransactions(params?: {
   reconciliationStatus?: string;
   direction?: string;
 }): Promise<MercuryTransactionsResponse> {
-  const query: Record<string, string> = {};
-  if (params?.page) query.page = String(params.page);
-  if (params?.limit) query.limit = String(params.limit);
-  if (params?.accountId) query.accountId = params.accountId;
-  if (params?.reconciliationStatus) query.reconciliationStatus = params.reconciliationStatus;
-  if (params?.direction) query.direction = params.direction;
+  try {
+    const query: Record<string, string> = {};
+    if (params?.page) query.page = String(params.page);
+    if (params?.limit) query.limit = String(params.limit);
+    if (params?.accountId) query.accountId = params.accountId;
+    if (params?.reconciliationStatus) query.reconciliationStatus = params.reconciliationStatus;
+    if (params?.direction) query.direction = params.direction;
 
-  const url = mercuryEndpoints.LIST_TRANSACTIONS + (Object.keys(query).length ? `?${new URLSearchParams(query)}` : "");
-  const response = await apiConnector({ method: "GET", url, credentials: true });
-  return response.data;
+    const url = mercuryEndpoints.LIST_TRANSACTIONS + (Object.keys(query).length ? `?${new URLSearchParams(query)}` : "");
+    const response = await apiConnector({ method: "GET", url, credentials: true });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Failed to fetch Mercury transactions."));
+  }
 }
 
 export async function reconcileMercuryTransaction(
@@ -85,8 +108,12 @@ export async function reconcileMercuryTransaction(
     matchedEntityId?: string;
   }
 ): Promise<{ transaction: MercuryTransaction }> {
-  const response = await apiConnector({ method: "PATCH", url: mercuryEndpoints.RECONCILE(id), body: payload, credentials: true });
-  return response.data;
+  try {
+    const response = await apiConnector({ method: "PATCH", url: mercuryEndpoints.RECONCILE(id), body: payload, credentials: true });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Failed to reconcile transaction."));
+  }
 }
 
 export async function syncMercuryTransactions(accountId?: string): Promise<{
@@ -94,6 +121,10 @@ export async function syncMercuryTransactions(accountId?: string): Promise<{
   accounts: number;
   message: string;
 }> {
-  const response = await apiConnector({ method: "POST", url: mercuryEndpoints.SYNC, body: accountId ? { accountId } : {}, credentials: true });
-  return response.data;
+  try {
+    const response = await apiConnector({ method: "POST", url: mercuryEndpoints.SYNC, body: accountId ? { accountId } : {}, credentials: true });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Failed to sync Mercury transactions."));
+  }
 }

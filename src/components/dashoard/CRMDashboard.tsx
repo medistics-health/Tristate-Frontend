@@ -436,6 +436,7 @@ export default function CRMDashboardPage() {
           servicesData,
           auditsData,
           dealsData,
+          syncSummaryData,
         ] = await Promise.all([
           getAllInvoices().catch(() => []),
           getAllPractices().catch(() => []),
@@ -445,6 +446,8 @@ export default function CRMDashboardPage() {
           getAllDeals().catch(() => []),
           getSyncSummary().catch(() => null),
         ]);
+
+        setSyncSummary(syncSummaryData);
 
         setInvoices(
           invoicesData.slice(0, 10).map((inv: any) => ({

@@ -20,6 +20,7 @@ import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import {
   getMercuryTransactions,
+  getMercuryAccounts,
   syncMercuryTransactions,
   reconcileMercuryTransaction,
   type MercuryTransaction,
@@ -91,22 +92,25 @@ export default function MercuryBankingPage() {
   const [isReconSubmitting, setIsReconSubmitting] = useState(false);
   const [reconValue, setReconValue] = useState("RECONCILED");
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
-  const [isConfigured, setIsConfigured] = useState(true);
+  const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [environment, setEnvironment] = useState("production");
 
   async function loadTransactions(page = 1) {
     try {
       setIsLoading(true);
-      const data = await getMercuryTransactions({
-        page,
-        limit: pagination.limit,
-        reconciliationStatus: filters.reconciliationStatus || undefined,
-        direction: filters.direction || undefined,
-      });
+      const [data, accountsData] = await Promise.all([
+        getMercuryTransactions({
+          page,
+          limit: pagination.limit,
+          reconciliationStatus: filters.reconciliationStatus || undefined,
+          direction: filters.direction || undefined,
+        }),
+        getMercuryAccounts().catch(() => ({ configured: false, environment: "production" }))
+      ]);
       setTransactions(data.transactions ?? []);
       setWarningMessage(data.warning ?? data.message ?? null);
-      setIsConfigured(data.configured !== false);
-      if (data.environment) setEnvironment(data.environment);
+      setIsConfigured(!!accountsData.configured);
+      if (accountsData.environment) setEnvironment(accountsData.environment);
       if (data.pagination) {
         setPagination(data.pagination);
       } else {
@@ -198,12 +202,16 @@ export default function MercuryBankingPage() {
                 <p className="text-[12px] text-slate-400">Read-only banking layer · Reconciliation & visibility</p>
               </div>
               <div className="ml-auto flex items-center gap-2">
-                {isConfigured ? (
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold ${environment === "sandbox" ? "bg-blue-50 border-blue-100 text-blue-600" : "bg-emerald-50 border-emerald-100 text-emerald-600"}`}>
+                {isConfigured === null || isLoading ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Checking Connection…
+                  </span>
+                ) : isConfigured ? (
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold shadow-sm ${environment === "sandbox" ? "bg-blue-50 border-blue-100 text-blue-600" : "bg-emerald-50 border-emerald-100 text-emerald-600"}`}>
                     <CheckCircle2 className="h-3.5 w-3.5" /> {environment === "sandbox" ? "Sandbox Connected" : "Live Connected"}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-600">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-600 shadow-sm">
                     <AlertCircle className="h-3.5 w-3.5" /> API Key Not Configured
                   </span>
                 )}
@@ -236,21 +244,6 @@ export default function MercuryBankingPage() {
             <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50 px-5 py-2.5 text-[12px] text-amber-700">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {warningMessage}
-            </div>
-          )}
-
-          {/* Mercury V1 Info Banner */}
-          {!isConfigured && (
-            <div className="flex items-start gap-3 border-b border-blue-100 bg-blue-50 px-5 py-3 text-[12px] text-blue-700">
-              <Shield className="h-4 w-4 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-semibold mb-0.5">Mercury v1 Integration — Read-Only Mode</div>
-                <div className="text-blue-600">
-                  Set <code className="bg-blue-100 px-1 py-0.5 rounded font-mono">MERCURY_API_KEY</code> in backend .env to enable live transaction sync. 
-                  In v1, Mercury is used for read-only visibility: bank balances, transaction history, and matching Stripe deposits to bank deposits.
-                  Vendor payment initiation is planned for a future phase.
-                </div>
-              </div>
             </div>
           )}
 

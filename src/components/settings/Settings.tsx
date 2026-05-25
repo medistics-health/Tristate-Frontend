@@ -11,6 +11,7 @@ import {
   Trash2,
   X,
   SettingsIcon,
+  RefreshCw,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
@@ -24,7 +25,7 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  
+
   // Modals / Editing state
   const [editingUser, setEditingUser] = useState<any>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -49,7 +50,7 @@ export default function SettingsPage() {
   // Integration Status state
   const [companies, setCompanies] = useState<Company[]>([]);
   const [integrationStatuses, setIntegrationStatuses] = useState<Record<string, { isConnected: boolean; realmId?: string }>>({});
-  const [isMercuryConnected, setIsMercuryConnected] = useState(false);
+  const [isMercuryConnected, setIsMercuryConnected] = useState<boolean | null>(null);
   const [mercuryEnv, setMercuryEnv] = useState("production");
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -64,7 +65,7 @@ export default function SettingsPage() {
     if (activeTab === "general") {
       loadSettings();
     }
-    
+
     // Listen for QuickBooks connection success from popup
     const handleMessage = (event: MessageEvent) => {
       if (event.data === 'qb-connected') {
@@ -87,9 +88,9 @@ export default function SettingsPage() {
     try {
       const comps = await getAllCompanies();
       setCompanies(comps);
-      
+
       const statusMap: Record<string, { isConnected: boolean; realmId?: string }> = {};
-      
+
       // Load statuses for all companies in parallel
       await Promise.all(comps.map(async (company) => {
         try {
@@ -102,7 +103,7 @@ export default function SettingsPage() {
           statusMap[company.id] = { isConnected: false };
         }
       }));
-      
+
       setIntegrationStatuses(statusMap);
 
       // Load Mercury Status
@@ -195,7 +196,7 @@ export default function SettingsPage() {
   async function handleUpdateUser(e: React.FormEvent) {
     e.preventDefault();
     if (!editingUser) return;
-    
+
     try {
       await updateUserApi(editingUser.id, editingUser);
       toast.success("User updated successfully");
@@ -289,38 +290,38 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Company Name</label>
-                      <input 
-                        type="text" 
-                        value={orgSettings.organizationName} 
-                        onChange={e => setOrgSettings({...orgSettings, organizationName: e.target.value})}
-                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]" 
+                      <input
+                        type="text"
+                        value={orgSettings.organizationName}
+                        onChange={e => setOrgSettings({ ...orgSettings, organizationName: e.target.value })}
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
                       />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Business Domain</label>
-                      <input 
-                        type="text" 
-                        value={orgSettings.domain} 
-                        onChange={e => setOrgSettings({...orgSettings, domain: e.target.value})}
-                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]" 
+                      <input
+                        type="text"
+                        value={orgSettings.domain}
+                        onChange={e => setOrgSettings({ ...orgSettings, domain: e.target.value })}
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
                       />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Support Email</label>
-                      <input 
-                        type="email" 
-                        value={orgSettings.supportEmail} 
-                        onChange={e => setOrgSettings({...orgSettings, supportEmail: e.target.value})}
-                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]" 
+                      <input
+                        type="email"
+                        value={orgSettings.supportEmail}
+                        onChange={e => setOrgSettings({ ...orgSettings, supportEmail: e.target.value })}
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
                       />
                     </div>
                     <div className="col-span-2 space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Business Address</label>
-                      <textarea 
-                        rows={3} 
-                        value={orgSettings.address} 
-                        onChange={e => setOrgSettings({...orgSettings, address: e.target.value})}
-                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]" 
+                      <textarea
+                        rows={3}
+                        value={orgSettings.address}
+                        onChange={e => setOrgSettings({ ...orgSettings, address: e.target.value })}
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
                       />
                     </div>
                   </div>
@@ -364,7 +365,7 @@ export default function SettingsPage() {
                         {companies.map((company) => {
                           const isConnected = integrationStatuses[company.id]?.isConnected;
                           const realmId = integrationStatuses[company.id]?.realmId;
-                          
+
                           return (
                             <tr key={company.id} className="hover:bg-slate-50/50 transition-colors group">
                               <td className="px-5 py-4">
@@ -392,13 +393,13 @@ export default function SettingsPage() {
                               <td className="px-5 py-4 text-right">
                                 {isConnected ? (
                                   <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all">
-                                    <button 
+                                    <button
                                       onClick={() => handleConnectQB(company.id)}
                                       className="text-xs font-bold text-[#4f63ea] hover:text-[#3d4ed1]"
                                     >
                                       Re-connect
                                     </button>
-                                    <button 
+                                    <button
                                       onClick={() => handleDisconnectQB(company.id)}
                                       className="text-xs font-bold text-rose-500 hover:text-rose-600"
                                     >
@@ -406,7 +407,7 @@ export default function SettingsPage() {
                                     </button>
                                   </div>
                                 ) : (
-                                  <button 
+                                  <button
                                     onClick={() => handleConnectQB(company.id)}
                                     className="rounded-xl bg-emerald-600 px-4 py-2 text-[11px] font-bold text-white hover:bg-emerald-700 transition-all shadow-sm"
                                   >
@@ -443,14 +444,18 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between rounded-2xl border border-[#ece8e1] bg-white p-5 shadow-sm transition-all hover:shadow-md">
                 <div className="flex items-center gap-5">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 border border-slate-200 shadow-sm text-slate-800">
-                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>
                   </div>
                   <div>
                     <h4 className="text-[15px] font-bold text-slate-800">Mercury Banking</h4>
                     <p className="text-xs text-slate-500">Read-only banking layer for automated reconciliation.</p>
                   </div>
                 </div>
-                {isMercuryConnected ? (
+                {isMercuryConnected === null ? (
+                  <span className="flex items-center gap-1.5 rounded-full bg-slate-50 px-4 py-1.5 text-xs font-bold text-slate-500 border border-slate-200 shadow-sm">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Checking…
+                  </span>
+                ) : isMercuryConnected ? (
                   <span className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold border shadow-sm ${mercuryEnv === "sandbox" ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"}`}>
                     <CheckCircle2 className="h-3.5 w-3.5" /> {mercuryEnv === "sandbox" ? "Sandbox Connected" : "API Connected"}
                   </span>
