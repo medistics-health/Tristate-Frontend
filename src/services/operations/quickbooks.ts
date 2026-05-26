@@ -89,14 +89,40 @@ export async function connectQuickBooks(companyId: string, isSandbox = true): Pr
   }
 }
 
-export async function getQuickBooksStatus(companyId: string): Promise<{ isConnected: boolean; realmId?: string }> {
+export type QuickBooksConnectionStatus = {
+  connected: boolean;
+  connection: {
+    id: string;
+    companyId: string;
+    realmId: string;
+    isSandbox: boolean;
+    connectedByUserId: string | null;
+    lastSyncAt: string | null;
+    lastError: string | null;
+  } | null;
+  accountInfo: {
+    id: string;
+    name: string;
+    legalName: string | null;
+    email: string | null;
+    phone: string | null;
+    country: string | null;
+    fiscalYearStartMonth: number | null;
+  } | null;
+  tokenExpiresAt: string | null;
+  isTokenExpired: boolean | null;
+  lastSyncAt: string | null;
+  lastError: string | null;
+};
+
+export async function getQuickBooksStatus(companyId: string): Promise<QuickBooksConnectionStatus> {
   try {
     const response = await apiConnector({
       method: "GET",
       url: quickbooksEndpoints.STATUS(companyId),
       credentials: true,
     });
-    return response.data;
+    return response.data as QuickBooksConnectionStatus;
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch QuickBooks status."));
   }
