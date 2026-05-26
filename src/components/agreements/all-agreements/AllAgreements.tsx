@@ -6,6 +6,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
+import { useRef } from "react";
 import {
   ChevronLeft,
   Circle,
@@ -19,6 +20,7 @@ import {
   FileText,
   GitBranch,
   Settings,
+  Search,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -39,7 +41,9 @@ import {
 } from "../../../services/operations/agreements";
 import {
   getAgreementVersions,
+  getAgreementVersion,
   getAgreementServiceTerms,
+  getAgreementServiceTerm,
   createAgreementServiceTermApi,
   createAgreementVersionApi,
   updateAgreementVersionApi,
@@ -191,6 +195,9 @@ function AllAgreementsPage() {
   const [signers, setSigners] = useState<any[]>([]);
   const [selectedSignerId, setSelectedSignerId] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const templateDropdownRef = useRef<HTMLDivElement>(null);
 
   // Tabs for detail panel
   const [activeTab, setActiveTab] = useState<"overview" | "versions" | "terms">(
@@ -380,6 +387,19 @@ function AllAgreementsPage() {
     }
   }, [showCreateForm, showDetailPanel, practices.length]);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        templateDropdownRef.current &&
+        !templateDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowTemplateDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   async function handleRowClick(rowId: string) {
     setSelectedRowId(rowId);
 
@@ -387,6 +407,8 @@ function AllAgreementsPage() {
     setShowCreateForm(false);
     setActiveTab("overview");
     setIsDetailLoading(true);
+    setVersions([]);
+    setServiceTerms([]);
 
     try {
       const agreement = await getAgreement(rowId);
@@ -405,12 +427,12 @@ function AllAgreementsPage() {
   async function loadVersions(agreementId: string) {
     setVersionsLoading(true);
     try {
-      const data = await getAgreementVersions({
+      const data = await getAgreementVersion(
         agreementId,
-        page: 1,
-        limit: 50,
-      });
-      setVersions(data.versions);
+        // page: 1,
+        // limit: 50,
+      );
+      setVersions(data);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load versions";
@@ -423,12 +445,13 @@ function AllAgreementsPage() {
   async function loadServiceTerms(agreementId: string) {
     setTermsLoading(true);
     try {
-      const data = await getAgreementServiceTerms({
-        agreementId,
-        page: 1,
-        limit: 50,
-      });
-      setServiceTerms(data.terms);
+      // const data = await getAgreementServiceTerms({
+      //   agreementId,
+      //   page: 1,
+      //   limit: 50,
+      // });
+      const data = await getAgreementServiceTerm(agreementId);
+      setServiceTerms(data);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load service terms";
@@ -440,9 +463,9 @@ function AllAgreementsPage() {
 
   function handleTabChange(tab: "overview" | "versions" | "terms") {
     setActiveTab(tab);
-    if (tab === "versions" && selectedRowId && versions.length === 0) {
+    if (tab === "versions" && selectedRowId) {
       loadVersions(selectedRowId);
-    } else if (tab === "terms" && selectedRowId && serviceTerms.length === 0) {
+    } else if (tab === "terms" && selectedRowId) {
       loadServiceTerms(selectedRowId);
       if (services.length === 0) {
         getAllServices().then(setServices).catch(console.error);
@@ -518,6 +541,14 @@ function AllAgreementsPage() {
       toast.error("Practice is required");
       return;
     }
+    if (
+      createForm.effectiveDate &&
+      createForm.renewalDate &&
+      new Date(createForm.renewalDate) <= new Date(createForm.effectiveDate)
+    ) {
+      toast.error("Renewal date must be greater than effective date");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -543,6 +574,14 @@ function AllAgreementsPage() {
     e.preventDefault();
     if (!editForm.practiceId) {
       toast.error("Practice is required");
+      return;
+    }
+    if (
+      editForm.effectiveDate &&
+      editForm.renewalDate &&
+      new Date(editForm.renewalDate) <= new Date(editForm.effectiveDate)
+    ) {
+      toast.error("Renewal date must be greater than effective date");
       return;
     }
 
@@ -746,28 +785,58 @@ function AllAgreementsPage() {
               className="flex flex-1 flex-col overflow-hidden"
             >
               <div className="flex-1 overflow-auto p-4">
-                  {(() => {
-                    const aStatusStyles: Record<string, string> = {
-                      DRAFT: "bg-slate-100 text-slate-700",
-                      ACTIVE: "bg-green-100 text-green-700",
-                      PENDING_SIGNATURE: "bg-amber-100 text-amber-700",
-                      SIGNED: "bg-blue-100 text-blue-700",
-                      EXPIRED: "bg-red-100 text-red-700",
-                      ARCHIVED: "bg-zinc-100 text-zinc-600",
-                    };
-                    const agStatus = selectedAgreement?.status || "";
-                    return (
-                      <DetailCard
-                        title={selectedAgreement?.type || "Agreement"}
-                        badge={agStatus ? { label: agStatus, className: aStatusStyles[agStatus] || "bg-gray-100 text-gray-700" } : null}
-                        infoRows={[
-                          ...(selectedAgreement?.practice?.name ? [{ label: "Practice", value: selectedAgreement.practice.name }] : []),
-                          ...(selectedAgreement?.deal?.name ? [{ label: "Deal", value: selectedAgreement.deal.name }] : []),
-                          ...(selectedAgreement?.value ? [{ label: "Value", value: String(selectedAgreement.value) }] : []),
-                        ]}
-                      />
-                    );
-                  })()}
+                {(() => {
+                  const aStatusStyles: Record<string, string> = {
+                    DRAFT: "bg-slate-100 text-slate-700",
+                    ACTIVE: "bg-green-100 text-green-700",
+                    PENDING_SIGNATURE: "bg-amber-100 text-amber-700",
+                    SIGNED: "bg-blue-100 text-blue-700",
+                    EXPIRED: "bg-red-100 text-red-700",
+                    ARCHIVED: "bg-zinc-100 text-zinc-600",
+                  };
+                  const agStatus = selectedAgreement?.status || "";
+                  return (
+                    <DetailCard
+                      title={selectedAgreement?.type || "Agreement"}
+                      badge={
+                        agStatus
+                          ? {
+                              label: agStatus,
+                              className:
+                                aStatusStyles[agStatus] ||
+                                "bg-gray-100 text-gray-700",
+                            }
+                          : null
+                      }
+                      infoRows={[
+                        ...(selectedAgreement?.practice?.name
+                          ? [
+                              {
+                                label: "Practice",
+                                value: selectedAgreement.practice.name,
+                              },
+                            ]
+                          : []),
+                        ...(selectedAgreement?.deal?.name
+                          ? [
+                              {
+                                label: "Deal",
+                                value: selectedAgreement.deal.name,
+                              },
+                            ]
+                          : []),
+                        ...(selectedAgreement?.value
+                          ? [
+                              {
+                                label: "Value",
+                                value: String(selectedAgreement.value),
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  );
+                })()}
 
                 <div className="space-y-4">
                   <div>
@@ -809,7 +878,11 @@ function AllAgreementsPage() {
                       required
                     >
                       {agreementStatusOptions.map((status) => (
-                        <option key={status} value={status}>
+                        <option
+                          key={status}
+                          value={status}
+                          disabled={status === "SIGNED"}
+                        >
                           {formatStatusLabel(status)}
                         </option>
                       ))}
@@ -1227,11 +1300,17 @@ function AllAgreementsPage() {
                     }
                     setIsSavingTerm(true);
                     try {
-                      const parsedConfig = JSON.parse(termForm.pricingConfig || "{}");
+                      const parsedConfig = JSON.parse(
+                        termForm.pricingConfig || "{}",
+                      );
                       const finalConfig = {
                         ...parsedConfig,
-                        vendorFlatAmount: termForm.vendorFlatAmount ? parseFloat(termForm.vendorFlatAmount) : undefined,
-                        vendorPercentOfClient: termForm.vendorPercentOfClient ? parseFloat(termForm.vendorPercentOfClient) : undefined,
+                        vendorFlatAmount: termForm.vendorFlatAmount
+                          ? parseFloat(termForm.vendorFlatAmount)
+                          : undefined,
+                        vendorPercentOfClient: termForm.vendorPercentOfClient
+                          ? parseFloat(termForm.vendorPercentOfClient)
+                          : undefined,
                       };
 
                       if (editingTermId) {
@@ -1406,7 +1485,9 @@ function AllAgreementsPage() {
 
                   {termForm.vendorId && (
                     <div className="rounded-lg border border-indigo-100 bg-indigo-50/30 p-3 space-y-3">
-                      <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">Vendor Payout Config</div>
+                      <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">
+                        Vendor Payout Config
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-700">
@@ -1446,7 +1527,8 @@ function AllAgreementsPage() {
                         </div>
                       </div>
                       <p className="text-[10px] text-slate-400 italic">
-                        Note: Leave both empty if vendor pricing is defined inside the JSON config above.
+                        Note: Leave both empty if vendor pricing is defined
+                        inside the JSON config above.
                       </p>
                     </div>
                   )}
@@ -1605,14 +1687,20 @@ function AllAgreementsPage() {
                               type="button"
                               onClick={() => {
                                 setEditingTermId(term.id);
-                                const config = (term.pricingConfig as any) || {};
+                                const config =
+                                  (term.pricingConfig as any) || {};
                                 setTermForm({
                                   serviceId: term.serviceId,
-                                  agreementVersionId: term.agreementVersionId || "",
+                                  agreementVersionId:
+                                    term.agreementVersionId || "",
                                   vendorId: term.vendorId || "",
-                                  vendorFlatAmount: config.vendorFlatAmount?.toString() || "",
-                                  vendorPercentOfClient: config.vendorPercentOfClient?.toString() || "",
-                                  pricingModel: term.pricingModel as PricingModel,
+                                  vendorFlatAmount:
+                                    config.vendorFlatAmount?.toString() || "",
+                                  vendorPercentOfClient:
+                                    config.vendorPercentOfClient?.toString() ||
+                                    "",
+                                  pricingModel:
+                                    term.pricingModel as PricingModel,
                                   pricingConfig: JSON.stringify(config),
                                   currency: term.currency || "USD",
                                   priority: term.priority || 1,
@@ -1765,7 +1853,11 @@ function AllAgreementsPage() {
               required
             >
               {agreementStatusOptions.map((status) => (
-                <option key={status} value={status}>
+                <option
+                  key={status}
+                  value={status}
+                  disabled={status === "SIGNED" || status === "ACTIVE"}
+                >
                   {formatStatusLabel(status)}
                 </option>
               ))}
@@ -1846,78 +1938,139 @@ function AllAgreementsPage() {
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
               Agreement Templates
             </label>
-            {templatesLoading ? (
-              <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
-                Loading...
-              </div>
-            ) : (
-              <div
-                onClick={() => loadDocusealTemplates()}
-                className="app-control rounded-md px-3 py-2 text-[13px] max-h-[150px] overflow-y-auto"
-              >
-                {docusealTemplates.length === 0 ? (
-                  <span className="text-slate-400">
-                    Click to load templates
-                  </span>
-                ) : (
-                  <div className="space-y-2">
-                    {(() => {
-                      const autoIncludeIds = docusealTemplates
-                        .filter((t) =>
-                          AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
-                            t.name.toLowerCase().includes(name.toLowerCase()),
-                          ),
-                        )
-                        .map((t) => String(t.id));
-                      return docusealTemplates.map((template) => {
-                        const templateId = String(template.id);
-                        const isAutoInclude =
-                          autoIncludeIds.includes(templateId);
-                        return (
-                          <label
-                            key={template.id}
-                            className={`flex items-center gap-2 ${isAutoInclude ? "" : "cursor-pointer"}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={
-                                isAutoInclude ||
-                                createForm.docusealTemplates.includes(
-                                  templateId,
-                                )
-                              }
-                              disabled={isAutoInclude}
-                              onChange={(e) => {
-                                if (isAutoInclude) return;
-                                setCreateForm((prev) => ({
-                                  ...prev,
-                                  docusealTemplates: e.target.checked
-                                    ? [...prev.docusealTemplates, templateId]
-                                    : prev.docusealTemplates.filter(
-                                        (id: string) => id !== templateId,
-                                      ),
-                                }));
-                              }}
-                              className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea]"
-                            />
-                            <span
-                              className={`text-slate-700 ${isAutoInclude ? "font-medium" : ""}`}
-                            >
-                              {template.name}
-                              {isAutoInclude && (
-                                <span className="ml-1 text-xs text-slate-400">
-                                  (required)
-                                </span>
-                              )}
-                            </span>
-                          </label>
-                        );
-                      });
-                    })()}
-                  </div>
-                )}
+
+            {/* Selected templates as chips */}
+            {createForm.docusealTemplates.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {createForm.docusealTemplates.map((templateId: string) => {
+                  const template = docusealTemplates.find(
+                    (t) => String(t.id) === templateId,
+                  );
+                  const isAutoInclude = template
+                    ? AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+                        template.name
+                          .toLowerCase()
+                          .includes(name.toLowerCase()),
+                      )
+                    : false;
+                  return (
+                    <span
+                      key={templateId}
+                      className="inline-flex items-center gap-1 rounded-md bg-[#f0f2fe] px-2 py-1 text-[12px] text-[#4f63ea]"
+                    >
+                      {template?.name || templateId}
+                      {!isAutoInclude && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCreateForm((prev) => ({
+                              ...prev,
+                              docusealTemplates: prev.docusealTemplates.filter(
+                                (id: string) => id !== templateId,
+                              ),
+                            }))
+                          }
+                          className="hover:text-red-500"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             )}
+
+            {/* Search dropdown */}
+            <div className="relative" ref={templateDropdownRef}>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={templateSearch}
+                  onChange={(e) => {
+                    setTemplateSearch(e.target.value);
+                    if (!showTemplateDropdown) setShowTemplateDropdown(true);
+                  }}
+                  onFocus={() => {
+                    if (docusealTemplates.length === 0) loadDocusealTemplates();
+                    setShowTemplateDropdown(true);
+                  }}
+                  placeholder="Search templates..."
+                  className="app-control w-full rounded-md py-2 pl-8 pr-3 text-[13px]"
+                />
+              </div>
+
+              {showTemplateDropdown && (
+                <div className="absolute z-10 mt-1 max-h-[200px] w-full overflow-y-auto rounded-md border border-[#ece8e1] bg-white shadow-lg">
+                  {templatesLoading ? (
+                    <div className="flex items-center justify-center py-6 text-[13px] text-slate-400">
+                      Loading...
+                    </div>
+                  ) : docusealTemplates.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-[13px] text-slate-400">
+                      No templates available
+                    </div>
+                  ) : (
+                    (() => {
+                      const filtered = templateSearch
+                        ? docusealTemplates.filter((t) =>
+                            t.name
+                              .toLowerCase()
+                              .includes(templateSearch.toLowerCase()),
+                          )
+                        : docusealTemplates;
+                      return filtered.map((template) => {
+                        const templateId = String(template.id);
+                        const isSelected =
+                          createForm.docusealTemplates.includes(templateId);
+                        const isAutoInclude = AUTO_INCLUDE_TEMPLATE_NAMES.some(
+                          (name) =>
+                            template.name
+                              .toLowerCase()
+                              .includes(name.toLowerCase()),
+                        );
+                        const isDisabled = isSelected || isAutoInclude;
+                        return (
+                          <button
+                            key={template.id}
+                            type="button"
+                            onClick={() => {
+                              if (isDisabled) return;
+                              setCreateForm((prev) => ({
+                                ...prev,
+                                docusealTemplates: [
+                                  ...prev.docusealTemplates,
+                                  templateId,
+                                ],
+                              }));
+                            }}
+                            className={`w-full px-3 py-2 text-left text-[13px] hover:bg-[#faf9f7] ${
+                              isDisabled
+                                ? "cursor-not-allowed text-slate-400"
+                                : "text-slate-700"
+                            }`}
+                            disabled={isDisabled}
+                          >
+                            {template.name}
+                            {isAutoInclude && (
+                              <span className="ml-1 text-xs text-slate-400">
+                                (required)
+                              </span>
+                            )}
+                            {isSelected && !isAutoInclude && (
+                              <span className="ml-1 text-xs text-[#4f63ea]">
+                                (selected)
+                              </span>
+                            )}
+                          </button>
+                        );
+                      });
+                    })()
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">
