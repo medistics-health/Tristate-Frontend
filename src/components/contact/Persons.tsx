@@ -24,6 +24,9 @@ import {
   Shield,
   Star,
   Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import type { PersonBody } from "../../components/contact/types";
 import { useEffect, useMemo, useState } from "react";
@@ -129,7 +132,6 @@ export default function PersonsPage() {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [selectedPersonData, setSelectedPersonData] = useState<any>(null);
 
-  console.log(selectedPersonData);
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
     [rows, selectedRowId],
@@ -831,6 +833,7 @@ export default function PersonsPage() {
             <input
               type="email"
               required
+              pattern="^[^\s@]+@[^\s@]+\.(com)$"
               value={formData.email}
               onChange={(e) => handleFormChange("email", e.target.value)}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
@@ -1190,6 +1193,15 @@ export default function PersonsPage() {
                               header.column.columnDef.header,
                               header.getContext(),
                             )}
+                            {header.column.getCanSort() && header.id !== "select" && (
+                              header.column.getIsSorted() === "asc" ? (
+                                <ArrowUp className="h-3 w-3 text-slate-500" />
+                              ) : header.column.getIsSorted() === "desc" ? (
+                                <ArrowDown className="h-3 w-3 text-slate-500" />
+                              ) : (
+                                <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                              )
+                            )}
                           </button>
                         )}
                       </th>
@@ -1342,11 +1354,40 @@ export default function PersonsPage() {
                 return (
                   <DetailCard
                     title={`${String(selectedRow.values.firstName || "")} ${String(selectedRow.values.lastName || "")}`}
-                    badge={role ? { label: role, className: rColors[role] || "bg-gray-100 text-gray-700" } : null}
+                    badge={
+                      role
+                        ? {
+                            label: role,
+                            className:
+                              rColors[role] || "bg-gray-100 text-gray-700",
+                          }
+                        : null
+                    }
                     infoRows={[
-                      ...(selectedRow.values.email ? [{ label: "Email", value: String(selectedRow.values.email) }] : []),
-                      ...(selectedRow.values.phone ? [{ label: "Phone", value: String(selectedRow.values.phone) }] : []),
-                      ...(selectedRow.values.designation ? [{ label: "Designation", value: String(selectedRow.values.designation) }] : []),
+                      ...(selectedRow.values.email
+                        ? [
+                            {
+                              label: "Email",
+                              value: String(selectedRow.values.email),
+                            },
+                          ]
+                        : []),
+                      ...(selectedRow.values.phone
+                        ? [
+                            {
+                              label: "Phone",
+                              value: String(selectedRow.values.phone),
+                            },
+                          ]
+                        : []),
+                      ...(selectedRow.values.designation
+                        ? [
+                            {
+                              label: "Designation",
+                              value: String(selectedRow.values.designation),
+                            },
+                          ]
+                        : []),
                     ]}
                   />
                 );
@@ -1455,6 +1496,7 @@ export default function PersonsPage() {
                     <input
                       type="email"
                       value={formData.email}
+                      pattern="^[^\s@]+@[^\s@]+\.(com)$"
                       required
                       onChange={(e) =>
                         handleFormChange("email", e.target.value)

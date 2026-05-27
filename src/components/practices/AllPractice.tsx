@@ -23,6 +23,11 @@ import {
   Backpack,
   Trash2,
   ChevronRight,
+  Mail,
+  Shield,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
@@ -33,6 +38,7 @@ import type {
   PracticeRow,
   PracticeUserValue,
   PracticeViewData,
+  Person,
 } from "./types";
 import {
   createPracticeApi,
@@ -43,14 +49,10 @@ import {
   type PracticeQueryParams,
 } from "../../services/operations/practices";
 import { getAllCompanies } from "../../services/operations/companies";
-import {
-  getAgreementsByPractice,
-} from "../../services/operations/agreements";
-import {
-  activatePracticeWithAgreementEmail,
-  validatePracticeActivation,
-} from "../../services/operations/practiceActivation";
+import { getAgreementsByPractice } from "../../services/operations/agreements";
+import { activatePracticeWithAgreementEmail } from "../../services/operations/practiceActivation";
 import type { Company } from "../companies/types";
+import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
 
 function isUserValue(value: PracticeCellValue): value is PracticeUserValue {
@@ -161,6 +163,12 @@ export default function AllPracticePage() {
       notes: string;
     }[]
   >([]);
+
+  const [showActivationModal, setShowActivationModal] = useState(false);
+  const [activationPerson, setActivationPerson] = useState<Person | null>(null);
+  const [activationAgreementType, setActivationAgreementType] = useState("");
+  const [pendingActivationData, setPendingActivationData] =
+    useState<Partial<PracticeBody> | null>(null);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
@@ -752,7 +760,58 @@ export default function AllPracticePage() {
 
     if (willBecomeActive) {
       try {
-        await validatePracticeActivation(selectedRow.id);
+        const fullPractice = await getPractice(selectedRow.id);
+        const eligiblePerson = (fullPractice.persons ?? []).find(
+          (p) =>
+            (p.person.role === "ADMIN" || p.person.role === "OWNER") &&
+            !!p.person.email,
+        );
+
+        if (!eligiblePerson) {
+          toast.error(
+            "Practice must have at least one ADMIN/OWNER person with email to set status to ACTIVE",
+          );
+          return;
+        }
+
+        const agreements = await getAgreementsByPractice(selectedRow.id);
+        if (agreements.length === 0) {
+          toast.error(
+            "This practice has no agreement, please create agreement",
+          );
+          return;
+        }
+
+        const practiceData = {
+          name: formData.name.trim(),
+          npi: formData.npi.trim() || undefined,
+          status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
+          region: formData.region.trim(),
+          groupNpis: groupNpiEntries.map((entry) => ({
+            ...entry,
+            taxId: formData.taxIdId,
+          })),
+          source: formData.source as
+            | "DIRECT"
+            | "REFERRAL"
+            | "CHANNEL_PARTNER"
+            | "OUTBOUND"
+            | "INBOUND",
+          bucket: formData.bucket
+            ? formData.bucket
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : [],
+          companyId: formData.companyId?.trim() || undefined,
+          taxIdId: formData.taxIdId?.trim() || undefined,
+        };
+
+        setActivationPerson(eligiblePerson);
+        setActivationAgreementType(agreements[0].type);
+        setPendingActivationData(practiceData);
+        setShowActivationModal(true);
+        return;
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to validate practice";
@@ -788,9 +847,7 @@ export default function AllPracticePage() {
         taxIdId: formData.taxIdId?.trim() || undefined,
       };
 
-      if (!willBecomeActive) {
-        await updatePracticeApi(selectedRow.id, practiceData);
-      }
+      await updatePracticeApi(selectedRow.id, practiceData);
       const params: PracticeQueryParams = {
         page: pagination.page,
         limit: pagination.limit,
@@ -800,14 +857,6 @@ export default function AllPracticePage() {
       setPagination(data.pagination);
       setIsEditing(false);
       toast.success("Practice updated successfully");
-
-      if (willBecomeActive) {
-        await activatePracticeWithAgreementEmail(selectedRow.id, practiceData);
-        const refreshedData = await getPracticesView(params);
-        setRows(refreshedData.rows);
-        setPagination(refreshedData.pagination);
-        toast.success("Agreement email sent successfully");
-      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to update practice";
@@ -842,6 +891,37 @@ export default function AllPracticePage() {
       toast.error(message);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleConfirmActivation() {
+    if (!selectedRow || !pendingActivationData) return;
+
+    setShowActivationModal(false);
+    setIsSubmitting(true);
+    try {
+      const params: PracticeQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+
+      await activatePracticeWithAgreementEmail(
+        selectedRow.id,
+        pendingActivationData,
+      );
+      const refreshedData = await getPracticesView(params);
+      setRows(refreshedData.rows);
+      setPagination(refreshedData.pagination);
+      setIsEditing(false);
+      toast.success("Practice activated & agreement email sent successfully");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to activate practice";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+      setPendingActivationData(null);
+      setActivationPerson(null);
     }
   }
 
@@ -1036,11 +1116,14 @@ export default function AllPracticePage() {
 
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
-            NPI
+            NPI <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
+            pattern="\d{10}"
+            title="NPI Number must be exactly 10 digits"
             value={formData.npi}
+            required
             onChange={(e) => handleFormChange("npi", e.target.value)}
             placeholder="National Provider Identifier"
             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
@@ -1050,7 +1133,7 @@ export default function AllPracticePage() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Status
+              Status <span className="text-red-500">*</span>
             </label>
             <select
               value={formData.status}
@@ -1071,10 +1154,11 @@ export default function AllPracticePage() {
           </div>
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Region
+              Region <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
+              required
               value={formData.region}
               onChange={(e) => handleFormChange("region", e.target.value)}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
@@ -1085,7 +1169,7 @@ export default function AllPracticePage() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Source
+              Source <span className="text-red-500">*</span>
             </label>
             <select
               value={formData.source}
@@ -1173,6 +1257,8 @@ export default function AllPracticePage() {
                     updated[index].groupNpiNumber = e.target.value;
                     setGroupNpiEntries(updated);
                   }}
+                  pattern="\d{10}"
+                  title="Group NPI Number must be exactly 10 digits"
                   placeholder="Group NPI Number"
                   className="app-control rounded-md px-3 py-2 text-[13px]"
                 />
@@ -1481,6 +1567,15 @@ export default function AllPracticePage() {
                                               header.column.columnDef.header,
                                               header.getContext(),
                                             )}
+                                            {header.column.getCanSort() && header.id !== "select" && (
+                                              header.column.getIsSorted() === "asc" ? (
+                                                <ArrowUp className="h-3 w-3 text-slate-500" />
+                                              ) : header.column.getIsSorted() === "desc" ? (
+                                                <ArrowDown className="h-3 w-3 text-slate-500" />
+                                              ) : (
+                                                <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                                              )
+                                            )}
                                           </div>
                                         )}
                                       </th>
@@ -1543,6 +1638,15 @@ export default function AllPracticePage() {
                               {flexRender(
                                 header.column.columnDef.header,
                                 header.getContext(),
+                              )}
+                              {header.column.getCanSort() && header.id !== "select" && (
+                                header.column.getIsSorted() === "asc" ? (
+                                  <ArrowUp className="h-3 w-3 text-slate-500" />
+                                ) : header.column.getIsSorted() === "desc" ? (
+                                  <ArrowDown className="h-3 w-3 text-slate-500" />
+                                ) : (
+                                  <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                                )
                               )}
                             </button>
                           )}
@@ -1693,14 +1797,39 @@ export default function AllPracticePage() {
                 return (
                   <DetailCard
                     title={String(selectedRow.values.name || "Practice")}
-                    badge={status ? { label: status, className: stColors[status] || "bg-gray-100 text-gray-700" } : null}
+                    badge={
+                      status
+                        ? {
+                            label: status,
+                            className:
+                              stColors[status] || "bg-gray-100 text-gray-700",
+                          }
+                        : null
+                    }
                     infoRows={[
-                      ...(selectedRow.values.npi ? [{ label: "NPI", value: String(selectedRow.values.npi) }] : []),
-                      ...(selectedRow.values.region ? [{ label: "Region", value: String(selectedRow.values.region) }] : []),
+                      ...(selectedRow.values.npi
+                        ? [
+                            {
+                              label: "NPI",
+                              value: String(selectedRow.values.npi),
+                            },
+                          ]
+                        : []),
+                      ...(selectedRow.values.region
+                        ? [
+                            {
+                              label: "Region",
+                              value: String(selectedRow.values.region),
+                            },
+                          ]
+                        : []),
                     ]}
                     metric={
                       selectedRow.values.dealCount
-                        ? { label: "Deal count", value: String(selectedRow.values.dealCount) }
+                        ? {
+                            label: "Deal count",
+                            value: String(selectedRow.values.dealCount),
+                          }
                         : null
                     }
                   />
@@ -1752,6 +1881,8 @@ export default function AllPracticePage() {
                   </label>
                   <input
                     type="text"
+                    pattern="\d{10}"
+                    title="NPI Number must be exactly 10 digits"
                     value={formData.npi}
                     onChange={(e) => handleFormChange("npi", e.target.value)}
                     placeholder="National Provider Identifier"
@@ -1890,12 +2021,15 @@ export default function AllPracticePage() {
                       <div key={index} className="grid grid-cols-2 gap-2">
                         <input
                           type="text"
+                          pattern="\d{10}"
+                          title="Group NPI Number must be exactly 10 digits"
                           value={entry.groupNpiNumber}
                           onChange={(e) => {
                             const updated = [...groupNpiEntries];
                             updated[index].groupNpiNumber = e.target.value;
                             setGroupNpiEntries(updated);
                           }}
+                          required
                           placeholder="Group NPI Number"
                           className="app-control rounded-md px-3 py-2 text-[13px]"
                         />
@@ -1907,6 +2041,7 @@ export default function AllPracticePage() {
                             updated[index].groupName = e.target.value;
                             setGroupNpiEntries(updated);
                           }}
+                          required
                           placeholder="Group Name"
                           className="app-control rounded-md px-3 py-2 text-[13px]"
                         />
@@ -1976,6 +2111,60 @@ export default function AllPracticePage() {
           </aside>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={showActivationModal}
+        onClose={() => {
+          setShowActivationModal(false);
+          setActivationPerson(null);
+          setPendingActivationData(null);
+        }}
+        onConfirm={handleConfirmActivation}
+        title="Confirm Practice Activation"
+        confirmLabel="Activate & Send Agreement"
+        type="primary"
+      >
+        <div className="space-y-4">
+          <p className="text-[14px] text-slate-500 leading-relaxed">
+            This practice will be set to <strong>ACTIVE</strong> and an
+            agreement will be sent to the following admin person:
+          </p>
+          {activationPerson && (
+            <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <UserCircle2 className="h-5 w-5 text-slate-400 shrink-0" />
+                <div>
+                  <p className="text-[14px] font-medium text-slate-700">
+                    {activationPerson.person.firstName}{" "}
+                    {activationPerson.person.lastName}
+                  </p>
+                  <p className="text-[12px] text-slate-400">Admin Person</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Mail className="h-5 w-5 text-slate-400 shrink-0" />
+                <span className="text-[13px] text-slate-600">
+                  {activationPerson.person.email}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Shield className="h-5 w-5 text-slate-400 shrink-0" />
+                <span className="text-[13px] text-slate-600">
+                  {activationPerson.person.role}
+                </span>
+              </div>
+            </div>
+          )}
+          {activationAgreementType && (
+            <p className="text-[13px] text-slate-400">
+              Agreement type:{" "}
+              <span className="font-medium text-slate-600">
+                {activationAgreementType}
+              </span>
+            </p>
+          )}
+        </div>
+      </ConfirmModal>
     </AppLayout>
   );
 }
