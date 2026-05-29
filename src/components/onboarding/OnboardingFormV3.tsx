@@ -259,6 +259,30 @@ const employmentStatusOptions: Option[] = [
   { label: "Other", value: "OTHER" },
 ];
 
+function isValidCompanyEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.com$/i.test(value.trim());
+}
+
+function isValidWebsite(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.hostname.includes(".")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isValidZipCode(value: string) {
+  return /^\d{5}(?:-\d{4})?$/.test(value.trim());
+}
+
+function isValidTenDigitPhone(value: string) {
+  return value.replace(/\D/g, "").length === 10;
+}
+
 const yesNoMaybeOptions: Option[] = [
   { label: "Yes", value: "YES" },
   { label: "No", value: "NO" },
@@ -650,9 +674,9 @@ const initialFormData: OnboardingBody = {
   nonAuthorizedRole: "",
   numberOfPractices: 1,
   numberOfLocations: 1,
-  billingManagedCentrally: "",
-  credentialingManagedCentrally: "",
-  contractingManagedCentrally: "",
+  billingManagedCentrally: "NO",
+  credentialingManagedCentrally: "NO",
+  contractingManagedCentrally: "NO",
   oneMainContact: true,
   legalCompanyName: "",
   dbaName: "",
@@ -1032,6 +1056,43 @@ export default function OnboardingFormV3() {
     }
   }, [currentStep, formData.isIndividualPractice]);
 
+  useEffect(() => {
+    if (formData.onboardingType !== "MULTI_PRACTICE_ORGANIZATION") {
+      return;
+    }
+
+    const practiceCount = Math.max(
+      0,
+      Number(formData.numberOfPractices ?? 0) || 0,
+    );
+
+    setFormData((prev) => {
+      const currentPractices = prev.practices ?? [];
+
+      if (currentPractices.length === practiceCount) {
+        return prev;
+      }
+
+      if (currentPractices.length > practiceCount) {
+        return {
+          ...prev,
+          practices: currentPractices.slice(0, practiceCount),
+        };
+      }
+
+      return {
+        ...prev,
+        practices: [
+          ...currentPractices,
+          ...Array.from(
+            { length: practiceCount - currentPractices.length },
+            () => ({ ...initialPractice }),
+          ),
+        ],
+      };
+    });
+  }, [formData.numberOfPractices, formData.onboardingType]);
+
   const practiceNames = (formData.practices ?? [])
     .map((practice) => practice.practiceName?.trim() ?? "")
     .filter(Boolean);
@@ -1229,6 +1290,22 @@ export default function OnboardingFormV3() {
     }));
   }
 
+  function isValidPractice(practice: OnboardingPractice) {
+    const practiceName = practice.practiceName?.trim() ?? "";
+    const practiceType = practice.practiceType?.trim() ?? "";
+    const hasLocation = (practice.locations ?? []).some((location) =>
+      (location.locationName?.trim() ?? "").length > 0,
+    );
+    const hasProvider = (practice.providers ?? []).some((provider) => {
+      const firstName = provider.firstName?.trim() ?? "";
+      const lastName = provider.lastName?.trim() ?? "";
+      const providerType = provider.providerType?.trim() ?? "";
+      return !!firstName && !!lastName && !!providerType;
+    });
+
+    return !!practiceName && !!practiceType && hasLocation && hasProvider;
+  }
+
   function addLocation(practiceIndex: number) {
     setFormData((prev) => ({
       ...prev,
@@ -1383,35 +1460,62 @@ export default function OnboardingFormV3() {
     }
 
     if (currentStep === 2) {
-      if (!formData.legalCompanyName) errors.push("Legal company name");
-      if (!formData.mainCompanyEmail) errors.push("Main company email");
+      const legalCompanyName = formData.legalCompanyName?.trim() ?? "";
+      if (!legalCompanyName) errors.push("Legal company name");
+
+      const mainCompanyPhone = formData.mainCompanyPhone?.trim() ?? "";
+      if (mainCompanyPhone && !isValidTenDigitPhone(mainCompanyPhone)) {
+        errors.push("Main company phone (must be 10 digits)");
+      }
+
+      const mainCompanyEmail = formData.mainCompanyEmail?.trim() ?? "";
+      if (!mainCompanyEmail) {
+        errors.push("Main company email");
+      } else if (!isValidCompanyEmail(mainCompanyEmail)) {
+        errors.push("Main company email (must end in .com)");
+      }
+
+      const companyWebsite = formData.companyWebsite?.trim() ?? "";
+      if (companyWebsite && !isValidWebsite(companyWebsite)) {
+        errors.push("Website (enter a valid URL)");
+      }
+
+      const companyZip = formData.companyZip?.trim() ?? "";
+      if (companyZip && !isValidZipCode(companyZip)) {
+        errors.push("ZIP Code (use 12345 or 12345-6789)");
+      }
     }
 
     if (currentStep === 3) {
       if (!(formData.contacts ?? []).length) {
         errors.push("At least one contact");
       } else {
-        const primaryContact = formData.contacts?.[0];
-        if (!primaryContact?.fullName) errors.push("Main contact name");
-        if (!primaryContact?.contactRole) errors.push("Contact role");
-        if (!primaryContact?.email) errors.push("Main contact email");
+        const invalidContactIndexes = (formData.contacts ?? [])
+          .map((contact, index) => {
+            const fullName = contact.fullName?.trim() ?? "";
+            const contactRole = contact.contactRole?.trim() ?? "";
+            const email = contact.email?.trim() ?? "";
+            const isValid =
+              !!fullName && !!contactRole && isValidCompanyEmail(email);
+            return isValid ? null : index + 1;
+          })
+          .filter((index): index is number => index !== null);
+
+        if (invalidContactIndexes.length) {
+          errors.push(
+            `Contact ${invalidContactIndexes.join(", ")} (full name, contact role, and email are required)`,
+          );
+        }
       }
     }
 
     if (currentStep === 4) {
       if (!(formData.practices ?? []).length) {
         errors.push("At least one practice");
-      } else {
-        const firstPractice = formData.practices?.[0];
-        if (!firstPractice?.practiceName?.trim()) errors.push("Practice name");
-        if (!firstPractice?.practiceType) errors.push("Practice type");
-        if (
-          !(firstPractice?.locations ?? []).some((location) =>
-            location.locationName?.trim(),
-          )
-        ) {
-          errors.push("At least one location");
-        }
+      } else if (!(formData.practices ?? []).every((practice) => isValidPractice(practice))) {
+        errors.push(
+          "Every practice needs a name, type, at least one location, and at least one provider",
+        );
       }
     }
 
@@ -1420,6 +1524,18 @@ export default function OnboardingFormV3() {
         errors.push("Requested services");
       if (!formData.primaryServiceToLaunch)
         errors.push("Primary service to launch");
+      if (
+        formData.servicesForAllPractices === "SELECTED_PRACTICES" &&
+        !(formData.selectedPractices ?? []).length
+      ) {
+        errors.push("Select at least one practice");
+      }
+      if (
+        formData.replacingExistingVendor &&
+        !(formData.currentVendorName?.trim() ?? "")
+      ) {
+        errors.push("Current vendor name");
+      }
     }
 
     if (currentStep === 6) {
@@ -1452,30 +1568,45 @@ export default function OnboardingFormV3() {
 
     if (stepId === 2) {
       if (formData.isIndividualPractice) return true;
-      return !!formData.legalCompanyName && !!formData.mainCompanyEmail;
+      const mainCompanyPhone = formData.mainCompanyPhone?.trim() ?? "";
+      const mainCompanyEmail = formData.mainCompanyEmail?.trim() ?? "";
+      const companyWebsite = formData.companyWebsite?.trim() ?? "";
+      const companyZip = formData.companyZip?.trim() ?? "";
+      return !!(formData.legalCompanyName?.trim() ?? "") &&
+        (!mainCompanyPhone || isValidTenDigitPhone(mainCompanyPhone)) &&
+        isValidCompanyEmail(mainCompanyEmail) &&
+        (!companyWebsite || isValidWebsite(companyWebsite)) &&
+        (!companyZip || isValidZipCode(companyZip));
     }
 
     if (stepId === 3) {
-      const primaryContact = formData.contacts?.[0];
-      return !!(
-        primaryContact?.fullName &&
-        primaryContact?.contactRole &&
-        primaryContact?.email
-      );
+      return (formData.contacts ?? []).every((contact) => {
+        const fullName = contact.fullName?.trim() ?? "";
+        const contactRole = contact.contactRole?.trim() ?? "";
+        const email = contact.email?.trim() ?? "";
+        return !!fullName && !!contactRole && isValidCompanyEmail(email);
+      });
     }
 
     if (stepId === 4) {
-      const firstPractice = formData.practices?.[0];
-      return !!(
-        firstPractice?.practiceName?.trim() &&
-        firstPractice?.practiceType &&
-        (firstPractice.locations ?? []).some((location) =>
-          location.locationName?.trim(),
-        )
+      return (formData.practices ?? []).every((practice) =>
+        isValidPractice(practice),
       );
     }
 
     if (stepId === 5) {
+      if (
+        formData.servicesForAllPractices === "SELECTED_PRACTICES" &&
+        !(formData.selectedPractices ?? []).length
+      ) {
+        return false;
+      }
+      if (
+        formData.replacingExistingVendor &&
+        !(formData.currentVendorName?.trim() ?? "")
+      ) {
+        return false;
+      }
       return !!(
         formData.requestedServices?.length && formData.primaryServiceToLaunch
       );
@@ -1825,6 +1956,7 @@ export default function OnboardingFormV3() {
                 <Field label="Main Company Phone">
                   <TextInput
                     type="tel"
+                    placeholder="1234567890"
                     value={formData.mainCompanyPhone ?? ""}
                     onChange={(event) =>
                       updateField("mainCompanyPhone", event.target.value)
@@ -1845,6 +1977,7 @@ export default function OnboardingFormV3() {
                 <Field label="Main Company Email" required>
                   <TextInput
                     type="email"
+                    placeholder="name@company.com"
                     value={formData.mainCompanyEmail ?? ""}
                     onChange={(event) =>
                       updateField("mainCompanyEmail", event.target.value)
@@ -1855,7 +1988,7 @@ export default function OnboardingFormV3() {
                 <Field label="Website">
                   <TextInput
                     type="url"
-                    placeholder="https://"
+                    placeholder="https://example.com"
                     value={formData.companyWebsite ?? ""}
                     onChange={(event) =>
                       updateField("companyWebsite", event.target.value)
@@ -1943,6 +2076,8 @@ export default function OnboardingFormV3() {
 
                 <Field label="ZIP Code">
                   <TextInput
+                    inputMode="numeric"
+                    placeholder="12345 or 12345-6789"
                     value={formData.companyZip ?? ""}
                     onChange={(event) =>
                       updateField("companyZip", event.target.value)
@@ -2030,7 +2165,7 @@ export default function OnboardingFormV3() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Field label="Full Name" required={index === 0}>
+                    <Field label="Full Name" required>
                       <TextInput
                         value={contact.fullName ?? ""}
                         onChange={(event) =>
@@ -2048,7 +2183,7 @@ export default function OnboardingFormV3() {
                       />
                     </Field>
 
-                    <Field label="Contact Role" required={index === 0}>
+                    <Field label="Contact Role" required>
                       <SelectInput
                         value={contact.contactRole ?? ""}
                         onChange={(event) =>
@@ -2062,9 +2197,10 @@ export default function OnboardingFormV3() {
                       />
                     </Field>
 
-                    <Field label="Email" required={index === 0}>
+                    <Field label="Email" required>
                       <TextInput
                         type="email"
+                        placeholder="name@company.com"
                         value={contact.email ?? ""}
                         onChange={(event) =>
                           updateContact(index, "email", event.target.value)
@@ -2235,7 +2371,7 @@ export default function OnboardingFormV3() {
                       />
                     </Field>
 
-                    <Field label="Practice Type" required={practiceIndex === 0}>
+                    <Field label="Practice Type" required>
                       <SelectInput
                         value={practice.practiceType ?? ""}
                         onChange={(event) =>
@@ -2506,9 +2642,7 @@ export default function OnboardingFormV3() {
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                               <Field
                                 label="Location Name"
-                                required={
-                                  practiceIndex === 0 && locationIndex === 0
-                                }
+                              required
                               >
                                 <TextInput
                                   value={location.locationName ?? ""}
@@ -2774,7 +2908,7 @@ export default function OnboardingFormV3() {
                             </div>
 
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                              <Field label="Provider First Name">
+                              <Field label="Provider First Name" required>
                                 <TextInput
                                   value={provider.firstName ?? ""}
                                   onChange={(event) =>
@@ -2788,7 +2922,7 @@ export default function OnboardingFormV3() {
                                 />
                               </Field>
 
-                              <Field label="Provider Last Name">
+                              <Field label="Provider Last Name" required>
                                 <TextInput
                                   value={provider.lastName ?? ""}
                                   onChange={(event) =>
@@ -2817,7 +2951,7 @@ export default function OnboardingFormV3() {
                                 />
                               </Field>
 
-                              <Field label="Provider Type">
+                              <Field label="Provider Type" required>
                                 <SelectInput
                                   value={provider.providerType ?? ""}
                                   onChange={(event) =>
@@ -3089,7 +3223,10 @@ export default function OnboardingFormV3() {
                 </Field>
 
                 {formData.servicesForAllPractices === "SELECTED_PRACTICES" ? (
-                  <Field label="If selected practices, which practices?">
+                  <Field
+                    label="If selected practices, which practices?"
+                    required
+                  >
                     <CheckboxGroup
                       options={practiceNames.map((name) => ({
                         label: name,
@@ -3119,7 +3256,10 @@ export default function OnboardingFormV3() {
 
                 {formData.replacingExistingVendor ? (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Field label="Current Vendor Name">
+                    <Field
+                      label="Current Vendor Name"
+                      required={!!formData.replacingExistingVendor}
+                    >
                       <TextInput
                         value={formData.currentVendorName ?? ""}
                         onChange={(event) =>
