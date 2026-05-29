@@ -112,7 +112,7 @@ export function calcMarginPreview(
   const client = parseFloat(clientRate) || 0;
   const vendor = parseFloat(vendorRate) || 0;
   const gross = client - vendor;
-  const pct = client > 0 ? Math.round((gross / client) * 100) : 0;
+  const pct = client > 0 ? parseFloat(((gross / client) * 100).toFixed(2)) : 0;
   return {
     clientRevenue: client,
     vendorCost: vendor,

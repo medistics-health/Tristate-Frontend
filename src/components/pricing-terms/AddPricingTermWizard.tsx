@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronRight, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   PRICING_MODEL_OPTIONS, calcMarginPreview, emptyConfig,
-  createPricingTerm, updatePricingTerm,
+  createPricingTerm, updatePricingTerm, getPricingTerms,
   type PricingConfigShape,
 } from "../../services/operations/pricingEngine";
 import type { AgreementServiceTerm, PricingModel } from "../../services/operations/agreements";
@@ -18,12 +18,13 @@ type Props = {
   services: { id: string; name: string }[];
   vendors:  { id: string; name: string }[];
   editingTerm: AgreementServiceTerm | null;
+  defaultSignerEmail?: string | null;
   onClose: () => void;
   onSaved: () => void;
 };
 
 export default function AddPricingTermWizard({
-  agreementId, agreementVersionId, services, vendors, editingTerm, onClose, onSaved,
+  agreementId, agreementVersionId, services, vendors, editingTerm, defaultSignerEmail, onClose, onSaved,
 }: Props) {
   const [step, setStep]           = useState(0);
   const [serviceId, setSvc]       = useState(editingTerm?.serviceId ?? "");
@@ -35,18 +36,192 @@ export default function AddPricingTermWizard({
   const [vendorId, setVId]        = useState(editingTerm?.vendorId ?? "");
   const [vendorRate, setVRate]    = useState(editingTerm?.minimumFee != null ? String(editingTerm.minimumFee) : "");
   const [approvalNotes, setNotes] = useState("");
-  const [signerEmail, setEmail]   = useState("");
+  const [signerEmail, setEmail]   = useState(editingTerm?.externalReference ?? (defaultSignerEmail ?? "") );
   const [saving, setSaving]       = useState(false);
+  const [stepError, setStepError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!hasVendor) {
+      setVId("");
+      setVRate("");
+    }
+  }, [hasVendor]);
 
   const upd = (p: Partial<PricingConfigShape>) => setCfg((prev) => ({ ...prev, ...p }));
-  const clientStr = cfg.amount ?? cfg.unitRate ?? cfg.percentage ?? "";
-  const preview   = calcMarginPreview(clientStr, vendorRate);
 
-  const canNext = step === 0 ? !!serviceId : step === 1 ? !!model : true;
+  const parseAmount = (value?: string | null): number | null => {
+    if (!value || value.toString().trim() === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const isNonNegative = (value?: string | null) => {
+    const num = parseAmount(value);
+    return num !== null && num >= 0;
+  };
+
+  const getClientAmount = (): number | null => {
+    if (["FIXED_MONTHLY", "RETAINER", "FIXED_ONE_TIME"].includes(model)) {
+      return parseAmount(cfg.amount);
+    }
+    if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
+      return parseAmount(cfg.percentage);
+    }
+    if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
+      return parseAmount(cfg.unitRate);
+    }
+    if (model === "PER_CPT_CODE") {
+      return (cfg.cptCodes ?? []).reduce((sum, row) => {
+        const amount = parseAmount(row.rate);
+        return sum + (amount ?? 0);
+      }, 0);
+    }
+    if (model === "HYBRID") {
+      return (cfg.components ?? []).reduce((sum, comp) => {
+        const amount = parseAmount(comp.value);
+        return sum + (amount ?? 0);
+      }, 0);
+    }
+    return parseAmount(cfg.amount);
+  };
+
+  const validateRates = () => {
+    if (["FIXED_MONTHLY", "RETAINER", "FIXED_ONE_TIME"].includes(model)) {
+      if (!isNonNegative(cfg.amount)) {
+        return { valid: false, message: "Amount is required and must be 0 or greater." };
+      }
+    }
+
+    if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
+      if (!isNonNegative(cfg.percentage)) {
+        return { valid: false, message: "Percentage is required and must be 0 or greater." };
+      }
+    }
+
+    if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
+      if (!isNonNegative(cfg.unitRate)) {
+        return { valid: false, message: "Rate per unit is required and must be 0 or greater." };
+      }
+    }
+
+    if (model === "PER_CPT_CODE") {
+      const codes = cfg.cptCodes ?? [];
+      if (codes.length === 0) {
+        return { valid: false, message: "At least one CPT code is required." };
+      }
+      const invalidRow = codes.find((row) => !row.code?.trim() || !isNonNegative(row.rate));
+      if (invalidRow) {
+        return { valid: false, message: "Each CPT entry must include a code and a non-negative rate." };
+      }
+    }
+
+    if (model === "HYBRID") {
+      const comps = cfg.components ?? [];
+      if (comps.length === 0) {
+        return { valid: false, message: "At least one hybrid component is required." };
+      }
+      const invalidComponent = comps.find((comp) => comp.value?.toString().trim() === "" || !isNonNegative(comp.value));
+      if (invalidComponent) {
+        return { valid: false, message: "Each hybrid component must have a non-negative value." };
+      }
+    }
+
+    const clientAmount = getClientAmount();
+    const vendorAmount = parseAmount(vendorRate);
+    if (clientAmount !== null && vendorAmount !== null && clientAmount === vendorAmount) {
+      return { valid: false, message: "Client and vendor amounts cannot be exactly equal. 0% margin is not allowed when both rates are entered." };
+    }
+
+    return { valid: true };
+  };
+
+  const validateVendor = () => {
+    if (!hasVendor) return { valid: true };
+    if (!vendorId) {
+      return { valid: false, message: "Vendor is required when a subcontractor is selected." };
+    }
+    if (!isNonNegative(vendorRate)) {
+      return { valid: false, message: "Vendor rate is required and must be 0 or greater." };
+    }
+    return { valid: true };
+  };
+
+  const validateAll = () => {
+    if (!serviceId) return { valid: false, message: "Service selection is required." };
+    if (!model) return { valid: false, message: "Pricing model is required." };
+    const ratesResult = validateRates();
+    if (!ratesResult.valid) return ratesResult;
+    const vendorResult = validateVendor();
+    if (!vendorResult.valid) return vendorResult;
+    return { valid: true };
+  };
+
+  const clientAmount = getClientAmount();
+  const preview = calcMarginPreview(String(clientAmount ?? ""), vendorRate);
+
+  const canNext =
+    step === 0 ? !!serviceId
+    : step === 1 ? !!model
+    : step === 2 ? validateRates().valid
+    : step === 3 ? validateVendor().valid
+    : true;
+
+  const handleNext = () => {
+    setStepError(null);
+    if (step === 2) {
+      const result = validateRates();
+      if (!result.valid) { setStepError(result.message ?? "Please fix the rate inputs before continuing."); return; }
+    }
+    if (step === 3) {
+      const result = validateVendor();
+      if (!result.valid) { setStepError(result.message ?? "Please fix the vendor inputs before continuing."); return; }
+    }
+    setStep((current) => current + 1);
+  };
 
   async function submit() {
+    const validation = validateAll();
+    if (!validation.valid) {
+      setStepError(validation.message ?? "Please fix the form before saving.");
+      return;
+    }
     if (!agreementId || !agreementVersionId || !serviceId || !model) {
-      toast.error("Agreement, version, service and model are required"); return;
+      toast.error("Agreement, version, service and model are required");
+      return;
+    }
+
+    // Check for overlapping ACTIVE pricing terms for the same agreement/service/vendor/model
+    try {
+      const existing = await getPricingTerms({ agreementId, agreementVersionId, serviceId });
+      const startA = cfg.effectiveStartDate ? new Date(cfg.effectiveStartDate) : null;
+      const endA = cfg.effectiveEndDate ? new Date(cfg.effectiveEndDate) : null;
+      const conflicts = (existing.terms || []).filter((t) => {
+        if (!t.isActive) return false;
+        if (t.pricingModel !== model) return false;
+        const tVendor = t.vendorId ?? null;
+        const vId = hasVendor && vendorId ? vendorId : null;
+        if ((tVendor ?? null) !== (vId ?? null)) return false;
+        // date overlap logic: open ranges count as overlap
+        const s = t.effectiveDate ? new Date(t.effectiveDate) : null;
+        const e = t.endDate ? new Date(t.endDate) : null;
+        const overlap = (aStart: Date | null, aEnd: Date | null, bStart: Date | null, bEnd: Date | null) => {
+          if (!aStart && !aEnd) return true;
+          if (!bStart && !bEnd) return true;
+          const as = aStart ? aStart.getTime() : -Infinity;
+          const ae = aEnd ? aEnd.getTime() : Infinity;
+          const bs = bStart ? bStart.getTime() : -Infinity;
+          const be = bEnd ? bEnd.getTime() : Infinity;
+          return !(ae < bs || be < as);
+        };
+        return overlap(startA, endA, s, e);
+      });
+      if (conflicts.length > 0) {
+        setStepError("An active pricing term with overlapping effective dates already exists for this Agreement+Service+Vendor+Model. Adjust dates or supersede the existing term.");
+        return;
+      }
+    } catch (err) {
+      // non-fatal — allow submit but warn in console
+      console.warn("Warning: unable to validate overlapping terms", err);
     }
     setSaving(true);
     try {
@@ -102,6 +277,11 @@ export default function AddPricingTermWizard({
 
         {/* Body */}
         <div className="flex-1 overflow-auto px-6 py-5 space-y-4 text-[13px]">
+          {stepError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {stepError}
+            </div>
+          ) : null}
 
           {/* Step 0 — Service */}
           {step === 0 && (
@@ -301,7 +481,7 @@ export default function AddPricingTermWizard({
             {step === 0 ? "Cancel" : "← Back"}
           </button>
           {step < STEPS.length-1 ? (
-            <button type="button" onClick={() => canNext && setStep(step+1)} disabled={!canNext}
+            <button type="button" onClick={handleNext} disabled={!canNext}
               className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-5 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-40">
               Next <ChevronRight className="h-3.5 w-3.5" />
             </button>

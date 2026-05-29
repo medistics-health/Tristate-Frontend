@@ -236,6 +236,19 @@ const sidebarSections: SidebarSection[] = [
   // },
 ];
 
+const sortedSidebarSections = sidebarSections.map((section) => ({
+  ...section,
+  items: [...section.items].sort((a, b) => a.label.localeCompare(b.label)),
+  menus: section.menus
+    ? [...section.menus]
+        .map((menu) => ({
+          ...menu,
+          items: [...(menu.items ?? [])].sort((a, b) => a.label.localeCompare(b.label)),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    : undefined,
+}));
+
 function SidebarIcon({ children }: { children: ReactNode }) {
   return (
     <span className="flex h-4 w-4 items-center justify-center text-slate-500">
@@ -401,7 +414,7 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
       </div>*/}
 
       <div className="mt-1 flex-1 overflow-y-auto px-3 pb-5">
-        {sidebarSections.map((section, sectionIndex) => (
+        {sortedSidebarSections.map((section, sectionIndex) => (
           <div
             key={`${section.label ?? "section"}-${sectionIndex}`}
             className="mt-2"

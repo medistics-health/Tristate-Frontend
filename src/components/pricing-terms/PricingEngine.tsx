@@ -17,6 +17,7 @@ import { getAllPractices } from "../../services/operations/practices";
 import { getAllServices } from "../../services/operations/services";
 import { getAllVendorsApi } from "../../services/operations/vendors";
 import type { Practice } from "../practices/types";
+import type { Service } from "../services/types";
 import {
   PRICING_MODEL_OPTIONS,
   calcMarginPreview,
@@ -129,7 +130,7 @@ function SkeletonTableRows() {
 
 export default function PricingEnginePage() {
   const [practices, setPractices] = useState<Practice[]>([]);
-  const [services, setServices] = useState<{ id: string; name: string }[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [vendors, setVendors] = useState<{ id: string; name: string }[]>([]);
   const [agreements, setAgreements] = useState<{ id: string; label: string }[]>([]);
   const [versions, setVersions] = useState<AgreementVersion[]>([]);
@@ -153,6 +154,8 @@ export default function PricingEnginePage() {
       .then(([p, s, v]) => { setPractices(p); setServices(s); setVendors(v); })
       .catch(console.error);
   }, []);
+
+  const activeServices = services.filter((svc) => svc.isActive);
 
   // Load agreements when practice changes
   useEffect(() => {
@@ -402,9 +405,10 @@ export default function PricingEnginePage() {
         <AddPricingTermWizard
           agreementId={selectedAgreementId}
           agreementVersionId={selectedVersionId}
-          services={services}
+          services={activeServices}
           vendors={vendors}
           editingTerm={editingTerm}
+          defaultSignerEmail={practices.find((p) => p.id === selectedPracticeId)?.persons?.find(Boolean)?.email ?? null}
           onClose={() => { setShowWizard(false); setEditingTerm(null); }}
           onSaved={async () => {
             setShowWizard(false);
