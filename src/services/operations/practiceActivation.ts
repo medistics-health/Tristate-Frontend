@@ -60,12 +60,21 @@ export async function activatePracticeWithAgreementEmail(
   const { agreement, eligiblePerson } =
     await validatePracticeActivation(practiceId);
   const docusealIds = getAgreementDocusealId(agreement);
+  const fieldValuesByTemplateId = (agreement.docusealSubmissions || []).reduce<
+    Record<string, Record<string, string>>
+  >((acc, submission) => {
+    if (submission.templateId) {
+      acc[String(submission.templateId)] = submission.fieldValues || {};
+    }
+    return acc;
+  }, {});
 
   if (docusealIds?.length) {
     await createDocusealSubmissionApi({
       agreementId: agreement.id,
       personId: eligiblePerson.id,
       templateId: docusealIds,
+      fieldValuesByTemplateId,
     });
   }
 

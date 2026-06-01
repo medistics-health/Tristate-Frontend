@@ -110,6 +110,7 @@ export type DocusealSubmission = {
   slug?: string | null;
   submitterUuid?: string | null;
   templateId: number;
+  fieldValues?: Record<string, string> | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -321,6 +322,7 @@ export type AgreementBody = {
     status: string;
     url?: string;
     templateId?: number;
+    fieldValues?: Record<string, string>;
   }>;
 };
 
@@ -467,7 +469,9 @@ export async function getDocusealFormBySlug(slug: string): Promise<any> {
 export async function createDocusealSubmissionApi(data: {
   agreementId: string;
   personId: string;
-  templateId: any[];
+  templateId: number | number[];
+  fieldValues?: Record<string, string>;
+  fieldValuesByTemplateId?: Record<string, Record<string, string>>;
 }): Promise<any> {
   try {
     const response = await apiConnector({

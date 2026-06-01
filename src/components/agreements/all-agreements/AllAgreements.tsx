@@ -22,7 +22,13 @@ import {
   Settings,
   Search,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../../layout/AppLayout";
 import {
@@ -87,6 +93,52 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   "Exhibit P",
 ];
 
+type DocusealField = DocusealTemplate["fields"][number];
+
+function isEditableDocusealField(field: DocusealField) {
+  return field.type !== "signature";
+}
+
+function getDocusealFieldLabel(field: DocusealField, index: number) {
+  return field.name?.trim() || `Field ${index + 1}`;
+}
+
+function getDocusealFieldInputType(field: DocusealField) {
+  switch (field.type) {
+    case "date":
+      return "date";
+    case "number":
+      return "number";
+    case "email":
+      return "email";
+    case "tel":
+      return "tel";
+    default:
+      return "text";
+  }
+}
+
+function isClientNameField(field: DocusealField) {
+  return /client\s*name/i.test(field.name || "");
+}
+
+function buildTemplateFieldValues(template?: DocusealTemplate) {
+  const values: Record<string, string> = {};
+  if (!template) return values;
+
+  for (const field of template.fields || []) {
+    if (!isEditableDocusealField(field)) continue;
+    values[field.uuid] =
+      typeof field.default_value === "string"
+        ? field.default_value
+        : field.default_value
+          ? String(field.default_value)
+          : "";
+  }
+
+  return values;
+}
+
 type AgreementFormState = {
   practiceId: string;
   dealId: string;
@@ -96,8 +148,8 @@ type AgreementFormState = {
   effectiveDate: string;
   renewalDate: string;
   terminationDate: string;
-  // docusealTemplates: string[];
-  docusealTemplates: any[];
+  docusealTemplates: string[];
+  docusealFieldValues: Record<string, Record<string, string>>;
 };
 
 const initialFormState: AgreementFormState = {
@@ -110,6 +162,7 @@ const initialFormState: AgreementFormState = {
   renewalDate: "",
   terminationDate: "",
   docusealTemplates: [],
+  docusealFieldValues: {},
 };
 
 function formatStatusLabel(status: string) {
@@ -139,6 +192,15 @@ function formatDateForInput(value?: string | null) {
 
 function buildFormState(agreement?: Agreement | null): AgreementFormState {
   if (!agreement) return initialFormState;
+  const docusealSubmissions = agreement.docusealSubmissions || [];
+  const docusealFieldValues = docusealSubmissions.reduce<
+    Record<string, Record<string, string>>
+  >((acc, submission) => {
+    const templateKey = String(submission.templateId);
+    acc[templateKey] = submission.fieldValues || {};
+    return acc;
+  }, {});
+
   return {
     practiceId: agreement.practiceId,
     dealId: agreement.dealId || "",
@@ -148,7 +210,11 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
     effectiveDate: formatDateForInput(agreement.effectiveDate),
     renewalDate: formatDateForInput(agreement.renewalDate),
     terminationDate: formatDateForInput(agreement.terminationDate),
-    docusealTemplates: agreement?.docusealSubmissions || [],
+    docusealTemplates: docusealSubmissions
+      .map((submission) => submission.templateId)
+      .filter((templateId): templateId is number => templateId !== null)
+      .map((templateId) => String(templateId)),
+    docusealFieldValues,
   };
 }
 
@@ -496,6 +562,85 @@ function AllAgreementsPage() {
     setCreateForm(initialFormState);
   }
 
+  function addTemplateToForm(
+    templateId: string,
+    setFormState: Dispatch<SetStateAction<AgreementFormState>>,
+  ) {
+    setFormState((prev) => {
+      const template = docusealTemplates.find((t) => String(t.id) === templateId);
+      return {
+        ...prev,
+        docusealTemplates: prev.docusealTemplates.includes(templateId)
+          ? prev.docusealTemplates
+          : [...prev.docusealTemplates, templateId],
+        docusealFieldValues: {
+          ...prev.docusealFieldValues,
+          [templateId]: {
+            ...(prev.docusealFieldValues[templateId] || {}),
+            ...buildTemplateFieldValues(template),
+          },
+        },
+      };
+    });
+  }
+
+  function removeTemplateFromForm(
+    templateId: string,
+    setFormState: Dispatch<SetStateAction<AgreementFormState>>,
+  ) {
+    setFormState((prev) => {
+      if (!prev.docusealTemplates.includes(templateId)) return prev;
+      const nextFieldValues = { ...prev.docusealFieldValues };
+      delete nextFieldValues[templateId];
+      return {
+        ...prev,
+        docusealTemplates: prev.docusealTemplates.filter(
+          (id: string) => id !== templateId,
+        ),
+        docusealFieldValues: nextFieldValues,
+      };
+    });
+  }
+
+  function updateTemplateFieldValue(
+    templateId: string,
+    fieldUuid: string,
+    value: string,
+    setFormState: Dispatch<SetStateAction<AgreementFormState>>,
+  ) {
+    setFormState((prev) => ({
+      ...prev,
+      docusealFieldValues: {
+        ...prev.docusealFieldValues,
+        [templateId]: {
+          ...(prev.docusealFieldValues[templateId] || {}),
+          [fieldUuid]: value,
+        },
+      },
+    }));
+  }
+
+  function validateTemplateFieldValues(form: AgreementFormState) {
+    for (const templateId of form.docusealTemplates) {
+      const template = docusealTemplates.find((t) => String(t.id) === templateId);
+      if (!template) continue;
+
+      for (const field of template.fields || []) {
+        if (!isEditableDocusealField(field) || !isClientNameField(field)) continue;
+        const value =
+          form.docusealFieldValues[templateId]?.[field.uuid]?.trim() || "";
+        if (!value) {
+          return {
+            templateName: template.name,
+            fieldName: getDocusealFieldLabel(field, 0),
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
   function buildPayload(form: AgreementFormState): AgreementBody {
     return {
       practiceId: form.practiceId,
@@ -524,6 +669,7 @@ function AllAgreementsPage() {
                 templateId: Number(id),
                 url: template?.documents?.[0]?.url || undefined,
                 slug: template?.slug,
+                fieldValues: form.docusealFieldValues[id] || undefined,
                 submitters: template?.submitters?.map((init: any) => ({
                   role: init.name,
                   uuid: init.uuid,
@@ -548,6 +694,16 @@ function AllAgreementsPage() {
     ) {
       toast.error("Renewal date must be greater than effective date");
       return;
+    }
+
+    if (createForm.docusealTemplates.length > 0) {
+      const missingField = validateTemplateFieldValues(createForm);
+      if (missingField) {
+        toast.error(
+          `${missingField.templateName}: ${missingField.fieldName} is required`,
+        );
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -680,12 +836,23 @@ function AllAgreementsPage() {
         ),
       )
       .map((t) => String(t.id));
-    setCreateForm((prev) => ({
-      ...prev,
-      docusealTemplates: [
-        ...new Set([...prev.docusealTemplates, ...autoSelectIds]),
-      ],
-    }));
+    if (autoSelectIds.length === 0) return;
+    setCreateForm((prev) => {
+      const nextIds = [...new Set([...prev.docusealTemplates, ...autoSelectIds])];
+      const nextFieldValues = { ...prev.docusealFieldValues };
+      for (const templateId of autoSelectIds) {
+        const template = templates.find((t) => String(t.id) === templateId);
+        nextFieldValues[templateId] = {
+          ...(prev.docusealFieldValues[templateId] || {}),
+          ...buildTemplateFieldValues(template),
+        };
+      }
+      return {
+        ...prev,
+        docusealTemplates: nextIds,
+        docusealFieldValues: nextFieldValues,
+      };
+    });
   }
 
   async function loadDocusealTemplates() {
@@ -928,21 +1095,51 @@ function AllAgreementsPage() {
                       Agreement Templates
                     </label>
 
-                    {editForm?.docusealTemplates?.length ? (
-                      editForm.docusealTemplates.map(
-                        (init: any, index: number) => (
-                          <a
-                            key={index}
-                            href={init.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1] hover:underline"
+                    {selectedAgreement?.docusealSubmissions?.length ? (
+                      selectedAgreement.docusealSubmissions.map((submission) => {
+                        const templateName =
+                          docusealTemplates.find(
+                            (template) =>
+                              template.id === submission.templateId,
+                          )?.name ||
+                          (submission.templateId
+                            ? `Template #${submission.templateId}`
+                            : "DocuSeal Template");
+                        const savedFieldCount = Object.keys(
+                          submission.fieldValues || {},
+                        ).length;
+
+                        return (
+                          <div
+                            key={`${submission.id}-${submission.templateId}`}
+                            className="mb-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
                           >
-                            Open Template
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        ),
-                      )
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="text-[13px] font-medium text-slate-700">
+                                  {templateName}
+                                </div>
+                                <div className="text-[11px] text-slate-400">
+                                  {savedFieldCount > 0
+                                    ? `${savedFieldCount} saved field value${savedFieldCount === 1 ? "" : "s"}`
+                                    : "No saved field values"}
+                                </div>
+                              </div>
+                              {submission.url ? (
+                                <a
+                                  href={submission.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1] hover:underline"
+                                >
+                                  Open Template
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })
                     ) : (
                       <span className="text-[13px] text-slate-400">
                         No template attached
@@ -1820,12 +2017,25 @@ function AllAgreementsPage() {
             </label>
             <select
               value={createForm.type}
-              onChange={(event) =>
+              onChange={(event) => {
+                const newType = event.target.value;
                 setCreateForm((prev) => ({
                   ...prev,
-                  type: event.target.value,
-                }))
-              }
+                  type: newType,
+                }));
+                if (newType === "MSA") {
+                  const autoSelectIds = docusealTemplates
+                    .filter((t) =>
+                      AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+                        t.name.toLowerCase().includes(name.toLowerCase()),
+                      ),
+                    )
+                    .map((t) => String(t.id));
+                  autoSelectIds.forEach((templateId) =>
+                    addTemplateToForm(templateId, setCreateForm),
+                  );
+                }
+              }}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
               required
             >
@@ -1954,26 +2164,21 @@ function AllAgreementsPage() {
                       )
                     : false;
                   return (
-                    <span
-                      key={templateId}
-                      className="inline-flex items-center gap-1 rounded-md bg-[#f0f2fe] px-2 py-1 text-[12px] text-[#4f63ea]"
-                    >
-                      {template?.name || templateId}
-                      {!isAutoInclude && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setCreateForm((prev) => ({
-                              ...prev,
-                              docusealTemplates: prev.docusealTemplates.filter(
-                                (id: string) => id !== templateId,
-                              ),
-                            }))
-                          }
-                          className="hover:text-red-500"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+                      <span
+                        key={templateId}
+                        className="inline-flex items-center gap-1 rounded-md bg-[#f0f2fe] px-2 py-1 text-[12px] text-[#4f63ea]"
+                      >
+                        {template?.name || templateId}
+                        {!isAutoInclude && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              removeTemplateFromForm(templateId, setCreateForm)
+                            }
+                            className="hover:text-red-500"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
                       )}
                     </span>
                   );
@@ -2037,13 +2242,7 @@ function AllAgreementsPage() {
                             type="button"
                             onClick={() => {
                               if (isDisabled) return;
-                              setCreateForm((prev) => ({
-                                ...prev,
-                                docusealTemplates: [
-                                  ...prev.docusealTemplates,
-                                  templateId,
-                                ],
-                              }));
+                              addTemplateToForm(templateId, setCreateForm);
                             }}
                             className={`w-full px-3 py-2 text-left text-[13px] hover:bg-[#faf9f7] ${
                               isDisabled
@@ -2071,6 +2270,107 @@ function AllAgreementsPage() {
                 </div>
               )}
             </div>
+
+            {createForm.docusealTemplates.length > 0 && (
+              <div className="mt-4 space-y-4 rounded-xl border border-dashed border-indigo-100 bg-indigo-50/30 p-4">
+                <div>
+                  <h3 className="text-[13px] font-semibold text-slate-700">
+                    Template Fields
+                  </h3>
+                  <p className="mt-1 text-[12px] text-slate-500">
+                    Complete the template inputs now so the agreement can be
+                    pre-populated before sending.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {createForm.docusealTemplates.map((templateId: string) => {
+                    const template = docusealTemplates.find(
+                      (t) => String(t.id) === templateId,
+                    );
+                    if (!template) return null;
+
+                    const editableFields = (template.fields || []).filter(
+                      isEditableDocusealField,
+                    );
+
+                    return (
+                      <div
+                        key={templateId}
+                        className="rounded-lg border border-indigo-100 bg-white p-3 shadow-sm"
+                      >
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[13px] font-medium text-slate-700">
+                              {template.name}
+                            </div>
+                            <div className="text-[11px] text-slate-400">
+                              {editableFields.length} fillable field
+                              {editableFields.length === 1 ? "" : "s"}
+                            </div>
+                          </div>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-500">
+                            DocuSeal
+                          </span>
+                        </div>
+
+                        {editableFields.length === 0 ? (
+                          <p className="rounded-md bg-slate-50 px-3 py-2 text-[12px] text-slate-500">
+                            This template has no editable fields.
+                          </p>
+                        ) : (
+                          <div className="grid gap-3 md:grid-cols-2">
+                            {editableFields.map((field, fieldIndex) => {
+                              const inputType = getDocusealFieldInputType(field);
+                              const value =
+                                createForm.docusealFieldValues[templateId]?.[
+                                  field.uuid
+                                ] || "";
+
+                              return (
+                                <label
+                                  key={field.uuid}
+                                  className={`block ${
+                                    editableFields.length % 2 === 1 &&
+                                    fieldIndex === editableFields.length - 1
+                                      ? "md:col-span-2"
+                                      : ""
+                                  }`}
+                                >
+                                  <span className="mb-1 block text-[12px] font-medium text-slate-700">
+                                    {getDocusealFieldLabel(field, fieldIndex)}
+                                    {isClientNameField(field) && (
+                                      <span className="ml-1 text-red-500">*</span>
+                                    )}
+                                  </span>
+                                  <input
+                                    type={inputType}
+                                    value={value}
+                                    onChange={(event) =>
+                                      updateTemplateFieldValue(
+                                        templateId,
+                                        field.uuid,
+                                        event.target.value,
+                                        setCreateForm,
+                                      )
+                                    }
+                                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                                    placeholder={`Enter ${getDocusealFieldLabel(
+                                      field,
+                                      fieldIndex,
+                                    )}`}
+                                  />
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">

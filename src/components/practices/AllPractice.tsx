@@ -49,7 +49,13 @@ import {
   type PracticeQueryParams,
 } from "../../services/operations/practices";
 import { getAllCompanies } from "../../services/operations/companies";
-import { getAgreementsByPractice } from "../../services/operations/agreements";
+import {
+  getAgreementsByPractice,
+  type Agreement,
+  createDocusealSubmissionApi,
+  sendAgreementEmail,
+  getAgreementDocusealId,
+} from "../../services/operations/agreements";
 import { activatePracticeWithAgreementEmail } from "../../services/operations/practiceActivation";
 import type { Company } from "../companies/types";
 import ConfirmModal from "../shared/ConfirmModal";
@@ -69,6 +75,19 @@ function getCellDisplayValue(value: PracticeCellValue): string {
   if (typeof value === "number") return value.toLocaleString();
   if (isUserValue(value)) return value.name;
   return String(value);
+}
+
+function buildFieldValuesByTemplateId(
+  agreement: Agreement,
+): Record<string, Record<string, string>> {
+  return (agreement.docusealSubmissions || []).reduce<
+    Record<string, Record<string, string>>
+  >((acc, submission) => {
+    if (submission.templateId) {
+      acc[String(submission.templateId)] = submission.fieldValues || {};
+    }
+    return acc;
+  }, {});
 }
 
 type TaxIdOption = {
@@ -700,7 +719,10 @@ export default function AllPracticePage() {
               await createDocusealSubmissionApi({
                 agreementId: agreement.id,
                 personId: person?.id ?? "",
-                templateId: String(docusealId),
+                templateId: docusealId,
+                fieldValuesByTemplateId: buildFieldValuesByTemplateId(
+                  agreement,
+                ),
               });
             }
             await sendAgreementEmail({
@@ -728,7 +750,10 @@ export default function AllPracticePage() {
               await createDocusealSubmissionApi({
                 agreementId: agreement.id,
                 personId: person?.id ?? "",
-                templateId: String(docusealId),
+                templateId: docusealId,
+                fieldValuesByTemplateId: buildFieldValuesByTemplateId(
+                  agreement,
+                ),
               });
             }
             await sendAgreementEmail({
