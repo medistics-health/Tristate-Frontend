@@ -58,6 +58,17 @@ export type AgreementOption = {
   practice?: { id: string; name: string };
 };
 
+export function getAgreementApprovalStatus(agreement: {
+  status: string;
+  docusealSubmissions?: Array<{ approval_status?: string | null }>;
+}) {
+  const submissionApprovalStatus = agreement.docusealSubmissions?.find(
+    (submission) => submission.approval_status,
+  )?.approval_status;
+
+  return submissionApprovalStatus || agreement.status;
+}
+
 function agreementToRow(agreement: Agreement): AgreementsRow {
   const submissions = agreement.docusealSubmissions || [];
   const completedSubmissions = submissions.filter(
@@ -75,7 +86,7 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
       id: agreement.id,
       name: `${agreement.practice?.name || "Practice"} - ${agreement.type}`,
       type: agreement.type,
-      status: agreement.status,
+      status: getAgreementApprovalStatus(agreement),
       practiceName: agreement.practice?.name || "",
       practiceId: agreement.practiceId || "",
       dealName: agreement.deal?.name || "",
@@ -105,6 +116,7 @@ export type DocusealSubmission = {
   personId?: string | null;
   externalId: number;
   status: string;
+  approval_status?: string | null;
   url?: string | null;
   embedUrl?: string | null;
   slug?: string | null;
@@ -313,6 +325,7 @@ export type AgreementBody = {
   dealId?: string | null;
   type: string;
   status: string;
+  approvalStatus: string;
   value?: number;
   effectiveDate?: string;
   renewalDate?: string;

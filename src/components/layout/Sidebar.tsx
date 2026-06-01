@@ -28,11 +28,13 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { hasAdminAccess, readStoredUser } from "../../utils/auth";
 
 type SidebarSectionItem = {
   label: string;
   to?: string;
   icon?: ReactNode;
+  adminOnly?: boolean;
 };
 
 type SidebarMenu = {
@@ -165,6 +167,11 @@ const sidebarSections: SidebarSection[] = [
         items: [
           { label: "All Agreements", to: "/agreements/all-agreements" },
           { label: "Agreement Pipeline", to: "/agreements/pipeline" },
+          {
+            label: "Pending Approval",
+            to: "/agreements/pending-approval",
+            adminOnly: true,
+          },
           { label: "Pending Signatures", to: "/agreements/pending-signatures" },
         ],
       },
@@ -347,6 +354,19 @@ function SidebarLeafItem({ item }: { item: SidebarSectionItem }) {
 function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
+
+  function canRenderItem(item: SidebarSectionItem) {
+    return !item.adminOnly || isAdmin;
+  }
+
+  function isItemActive(item: SidebarSectionItem) {
+    if (item.to) {
+      return item.to === location.pathname;
+    }
+
+    return item.label === activeSubItem;
+  }
 
   useEffect(() => {
     const nextOpenMenus = Object.fromEntries(
@@ -355,11 +375,7 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
         .map((menu) => [
           menu.label,
           menu.label === activeModule ||
-            menu.items?.some(
-              (item) =>
-                item.label === activeSubItem || item.to === location.pathname,
-            ) ||
-            false,
+            (menu.items || []).filter(canRenderItem).some(isItemActive),
         ]),
     );
 
@@ -413,20 +429,18 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
             ) : null}
 
             <div className="space-y-1">
-              {section.items.map((item) => (
+              {section.items.filter(canRenderItem).map((item) => (
                 <SidebarLeafItem key={item.label} item={item} />
               ))}
             </div>
 
             {section.menus?.map((menu) => {
+              const visibleItems = (menu.items || []).filter(canRenderItem);
+              if (visibleItems.length === 0) return null;
               const isOpen = openMenus[menu.label] ?? false;
               const isActiveMenu =
                 menu.label === activeModule ||
-                menu.items?.some(
-                  (item) =>
-                    item.label === activeSubItem ||
-                    item.to === location.pathname,
-                ) ||
+                visibleItems.some(isItemActive) ||
                 false;
 
               return (
@@ -483,10 +497,8 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
 
                   {isOpen ? (
                     <div className="pl-4 pr-2 pb-2">
-                      {menu.items?.map((item) => {
-                        const isActive =
-                          item.label === activeSubItem ||
-                          item.to === location.pathname;
+                      {visibleItems.map((item) => {
+                        const isActive = isItemActive(item);
 
                         // Selection of icon based on label
                         let CustomIcon = <SubmenuIcon />;

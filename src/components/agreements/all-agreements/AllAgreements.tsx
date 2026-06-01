@@ -341,6 +341,22 @@ function AllAgreementsPage() {
         },
       },
       {
+        id: "approvalStatus",
+        accessorFn: (row: AgreementRow) => row.values.approvalStatus,
+        header: () => "Approval Status",
+        cell: ({ row }: { row: { original: AgreementRow } }) => {
+          const status = String(row.original.values.approvalStatus || "-");
+          if (status === "-") return status;
+          return (
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[status]}`}
+            >
+              {formatStatusLabel(status)}
+            </span>
+          );
+        },
+      },
+      {
         id: "practiceName",
         accessorFn: (row: AgreementRow) => row.values.practiceName,
         header: () => "Practice",
