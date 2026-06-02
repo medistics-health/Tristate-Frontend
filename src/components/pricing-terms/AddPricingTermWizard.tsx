@@ -132,27 +132,34 @@ export default function AddPricingTermWizard({
   const editingConfig = editingTerm?.pricingConfig as PricingConfigShape | undefined;
   const [step, setStep]           = useState(0);
   const [serviceId, setSvc]       = useState(editingTerm?.serviceId ?? "");
-  const [model, setModel]         = useState<PricingModel>(editingTerm?.pricingModel ?? "FIXED_MONTHLY");
-  const [cfg, setCfg]             = useState<PricingConfigShape>(
+  const [model, setModelState]         = useState<PricingModel>(editingTerm?.pricingModel ?? "FIXED_MONTHLY");
+  const [cfg, setCfg]                   = useState<PricingConfigShape>(
     editingTerm ? (editingTerm.pricingConfig as PricingConfigShape) : emptyConfig()
   );
-  const [hasVendor, setHasVendor] = useState(!!editingTerm?.vendorId);
-  const [vendorId, setVId]        = useState(editingTerm?.vendorId ?? "");
-  const [vendorCfg, setVendorCfg] = useState<VendorPricingShape>(
+  const [hasVendor, setHasVendor]       = useState(!!editingTerm?.vendorId);
+  const [vendorId, setVId]              = useState(editingTerm?.vendorId ?? "");
+  const [vendorCfg, setVendorCfg]       = useState<VendorPricingShape>(
     buildMirroredVendorPricing(
       editingTerm?.pricingModel ?? "FIXED_MONTHLY",
       editingConfig ?? emptyConfig(),
       editingConfig?.vendorPricing,
     ),
   );
-  const [approvalNotes, setNotes] = useState("");
-  const [signerEmail, setEmail]   = useState(
+  const [approvalNotes, setApprovalNotes] = useState("");
+  const [signerEmail, setEmail]         = useState(
     editingConfig?.signerEmails?.join(", ")
       ?? editingTerm?.externalReference
       ?? (defaultSignerEmail ?? ""),
   );
-  const [saving, setSaving]       = useState(false);
-  const [stepError, setStepError] = useState<string | null>(null);
+  const [saving, setSaving]             = useState(false);
+  const [stepError, setStepError]       = useState<string | null>(null);
+
+  const setModel = (nextModel: PricingModel) => {
+    setModelState(nextModel);
+    setCfg(emptyConfig());
+    setApprovalNotes("");
+    setVendorCfg(buildMirroredVendorPricing(nextModel, emptyConfig(), null));
+  };
 
   useEffect(() => {
     if (!hasVendor) {
@@ -325,7 +332,8 @@ export default function AddPricingTermWizard({
   };
 
   const canNext =
-    !saving;
+    !saving &&
+    !(step === 5 && preview.requiresApproval && approvalNotes.trim() === "");
 
   const handleNext = () => {
     setStepError(null);
@@ -345,6 +353,10 @@ export default function AddPricingTermWizard({
       const result = validateVendor();
       if (!result.valid) { setStepError(result.message ?? "Please fix the vendor inputs before continuing."); return; }
     }
+    if (step === 5 && preview.requiresApproval && approvalNotes.trim() === "") {
+      setStepError("Approval Notes / Justification are required before continuing.");
+      return;
+    }
     if (step === 5 || step === 6) {
       const result = validateSignerEmails();
       if (!result.valid) { setStepError(result.message ?? "Please fix the signer emails before continuing."); return; }
@@ -360,6 +372,11 @@ export default function AddPricingTermWizard({
     }
     if (!agreementId || !agreementVersionId || !serviceId || !model) {
       toast.error("Agreement, version, service and model are required");
+      return;
+    }
+
+    if (preview.requiresApproval && approvalNotes.trim() === "") {
+      setStepError("Approval Notes / Justification are required when approval is triggered.");
       return;
     }
 
@@ -753,7 +770,7 @@ export default function AddPricingTermWizard({
                   </div>
                   <div>
                     <label className="mb-1 block font-medium text-slate-700">Approval Notes / Justification</label>
-                    <textarea rows={4} value={approvalNotes} onChange={(e) => setNotes(e.target.value)}
+                    <textarea rows={4} value={approvalNotes} onChange={(e) => setApprovalNotes(e.target.value)}
                       placeholder="Describe the business justification for this margin exception…"
                       className="app-control w-full rounded-md px-3 py-2 text-[13px] resize-none" />
                   </div>
