@@ -48,6 +48,17 @@ function practiceToRow(practice: Practice): PracticeRow {
   };
 }
 
+function normalizePractice(practice: any): Practice {
+  const normalizedPersons = Array.isArray(practice?.persons)
+    ? practice.persons.map((entry: any) => entry?.person ?? entry).filter(Boolean)
+    : [];
+
+  return {
+    ...practice,
+    persons: normalizedPersons,
+  } as Practice;
+}
+
 const fields = [
   { id: "name", label: "Name", type: "text" as const, visible: true },
   { id: "npi", label: "NPI", type: "text" as const, visible: true },
@@ -103,12 +114,13 @@ export async function getPracticesView(params?: PracticeQueryParams): Promise<Pr
       practices: Practice[];
       pagination: { totalRecords: number; totalPages: number; currentPage: number; limit: number };
     };
+    const normalizedPractices = practices.map(normalizePractice);
     return {
       viewId: "practice-view-001",
       title: "All Practices",
       totalCount: pagination.totalRecords,
       fields,
-      rows: practices.map(practiceToRow),
+      rows: normalizedPractices.map(practiceToRow),
       pagination: {
         page: pagination.currentPage,
         limit: pagination.limit,
@@ -129,7 +141,7 @@ export async function getAllPractices(): Promise<Practice[]> {
       credentials: true,
     });
     const { practices } = response.data as { practices: Practice[] };
-    return practices;
+    return practices.map(normalizePractice);
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch practices."));
   }
@@ -142,7 +154,7 @@ export async function getPractice(id: string): Promise<Practice> {
       url: GET(id),
       credentials: true,
     });
-    return (response.data as { practice: Practice }).practice;
+    return normalizePractice((response.data as { practice: Practice }).practice);
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch practice."));
   }

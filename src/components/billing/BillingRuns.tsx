@@ -139,6 +139,18 @@ function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
 
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString();
+}
+
+function formatDateRange(start?: string | null, end?: string | null) {
+  if (!start && !end) return "-";
+  return `${formatDate(start)} - ${formatDate(end)}`;
+}
+
 function mapSnapshotsForApi(rows: SnapshotFormRow[]): BillingSnapshotInput[] {
   return rows
     .filter((row) => row.metricKey.trim() || row.metricValue.trim())
@@ -706,6 +718,23 @@ function BillingRunsPage() {
                               <span className="font-medium text-slate-700 truncate">
                                 {item.vendor?.name || "—"}
                               </span>
+                            </div>
+                            <div className="mt-1 text-[11px] text-slate-400">
+                              Agreement dates{" "}
+                              {formatDateRange(
+                                item.agreementServiceTerm?.agreementVersion?.effectiveDate ??
+                                  item.agreementServiceTerm?.agreement?.effectiveDate,
+                                item.agreementServiceTerm?.agreementVersion?.endDate ??
+                                  item.agreementServiceTerm?.agreement?.terminationDate ??
+                                  item.agreementServiceTerm?.agreement?.renewalDate,
+                              )}
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-slate-400">
+                              Service term dates{" "}
+                              {formatDateRange(
+                                item.agreementServiceTerm?.effectiveDate,
+                                item.agreementServiceTerm?.endDate,
+                              )}
                             </div>
                           </div>
 

@@ -16,9 +16,10 @@ import {
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import { getAllUsers, updateUserApi, createUserApi, deleteUserApi, getSystemSettingsApi, updateSystemSettingsApi } from "../../services/operations/users";
-import { getQuickBooksStatus, disconnectQuickBooks, connectQuickBooks } from "../../services/operations/quickbooks";
+import { disconnectQuickBooks, connectQuickBooks } from "../../services/operations/quickbooks";
 import { getAllCompanies, type Company } from "../../services/operations/companies";
 import { getMercuryAccounts } from "../../services/operations/mercury";
+import QuickBooksIntegrations from "../integrations/QuickBooksIntegrations";
 
 export default function SettingsPage() {
   const location = useLocation();
@@ -47,9 +48,7 @@ export default function SettingsPage() {
   });
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
 
-  // Integration Status state
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [integrationStatuses, setIntegrationStatuses] = useState<Record<string, { isConnected: boolean; realmId?: string }>>({});
+  // Mercury Status state
   const [isMercuryConnected, setIsMercuryConnected] = useState<boolean | null>(null);
   const [mercuryEnv, setMercuryEnv] = useState("production");
 
@@ -70,7 +69,6 @@ export default function SettingsPage() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data === 'qb-connected') {
         toast.success("QuickBooks connected successfully!");
-        loadIntegrationStatus();
       }
     };
 
@@ -80,67 +78,19 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (activeTab === "integrations") {
-      loadIntegrationStatus();
+      loadMercuryStatus();
     }
   }, [activeTab]);
 
-  async function loadIntegrationStatus() {
+  async function loadMercuryStatus() {
     try {
-      const comps = await getAllCompanies();
-      setCompanies(comps);
-
-      const statusMap: Record<string, { isConnected: boolean; realmId?: string }> = {};
-
-      // Load statuses for all companies in parallel
-      await Promise.all(comps.map(async (company) => {
-        try {
-          const data = await getQuickBooksStatus(company.id);
-          statusMap[company.id] = {
-            isConnected: !!data.isConnected,
-            realmId: data.realmId
-          };
-        } catch (err) {
-          statusMap[company.id] = { isConnected: false };
-        }
-      }));
-
-      setIntegrationStatuses(statusMap);
-
-      // Load Mercury Status
-      try {
-        const mercuryData = await getMercuryAccounts();
-        setIsMercuryConnected(!!mercuryData.configured);
-        if (mercuryData.environment) {
-          setMercuryEnv(mercuryData.environment);
-        }
-      } catch (err) {
-        setIsMercuryConnected(false);
+      const mercuryData = await getMercuryAccounts();
+      setIsMercuryConnected(!!mercuryData.configured);
+      if (mercuryData.environment) {
+        setMercuryEnv(mercuryData.environment);
       }
-    } catch (e) {
-      console.error("Failed to load integration status", e);
-    }
-  }
-
-  async function handleConnectQB(companyId: string) {
-    try {
-      const { authUrl } = await connectQuickBooks(companyId);
-      const width = 600, height = 700;
-      const left = window.screenX + (window.innerWidth - width) / 2;
-      const top = window.screenY + (window.innerHeight - height) / 2;
-      window.open(authUrl, 'qb-auth', `width=${width},height=${height},left=${left},top=${top}`);
-    } catch (e) {
-      toast.error("Failed to initiate QuickBooks connection");
-    }
-  }
-
-  async function handleDisconnectQB(companyId: string) {
-    if (!window.confirm("Are you sure you want to disconnect this company from QuickBooks?")) return;
-    try {
-      await disconnectQuickBooks(companyId);
-      toast.success("QuickBooks disconnected");
-      loadIntegrationStatus();
-    } catch (e) {
-      toast.error("Failed to disconnect QuickBooks");
+    } catch (err) {
+      console.error("Failed to load mercury status", err);
     }
   }
 
@@ -332,97 +282,7 @@ export default function SettingsPage() {
 
           {activeTab === "integrations" && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {/* QuickBooks Integration Card */}
-              <div className="overflow-hidden rounded-2xl border border-[#ece8e1] bg-white shadow-sm transition-all hover:shadow-md">
-                <div className="border-b border-[#f1efeb] bg-[#fbfaf8] p-5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-5">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-sm border border-[#ece8e1]">
-                        <img src="https://quickbooks.intuit.com/cas/dam/IMAGE/A8u8GvpJS/apple-touch-icon-152x152.png" className="h-10 w-10" alt="QB" />
-                      </div>
-                      <div>
-                        <h3 className="text-[15px] font-bold text-slate-800">QuickBooks Online</h3>
-                        <p className="text-xs text-slate-500">Manage automated accounting sync for all your practices.</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-xs font-bold text-blue-600 border border-blue-100">
-                      Multi-Company Active
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-0">
-                  <div className="max-h-[500px] overflow-y-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="sticky top-0 bg-white border-b border-[#ece8e1] z-10">
-                        <tr>
-                          <th className="px-5 py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Practice / Company</th>
-                          <th className="px-5 py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Sync Status</th>
-                          <th className="px-5 py-3 text-right font-bold text-slate-400 uppercase tracking-widest text-[10px]">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#f1efeb]">
-                        {companies.map((company) => {
-                          const isConnected = integrationStatuses[company.id]?.isConnected;
-                          const realmId = integrationStatuses[company.id]?.realmId;
-
-                          return (
-                            <tr key={company.id} className="hover:bg-slate-50/50 transition-colors group">
-                              <td className="px-5 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs">
-                                    {company.name?.[0] || 'C'}
-                                  </div>
-                                  <span className="font-bold text-slate-700 text-[13px]">{company.name}</span>
-                                </div>
-                              </td>
-                              <td className="px-5 py-4">
-                                {isConnected ? (
-                                  <div className="flex flex-col gap-0.5">
-                                    <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs">
-                                      <CheckCircle2 className="h-3.5 w-3.5" /> Connected
-                                    </div>
-                                    <div className="text-[10px] text-slate-400 font-medium">Realm ID: {realmId}</div>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-1.5 text-slate-400 font-bold text-xs">
-                                    <div className="h-1.5 w-1.5 rounded-full bg-slate-300" /> Disconnected
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-5 py-4 text-right">
-                                {isConnected ? (
-                                  <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all">
-                                    <button
-                                      onClick={() => handleConnectQB(company.id)}
-                                      className="text-xs font-bold text-[#4f63ea] hover:text-[#3d4ed1]"
-                                    >
-                                      Re-connect
-                                    </button>
-                                    <button
-                                      onClick={() => handleDisconnectQB(company.id)}
-                                      className="text-xs font-bold text-rose-500 hover:text-rose-600"
-                                    >
-                                      Disconnect
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => handleConnectQB(company.id)}
-                                    className="rounded-xl bg-emerald-600 px-4 py-2 text-[11px] font-bold text-white hover:bg-emerald-700 transition-all shadow-sm"
-                                  >
-                                    Connect
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
+              <QuickBooksIntegrations />
 
               {/* Stripe Card */}
               <div className="flex items-center justify-between rounded-2xl border border-[#ece8e1] bg-white p-5 shadow-sm transition-all hover:shadow-md">

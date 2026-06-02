@@ -8,13 +8,15 @@ import Select from "../shared/Select";
 const HYBRID_TYPES = ["% Collections","Monthly Minimum","Per Encounter","Fixed Monthly","Per Patient"];
 
 // Field component defined at MODULE level — avoids focus loss on state update
-type FProps = { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string };
+type FProps = { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; };
 export function Field({ label, value, onChange, type = "text", placeholder = "" }: FProps) {
   return (
     <div>
       <label className="mb-1 block text-[13px] font-medium text-slate-700">{label}</label>
       <input
         type={type}
+        min={type === "number" ? "0" : undefined}
+        step={type === "number" ? "any" : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
