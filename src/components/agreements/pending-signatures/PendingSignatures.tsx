@@ -314,15 +314,16 @@ function AgreementPendingSignaturesPage() {
     setIsSubmittingForApproval(true);
     try {
       await updateAgreementApi(selectedRowId, {
-        docusealSubmissions: (selectedAgreement?.docusealSubmissions || []).map(
-          (submission) => ({
-            templateId: submission.templateId,
+        docusealSubmissions: [
+          {
+            id: selectedSubmission.id,
+            templateId: selectedSubmission.templateId,
             fieldValues:
-              editableFieldValues[submission.id] ||
-              submission.fieldValues ||
+              editableFieldValues[selectedSubmission.id] ||
+              selectedSubmission.fieldValues ||
               {},
-          }),
-        ),
+          },
+        ],
         submissionApprovalStatus: "PENDING_APPROVAL",
       });
 
@@ -401,6 +402,12 @@ function AgreementPendingSignaturesPage() {
       setIsDeleting(false);
     }
   }
+
+  const selectedSubmission = selectedAgreement?.docusealSubmissions?.find(
+    (submission) => submission.id === selectedSubmissionId,
+  );
+  const isSelectedSubmissionPendingApproval =
+    selectedSubmission?.submissionApprovalStatus === "PENDING_APPROVAL";
 
   return (
     <AppLayout
@@ -874,6 +881,7 @@ function AgreementPendingSignaturesPage() {
                     onClick={handleSubmitForApproval}
                     disabled={
                       isSubmittingForApproval ||
+                      isSelectedSubmissionPendingApproval ||
                       !selectedPersonId ||
                       !selectedSubmissionId ||
                       !templateFieldsDirty
@@ -883,7 +891,9 @@ function AgreementPendingSignaturesPage() {
                     <Save className="h-4 w-4" />
                     {isSubmittingForApproval
                       ? "Submitting..."
-                      : "Submit For Approval"}
+                      : isSelectedSubmissionPendingApproval
+                        ? "Awaiting Approval"
+                        : "Submit For Approval"}
                   </button>
                 </div>
               </div>

@@ -344,8 +344,9 @@ export type AgreementBody = {
   renewalDate?: string;
   terminationDate?: string;
   docusealSubmissions?: Array<{
-    externalId: number;
-    status: string;
+    id?: string;
+    externalId?: number;
+    status?: string;
     url?: string;
     templateId?: number;
     fieldValues?: Record<string, string>;

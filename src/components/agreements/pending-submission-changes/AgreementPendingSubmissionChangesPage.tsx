@@ -183,7 +183,9 @@ function AgreementPendingSubmissionChangesPage() {
   async function handleSaveAndResubmit() {
     if (!selectedAgreement) return;
 
-    const pendingSubmissions = (selectedAgreement.docusealSubmissions || []).filter(
+    const pendingSubmissions = (
+      selectedAgreement.docusealSubmissions || []
+    ).filter(
       (submission) =>
         submission.submissionApprovalStatus === "PENDING_APPROVAL" &&
         submission.personId &&
@@ -199,15 +201,12 @@ function AgreementPendingSubmissionChangesPage() {
       setIsResubmitting(true);
 
       await updateAgreementApi(selectedAgreement.id, {
-        docusealSubmissions: (selectedAgreement.docusealSubmissions || []).map(
-          (submission) => ({
-            templateId: submission.templateId,
-            fieldValues:
-              editableFieldValues[submission.id] ||
-              submission.fieldValues ||
-              {},
-          }),
-        ),
+        docusealSubmissions: pendingSubmissions.map((submission) => ({
+          id: submission.id,
+          templateId: submission.templateId,
+          fieldValues:
+            editableFieldValues[submission.id] || submission.fieldValues || {},
+        })),
       });
 
       await Promise.all(
@@ -257,7 +256,9 @@ function AgreementPendingSubmissionChangesPage() {
             </div>
             <button
               type="button"
-              onClick={() => loadPendingSubmissionChanges(selectedAgreement?.id)}
+              onClick={() =>
+                loadPendingSubmissionChanges(selectedAgreement?.id)
+              }
               className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -303,12 +304,16 @@ function AgreementPendingSubmissionChangesPage() {
                           </div>
                         </div>
                         <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                            submissionApprovalStatusStyles[submissionStatus] ||
-                            "bg-slate-100 text-slate-700"
-                          }`}
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium
+                            ${
+                              // submissionApprovalStatusStyles[submissionStatus] ||
+                              // "bg-slate-100 text-slate-700"
+                              "bg-indigo-100 text-indigo-700"
+                            }
+                            `}
                         >
-                          {formatStatusLabel(submissionStatus)}
+                          {/*{formatStatusLabel(submissionStatus)}*/}
+                          {agreement.status}
                         </span>
                       </div>
                     </button>
@@ -343,14 +348,16 @@ function AgreementPendingSubmissionChangesPage() {
                     </h3>
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                        submissionApprovalStatusStyles[
-                          getPendingSubmissionChangeStatus(selectedAgreement)
-                        ] || "bg-slate-100 text-slate-700"
+                        // submissionApprovalStatusStyles[
+                        //   getPendingSubmissionChangeStatus(selectedAgreement)
+                        // ] || "bg-slate-100 text-slate-700"
+                        "bg-indigo-100 text-indigo-700"
                       }`}
                     >
-                      {formatStatusLabel(
+                      {/*{formatStatusLabel(
                         getPendingSubmissionChangeStatus(selectedAgreement),
-                      )}
+                      )}*/}
+                      {selectedAgreement.status}
                     </span>
                   </div>
 
