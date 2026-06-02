@@ -1,25 +1,14 @@
 import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type SortingState,
-} from "@tanstack/react-table";
-import {
-  ChevronLeft,
-  Circle,
   Clock3,
-  LayoutList,
-  PenLine,
+  RefreshCw,
+  Mail,
   Save,
   Search,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../../layout/AppLayout";
-import { DetailCard } from "../../shared/tablePageUtils";
 import {
   deleteAgreementApi,
   getAgreement,
@@ -29,7 +18,6 @@ import {
   updateAgreementApi,
   type Agreement,
   type AgreementBody,
-  type AgreementsViewData,
   type DocusealTemplate,
 } from "../../../services/operations/agreements";
 
@@ -64,11 +52,6 @@ type AgreementFormState = {
   terminationDate: string;
 };
 
-type AgreementRow = {
-  id: string;
-  values: Record<string, string | number | null>;
-};
-
 const initialFormState: AgreementFormState = {
   type: "MSA",
   status: "PENDING_SIGNATURE",
@@ -80,6 +63,17 @@ const initialFormState: AgreementFormState = {
 
 function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
+}
+
+function normalizeDateInputValue(value?: string | null) {
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
 }
 
 function formatDateTime(value?: string | null) {
@@ -108,9 +102,22 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
   };
 }
 
+function buildEditableFieldValues(agreement?: Agreement | null) {
+  return (agreement?.docusealSubmissions || []).reduce<
+    Record<string, Record<string, string>>
+  >((acc, submission) => {
+    acc[submission.id] = Object.entries(submission.fieldValues || {}).reduce<
+      Record<string, string>
+    >((values, [key, value]) => {
+      values[key] = typeof value === "string" ? value : String(value ?? "");
+      return values;
+    }, {});
+    return acc;
+  }, {});
+}
+
 function AgreementPendingSignaturesPage() {
-  const [viewData, setViewData] = useState<AgreementsViewData | null>(null);
-  const [rows, setRows] = useState<AgreementRow[]>([]);
+  const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(
@@ -124,86 +131,25 @@ function AgreementPendingSignaturesPage() {
     totalPages: 0,
   });
   const [search, setSearch] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([]);
   const [editForm, setEditForm] =
     useState<AgreementFormState>(initialFormState);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingAgreement, setIsSavingAgreement] = useState(false);
+  const [isResendingDocument, setIsResendingDocument] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [templates, setTemplates] = useState<DocusealTemplate[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(
-    null,
-  );
-  const [templateFieldValues, setTemplateFieldValues] = useState<
-    Record<string, string>
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<
+    string | null
+  >(null);
+  const [editableFieldValues, setEditableFieldValues] = useState<
+    Record<string, Record<string, string>>
   >({});
   const [templateFieldsDirty, setTemplateFieldsDirty] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [isTemplatesLoading, setIsTemplatesLoading] = useState(false);
 
-  const columns = useMemo<ColumnDef<AgreementRow>[]>(
-    () => [
-      {
-        id: "name",
-        accessorFn: (row: AgreementRow) => row.values.name,
-        header: () => "Name",
-        cell: ({ row }: { row: { original: AgreementRow } }) =>
-          String(row.original.values.name || "-"),
-      },
-      {
-        id: "type",
-        accessorFn: (row: AgreementRow) => row.values.type,
-        header: () => "Type",
-        cell: ({ row }: { row: { original: AgreementRow } }) =>
-          String(row.original.values.type || "-"),
-      },
-      {
-        id: "practiceName",
-        accessorFn: (row: AgreementRow) => row.values.practiceName,
-        header: () => "Practice",
-        cell: ({ row }: { row: { original: AgreementRow } }) =>
-          String(row.original.values.practiceName || "-"),
-      },
-      {
-        id: "value",
-        accessorFn: (row: AgreementRow) => row.values.value,
-        header: () => "Value",
-        cell: ({ row }: { row: { original: AgreementRow } }) =>
-          String(row.original.values.value || "-"),
-      },
-      {
-        id: "status",
-        accessorFn: (row: AgreementRow) => row.values.status,
-        header: () => "Status",
-        cell: ({ row }: { row: { original: AgreementRow } }) => {
-          const status = String(row.original.values.status || "");
-          return (
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[status] || statusStyles.PENDING_SIGNATURE}`}
-            >
-              {formatStatusLabel(status)}
-            </span>
-          );
-        },
-      },
-      {
-        id: "creationDate",
-        accessorFn: (row: AgreementRow) => row.values.creationDate,
-        header: () => "Created",
-        cell: ({ row }: { row: { original: AgreementRow } }) =>
-          String(row.original.values.creationDate || "-"),
-      },
-    ],
-    [],
-  );
-
-  const table = useReactTable({
-    data: rows,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
+  function formatAgreementName(agreement: Agreement) {
+    return `${agreement.practice?.name || "Practice"} | ${agreement.type}`;
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -214,17 +160,18 @@ function AgreementPendingSignaturesPage() {
             page: pagination.page,
             limit: pagination.limit,
             // status: "PENDING_SIGNATURE",
-            status: "ACTIVE",
+            status: "SENT",
             search: search || undefined,
           });
-          setViewData(data);
-          setRows(data.rows);
+          const ids = data.rows.map((row) => row.id);
+          const response = await Promise.all(ids.map((id) => getAgreement(id)));
+          setAgreements(response);
           setPagination(data.pagination);
           setSelectedRowId((current) => {
-            if (current && data.rows.some((row) => row.id === current)) {
+            if (current && response.some((agreement) => agreement.id === current)) {
               return current;
             }
-            return data.rows[0]?.id || null;
+            return response[0]?.id || null;
           });
         } catch (error) {
           const message =
@@ -243,12 +190,14 @@ function AgreementPendingSignaturesPage() {
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [pagination.page, pagination.limit, search, sorting]);
+  }, [pagination.page, pagination.limit, search]);
 
   useEffect(() => {
     if (!selectedRowId) {
       setSelectedAgreement(null);
       setEditForm(initialFormState);
+      setSelectedSubmissionId(null);
+      setEditableFieldValues({});
       return;
     }
 
@@ -260,6 +209,18 @@ function AgreementPendingSignaturesPage() {
         const agreement = await getAgreement(agreementId);
         setSelectedAgreement(agreement);
         setEditForm(buildFormState(agreement));
+        setEditableFieldValues(buildEditableFieldValues(agreement));
+        setSelectedSubmissionId((current) => {
+          if (
+            current &&
+            agreement.docusealSubmissions?.some(
+              (submission) => submission.id === current,
+            )
+          ) {
+            return current;
+          }
+          return agreement.docusealSubmissions?.[0]?.id || null;
+        });
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to fetch agreement";
@@ -275,15 +236,15 @@ function AgreementPendingSignaturesPage() {
   useEffect(() => {
     if (!selectedAgreement) {
       setTemplates([]);
-      setSelectedTemplateId(null);
-      setTemplateFieldValues({});
+      setSelectedSubmissionId(null);
+      setEditableFieldValues({});
       setSelectedPersonId(null);
       return;
     }
 
-    const templateIds = (
-      selectedAgreement.docusealSubmissions || []
-    ).map((s) => s.templateId);
+    const templateIds = (selectedAgreement.docusealSubmissions || []).map(
+      (s) => s.templateId,
+    );
 
     const firstPersonId =
       selectedAgreement.docusealSubmissions?.find((s) => s.personId)
@@ -298,13 +259,8 @@ function AgreementPendingSignaturesPage() {
       try {
         const res = await getDocusealTemplates();
         const allTemplates = res.templates.data || [];
-        const matched = allTemplates.filter((t) =>
-          templateIds.includes(t.id),
-        );
+        const matched = allTemplates.filter((t) => templateIds.includes(t.id));
         setTemplates(matched);
-        if (matched.length > 0) {
-          setSelectedTemplateId(matched[0].id);
-        }
       } catch {
         // ignore template load errors
       } finally {
@@ -337,71 +293,124 @@ function AgreementPendingSignaturesPage() {
       page: pagination.page,
       limit: pagination.limit,
       // status: "PENDING_SIGNATURE",
-      status: "ACTIVE",
+      status: "SENT",
       search: search || undefined,
     });
-    setRows(data.rows);
-    setViewData(data);
     setPagination(data.pagination);
-    if (!data.rows.some((row) => row.id === selectedRowId)) {
-      setSelectedRowId(data.rows[0]?.id || null);
+    const ids = data.rows.map((row) => row.id);
+    const response = await Promise.all(ids.map((agreementId) => getAgreement(agreementId)));
+    setAgreements(response);
+    if (!response.some((agreement) => agreement.id === selectedRowId)) {
+      setSelectedRowId(response[0]?.id || null);
     }
   }
 
-  async function handleUpdateAgreement(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSaveAgreementDetails() {
     if (!selectedRowId) return;
 
-    setIsSaving(true);
+    setIsSavingAgreement(true);
     try {
-      await updateAgreementApi(selectedRowId, buildPayload(editForm));
+      const docusealSubmissions =
+        selectedAgreement?.docusealSubmissions?.map((submission) => ({
+          templateId: submission.templateId,
+          fieldValues:
+            editableFieldValues[submission.id] || submission.fieldValues || {},
+        })) || [];
 
-      if (templateFieldsDirty && selectedPersonId && selectedTemplateId) {
-        await resubmitDocusealSubmissionApi({
-          agreementId: selectedRowId,
-          personId: selectedPersonId,
-          templateId: selectedTemplateId,
-          fieldValues: templateFieldValues,
-        });
-      }
+      await updateAgreementApi(selectedRowId, {
+        ...buildPayload(editForm),
+        docusealSubmissions,
+      });
 
       await refreshPendingSignatures();
       const agreement = await getAgreement(selectedRowId);
       setSelectedAgreement(agreement);
       setEditForm(buildFormState(agreement));
       setTemplateFieldsDirty(false);
-      toast.success(
-        templateFieldsDirty
-          ? "Agreement updated and template fields resubmitted"
-          : "Agreement updated successfully",
-      );
+      toast.success("Agreement details saved");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to update agreement";
       toast.error(message);
     } finally {
-      setIsSaving(false);
+      setIsSavingAgreement(false);
     }
   }
 
-  function handleSelectTemplate(templateId: number) {
-    setSelectedTemplateId(templateId);
-    setTemplateFieldsDirty(false);
-    const template = templates.find((t) => t.id === templateId);
-    if (template) {
-      const initialValues: Record<string, string> = {};
-      for (const field of template.fields || []) {
-        initialValues[field.name] = field.default_value
-          ? String(field.default_value)
-          : "";
-      }
-      setTemplateFieldValues(initialValues);
+  async function handleResendUpdatedDocument() {
+    const selectedSubmission = selectedAgreement?.docusealSubmissions?.find(
+      (submission) => submission.id === selectedSubmissionId,
+    );
+
+    if (!selectedRowId || !selectedPersonId || !selectedSubmission) {
+      toast.error("Select a signer and template before resending");
+      return;
+    }
+
+    setIsResendingDocument(true);
+    try {
+      await resubmitDocusealSubmissionApi({
+        agreementId: selectedRowId,
+        personId: selectedPersonId,
+        templateId: selectedSubmission.templateId,
+        fieldValues:
+          editableFieldValues[selectedSubmission.id] ||
+          selectedSubmission.fieldValues ||
+          {},
+      });
+
+      await refreshPendingSignatures();
+      const agreement = await getAgreement(selectedRowId);
+      setSelectedAgreement(agreement);
+      setEditForm(buildFormState(agreement));
+      setTemplateFieldsDirty(false);
+      toast.success("Updated document resent to the client");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to resend document";
+      toast.error(message);
+    } finally {
+      setIsResendingDocument(false);
     }
   }
 
-  function handleFieldValueChange(fieldName: string, value: string) {
+  function getTemplateFieldLabel(templateId: number, fieldKey: string) {
+    const template = templates.find((item) => item.id === templateId);
+    const field = template?.fields?.find(
+      (item) => item.uuid === fieldKey || item.name === fieldKey,
+    );
+    return field?.name?.trim() || fieldKey;
+  }
+
+  function getTemplateFieldInputType(templateId: number, fieldKey: string) {
+    const template = templates.find((item) => item.id === templateId);
+    const field = template?.fields?.find(
+      (item) => item.uuid === fieldKey || item.name === fieldKey,
+    );
+    const fieldName = field?.name || fieldKey;
+    const fieldType = field?.type?.toLowerCase();
+
+    if (fieldType === "date" || /date/i.test(fieldName)) {
+      return "date";
+    }
+
+    return "text";
+  }
+
+  function handleFieldValueChange(
+    submissionId: string,
+    fieldName: string,
+    value: string,
+  ) {
     setTemplateFieldsDirty(true);
-    setTemplateFieldValues((prev) => ({ ...prev, [fieldName]: value }));
+    setSelectedSubmissionId(submissionId);
+    setEditableFieldValues((prev) => ({
+      ...prev,
+      [submissionId]: {
+        ...(prev[submissionId] || {}),
+        [fieldName]: value,
+      },
+    }));
   }
 
   async function handleDeleteAgreement() {
@@ -424,213 +433,191 @@ function AgreementPendingSignaturesPage() {
     }
   }
 
-  const selectedRow = rows.find((row) => row.id === selectedRowId) || null;
-
   return (
     <AppLayout
       title="Agreements"
       activeModule="Agreements"
       activeSubItem="Pending Signatures"
     >
-      <div className="flex h-full gap-2 font-app-sans">
-        <section className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e8e3db] bg-white">
-          <div className="border-b border-[#eeebe5] px-4 py-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-[15px] font-medium text-slate-700">
-                  <LayoutList className="h-4 w-4 text-slate-500" />
-                  <span>Pending Signatures</span>
-                  <span className="text-slate-400">
-                    . {viewData?.totalCount ?? rows.length}
-                  </span>
-                </div>
-                <p className="mt-1 text-[13px] text-slate-400">
-                  Agreements currently waiting for signature.
-                </p>
-              </div>
-
-              <label className="flex w-full items-center gap-2 rounded-xl border border-[#ece8e1] bg-[#fcfbf9] px-3 py-2 lg:max-w-[320px]">
-                <Search className="h-4 w-4 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(event) => {
-                    setPagination((prev) => ({ ...prev, page: 1 }));
-                    setSearch(event.target.value);
-                  }}
-                  placeholder="Search agreements"
-                  className="w-full bg-transparent text-[14px] text-slate-700 outline-none placeholder:text-slate-400"
-                />
-              </label>
+      <div className="grid h-full gap-3 lg:grid-cols-[500px_minmax(0,1fr)] font-app-sans">
+        <section className="overflow-hidden rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800">
+                Pending Signatures
+              </h2>
+              <p className="text-xs text-slate-500">
+                {agreements.length} waiting for client signature
+              </p>
             </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] px-4 py-3">
-                <p className="text-[12px] uppercase tracking-[0.14em] text-slate-400">
-                  Queue
-                </p>
-                <p className="mt-2 text-[22px] font-semibold text-slate-700">
-                  {viewData?.totalCount ?? rows.length}
-                </p>
-              </div>
-              <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] px-4 py-3">
-                <p className="text-[12px] uppercase tracking-[0.14em] text-slate-400">
-                  Visible Rows
-                </p>
-                <p className="mt-2 text-[22px] font-semibold text-slate-700">
-                  {rows.length}
-                </p>
-              </div>
-              <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] px-4 py-3">
-                <p className="text-[12px] uppercase tracking-[0.14em] text-slate-400">
-                  Status
-                </p>
-                <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-[13px] font-medium text-amber-700">
-                  <Clock3 className="h-3.5 w-3.5" />
-                  Pending Signature
-                </div>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                void refreshPendingSignatures();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="border-b border-[#f0ece6] px-4 py-3">
+            <label className="flex w-full items-center gap-2 rounded-xl border border-[#ece8e1] bg-[#fcfbf9] px-3 py-2">
+              <Search className="h-4 w-4 text-slate-400" />
+              <input
+                value={search}
+                onChange={(event) => {
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                  setSearch(event.target.value);
+                }}
+                placeholder="Search agreements"
+                className="w-full bg-transparent text-[14px] text-slate-700 outline-none placeholder:text-slate-400"
+              />
+            </label>
+          </div>
+
+          <div className="max-h-[calc(100vh-13rem)] overflow-auto p-3">
             {isLoading ? (
-              <div className="flex h-full items-center justify-center text-[14px] text-slate-400">
+              <div className="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-400">
                 Loading pending signatures...
               </div>
-            ) : table.getRowModel().rows.length === 0 ? (
-              <div className="flex h-full items-center justify-center px-6 text-center text-[14px] text-slate-400">
+            ) : agreements.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-400">
                 No pending signature agreements match the current search.
               </div>
             ) : (
-              <table className="min-w-full border-separate border-spacing-0 text-left">
-                <thead className="sticky top-0 z-10 bg-white text-[13px] font-medium text-slate-400">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header, index) => (
-                        <th
-                          key={header.id}
-                          className={`border-b border-[#eeebe5] px-4 py-3 ${
-                            index < headerGroup.headers.length - 1
-                              ? "border-r border-[#f2eee8]"
-                              : ""
+              <div className="space-y-2">
+                {agreements.map((agreement) => {
+                  const isActive = agreement.id === selectedRowId;
+                  const status = String(agreement.status || "");
+
+                  return (
+                    <button
+                      key={agreement.id}
+                      type="button"
+                      onClick={() => setSelectedRowId(agreement.id)}
+                      className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                        isActive
+                          ? "border-[#4f63ea] bg-[#f5f7ff]"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-800">
+                            {formatAgreementName(agreement)}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            Request ID: {agreement.id.slice(0, 8).toUpperCase()}
+                          </div>
+                        </div>
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            statusStyles[status] || "bg-slate-100 text-slate-700"
                           }`}
                         >
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-
-                <tbody className="text-[14px] text-slate-600">
-                  {table.getRowModel().rows.map((row) => {
-                    const isSelected = selectedRowId === row.original.id;
-
-                    return (
-                      <tr
-                        key={row.id}
-                        className={isSelected ? "bg-[#fcfbf9]" : "bg-white"}
-                      >
-                        {row.getVisibleCells().map((cell, index) => (
-                          <td
-                            key={cell.id}
-                            className={`border-b border-[#f4f1ec] px-4 py-3 ${
-                              index < row.getVisibleCells().length - 1
-                                ? "border-r border-[#f5f2ed]"
-                                : ""
-                            }`}
-                          >
-                            {cell.column.id === "name" ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setSelectedRowId(row.original.id)
-                                }
-                                className="hover:text-[#4f63ea]"
-                              >
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext(),
-                                )}
-                              </button>
-                            ) : (
-                              flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext(),
-                              )
-                            )}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          {formatStatusLabel(status)}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         </section>
 
-        <aside className="app-panel relative flex w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
-            <button
-              type="button"
-              onClick={() => setSelectedRowId(null)}
-              className="text-slate-400 hover:text-slate-600"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <Circle className="h-4 w-4 text-slate-300" />
-            <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
-              {selectedRow
-                ? String(selectedRow.values.name || "Agreement")
-                : "Agreement"}
-            </span>
+        <section className="overflow-hidden rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
+          <div className="border-b border-[#f0ece6] px-5 py-4">
+            <h2 className="text-sm font-semibold text-slate-800">
+              Signature Details
+            </h2>
           </div>
 
           {!selectedRowId ? (
-            <div className="flex flex-1 items-center justify-center px-6 text-center text-[13px] text-slate-400">
+            <div className="flex h-[calc(100%-61px)] items-center justify-center px-6 text-sm text-slate-400">
               Select an agreement to review the signature-ready details.
             </div>
           ) : isDetailLoading || !selectedAgreement ? (
-            <div className="flex flex-1 items-center justify-center text-[13px] text-slate-400">
+            <div className="flex h-[calc(100%-61px)] items-center justify-center text-sm text-slate-400">
               Loading agreement...
             </div>
           ) : (
-            <form
-              onSubmit={handleUpdateAgreement}
-              className="flex flex-1 flex-col overflow-hidden"
-            >
-              <div className="flex-1 overflow-auto p-4">
-                  {(() => {
-                    const psStatusStyles: Record<string, string> = {
-                      DRAFT: "bg-slate-100 text-slate-700",
-                      ACTIVE: "bg-green-100 text-green-700",
-                      PENDING_SIGNATURE: "bg-amber-100 text-amber-700",
-                      SIGNED: "bg-blue-100 text-blue-700",
-                      EXPIRED: "bg-red-100 text-red-700",
-                      ARCHIVED: "bg-zinc-100 text-zinc-600",
-                    };
-                    const agStatus = String(selectedRow?.values?.status || "");
-                    const agType = String(selectedRow?.values?.type || "");
-                    return (
-                      <DetailCard
-                        title={String(selectedRow?.values?.name || "Agreement")}
-                        badge={agStatus ? { label: agStatus, className: psStatusStyles[agStatus] || "bg-gray-100 text-gray-700" } : null}
-                        infoRows={[
-                          ...(agType ? [{ label: "Type", value: agType }] : []),
-                          ...(selectedRow?.values?.practiceName ? [{ label: "Practice", value: String(selectedRow.values.practiceName) }] : []),
-                          ...(selectedRow?.values?.value ? [{ label: "Value", value: String(selectedRow.values.value) }] : []),
-                        ]}
-                      />
-                    );
-                  })()}
+            <div className="flex h-[calc(100%-61px)] flex-col">
+              <div className="flex-1 overflow-auto px-5 py-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="text-lg font-semibold text-slate-800">
+                      {formatAgreementName(selectedAgreement)}
+                    </h3>
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                        statusStyles[selectedAgreement.status] ||
+                        "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {formatStatusLabel(selectedAgreement.status)}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+                      <Clock3 className="h-3 w-3" />
+                      Pending Signature
+                    </span>
+                  </div>
 
-                <div className="space-y-4">
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        Practice
+                      </div>
+                      <div className="mt-1 text-sm text-slate-700">
+                        {selectedAgreement.practice?.name || "-"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        Type
+                      </div>
+                      <div className="mt-1 text-sm text-slate-700">
+                        {selectedAgreement.type}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        Effective Date
+                      </div>
+                      <div className="mt-1 text-sm text-slate-700">
+                        {formatDateTime(selectedAgreement.effectiveDate)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        Renewal Date
+                      </div>
+                      <div className="mt-1 text-sm text-slate-700">
+                        {formatDateTime(selectedAgreement.renewalDate)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        Created
+                      </div>
+                      <div className="mt-1 text-sm text-slate-700">
+                        {formatDateTime(selectedAgreement.createdAt)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        Last Updated
+                      </div>
+                      <div className="mt-1 text-sm text-slate-700">
+                        {formatDateTime(selectedAgreement.updatedAt)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-4">
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
                       Type
@@ -746,14 +733,12 @@ function AgreementPendingSignaturesPage() {
                   </div>
                 </div>
 
-                {(isTemplatesLoading || templates.length > 0) && (
+                {(isTemplatesLoading ||
+                  selectedAgreement.docusealSubmissions?.length) && (
                   <div className="mt-6">
-                    <div className="mb-3 flex items-center gap-2">
-                      <PenLine className="h-3.5 w-3.5 text-slate-400" />
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                        Template Fields
-                      </span>
-                    </div>
+                    <h4 className="text-sm font-semibold text-slate-800">
+                      Template Inputs
+                    </h4>
 
                     {isTemplatesLoading ? (
                       <div className="flex items-center justify-center gap-2 rounded-lg border border-[#f0ece6] bg-[#faf9f7] py-8 text-[12px] text-slate-400">
@@ -781,84 +766,127 @@ function AgreementPendingSignaturesPage() {
                       </div>
                     ) : (
                       <>
-                        <div className="mb-3 flex flex-wrap gap-1.5">
-                          {templates.map((tmpl) => (
-                            <button
-                              key={tmpl.id}
-                              type="button"
-                              onClick={() => handleSelectTemplate(tmpl.id)}
-                              className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                                selectedTemplateId === tmpl.id
-                                  ? "bg-[#4f63ea] text-white shadow-sm"
-                                  : "border border-[#e8e3db] bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                              }`}
-                            >
-                              {tmpl.name}
-                            </button>
-                          ))}
-                        </div>
+                        <div className="mt-3 space-y-3">
+                          {selectedAgreement.docusealSubmissions?.length ? (
+                            selectedAgreement.docusealSubmissions.map(
+                              (submission) => {
+                                const template = templates.find(
+                                  (item) => item.id === submission.templateId,
+                                );
+                                const isActive =
+                                  submission.id === selectedSubmissionId;
+                                const submissionFields =
+                                  editableFieldValues[submission.id] ||
+                                  Object.entries(
+                                    submission.fieldValues || {},
+                                  ).reduce<Record<string, string>>(
+                                    (acc, [key, value]) => {
+                                      acc[key] =
+                                        typeof value === "string"
+                                          ? value
+                                          : String(value ?? "");
+                                      return acc;
+                                    },
+                                    {},
+                                  ) ||
+                                  {};
 
-                        {selectedTemplateId &&
-                          (() => {
-                            const currentTemplate = templates.find(
-                              (t) => t.id === selectedTemplateId,
-                            );
-                            if (!currentTemplate) return null;
-                            const fields = currentTemplate.fields || [];
-                            return (
-                              <div className="rounded-lg border border-[#f0ece6] bg-[#faf9f7] p-3">
-                                <div className="mb-2.5 flex items-center justify-between">
-                                  <span className="text-[11px] font-medium text-slate-500">
-                                    {currentTemplate.name}
-                                  </span>
-                                  {fields.length > 0 && (
-                                    <span className="text-[10px] text-slate-400">
-                                      {fields.length} field{fields.length !== 1 ? "s" : ""}
-                                    </span>
-                                  )}
-                                </div>
-                                {fields.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {fields.map((field) => (
-                                      <div key={field.uuid}>
-                                        <label className="mb-0.5 block text-[11px] font-medium text-slate-500">
-                                          {field.name}
-                                          {field.required && (
-                                            <span className="ml-0.5 text-red-400">*</span>
-                                          )}
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={
-                                            templateFieldValues[field.name] ?? ""
-                                          }
-                                          onChange={(e) =>
-                                            handleFieldValueChange(
-                                              field.name,
-                                              e.target.value,
-                                            )
-                                          }
-                                          className="app-control w-full rounded-md border-[#e8e3db] bg-white px-2.5 py-1.5 text-[12px] placeholder:text-slate-300"
-                                          placeholder={`Enter ${field.name}`}
-                                        />
+                                return (
+                                  <div
+                                    key={submission.id}
+                                    onClick={() =>
+                                      setSelectedSubmissionId(submission.id)
+                                    }
+                                    className={`w-full rounded-2xl border p-4 text-left transition ${
+                                      isActive
+                                        ? "border-[#4f63ea] bg-[#f5f7ff]"
+                                        : "border-slate-200 bg-white"
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="text-sm font-medium text-slate-800">
+                                        {template?.name ||
+                                          decodeURIComponent(
+                                            submission?.url?.split("/").pop() ||
+                                              "",
+                                          ).replace(".pdf", "")}{" "}
+                                        - {submission.templateId}
                                       </div>
-                                    ))}
+                                      <div className="text-xs text-slate-500">
+                                        Submission status: {submission.status}
+                                        {submission.approval_status
+                                          ? ` | Approval: ${formatStatusLabel(submission.approval_status)}`
+                                          : ""}
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                      {Object.entries(submissionFields).length >
+                                      0 ? (
+                                        Object.entries(submissionFields).map(
+                                          ([key, value]) => {
+                                            const inputType =
+                                              getTemplateFieldInputType(
+                                                submission.templateId,
+                                                key,
+                                              );
+
+                                            return (
+                                              <div
+                                                key={key}
+                                                className="rounded-xl bg-slate-50 px-3 py-2"
+                                              >
+                                                <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                                  {getTemplateFieldLabel(
+                                                    submission.templateId,
+                                                    key,
+                                                  )}
+                                                </div>
+                                                <input
+                                                  type={inputType}
+                                                  value={
+                                                    inputType === "date"
+                                                      ? normalizeDateInputValue(
+                                                          value,
+                                                        )
+                                                      : value || ""
+                                                  }
+                                                  onChange={(event) =>
+                                                    handleFieldValueChange(
+                                                      submission.id,
+                                                      key,
+                                                      event.target.value,
+                                                    )
+                                                  }
+                                                  className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#4f63ea]"
+                                                />
+                                              </div>
+                                            );
+                                          },
+                                        )
+                                      ) : (
+                                        <div className="text-sm text-slate-400">
+                                          No template input values were saved.
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                ) : (
-                                  <p className="py-2 text-center text-[11px] text-slate-400">
-                                    No editable fields
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })()}
+                                );
+                              },
+                            )
+                          ) : (
+                            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
+                              No template inputs were attached to this request.
+                            </div>
+                          )}
+                        </div>
                       </>
                     )}
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+              <div className="flex items-center justify-between border-t border-[#f0ece6] px-5 py-4">
                 <button
                   type="button"
                   onClick={handleDeleteAgreement}
@@ -868,18 +896,37 @@ function AgreementPendingSignaturesPage() {
                   <Trash2 className="h-4 w-4" />
                   {isDeleting ? "Deleting..." : "Delete"}
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
-                >
-                  <Save className="h-4 w-4" />
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveAgreementDetails}
+                    disabled={isSavingAgreement}
+                    className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-[13px] font-medium text-white hover:bg-slate-800 hover:text-white disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    {isSavingAgreement ? "Saving..." : "Save Agreement Details"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResendUpdatedDocument}
+                    disabled={
+                      isResendingDocument ||
+                      !selectedPersonId ||
+                      !selectedSubmissionId ||
+                      !templateFieldsDirty
+                    }
+                    className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] hover:text-white disabled:opacity-50"
+                  >
+                    <Mail className="h-4 w-4" />
+                    {isResendingDocument
+                      ? "Resending..."
+                      : "Resend Updated Document"}
+                  </button>
+                </div>
               </div>
-            </form>
+            </div>
           )}
-        </aside>
+        </section>
       </div>
     </AppLayout>
   );

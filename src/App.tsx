@@ -259,9 +259,9 @@ function App() {
         path="/agreements/pending-approval"
         element={
           <ProtectedRoute>
-            <AdminRoute>
-              <AgreementPendingApprovalPage />
-            </AdminRoute>
+            {/*<AdminRoute>*/}
+            <AgreementPendingApprovalPage />
+            {/*</AdminRoute>*/}
           </ProtectedRoute>
         }
       />

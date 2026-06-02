@@ -6,8 +6,10 @@ import {
   getAgreement,
   getAgreementApprovalStatus,
   getAgreementsView,
+  getDocusealTemplates,
   updateAgreementApi,
   type Agreement,
+  type DocusealTemplate,
 } from "../../../services/operations/agreements";
 
 const approvalStatusStyles: Record<string, string> = {
@@ -41,6 +43,16 @@ function toApprovalAgreementStatus(agreement: Agreement) {
   return getAgreementApprovalStatus(agreement);
 }
 
+function getTemplateFieldLabel(
+  templates: DocusealTemplate[],
+  templateId: number,
+  fieldId: string,
+) {
+  const template = templates.find((item) => item.id === templateId);
+  const field = template?.fields?.find((item) => item.uuid === fieldId);
+  return field?.name?.trim() || fieldId;
+}
+
 function AgreementPendingApprovalPage() {
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(
@@ -49,6 +61,9 @@ function AgreementPendingApprovalPage() {
   const [editableFieldValues, setEditableFieldValues] = useState<
     Record<string, Record<string, string>>
   >({});
+  const [docusealTemplates, setDocusealTemplates] = useState<
+    DocusealTemplate[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState<"approve" | "reject" | null>(
@@ -142,8 +157,17 @@ function AgreementPendingApprovalPage() {
     const action = nextStatus === "APPROVED" ? "approve" : "reject";
     try {
       setIsUpdating(action);
+      const docusealSubmissions = (selectedAgreement.docusealSubmissions || [])
+        .filter((submission) => submission.templateId !== null)
+        .map((submission) => ({
+          templateId: submission.templateId,
+          fieldValues:
+            editableFieldValues[submission.id] || submission.fieldValues || {},
+        }));
+
       await updateAgreementApi(selectedAgreement.id, {
         approvalStatus: nextStatus,
+        docusealSubmissions,
       });
       toast.success(
         nextStatus === "APPROVED"
@@ -166,13 +190,26 @@ function AgreementPendingApprovalPage() {
     void loadPendingApprovals();
   }, [loadPendingApprovals]);
 
+  useEffect(() => {
+    async function loadTemplates() {
+      try {
+        const response = await getDocusealTemplates();
+        setDocusealTemplates(response.templates.data || []);
+      } catch {
+        // Keep the UUID fallback if template metadata is unavailable.
+      }
+    }
+
+    void loadTemplates();
+  }, []);
+
   return (
     <AppLayout
       title="Agreement Approval Queue"
       activeModule="Agreements"
       activeSubItem="Pending Approval"
     >
-      <div className="grid h-full gap-3 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid h-full gap-3 lg:grid-cols-[500px_minmax(0,1fr)]">
         <section className="overflow-hidden rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
             <div>
@@ -349,7 +386,11 @@ function AgreementPendingApprovalPage() {
                       >
                         <div>
                           <div className="text-sm font-medium text-slate-800">
-                            Template #{submission.templateId}
+                            {/*Template -{" "}*/}
+                            {decodeURIComponent(
+                              submission?.url?.split("/").pop() || "",
+                            ).replace(".pdf", "")}{" "}
+                            - {submission.templateId}
                           </div>
                           <div className="text-xs text-slate-500">
                             Submission status: {submission.status}
@@ -364,40 +405,41 @@ function AgreementPendingApprovalPage() {
                             editableFieldValues[submission.id] ||
                               submission.fieldValues ||
                               {},
-                          ).length >
-                          0 ? (
+                          ).length > 0 ? (
                             Object.entries(
                               editableFieldValues[submission.id] ||
                                 submission.fieldValues ||
                                 {},
-                            ).map(
-                              ([key, value]) => (
-                                <div
-                                  key={key}
-                                  className="rounded-xl bg-slate-50 px-3 py-2"
-                                >
-                                  <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                                    {key}
-                                  </div>
-                                  <input
-                                    type="text"
-                                    value={value || ""}
-                                    onChange={(event) =>
-                                      setEditableFieldValues((current) => ({
-                                        ...current,
-                                        [submission.id]: {
-                                          ...(current[submission.id] ||
-                                            submission.fieldValues ||
-                                            {}),
-                                          [key]: event.target.value,
-                                        },
-                                      }))
-                                    }
-                                    className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#4f63ea]"
-                                  />
+                            ).map(([key, value]) => (
+                              <div
+                                key={key}
+                                className="rounded-xl bg-slate-50 px-3 py-2"
+                              >
+                                <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                  {getTemplateFieldLabel(
+                                    docusealTemplates,
+                                    submission.templateId,
+                                    key,
+                                  )}
                                 </div>
-                              ),
-                            )
+                                <input
+                                  type="text"
+                                  value={value || ""}
+                                  onChange={(event) =>
+                                    setEditableFieldValues((current) => ({
+                                      ...current,
+                                      [submission.id]: {
+                                        ...(current[submission.id] ||
+                                          submission.fieldValues ||
+                                          {}),
+                                        [key]: event.target.value,
+                                      },
+                                    }))
+                                  }
+                                  className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#4f63ea]"
+                                />
+                              </div>
+                            ))
                           ) : (
                             <div className="text-sm text-slate-400">
                               No template input values were saved.

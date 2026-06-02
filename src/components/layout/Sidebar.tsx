@@ -429,13 +429,15 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
             ) : null}
 
             <div className="space-y-1">
-              {section.items.filter(canRenderItem).map((item) => (
+              {/*{section.items.filter(canRenderItem).map((item) => (*/}
+              {section.items.map((item) => (
                 <SidebarLeafItem key={item.label} item={item} />
               ))}
             </div>
 
             {section.menus?.map((menu) => {
-              const visibleItems = (menu.items || []).filter(canRenderItem);
+              // const visibleItems = (menu.items || []).filter(canRenderItem);
+              const visibleItems = menu.items || [];
               if (visibleItems.length === 0) return null;
               const isOpen = openMenus[menu.label] ?? false;
               const isActiveMenu =

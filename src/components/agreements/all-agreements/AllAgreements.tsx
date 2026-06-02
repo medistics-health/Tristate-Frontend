@@ -69,6 +69,7 @@ import { DetailCard } from "../../../components/shared/tablePageUtils";
 
 const statusStyles: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
+  SENT: "bg-indigo-100 text-indigo-700",
   ACTIVE: "bg-green-100 text-green-700",
   PENDING_SIGNATURE: "bg-amber-100 text-amber-700",
   SIGNED: "bg-blue-100 text-blue-700",
@@ -78,6 +79,7 @@ const statusStyles: Record<string, string> = {
 
 const agreementStatusOptions = [
   "DRAFT",
+  "SENT",
   "ACTIVE",
   "EXPIRED",
   "TERMINATED",
@@ -583,7 +585,9 @@ function AllAgreementsPage() {
     setFormState: Dispatch<SetStateAction<AgreementFormState>>,
   ) {
     setFormState((prev) => {
-      const template = docusealTemplates.find((t) => String(t.id) === templateId);
+      const template = docusealTemplates.find(
+        (t) => String(t.id) === templateId,
+      );
       return {
         ...prev,
         docusealTemplates: prev.docusealTemplates.includes(templateId)
@@ -638,11 +642,14 @@ function AllAgreementsPage() {
 
   function validateTemplateFieldValues(form: AgreementFormState) {
     for (const templateId of form.docusealTemplates) {
-      const template = docusealTemplates.find((t) => String(t.id) === templateId);
+      const template = docusealTemplates.find(
+        (t) => String(t.id) === templateId,
+      );
       if (!template) continue;
 
       for (const field of template.fields || []) {
-        if (!isEditableDocusealField(field) || !isClientNameField(field)) continue;
+        if (!isEditableDocusealField(field) || !isClientNameField(field))
+          continue;
         const value =
           form.docusealFieldValues[templateId]?.[field.uuid]?.trim() || "";
         if (!value) {
@@ -854,7 +861,9 @@ function AllAgreementsPage() {
       .map((t) => String(t.id));
     if (autoSelectIds.length === 0) return;
     setCreateForm((prev) => {
-      const nextIds = [...new Set([...prev.docusealTemplates, ...autoSelectIds])];
+      const nextIds = [
+        ...new Set([...prev.docusealTemplates, ...autoSelectIds]),
+      ];
       const nextFieldValues = { ...prev.docusealFieldValues };
       for (const templateId of autoSelectIds) {
         const template = templates.find((t) => String(t.id) === templateId);
@@ -1112,50 +1121,52 @@ function AllAgreementsPage() {
                     </label>
 
                     {selectedAgreement?.docusealSubmissions?.length ? (
-                      selectedAgreement.docusealSubmissions.map((submission) => {
-                        const templateName =
-                          docusealTemplates.find(
-                            (template) =>
-                              template.id === submission.templateId,
-                          )?.name ||
-                          (submission.templateId
-                            ? `Template #${submission.templateId}`
-                            : "DocuSeal Template");
-                        const savedFieldCount = Object.keys(
-                          submission.fieldValues || {},
-                        ).length;
+                      selectedAgreement.docusealSubmissions.map(
+                        (submission) => {
+                          const templateName =
+                            docusealTemplates.find(
+                              (template) =>
+                                template.id === submission.templateId,
+                            )?.name ||
+                            (submission.templateId
+                              ? `Template #${submission.templateId}`
+                              : "DocuSeal Template");
+                          const savedFieldCount = Object.keys(
+                            submission.fieldValues || {},
+                          ).length;
 
-                        return (
-                          <div
-                            key={`${submission.id}-${submission.templateId}`}
-                            className="mb-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <div className="text-[13px] font-medium text-slate-700">
-                                  {templateName}
+                          return (
+                            <div
+                              key={`${submission.id}-${submission.templateId}`}
+                              className="mb-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <div className="text-[13px] font-medium text-slate-700">
+                                    {templateName}
+                                  </div>
+                                  <div className="text-[11px] text-slate-400">
+                                    {savedFieldCount > 0
+                                      ? `${savedFieldCount} saved field value${savedFieldCount === 1 ? "" : "s"}`
+                                      : "No saved field values"}
+                                  </div>
                                 </div>
-                                <div className="text-[11px] text-slate-400">
-                                  {savedFieldCount > 0
-                                    ? `${savedFieldCount} saved field value${savedFieldCount === 1 ? "" : "s"}`
-                                    : "No saved field values"}
-                                </div>
+                                {submission.url ? (
+                                  <a
+                                    href={submission.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1] hover:underline"
+                                  >
+                                    Open Template
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </a>
+                                ) : null}
                               </div>
-                              {submission.url ? (
-                                <a
-                                  href={submission.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#3d4ed1] hover:underline"
-                                >
-                                  Open Template
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                </a>
-                              ) : null}
                             </div>
-                          </div>
-                        );
-                      })
+                          );
+                        },
+                      )
                     ) : (
                       <span className="text-[13px] text-slate-400">
                         No template attached
@@ -2180,21 +2191,21 @@ function AllAgreementsPage() {
                       )
                     : false;
                   return (
-                      <span
-                        key={templateId}
-                        className="inline-flex items-center gap-1 rounded-md bg-[#f0f2fe] px-2 py-1 text-[12px] text-[#4f63ea]"
-                      >
-                        {template?.name || templateId}
-                        {!isAutoInclude && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeTemplateFromForm(templateId, setCreateForm)
-                            }
-                            className="hover:text-red-500"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
+                    <span
+                      key={templateId}
+                      className="inline-flex items-center gap-1 rounded-md bg-[#f0f2fe] px-2 py-1 text-[12px] text-[#4f63ea]"
+                    >
+                      {template?.name || templateId}
+                      {!isAutoInclude && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeTemplateFromForm(templateId, setCreateForm)
+                          }
+                          className="hover:text-red-500"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       )}
                     </span>
                   );
@@ -2337,7 +2348,8 @@ function AllAgreementsPage() {
                         ) : (
                           <div className="grid gap-3 md:grid-cols-2">
                             {editableFields.map((field, fieldIndex) => {
-                              const inputType = getDocusealFieldInputType(field);
+                              const inputType =
+                                getDocusealFieldInputType(field);
                               const value =
                                 createForm.docusealFieldValues[templateId]?.[
                                   field.uuid
@@ -2356,7 +2368,9 @@ function AllAgreementsPage() {
                                   <span className="mb-1 block text-[12px] font-medium text-slate-700">
                                     {getDocusealFieldLabel(field, fieldIndex)}
                                     {isClientNameField(field) && (
-                                      <span className="ml-1 text-red-500">*</span>
+                                      <span className="ml-1 text-red-500">
+                                        *
+                                      </span>
                                     )}
                                   </span>
                                   <input
