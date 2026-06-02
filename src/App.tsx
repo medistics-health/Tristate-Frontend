@@ -25,6 +25,7 @@ import AssessmentProgressPage from "./components/assessments/AssessmentProgress"
 import InvoiceStatusBoardPage from "./components/invoices/InvoiceStatusBoard";
 import AllInvoicePage from "./components/invoices/AllInvoices";
 import AgreementPendingSignaturesPage from "./components/agreements/pending-signatures/PendingSignatures";
+import AgreementPendingSubmissionChangesPage from "./components/agreements/pending-submission-changes/AgreementPendingSubmissionChangesPage";
 import VendorContractPage from "./components/vendors/VendorContracts";
 import AllVendorsPage from "./components/vendors/AllVendors";
 import PipelineBoardPage from "./components/practices/PipelineBoard";
@@ -280,6 +281,17 @@ function App() {
         element={
           <ProtectedRoute>
             <AgreementPendingSignaturesPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/agreements/pending-submission-changes"
+        element={
+          <ProtectedRoute>
+            {/*<AdminRoute>*/}
+            <AgreementPendingSubmissionChangesPage />
+            {/*</AdminRoute>*/}
           </ProtectedRoute>
         }
       />

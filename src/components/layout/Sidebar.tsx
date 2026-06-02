@@ -172,6 +172,11 @@ const sidebarSections: SidebarSection[] = [
             to: "/agreements/pending-approval",
             adminOnly: true,
           },
+          {
+            label: "Pending Submission Changes",
+            to: "/agreements/pending-submission-changes",
+            adminOnly: true,
+          },
           { label: "Pending Signatures", to: "/agreements/pending-signatures" },
         ],
       },

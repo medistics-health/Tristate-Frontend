@@ -69,6 +69,16 @@ export function getAgreementApprovalStatus(agreement: {
   return submissionApprovalStatus || agreement.status;
 }
 
+export function getSubmissionApprovalStatus(agreement: {
+  docusealSubmissions?: Array<{ submissionApprovalStatus?: string | null }>;
+}) {
+  return (
+    agreement.docusealSubmissions?.find(
+      (submission) => submission.submissionApprovalStatus,
+    )?.submissionApprovalStatus || ""
+  );
+}
+
 function agreementToRow(agreement: Agreement): AgreementsRow {
   const submissions = agreement.docusealSubmissions || [];
   const completedSubmissions = submissions.filter(
@@ -118,6 +128,7 @@ export type DocusealSubmission = {
   externalId: number;
   status: string;
   approval_status?: string | null;
+  submissionApprovalStatus?: string | null;
   url?: string | null;
   embedUrl?: string | null;
   slug?: string | null;
@@ -327,6 +338,7 @@ export type AgreementBody = {
   type: string;
   status: string;
   approvalStatus: string;
+  submissionApprovalStatus?: string;
   value?: number;
   effectiveDate?: string;
   renewalDate?: string;
@@ -507,6 +519,7 @@ export async function resubmitDocusealSubmissionApi(data: {
   personId: string;
   templateId: number;
   fieldValues: Record<string, string>;
+  submissionApprovalStatus: string;
 }): Promise<any> {
   try {
     const response = await apiConnector({

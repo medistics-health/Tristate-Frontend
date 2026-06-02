@@ -1,11 +1,4 @@
-import {
-  Clock3,
-  RefreshCw,
-  Mail,
-  Save,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { Clock3, RefreshCw, Search, Trash2, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../../layout/AppLayout";
@@ -14,7 +7,6 @@ import {
   getAgreement,
   getAgreementsView,
   getDocusealTemplates,
-  resubmitDocusealSubmissionApi,
   updateAgreementApi,
   type Agreement,
   type AgreementBody,
@@ -133,8 +125,7 @@ function AgreementPendingSignaturesPage() {
   const [search, setSearch] = useState("");
   const [editForm, setEditForm] =
     useState<AgreementFormState>(initialFormState);
-  const [isSavingAgreement, setIsSavingAgreement] = useState(false);
-  const [isResendingDocument, setIsResendingDocument] = useState(false);
+  const [isSubmittingForApproval, setIsSubmittingForApproval] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [templates, setTemplates] = useState<DocusealTemplate[]>([]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<
@@ -168,7 +159,10 @@ function AgreementPendingSignaturesPage() {
           setAgreements(response);
           setPagination(data.pagination);
           setSelectedRowId((current) => {
-            if (current && response.some((agreement) => agreement.id === current)) {
+            if (
+              current &&
+              response.some((agreement) => agreement.id === current)
+            ) {
               return current;
             }
             return response[0]?.id || null;
@@ -298,65 +292,38 @@ function AgreementPendingSignaturesPage() {
     });
     setPagination(data.pagination);
     const ids = data.rows.map((row) => row.id);
-    const response = await Promise.all(ids.map((agreementId) => getAgreement(agreementId)));
+    const response = await Promise.all(
+      ids.map((agreementId) => getAgreement(agreementId)),
+    );
     setAgreements(response);
     if (!response.some((agreement) => agreement.id === selectedRowId)) {
       setSelectedRowId(response[0]?.id || null);
     }
   }
 
-  async function handleSaveAgreementDetails() {
-    if (!selectedRowId) return;
-
-    setIsSavingAgreement(true);
-    try {
-      const docusealSubmissions =
-        selectedAgreement?.docusealSubmissions?.map((submission) => ({
-          templateId: submission.templateId,
-          fieldValues:
-            editableFieldValues[submission.id] || submission.fieldValues || {},
-        })) || [];
-
-      await updateAgreementApi(selectedRowId, {
-        ...buildPayload(editForm),
-        docusealSubmissions,
-      });
-
-      await refreshPendingSignatures();
-      const agreement = await getAgreement(selectedRowId);
-      setSelectedAgreement(agreement);
-      setEditForm(buildFormState(agreement));
-      setTemplateFieldsDirty(false);
-      toast.success("Agreement details saved");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to update agreement";
-      toast.error(message);
-    } finally {
-      setIsSavingAgreement(false);
-    }
-  }
-
-  async function handleResendUpdatedDocument() {
+  async function handleSubmitForApproval() {
     const selectedSubmission = selectedAgreement?.docusealSubmissions?.find(
       (submission) => submission.id === selectedSubmissionId,
     );
 
     if (!selectedRowId || !selectedPersonId || !selectedSubmission) {
-      toast.error("Select a signer and template before resending");
+      toast.error("Select a signer and template before submitting");
       return;
     }
 
-    setIsResendingDocument(true);
+    setIsSubmittingForApproval(true);
     try {
-      await resubmitDocusealSubmissionApi({
-        agreementId: selectedRowId,
-        personId: selectedPersonId,
-        templateId: selectedSubmission.templateId,
-        fieldValues:
-          editableFieldValues[selectedSubmission.id] ||
-          selectedSubmission.fieldValues ||
-          {},
+      await updateAgreementApi(selectedRowId, {
+        docusealSubmissions: (selectedAgreement?.docusealSubmissions || []).map(
+          (submission) => ({
+            templateId: submission.templateId,
+            fieldValues:
+              editableFieldValues[submission.id] ||
+              submission.fieldValues ||
+              {},
+          }),
+        ),
+        submissionApprovalStatus: "PENDING_APPROVAL",
       });
 
       await refreshPendingSignatures();
@@ -364,13 +331,15 @@ function AgreementPendingSignaturesPage() {
       setSelectedAgreement(agreement);
       setEditForm(buildFormState(agreement));
       setTemplateFieldsDirty(false);
-      toast.success("Updated document resent to the client");
+      toast.success("Submission change request sent for approval");
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to resend document";
+        error instanceof Error
+          ? error.message
+          : "Failed to submit change request";
       toast.error(message);
     } finally {
-      setIsResendingDocument(false);
+      setIsSubmittingForApproval(false);
     }
   }
 
@@ -514,7 +483,8 @@ function AgreementPendingSignaturesPage() {
                         </div>
                         <span
                           className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                            statusStyles[status] || "bg-slate-100 text-slate-700"
+                            statusStyles[status] ||
+                            "bg-slate-100 text-slate-700"
                           }`}
                         >
                           {formatStatusLabel(status)}
@@ -814,9 +784,11 @@ function AgreementPendingSignaturesPage() {
                                       </div>
                                       <div className="text-xs text-slate-500">
                                         Submission status: {submission.status}
-                                        {submission.approval_status
-                                          ? ` | Approval: ${formatStatusLabel(submission.approval_status)}`
-                                          : ""}
+                                        {submission.submissionApprovalStatus
+                                          ? ` | Submission Approval: ${formatStatusLabel(submission.submissionApprovalStatus)}`
+                                          : submission.approval_status
+                                            ? ` | Approval: ${formatStatusLabel(submission.approval_status)}`
+                                            : ""}
                                       </div>
                                     </div>
 
@@ -899,28 +871,19 @@ function AgreementPendingSignaturesPage() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleSaveAgreementDetails}
-                    disabled={isSavingAgreement}
-                    className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-[13px] font-medium text-white hover:bg-slate-800 hover:text-white disabled:opacity-50"
-                  >
-                    <Save className="h-4 w-4" />
-                    {isSavingAgreement ? "Saving..." : "Save Agreement Details"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResendUpdatedDocument}
+                    onClick={handleSubmitForApproval}
                     disabled={
-                      isResendingDocument ||
+                      isSubmittingForApproval ||
                       !selectedPersonId ||
                       !selectedSubmissionId ||
                       !templateFieldsDirty
                     }
                     className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] hover:text-white disabled:opacity-50"
                   >
-                    <Mail className="h-4 w-4" />
-                    {isResendingDocument
-                      ? "Resending..."
-                      : "Resend Updated Document"}
+                    <Save className="h-4 w-4" />
+                    {isSubmittingForApproval
+                      ? "Submitting..."
+                      : "Submit For Approval"}
                   </button>
                 </div>
               </div>
