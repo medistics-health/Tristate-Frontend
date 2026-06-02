@@ -27,6 +27,9 @@ import {
   Pencil,
   Save,
   Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
@@ -437,6 +440,19 @@ export default function AllCompaniesPage() {
       return;
     }
 
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      toast.error("Please enter a valid email address with @");
+      return;
+    }
+
+    // const invalidTaxIds = formData.taxIds.filter(
+    //   (t) => t.taxIdNumber.trim() && t.taxIdNumber.length <= 15,
+    // );
+    // if (invalidTaxIds.length > 0) {
+    //   toast.error("Tax ID must be 1 to 15 digits");
+    //   return;
+    // }
+
     setIsSubmitting(true);
     try {
       const validTaxIds = formData.taxIds.filter(
@@ -489,6 +505,21 @@ export default function AllCompaniesPage() {
       toast.error("Company name is required");
       return;
     }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      toast.error("Please enter a valid email address with @");
+      return;
+    }
+
+    // const invalidTaxIds = formData.taxIds.filter(
+    //   (t) =>
+    //     t.taxIdNumber.trim() &&
+    //     (!/^\d{9}$/.test(t.taxIdNumber) || t.taxIdNumber.length <= 15),
+    // );
+    // if (invalidTaxIds.length > 0) {
+    //   toast.error("Tax ID must be 1 to 15 digits");
+    //   return;
+    // }
 
     setIsSubmitting(true);
     try {
@@ -824,9 +855,11 @@ export default function AllCompaniesPage() {
               Phone
             </label>
             <input
-              type="text"
+              type="tel"
               value={formData.phone}
               onChange={(e) => handleFormChange("phone", e.target.value)}
+              placeholder="+1 (555) 123-4567"
+              inputMode="tel"
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
@@ -838,6 +871,10 @@ export default function AllCompaniesPage() {
               type="email"
               value={formData.email}
               onChange={(e) => handleFormChange("email", e.target.value)}
+              placeholder="info@company.com"
+              inputMode="email"
+              pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+              title="Must contain a valid email address with @"
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
@@ -904,6 +941,11 @@ export default function AllCompaniesPage() {
                   type="text"
                   value={formData.zip}
                   onChange={(e) => handleFormChange("zip", e.target.value)}
+                  placeholder="94102"
+                  inputMode="numeric"
+                  pattern="[0-9]{5}(-[0-9]{4})?"
+                  maxLength={10}
+                  title="5-digit or 9-digit ZIP code (e.g. 94102 or 94102-6789)"
                   className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                 />
               </div>
@@ -923,7 +965,7 @@ export default function AllCompaniesPage() {
             <div className="border-t border-[#f0ece6] pt-4 mt-4">
               <div className="mb-3 flex items-center justify-between">
                 <label className="block text-[11px] font-medium text-slate-600">
-                  Tax IDs
+                  Tax IDs <span className="text-red-500">*</span>
                 </label>
                 <button
                   type="button"
@@ -963,16 +1005,22 @@ export default function AllCompaniesPage() {
                           handleTaxIdChange(
                             index,
                             "taxIdNumber",
-                            e.target.value,
+                            e.target.value.replace(/\D/g, ""),
                           )
                         }
-                        placeholder="Tax ID Number"
+                        required
+                        placeholder="Enter Tax ID"
+                        inputMode="numeric"
+                        maxLength={15}
+                        pattern="\d{1,15}"
+                        title="Must be 1 to 15 digits"
                         className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
                       />
                     </div>
                     <div>
                       <input
                         type="text"
+                        required
                         value={taxId.legalEntityName}
                         onChange={(e) =>
                           handleTaxIdChange(
@@ -1179,6 +1227,15 @@ export default function AllCompaniesPage() {
                               header.column.columnDef.header,
                               header.getContext(),
                             )}
+                            {header.column.getCanSort() &&
+                              header.id !== "select" &&
+                              (header.column.getIsSorted() === "asc" ? (
+                                <ArrowUp className="h-3 w-3 text-slate-500" />
+                              ) : header.column.getIsSorted() === "desc" ? (
+                                <ArrowDown className="h-3 w-3 text-slate-500" />
+                              ) : (
+                                <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                              ))}
                           </button>
                         )}
                       </th>
@@ -1327,15 +1384,47 @@ export default function AllCompaniesPage() {
                 return (
                   <DetailCard
                     title={String(selectedRow.values.name || "Company")}
-                    badge={status ? { label: status, className: stColors[status] || "bg-gray-100 text-gray-700" } : null}
+                    badge={
+                      status
+                        ? {
+                            label: status,
+                            className:
+                              stColors[status] || "bg-gray-100 text-gray-700",
+                          }
+                        : null
+                    }
                     infoRows={[
-                      ...(selectedRow.values.domain ? [{ label: "Domain", value: String(selectedRow.values.domain) }] : []),
-                      ...(selectedRow.values.industry ? [{ label: "Industry", value: String(selectedRow.values.industry) }] : []),
-                      ...(selectedRow.values.revenue ? [{ label: "Revenue", value: String(selectedRow.values.revenue) }] : []),
+                      ...(selectedRow.values.domain
+                        ? [
+                            {
+                              label: "Domain",
+                              value: String(selectedRow.values.domain),
+                            },
+                          ]
+                        : []),
+                      ...(selectedRow.values.industry
+                        ? [
+                            {
+                              label: "Industry",
+                              value: String(selectedRow.values.industry),
+                            },
+                          ]
+                        : []),
+                      ...(selectedRow.values.revenue
+                        ? [
+                            {
+                              label: "Revenue",
+                              value: String(selectedRow.values.revenue),
+                            },
+                          ]
+                        : []),
                     ]}
                     metric={
                       selectedRow.values.practicesCount
-                        ? { label: "Practices", value: String(selectedRow.values.practicesCount) }
+                        ? {
+                            label: "Practices",
+                            value: String(selectedRow.values.practicesCount),
+                          }
                         : null
                     }
                   />
@@ -1463,12 +1552,13 @@ export default function AllCompaniesPage() {
                       Phone
                     </label>
                     <input
-                      type="text"
+                      type="tel"
                       value={formData.phone}
                       onChange={(e) =>
                         handleFormChange("phone", e.target.value)
                       }
                       placeholder="+1 (555) 123-4567"
+                      inputMode="tel"
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>
@@ -1483,6 +1573,9 @@ export default function AllCompaniesPage() {
                         handleFormChange("email", e.target.value)
                       }
                       placeholder="info@company.com"
+                      inputMode="email"
+                      pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+                      title="Must contain a valid email address with @"
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>
@@ -1564,6 +1657,10 @@ export default function AllCompaniesPage() {
                             handleFormChange("zip", e.target.value)
                           }
                           placeholder="94102"
+                          inputMode="numeric"
+                          pattern="[0-9]{5}(-[0-9]{4})?"
+                          maxLength={10}
+                          title="5-digit or 9-digit ZIP code (e.g. 94102 or 94102-6789)"
                           className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                         />
                       </div>
@@ -1587,7 +1684,7 @@ export default function AllCompaniesPage() {
                   <div className="border-t border-[#f0ece6] pt-4">
                     <div className="mb-3 flex items-center justify-between">
                       <label className="block text-[12px] font-medium text-slate-600">
-                        Tax IDs
+                        Tax IDs <span className="text-red-500">*</span>
                       </label>
                       <button
                         type="button"
@@ -1627,16 +1724,22 @@ export default function AllCompaniesPage() {
                                 handleTaxIdChange(
                                   index,
                                   "taxIdNumber",
-                                  e.target.value,
+                                  e.target.value.replace(/\D/g, ""),
                                 )
                               }
-                              placeholder="Tax ID Number"
+                              required
+                              placeholder="Enter Tax ID"
+                              inputMode="numeric"
+                              maxLength={15}
+                              pattern="\d{1,15}"
+                              title="Must be 1 to 15 digits"
                               className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
                             />
                           </div>
                           <div>
                             <input
                               type="text"
+                              required
                               value={taxId.legalEntityName}
                               onChange={(e) =>
                                 handleTaxIdChange(

@@ -39,7 +39,10 @@ export async function validatePracticeActivation(practiceId: string) {
     );
   }
 
-  const agreements = await getAgreementsByPractice(practiceId);
+  const agreementResponse = await getAgreementsByPractice(practiceId);
+  const agreements = agreementResponse.filter(
+    (init: any) => init.practiceId === practiceId && init.status !== "SIGNED",
+  );
   if (agreements.length === 0) {
     throw new Error("This practice has no agreement, please create agreement");
   }

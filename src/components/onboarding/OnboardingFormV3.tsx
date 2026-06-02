@@ -12,11 +12,16 @@ import type {
   OnboardingLocation,
   OnboardingMarketing,
   OnboardingOutreach,
+  Onboarding,
   OnboardingPractice,
   OnboardingProvider,
   OnboardingTechnology,
 } from "../../services/operations/onboarding";
 import { createOnboardingFromForm } from "../../services/operations/createOnboardingForm";
+import {
+  getOnboarding,
+  updateOnboarding,
+} from "../../services/operations/onboarding";
 
 type Option = {
   label: string;
@@ -258,6 +263,42 @@ const employmentStatusOptions: Option[] = [
   { label: "Locum", value: "LOCUM" },
   { label: "Other", value: "OTHER" },
 ];
+
+function isValidCompanyEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.com$/i.test(value.trim());
+}
+
+function isValidWebsite(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.hostname.includes(".")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isValidZipCode(value: string) {
+  return /^\d{5}(?:-\d{4})?$/.test(value.trim());
+}
+
+function isValidTenDigitPhone(value: string) {
+  return value.replace(/\D/g, "").length === 10;
+}
+
+function isDocumentReceivedAfterRequested(
+  dateRequested?: string,
+  dateReceived?: string,
+) {
+  const requested = dateRequested?.trim() ?? "";
+  const received = dateReceived?.trim() ?? "";
+
+  if (!requested || !received) return true;
+
+  return received > requested;
+}
 
 const yesNoMaybeOptions: Option[] = [
   { label: "Yes", value: "YES" },
@@ -650,9 +691,9 @@ const initialFormData: OnboardingBody = {
   nonAuthorizedRole: "",
   numberOfPractices: 1,
   numberOfLocations: 1,
-  billingManagedCentrally: "",
-  credentialingManagedCentrally: "",
-  contractingManagedCentrally: "",
+  billingManagedCentrally: "NO",
+  credentialingManagedCentrally: "NO",
+  contractingManagedCentrally: "NO",
   oneMainContact: true,
   legalCompanyName: "",
   dbaName: "",
@@ -725,6 +766,39 @@ const initialFormData: OnboardingBody = {
   },
   marketing: { ...initialMarketing },
 };
+
+function normalizeLoadedOnboarding(onboarding: Onboarding): OnboardingBody {
+  return {
+    ...initialFormData,
+    ...onboarding,
+    documents: (onboarding.documents ?? []).map((document) => ({
+      ...document,
+      documentType: Array.isArray(document.documentType)
+        ? document.documentType[0] ?? ""
+        : document.documentType ?? "",
+    })) as unknown as OnboardingDocument[],
+    billing: onboarding.billing ?? initialFormData.billing,
+    credentialing: onboarding.credentialing ?? initialFormData.credentialing,
+    technology: onboarding.technology ?? initialFormData.technology,
+    outreach: onboarding.outreach ?? initialFormData.outreach,
+    labPharmacy: onboarding.labPharmacy ?? initialFormData.labPharmacy,
+    compliance: onboarding.compliance ?? initialFormData.compliance,
+    careProgram: initialFormData.careProgram,
+    marketing: onboarding.marketing ?? initialFormData.marketing,
+    serviceSetup: {
+      requestedServices: onboarding.requestedServices ?? [],
+      primaryServiceToLaunch: onboarding.primaryServiceToLaunch ?? "",
+      requestedGoLiveDate: onboarding.requestedGoLiveDate ?? "",
+      priorityLevel: onboarding.priorityLevel ?? "",
+      servicesForAllPractices: onboarding.servicesForAllPractices ?? "",
+      selectedPractices: onboarding.selectedPractices ?? [],
+      replacingExistingVendor: onboarding.replacingExistingVendor ?? false,
+      currentVendorName: onboarding.currentVendorName ?? "",
+      currentVendorEndDate: onboarding.currentVendorEndDate ?? "",
+      engagementGoals: onboarding.engagementGoals ?? "",
+    },
+  };
+}
 
 function parseNumber(value: string) {
   if (value.trim() === "") return 0;
@@ -1014,11 +1088,13 @@ function RepeaterHeader({
 }
 
 export default function OnboardingFormV3() {
+  const { id } = useParams();
   const [formData, setFormData] = useState<OnboardingBody>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoadingRecord, setIsLoadingRecord] = useState(!!id);
+  const [isAlreadySubmitted, setIsAlreadySubmitted] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const { id } = useParams();
 
   useEffect(() => {
     if (id) {
@@ -1027,10 +1103,81 @@ export default function OnboardingFormV3() {
   }, [id]);
 
   useEffect(() => {
+    if (!id) return;
+
+    let active = true;
+
+    async function loadOnboarding() {
+      setIsLoadingRecord(true);
+      try {
+        const onboarding = await getOnboarding(id);
+        if (!active) return;
+
+        setFormData(normalizeLoadedOnboarding(onboarding));
+        const locked =
+          !!onboarding.submissionDate ||
+          (!!onboarding.status && onboarding.status !== "DRAFT");
+        setIsAlreadySubmitted(locked);
+        setIsSubmitted(locked);
+      } catch (error) {
+        if (!active) return;
+        const message =
+          error instanceof Error ? error.message : "Unable to load onboarding.";
+        toast.error(message);
+      } finally {
+        if (active) setIsLoadingRecord(false);
+      }
+    }
+
+    void loadOnboarding();
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  useEffect(() => {
     if (formData.isIndividualPractice && currentStep === 2) {
       setCurrentStep(3);
     }
   }, [currentStep, formData.isIndividualPractice]);
+
+  useEffect(() => {
+    if (formData.onboardingType !== "MULTI_PRACTICE_ORGANIZATION") {
+      return;
+    }
+
+    const practiceCount = Math.max(
+      0,
+      Number(formData.numberOfPractices ?? 0) || 0,
+    );
+
+    setFormData((prev) => {
+      const currentPractices = prev.practices ?? [];
+
+      if (currentPractices.length === practiceCount) {
+        return prev;
+      }
+
+      if (currentPractices.length > practiceCount) {
+        return {
+          ...prev,
+          practices: currentPractices.slice(0, practiceCount),
+        };
+      }
+
+      return {
+        ...prev,
+        practices: [
+          ...currentPractices,
+          ...Array.from(
+            { length: practiceCount - currentPractices.length },
+            () => ({ ...initialPractice }),
+          ),
+        ],
+      };
+    });
+  }, [formData.numberOfPractices, formData.onboardingType]);
 
   const practiceNames = (formData.practices ?? [])
     .map((practice) => practice.practiceName?.trim() ?? "")
@@ -1139,7 +1286,13 @@ export default function OnboardingFormV3() {
         : {}),
       ...(field === "priorityLevel" ? { priorityLevel: value as string } : {}),
       ...(field === "servicesForAllPractices"
-        ? { servicesForAllPractices: value as string }
+        ? {
+            servicesForAllPractices: value as string,
+            selectedPractices:
+              value === "SINGLE_PRACTICE_ONLY"
+                ? (prev.selectedPractices ?? []).slice(0, 1)
+                : prev.selectedPractices ?? [],
+          }
         : {}),
       ...(field === "selectedPractices"
         ? { selectedPractices: value as string[] }
@@ -1227,6 +1380,22 @@ export default function OnboardingFormV3() {
         (_, practiceIndex) => practiceIndex !== index,
       ),
     }));
+  }
+
+  function isValidPractice(practice: OnboardingPractice) {
+    const practiceName = practice.practiceName?.trim() ?? "";
+    const practiceType = practice.practiceType?.trim() ?? "";
+    const hasLocation = (practice.locations ?? []).some((location) =>
+      (location.locationName?.trim() ?? "").length > 0,
+    );
+    const hasProvider = (practice.providers ?? []).some((provider) => {
+      const firstName = provider.firstName?.trim() ?? "";
+      const lastName = provider.lastName?.trim() ?? "";
+      const providerType = provider.providerType?.trim() ?? "";
+      return !!firstName && !!lastName && !!providerType;
+    });
+
+    return !!practiceName && !!practiceType && hasLocation && hasProvider;
   }
 
   function addLocation(practiceIndex: number) {
@@ -1383,35 +1552,62 @@ export default function OnboardingFormV3() {
     }
 
     if (currentStep === 2) {
-      if (!formData.legalCompanyName) errors.push("Legal company name");
-      if (!formData.mainCompanyEmail) errors.push("Main company email");
+      const legalCompanyName = formData.legalCompanyName?.trim() ?? "";
+      if (!legalCompanyName) errors.push("Legal company name");
+
+      const mainCompanyPhone = formData.mainCompanyPhone?.trim() ?? "";
+      if (mainCompanyPhone && !isValidTenDigitPhone(mainCompanyPhone)) {
+        errors.push("Main company phone (must be 10 digits)");
+      }
+
+      const mainCompanyEmail = formData.mainCompanyEmail?.trim() ?? "";
+      if (!mainCompanyEmail) {
+        errors.push("Main company email");
+      } else if (!isValidCompanyEmail(mainCompanyEmail)) {
+        errors.push("Main company email (must end in .com)");
+      }
+
+      const companyWebsite = formData.companyWebsite?.trim() ?? "";
+      if (companyWebsite && !isValidWebsite(companyWebsite)) {
+        errors.push("Website (enter a valid URL)");
+      }
+
+      const companyZip = formData.companyZip?.trim() ?? "";
+      if (companyZip && !isValidZipCode(companyZip)) {
+        errors.push("ZIP Code (use 12345 or 12345-6789)");
+      }
     }
 
     if (currentStep === 3) {
       if (!(formData.contacts ?? []).length) {
         errors.push("At least one contact");
       } else {
-        const primaryContact = formData.contacts?.[0];
-        if (!primaryContact?.fullName) errors.push("Main contact name");
-        if (!primaryContact?.contactRole) errors.push("Contact role");
-        if (!primaryContact?.email) errors.push("Main contact email");
+        const invalidContactIndexes = (formData.contacts ?? [])
+          .map((contact, index) => {
+            const fullName = contact.fullName?.trim() ?? "";
+            const contactRole = contact.contactRole?.trim() ?? "";
+            const email = contact.email?.trim() ?? "";
+            const isValid =
+              !!fullName && !!contactRole && isValidCompanyEmail(email);
+            return isValid ? null : index + 1;
+          })
+          .filter((index): index is number => index !== null);
+
+        if (invalidContactIndexes.length) {
+          errors.push(
+            `Contact ${invalidContactIndexes.join(", ")} (full name, contact role, and email are required)`,
+          );
+        }
       }
     }
 
     if (currentStep === 4) {
       if (!(formData.practices ?? []).length) {
         errors.push("At least one practice");
-      } else {
-        const firstPractice = formData.practices?.[0];
-        if (!firstPractice?.practiceName?.trim()) errors.push("Practice name");
-        if (!firstPractice?.practiceType) errors.push("Practice type");
-        if (
-          !(firstPractice?.locations ?? []).some((location) =>
-            location.locationName?.trim(),
-          )
-        ) {
-          errors.push("At least one location");
-        }
+      } else if (!(formData.practices ?? []).every((practice) => isValidPractice(practice))) {
+        errors.push(
+          "Every practice needs a name, type, at least one location, and at least one provider",
+        );
       }
     }
 
@@ -1420,6 +1616,24 @@ export default function OnboardingFormV3() {
         errors.push("Requested services");
       if (!formData.primaryServiceToLaunch)
         errors.push("Primary service to launch");
+      if (
+        formData.servicesForAllPractices === "SELECTED_PRACTICES" &&
+        !(formData.selectedPractices ?? []).length
+      ) {
+        errors.push("Select at least one practice");
+      }
+      if (
+        formData.servicesForAllPractices === "SINGLE_PRACTICE_ONLY" &&
+        (formData.selectedPractices ?? []).length !== 1
+      ) {
+        errors.push("Which single practice");
+      }
+      if (
+        formData.replacingExistingVendor &&
+        !(formData.currentVendorName?.trim() ?? "")
+      ) {
+        errors.push("Current vendor name");
+      }
     }
 
     if (currentStep === 6) {
@@ -1427,12 +1641,41 @@ export default function OnboardingFormV3() {
       if (hasBillingRcmSelected && !formData.billing?.currentBillingModel) {
         errors.push("Billing model");
       }
+      if (
+        (formData.billing?.currentBillingModel === "OUTSOURCED" ||
+          formData.billing?.currentBillingModel === "HYBRID") &&
+        !(formData.billing?.billingCompanyName?.trim() ?? "")
+      ) {
+        errors.push("Billing company name");
+      }
     }
 
-    // if (currentStep === 8) {
-    //   if (!formData.informationAccurate) errors.push("Accuracy confirmation");
-    //   if (!formData.authorizeUse) errors.push("Authorization confirmation");
-    // }
+    if (currentStep === 8) {
+      const invalidDocumentIndexes = (formData.documents ?? [])
+        .map((document, index) => {
+          const documentType = document.documentType?.trim() ?? "";
+          const validDateOrder = isDocumentReceivedAfterRequested(
+            document.dateRequested,
+            document.dateReceived,
+          );
+          return documentType && validDateOrder ? null : index + 1;
+        })
+        .filter((index): index is number => index !== null);
+
+      if (invalidDocumentIndexes.length) {
+        errors.push(
+          `Document ${invalidDocumentIndexes.join(", ")} type`,
+        );
+      }
+
+      if (!(formData.submittedByName?.trim() ?? "")) {
+        errors.push("Name of person submitting");
+      }
+
+      if (!(formData.submittedByTitle?.trim() ?? "")) {
+        errors.push("Title of person submitting");
+      }
+    }
 
     if (errors.length) {
       toast.error(`Please complete: ${errors.join(", ")}`);
@@ -1452,30 +1695,51 @@ export default function OnboardingFormV3() {
 
     if (stepId === 2) {
       if (formData.isIndividualPractice) return true;
-      return !!formData.legalCompanyName && !!formData.mainCompanyEmail;
+      const mainCompanyPhone = formData.mainCompanyPhone?.trim() ?? "";
+      const mainCompanyEmail = formData.mainCompanyEmail?.trim() ?? "";
+      const companyWebsite = formData.companyWebsite?.trim() ?? "";
+      const companyZip = formData.companyZip?.trim() ?? "";
+      return !!(formData.legalCompanyName?.trim() ?? "") &&
+        (!mainCompanyPhone || isValidTenDigitPhone(mainCompanyPhone)) &&
+        isValidCompanyEmail(mainCompanyEmail) &&
+        (!companyWebsite || isValidWebsite(companyWebsite)) &&
+        (!companyZip || isValidZipCode(companyZip));
     }
 
     if (stepId === 3) {
-      const primaryContact = formData.contacts?.[0];
-      return !!(
-        primaryContact?.fullName &&
-        primaryContact?.contactRole &&
-        primaryContact?.email
-      );
+      return (formData.contacts ?? []).every((contact) => {
+        const fullName = contact.fullName?.trim() ?? "";
+        const contactRole = contact.contactRole?.trim() ?? "";
+        const email = contact.email?.trim() ?? "";
+        return !!fullName && !!contactRole && isValidCompanyEmail(email);
+      });
     }
 
     if (stepId === 4) {
-      const firstPractice = formData.practices?.[0];
-      return !!(
-        firstPractice?.practiceName?.trim() &&
-        firstPractice?.practiceType &&
-        (firstPractice.locations ?? []).some((location) =>
-          location.locationName?.trim(),
-        )
+      return (formData.practices ?? []).every((practice) =>
+        isValidPractice(practice),
       );
     }
 
     if (stepId === 5) {
+      if (
+        formData.servicesForAllPractices === "SELECTED_PRACTICES" &&
+        !(formData.selectedPractices ?? []).length
+      ) {
+        return false;
+      }
+      if (
+        formData.servicesForAllPractices === "SINGLE_PRACTICE_ONLY" &&
+        (formData.selectedPractices ?? []).length !== 1
+      ) {
+        return false;
+      }
+      if (
+        formData.replacingExistingVendor &&
+        !(formData.currentVendorName?.trim() ?? "")
+      ) {
+        return false;
+      }
       return !!(
         formData.requestedServices?.length && formData.primaryServiceToLaunch
       );
@@ -1486,11 +1750,30 @@ export default function OnboardingFormV3() {
       if (hasBillingRcmSelected && !formData.billing?.currentBillingModel) {
         return false;
       }
+      if (
+        (formData.billing?.currentBillingModel === "OUTSOURCED" ||
+          formData.billing?.currentBillingModel === "HYBRID") &&
+        !(formData.billing?.billingCompanyName?.trim() ?? "")
+      ) {
+        return false;
+      }
       return true;
     }
 
     if (stepId === 8) {
-      return !!(formData.informationAccurate && formData.authorizeUse);
+      const allDocumentsValid = (formData.documents ?? []).every((document) =>
+        !!(document.documentType?.trim() ?? "") &&
+        isDocumentReceivedAfterRequested(
+          document.dateRequested,
+          document.dateReceived,
+        ),
+      );
+      return (
+        !!(formData.informationAccurate && formData.authorizeUse) &&
+        !!(formData.submittedByName?.trim() ?? "") &&
+        !!(formData.submittedByTitle?.trim() ?? "") &&
+        allDocumentsValid
+      );
     }
 
     return true;
@@ -1553,12 +1836,21 @@ export default function OnboardingFormV3() {
     const loadingToast = toast.loading("Submitting your onboarding request...");
 
     try {
-      await createOnboardingFromForm({
+      const submissionPayload = {
         ...formData,
         submissionDate: new Date().toISOString().slice(0, 10),
-      });
+        status: "IN_PROGRESS",
+      };
+
+      if (id) {
+        await updateOnboarding(id, submissionPayload);
+      } else {
+        await createOnboardingFromForm(submissionPayload);
+      }
+
       toast.success("Onboarding submitted successfully!", { id: loadingToast });
       setIsSubmitted(true);
+      setIsAlreadySubmitted(true);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to submit onboarding.";
@@ -1588,23 +1880,37 @@ export default function OnboardingFormV3() {
             </svg>
           </div>
           <h2 className="mb-2 text-2xl font-semibold text-slate-950">
-            Thank You!
+            {isAlreadySubmitted ? "Already Submitted" : "Thank You!"}
           </h2>
           <p className="mb-8 max-w-md text-slate-600">
-            Your onboarding request has been submitted successfully. Our team
-            will review your information and follow up shortly.
+            {isAlreadySubmitted
+              ? "This onboarding form has already been submitted and can no longer be edited."
+              : "Your onboarding request has been submitted successfully. Our team will review your information and follow up shortly."}
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              setFormData(initialFormData);
-              setCurrentStep(1);
-              setIsSubmitted(false);
-            }}
-            className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            Submit Another Request
-          </button>
+          {!isAlreadySubmitted ? (
+            <button
+              type="button"
+              onClick={() => {
+                setFormData(initialFormData);
+                setCurrentStep(1);
+                setIsSubmitted(false);
+                setIsAlreadySubmitted(false);
+              }}
+              className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Submit Another Request
+            </button>
+          ) : null}
+        </div>
+      </Shell>
+    );
+  }
+
+  if (isLoadingRecord) {
+    return (
+      <Shell>
+        <div className="flex min-h-[50vh] items-center justify-center text-sm text-slate-500">
+          Loading onboarding form...
         </div>
       </Shell>
     );
@@ -1825,6 +2131,7 @@ export default function OnboardingFormV3() {
                 <Field label="Main Company Phone">
                   <TextInput
                     type="tel"
+                    placeholder="1234567890"
                     value={formData.mainCompanyPhone ?? ""}
                     onChange={(event) =>
                       updateField("mainCompanyPhone", event.target.value)
@@ -1845,6 +2152,7 @@ export default function OnboardingFormV3() {
                 <Field label="Main Company Email" required>
                   <TextInput
                     type="email"
+                    placeholder="name@company.com"
                     value={formData.mainCompanyEmail ?? ""}
                     onChange={(event) =>
                       updateField("mainCompanyEmail", event.target.value)
@@ -1855,7 +2163,7 @@ export default function OnboardingFormV3() {
                 <Field label="Website">
                   <TextInput
                     type="url"
-                    placeholder="https://"
+                    placeholder="https://example.com"
                     value={formData.companyWebsite ?? ""}
                     onChange={(event) =>
                       updateField("companyWebsite", event.target.value)
@@ -1943,6 +2251,8 @@ export default function OnboardingFormV3() {
 
                 <Field label="ZIP Code">
                   <TextInput
+                    inputMode="numeric"
+                    placeholder="12345 or 12345-6789"
                     value={formData.companyZip ?? ""}
                     onChange={(event) =>
                       updateField("companyZip", event.target.value)
@@ -2030,7 +2340,7 @@ export default function OnboardingFormV3() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Field label="Full Name" required={index === 0}>
+                    <Field label="Full Name" required>
                       <TextInput
                         value={contact.fullName ?? ""}
                         onChange={(event) =>
@@ -2048,7 +2358,7 @@ export default function OnboardingFormV3() {
                       />
                     </Field>
 
-                    <Field label="Contact Role" required={index === 0}>
+                    <Field label="Contact Role" required>
                       <SelectInput
                         value={contact.contactRole ?? ""}
                         onChange={(event) =>
@@ -2062,9 +2372,10 @@ export default function OnboardingFormV3() {
                       />
                     </Field>
 
-                    <Field label="Email" required={index === 0}>
+                    <Field label="Email" required>
                       <TextInput
                         type="email"
+                        placeholder="name@company.com"
                         value={contact.email ?? ""}
                         onChange={(event) =>
                           updateContact(index, "email", event.target.value)
@@ -2235,7 +2546,7 @@ export default function OnboardingFormV3() {
                       />
                     </Field>
 
-                    <Field label="Practice Type" required={practiceIndex === 0}>
+                    <Field label="Practice Type" required>
                       <SelectInput
                         value={practice.practiceType ?? ""}
                         onChange={(event) =>
@@ -2506,9 +2817,7 @@ export default function OnboardingFormV3() {
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                               <Field
                                 label="Location Name"
-                                required={
-                                  practiceIndex === 0 && locationIndex === 0
-                                }
+                              required
                               >
                                 <TextInput
                                   value={location.locationName ?? ""}
@@ -2774,7 +3083,7 @@ export default function OnboardingFormV3() {
                             </div>
 
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                              <Field label="Provider First Name">
+                              <Field label="Provider First Name" required>
                                 <TextInput
                                   value={provider.firstName ?? ""}
                                   onChange={(event) =>
@@ -2788,7 +3097,7 @@ export default function OnboardingFormV3() {
                                 />
                               </Field>
 
-                              <Field label="Provider Last Name">
+                              <Field label="Provider Last Name" required>
                                 <TextInput
                                   value={provider.lastName ?? ""}
                                   onChange={(event) =>
@@ -2817,7 +3126,7 @@ export default function OnboardingFormV3() {
                                 />
                               </Field>
 
-                              <Field label="Provider Type">
+                              <Field label="Provider Type" required>
                                 <SelectInput
                                   value={provider.providerType ?? ""}
                                   onChange={(event) =>
@@ -3089,7 +3398,10 @@ export default function OnboardingFormV3() {
                 </Field>
 
                 {formData.servicesForAllPractices === "SELECTED_PRACTICES" ? (
-                  <Field label="If selected practices, which practices?">
+                  <Field
+                    label="If selected practices, which practices?"
+                    required
+                  >
                     <CheckboxGroup
                       options={practiceNames.map((name) => ({
                         label: name,
@@ -3103,6 +3415,22 @@ export default function OnboardingFormV3() {
                           : [...currentValues, value];
                         updateServiceSetup("selectedPractices", nextValues);
                       }}
+                    />
+                  </Field>
+                ) : formData.servicesForAllPractices ===
+                  "SINGLE_PRACTICE_ONLY" ? (
+                  <Field label="Which single practice?" required>
+                    <SelectInput
+                      value={formData.selectedPractices?.[0] ?? ""}
+                      onChange={(event) =>
+                        updateServiceSetup("selectedPractices", [
+                          event.target.value,
+                        ])
+                      }
+                      options={practiceNames.map((name) => ({
+                        label: name,
+                        value: name,
+                      }))}
                     />
                   </Field>
                 ) : null}
@@ -3119,7 +3447,10 @@ export default function OnboardingFormV3() {
 
                 {formData.replacingExistingVendor ? (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Field label="Current Vendor Name">
+                    <Field
+                      label="Current Vendor Name"
+                      required={!!formData.replacingExistingVendor}
+                    >
                       <TextInput
                         value={formData.currentVendorName ?? ""}
                         onChange={(event) =>
@@ -3370,7 +3701,13 @@ export default function OnboardingFormV3() {
 
                 {formData.billing?.currentBillingModel === "OUTSOURCED" ||
                 formData.billing?.currentBillingModel === "HYBRID" ? (
-                  <Field label="Billing Company Name">
+                  <Field
+                    label="Billing Company Name"
+                    required={
+                      formData.billing?.currentBillingModel === "OUTSOURCED" ||
+                      formData.billing?.currentBillingModel === "HYBRID"
+                    }
+                  >
                     <TextInput
                       value={formData.billing?.billingCompanyName ?? ""}
                       onChange={(event) =>
@@ -4357,7 +4694,7 @@ export default function OnboardingFormV3() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      <Field label="Document Type">
+                      <Field label="Document Type" required>
                         <SelectInput
                           value={document.documentType ?? ""}
                           onChange={(event) =>
@@ -4465,7 +4802,7 @@ export default function OnboardingFormV3() {
             <SectionCard title="Final Review / Submission">
               <div className="grid gap-6">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Field label="Name of person submitting">
+                  <Field label="Name of person submitting" required>
                     <TextInput
                       value={formData.submittedByName ?? ""}
                       onChange={(event) =>
@@ -4474,7 +4811,7 @@ export default function OnboardingFormV3() {
                     />
                   </Field>
 
-                  <Field label="Title of person submitting">
+                  <Field label="Title of person submitting" required>
                     <TextInput
                       value={formData.submittedByTitle ?? ""}
                       onChange={(event) =>

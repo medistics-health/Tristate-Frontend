@@ -30,6 +30,7 @@ import AppLayout from "../layout/AppLayout";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
 import {
   getOnboardings,
+  getOnboarding,
   updateOnboarding,
   type Onboarding,
   type OnboardingDocument,
@@ -228,6 +229,9 @@ export default function AdminOnboardingReview() {
   const [filters, setFilters] = useState({ search: "", status: "" });
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [selectedOnboarding, setSelectedOnboarding] =
+    useState<Onboarding | null>(null);
+  const [isSelectedLoading, setIsSelectedLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [isUpdating, setIsUpdating] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -295,6 +299,9 @@ export default function AdminOnboardingReview() {
     () => rows.find((row) => row.id === selectedRowId) || null,
     [rows, selectedRowId],
   );
+  const canonicalSelectedOnboarding =
+    selectedOnboarding ?? selectedRow?.original ?? null;
+  const detailData = canonicalSelectedOnboarding;
 
   const columns = useMemo<ColumnDef<OnboardingRow>[]>(
     () => [
@@ -422,22 +429,48 @@ export default function AdminOnboardingReview() {
     enableSortingRemoval: false,
   });
 
-  const handleRowClick = (rowId: string) => {
+  const handleRowClick = async (rowId: string) => {
     setSelectedRowId(rowId);
     setShowDetailPanel(true);
     setActiveTab("overview");
+    setSelectedOnboarding(null);
+    setIsSelectedLoading(true);
+
+    try {
+      const onboarding = await getOnboarding(rowId);
+      setSelectedOnboarding(onboarding);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to load onboarding.";
+      toast.error(message);
+    } finally {
+      setIsSelectedLoading(false);
+    }
   };
 
   const closeDetailPanel = () => {
     setShowDetailPanel(false);
     setSelectedRowId(null);
+    setSelectedOnboarding(null);
   };
 
-  const startReview = () => {
+  const startReview = async () => {
     if (!selectedRow) return;
-    setReviewingData(selectedRow.original);
-    setIsReviewing(true);
-    setReviewStep(1);
+    setIsSelectedLoading(true);
+    try {
+      const onboarding =
+        selectedOnboarding ?? (await getOnboarding(selectedRow.id));
+      setSelectedOnboarding(onboarding);
+      setReviewingData(onboarding);
+      setIsReviewing(true);
+      setReviewStep(1);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to load onboarding.";
+      toast.error(message);
+    } finally {
+      setIsSelectedLoading(false);
+    }
   };
 
   const closeReview = () => {
@@ -462,6 +495,7 @@ export default function AdminOnboardingReview() {
 
       const updated = await updateOnboarding(reviewingData.id, updateData);
       toast.success("Onboarding updated successfully.");
+      setSelectedOnboarding(updated);
 
       // Update local state
       setRows((prev) =>
@@ -497,6 +531,9 @@ export default function AdminOnboardingReview() {
     try {
       await updateOnboarding(selectedRow.id, { status: newStatus });
       toast.success(`Status updated to ${statusLabels[newStatus]}`);
+      setSelectedOnboarding((prev) =>
+        prev ? { ...prev, status: newStatus } : prev,
+      );
       setRows((prev) =>
         prev.map((r) =>
           r.id === selectedRow.id
@@ -862,6 +899,69 @@ export default function AdminOnboardingReview() {
               );
             })}
           </div>
+        </div>
+      );
+    };
+
+    const renderSingleSelect = (
+      label: string,
+      field: keyof Onboarding,
+      options: { label: string; value: string }[],
+    ) => {
+      const values = (reviewingData[field] as string[]) || [];
+      const value = values[0] || "";
+      const isEmpty = !value;
+      const isLocked = lockedTopLevelFields.has(field);
+
+      if (!showEmptyFields && isEmpty) return null;
+
+      return (
+        <div
+          className={`space-y-2 rounded-2xl border px-4 py-3 transition-all ${
+            isLocked
+              ? "border-amber-200 bg-amber-50/70"
+              : isEmpty
+                ? "border-slate-200 bg-slate-50/70"
+                : "border-slate-200 bg-white shadow-sm"
+          } ${isEmpty ? "opacity-70" : "opacity-100"}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              {label}
+            </label>
+            {isLocked && (
+              <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                Locked
+              </span>
+            )}
+          </div>
+          {isLocked && (
+            <p className="text-[11px] text-amber-700">
+              Locked to avoid changing the review structure.
+            </p>
+          )}
+          <select
+            value={value}
+            disabled={isLocked}
+            onChange={(e) =>
+              setReviewingData({
+                ...(reviewingData as Onboarding),
+                [field]: e.target.value ? [e.target.value] : [],
+              })
+            }
+            className={`app-control w-full rounded-xl px-4 py-2.5 text-[13px] border-transparent transition-all ${
+              isLocked
+                ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                : "bg-slate-50 focus:bg-white focus:border-indigo-500"
+            }`}
+          >
+            <option value="">Select...</option>
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
       );
     };
@@ -1536,6 +1636,22 @@ export default function AdminOnboardingReview() {
                         "SELECTED_PRACTICES" &&
                         renderMultiSelect(
                           "Selected Practices",
+                          "selectedPractices",
+                          (reviewingData.practices || []).map((practice) => ({
+                            label:
+                              practice.practiceName ||
+                              practice.practiceDbaName ||
+                              "Unnamed Practice",
+                            value:
+                              practice.practiceName ||
+                              practice.practiceDbaName ||
+                              "Unnamed Practice",
+                          })),
+                        )}
+                      {reviewingData.servicesForAllPractices ===
+                        "SINGLE_PRACTICE_ONLY" &&
+                        renderSingleSelect(
+                          "Which single practice?",
                           "selectedPractices",
                           (reviewingData.practices || []).map((practice) => ({
                             label:
@@ -2306,11 +2422,17 @@ export default function AdminOnboardingReview() {
           {renderDetailField("Priority", ob.priorityLevel)}
           {renderDetailField(
             "Go-Live Date",
-            ob.requestedGoLiveDate
-              ? new Date(ob.requestedGoLiveDate).toLocaleDateString()
-              : undefined,
+            ob.requestedGoLiveDate,
           )}
           {renderDetailField("Services For", ob.servicesForAllPractices)}
+          {(ob.servicesForAllPractices === "SELECTED_PRACTICES" ||
+            ob.servicesForAllPractices === "SINGLE_PRACTICE_ONLY") &&
+            renderDetailArray(
+              ob.servicesForAllPractices === "SINGLE_PRACTICE_ONLY"
+                ? "Selected Practice"
+                : "Selected Practices",
+              ob.selectedPractices,
+            )}
           {renderDetailField(
             "Replacing Vendor",
             ob.replacingExistingVendor ? ob.currentVendorName : undefined,
@@ -2341,9 +2463,7 @@ export default function AdminOnboardingReview() {
           {renderDetailField("Title", ob.submittedByTitle)}
           {renderDetailField(
             "Date",
-            ob.submissionDate
-              ? new Date(ob.submissionDate).toLocaleDateString()
-              : undefined,
+            ob.submissionDate,
           )}
           {renderDetailField("Type", ob.onboardingType)}
         </div>
@@ -2790,40 +2910,48 @@ export default function AdminOnboardingReview() {
         <p className="text-[13px] text-slate-400">No documents uploaded.</p>
       );
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         {docs.map((d, i: number) => (
           <div
             key={d.id || i}
-            className="flex items-center justify-between rounded-lg border border-[#e8e4dc] bg-[#faf9f7] p-2.5"
+            className="rounded-lg border border-[#e8e4dc] bg-[#faf9f7] p-3"
           >
-            <div className="flex items-center gap-2">
-              <FileText className="h-3.5 w-3.5 text-slate-400" />
-              <div>
-                <p className="text-[13px] font-medium text-slate-700">
-                  {d.fileName || "Unnamed Document"}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  {Array.isArray(d.documentType)
-                    ? d.documentType.join(", ")
-                    : d.documentType}
-                </p>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-3.5 w-3.5 text-slate-400" />
+                <div>
+                  <p className="text-[13px] font-medium text-slate-700">
+                    {d.fileName || "Unnamed Document"}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {Array.isArray(d.documentType)
+                      ? d.documentType.join(", ")
+                      : d.documentType}
+                  </p>
+                </div>
               </div>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  d.status === "APPROVED"
+                    ? "bg-green-100 text-green-700"
+                    : d.status === "REJECTED"
+                      ? "bg-red-100 text-red-700"
+                      : d.status === "RECEIVED"
+                        ? "bg-blue-100 text-blue-700"
+                        : d.status === "UNDER_REVIEW"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                {d.status || "Not Requested"}
+              </span>
             </div>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                d.status === "APPROVED"
-                  ? "bg-green-100 text-green-700"
-                  : d.status === "REJECTED"
-                    ? "bg-red-100 text-red-700"
-                    : d.status === "RECEIVED"
-                      ? "bg-blue-100 text-blue-700"
-                      : d.status === "UNDER_REVIEW"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-gray-100 text-gray-600"
-              }`}
-            >
-              {d.status || "Not Requested"}
-            </span>
+            <div className="grid gap-2 text-[13px]">
+              {renderDetailField("Date Requested", d.dateRequested)}
+              {renderDetailField("Date Received", d.dateReceived)}
+              {renderDetailField("Required", d.required ? "Yes" : "No")}
+              {renderDetailField("Notes", d.notes)}
+            </div>
           </div>
         ))}
       </div>
@@ -3090,7 +3218,7 @@ export default function AdminOnboardingReview() {
               </button>
               <FileText className="h-4 w-4 text-slate-300" />
               <h2 className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
-                {selectedRow.companyName}
+                {detailData?.legalCompanyName || detailData?.dbaName || selectedRow.companyName}
               </h2>
             </div>
 
@@ -3112,7 +3240,13 @@ export default function AdminOnboardingReview() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">
-              {renderTabContent(selectedRow.original)}
+              {isSelectedLoading && !selectedOnboarding ? (
+                <p className="text-[13px] text-slate-400">
+                  Loading onboarding details...
+                </p>
+              ) : (
+                renderTabContent(detailData ?? selectedRow.original)
+              )}
             </div>
 
             <div className="border-t border-[#f0ece6] px-4 py-3 bg-slate-50/50">
@@ -3131,10 +3265,13 @@ export default function AdminOnboardingReview() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={isUpdating || selectedRow.status === "IN_PROGRESS"}
-                  onClick={() => handleStatusUpdate("IN_PROGRESS")}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
-                    selectedRow.status === "IN_PROGRESS"
+                disabled={
+                  isUpdating ||
+                  (detailData?.status ?? selectedRow.status) === "IN_PROGRESS"
+                }
+                onClick={() => handleStatusUpdate("IN_PROGRESS")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
+                    (detailData?.status ?? selectedRow.status) === "IN_PROGRESS"
                       ? "bg-blue-100 text-blue-700"
                       : "border border-[#ece8e1] text-blue-600 hover:bg-blue-50"
                   } disabled:opacity-40`}
@@ -3144,10 +3281,13 @@ export default function AdminOnboardingReview() {
                 </button>
                 <button
                   type="button"
-                  disabled={isUpdating || selectedRow.status === "COMPLETED"}
-                  onClick={() => handleStatusUpdate("COMPLETED")}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
-                    selectedRow.status === "COMPLETED"
+                disabled={
+                  isUpdating ||
+                  (detailData?.status ?? selectedRow.status) === "COMPLETED"
+                }
+                onClick={() => handleStatusUpdate("COMPLETED")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
+                    (detailData?.status ?? selectedRow.status) === "COMPLETED"
                       ? "bg-green-100 text-green-700"
                       : "border border-[#ece8e1] text-green-600 hover:bg-green-50"
                   } disabled:opacity-40`}
@@ -3157,10 +3297,13 @@ export default function AdminOnboardingReview() {
                 </button>
                 <button
                   type="button"
-                  disabled={isUpdating || selectedRow.status === "CANCELLED"}
-                  onClick={() => handleStatusUpdate("CANCELLED")}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
-                    selectedRow.status === "CANCELLED"
+                disabled={
+                  isUpdating ||
+                  (detailData?.status ?? selectedRow.status) === "CANCELLED"
+                }
+                onClick={() => handleStatusUpdate("CANCELLED")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
+                    (detailData?.status ?? selectedRow.status) === "CANCELLED"
                       ? "bg-red-100 text-red-700"
                       : "border border-[#ece8e1] text-red-600 hover:bg-red-50"
                   } disabled:opacity-40`}
