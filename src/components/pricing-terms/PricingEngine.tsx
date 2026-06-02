@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
-import { getAllPractices } from "../../services/operations/practices";
+import { getAllPractices, getPractice } from "../../services/operations/practices";
 import { getAllServices } from "../../services/operations/services";
 import { getAllVendorsApi } from "../../services/operations/vendors";
 import type { Practice } from "../practices/types";
@@ -24,6 +24,7 @@ import {
   deletePricingTerm,
   getPricingTerms,
   type PricingConfigShape,
+  type VendorPricingShape,
 } from "../../services/operations/pricingEngine";
 import type { AgreementServiceTerm } from "../../services/operations/agreements";
 import {
@@ -65,17 +66,69 @@ function fmtMoney(v?: number | string | null) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
+function fmtPercent(value: number) {
+  return `${value.toFixed(2)}%`;
+}
+
+function pickDefaultSignerEmail(practice?: Practice) {
+  const people = practice?.persons ?? [];
+  const rolePriority = [
+    "authorized official",
+    "signer",
+    "owner",
+    "ceo",
+    "administrator",
+    "admin",
+    "billing",
+  ];
+
+  const ordered = [...people].sort((a, b) => {
+    const aRole = a.role?.toLowerCase() ?? "";
+    const bRole = b.role?.toLowerCase() ?? "";
+    const aIndex = rolePriority.findIndex((role) => aRole.includes(role));
+    const bIndex = rolePriority.findIndex((role) => bRole.includes(role));
+    const safeA = aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex;
+    const safeB = bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex;
+    return safeA - safeB;
+  });
+
+  const emails = ordered
+    .map((person) => person.email?.trim() ?? "")
+    .filter(Boolean);
+
+  return Array.from(new Set(emails)).join(", ");
+}
+
 function extractClientRate(term: AgreementServiceTerm): number {
   const c = term.pricingConfig as PricingConfigShape;
-  return parseFloat((c?.amount ?? c?.unitRate ?? c?.percentage ?? "") || "0") || 0;
+  return sumPricingConfig(c);
 }
 
 function extractVendorRate(term: AgreementServiceTerm): number {
+  const config = term.pricingConfig as PricingConfigShape;
+  const vendorPricing = (config?.vendorPricing ?? null) as VendorPricingShape | null;
+  const nestedVendorTotal = sumPricingConfig(vendorPricing);
+  if (nestedVendorTotal > 0) return nestedVendorTotal;
+
   // minimumFee can be a string (Prisma Decimal) or number
   const raw = term.minimumFee;
   if (raw === null || raw === undefined) return 0;
   const n = typeof raw === "number" ? raw : parseFloat(String(raw));
   return isNaN(n) ? 0 : n;
+}
+
+function sumPricingConfig(config?: Partial<PricingConfigShape> | VendorPricingShape | null): number {
+  if (!config) return 0;
+  if (config.amount) return parseFloat(config.amount) || 0;
+  if (config.unitRate) return parseFloat(config.unitRate) || 0;
+  if (config.percentage) return parseFloat(config.percentage) || 0;
+  if (config.cptCodes?.length) {
+    return config.cptCodes.reduce((sum, row) => sum + (parseFloat(row.rate || "0") || 0), 0);
+  }
+  if (config.components?.length) {
+    return config.components.reduce((sum, component) => sum + (parseFloat(component.value || "0") || 0), 0);
+  }
+  return 0;
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -130,6 +183,7 @@ function SkeletonTableRows() {
 
 export default function PricingEnginePage() {
   const [practices, setPractices] = useState<Practice[]>([]);
+  const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [vendors, setVendors] = useState<{ id: string; name: string }[]>([]);
   const [agreements, setAgreements] = useState<{ id: string; label: string }[]>([]);
@@ -164,6 +218,20 @@ export default function PricingEnginePage() {
       .then((d) => setAgreements(d.rows.map((r) => ({ id: r.id, label: String(r.values.name || r.id) }))))
       .catch(console.error);
   }, [selectedPracticeId]);
+
+  useEffect(() => {
+    if (!selectedPracticeId) {
+      setSelectedPractice(null);
+      return;
+    }
+
+    getPractice(selectedPracticeId)
+      .then(setSelectedPractice)
+      .catch((error) => {
+        console.error(error);
+        setSelectedPractice(practices.find((practice) => practice.id === selectedPracticeId) ?? null);
+      });
+  }, [selectedPracticeId, practices]);
 
   // Load versions when agreement changes
   useEffect(() => {
@@ -218,7 +286,7 @@ export default function PricingEnginePage() {
   const totalClient = terms.reduce((s, t) => s + extractClientRate(t), 0);
   const totalVendor = terms.reduce((s, t) => s + extractVendorRate(t), 0);
   const totalMargin = totalClient - totalVendor;
-  const marginPct = totalClient > 0 ? Math.round((totalMargin / totalClient) * 100) : 0;
+  const marginPct = totalClient > 0 ? Number(((totalMargin / totalClient) * 100).toFixed(2)) : 0;
 
   const canAddTerm = !!selectedAgreementId && !!selectedVersionId;
 
@@ -310,7 +378,7 @@ export default function PricingEnginePage() {
                 { label: "Client Revenue", value: fmtMoney(totalClient), color: "text-[#4f63ea]" },
                 { label: "Vendor Cost", value: fmtMoney(totalVendor), color: "text-red-500" },
                 { label: "Gross Margin", value: fmtMoney(totalMargin), color: "text-emerald-600" },
-                { label: "Margin %", value: `${marginPct}%`, color: marginPct < 20 ? "text-amber-600" : "text-emerald-600" },
+                { label: "Margin %", value: fmtPercent(marginPct), color: marginPct < 20 ? "text-amber-600" : "text-emerald-600" },
               ].map((c) => (
                 <div key={c.label} className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
                   <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{c.label}</div>
@@ -357,7 +425,7 @@ export default function PricingEnginePage() {
                     const cl = extractClientRate(term);
                     const vn = extractVendorRate(term);
                     const mg = cl - vn;
-                    const mp = cl > 0 ? Math.round((mg / cl) * 100) : 0;
+                    const mp = cl > 0 ? Number(((mg / cl) * 100).toFixed(2)) : 0;
                     return (
                       <tr key={term.id}
                         onClick={() => { setSelectedTerm(term); setShowDetail(true); }}
@@ -368,10 +436,10 @@ export default function PricingEnginePage() {
                             {fmtModel(term.pricingModel)}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-right text-slate-700">{cl > 0 ? fmtMoney(cl) : "-"}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-500">{vn > 0 ? fmtMoney(vn) : "-"}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-700">{fmtMoney(cl)}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-500">{term.vendorId ? fmtMoney(vn) : "-"}</td>
                         <td className="px-4 py-2.5 text-right">
-                          {cl > 0 ? <span className={mp < 20 ? "text-amber-600 font-medium" : "text-emerald-600 font-medium"}>{mp}%</span> : "-"}
+                          {cl > 0 ? <span className={mp < 20 ? "text-amber-600 font-medium" : "text-emerald-600 font-medium"}>{fmtPercent(mp)}</span> : "-"}
                         </td>
                         <td className="px-4 py-2.5 text-slate-500">{term.vendor?.name ?? "-"}</td>
                         <td className="px-4 py-2.5">
@@ -408,7 +476,7 @@ export default function PricingEnginePage() {
           services={activeServices}
           vendors={vendors}
           editingTerm={editingTerm}
-          defaultSignerEmail={practices.find((p) => p.id === selectedPracticeId)?.persons?.find(Boolean)?.email ?? null}
+          defaultSignerEmail={pickDefaultSignerEmail(selectedPractice ?? practices.find((p) => p.id === selectedPracticeId))}
           onClose={() => { setShowWizard(false); setEditingTerm(null); }}
           onSaved={async () => {
             setShowWizard(false);
@@ -515,12 +583,12 @@ function TermDetailPanel({
         </div>
 
         {/* Config values */}
-        {Object.entries(cfg ?? {}).filter(([k, v]) => v && !["cptCodes", "components"].includes(k)).length > 0 && (
+        {Object.entries(cfg ?? {}).filter(([, v]) => v !== undefined && v !== null && v !== "" && !Array.isArray(v)).length > 0 && (
           <div>
             <h4 className="mb-2 text-[13px] font-medium text-slate-700">Rate Configuration</h4>
             <div className="space-y-2 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
               {Object.entries(cfg ?? {}).map(([k, v]) => {
-                if (!v || ["cptCodes", "components"].includes(k)) return null;
+                if (v === undefined || v === null || v === "" || ["cptCodes", "components"].includes(k)) return null;
                 const label = k.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
                 return <InfoRow key={k} label={label} value={String(v)} />;
               })}
@@ -550,7 +618,7 @@ function TermDetailPanel({
             <InfoRow label="Est. Gross Margin" value={fmtMoney(preview.grossMargin)} />
             <div className="flex items-center justify-between border-t border-[#f0ece6] pt-2">
               <span className="text-slate-400">Margin %</span>
-              <span className={`text-[15px] font-bold ${preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"}`}>{preview.marginPct}%</span>
+              <span className={`text-[15px] font-bold ${preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"}`}>{fmtPercent(preview.marginPct)}</span>
             </div>
           </div>
           {preview.requiresApproval && (

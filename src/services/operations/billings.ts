@@ -102,6 +102,24 @@ export type BillingRunItem = {
   exceptionFlags?: string[];
   service?: { id: string; name: string } | null;
   vendor?: { id: string; name: string } | null;
+  agreementServiceTerm?: {
+    id: string;
+    effectiveDate?: string | null;
+    endDate?: string | null;
+    agreement?: {
+      id: string;
+      effectiveDate?: string | null;
+      renewalDate?: string | null;
+      terminationDate?: string | null;
+    } | null;
+    agreementVersion?: {
+      id: string;
+      versionNumber?: number | null;
+      effectiveDate?: string | null;
+      endDate?: string | null;
+    } | null;
+  } | null;
+  formulaSnapshot?: Record<string, unknown> | null;
   components?: Array<{
     id: string;
     componentType: string;

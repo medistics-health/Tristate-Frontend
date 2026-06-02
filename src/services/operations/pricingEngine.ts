@@ -61,6 +61,18 @@ export type HybridComponent = {
   value: string;
 };
 
+export type VendorPricingShape = {
+  amount?: string;
+  percentage?: string;
+  minimumFee?: string;
+  maximumFee?: string;
+  collectionSource?: string;
+  unitRate?: string;
+  cptCodes?: CptCodeRow[];
+  components?: HybridComponent[];
+  pricingModel?: PricingModel;
+};
+
 export type PricingConfigShape = {
   // FIXED_MONTHLY / RETAINER / FIXED_ONE_TIME
   amount?: string;
@@ -75,6 +87,9 @@ export type PricingConfigShape = {
   cptCodes?: CptCodeRow[];
   // HYBRID
   components?: HybridComponent[];
+  // Vendor pricing mirrors selected model structure
+  vendorPricing?: VendorPricingShape;
+  signerEmails?: string[];
   // effective dates (all models)
   effectiveStartDate?: string;
   effectiveEndDate?: string;
