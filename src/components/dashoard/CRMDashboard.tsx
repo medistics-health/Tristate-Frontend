@@ -106,6 +106,17 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+function parseMoney(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value !== "string") return 0;
+
+  const normalized = value.replace(/[^0-9.-]/g, "");
+  if (!normalized) return 0;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function getPriorityColor(priority: TaskItem["priority"]) {
   switch (priority) {
     case "high":
@@ -512,7 +523,7 @@ export default function CRMDashboardPage() {
           dealsData.slice(0, 10).map((deal: any) => ({
             id: deal.id,
             name: deal.practice?.name || "Unknown",
-            value: deal.value || 0,
+            value: parseMoney(deal.value),
             stage: deal.stage || "LEAD",
             daysInStage: 0,
             closeDate: deal.expectedCloseDate || "N/A",
@@ -529,7 +540,7 @@ export default function CRMDashboardPage() {
 
   const stats = useMemo(() => {
     const totalPipeline = deals.reduce(
-      (sum, deal) => sum + (deal.value || 0),
+      (sum, deal) => sum + parseMoney(deal.value),
       0,
     );
     const dealsClosingThisMonth = deals.filter((d) => {

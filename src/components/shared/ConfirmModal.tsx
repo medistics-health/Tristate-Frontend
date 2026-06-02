@@ -8,7 +8,8 @@ type ConfirmModalProps = {
   onConfirm: () => void;
   onSecondaryConfirm?: () => void;
   title: string;
-  message: string;
+  message?: string;
+  children?: React.ReactNode;
   confirmLabel?: string;
   secondaryLabel?: string;
   cancelLabel?: string;
@@ -22,6 +23,7 @@ export default function ConfirmModal({
   onSecondaryConfirm,
   title,
   message,
+  children,
   confirmLabel = "Confirm",
   secondaryLabel,
   cancelLabel = "Cancel",
@@ -52,9 +54,13 @@ export default function ConfirmModal({
           </button>
         </div>
         <div className="px-6 py-6">
-          <p className="text-[14px] text-slate-500 leading-relaxed">
-            {message}
-          </p>
+          {children ? (
+            children
+          ) : (
+            <p className="text-[14px] text-slate-500 leading-relaxed">
+              {message}
+            </p>
+          )}
         </div>
         <div className="flex items-center justify-end gap-3 bg-slate-50 px-6 py-4">
           <button

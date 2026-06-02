@@ -17,7 +17,7 @@ import {
   FileText,
   Clock,
 } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
@@ -115,6 +115,16 @@ type LeadFormState = {
   primaryContactEmail: string;
   primaryContactPhone: string;
   primaryContactDesignation: string;
+  contactPracticeIds: { id: string; name: string }[];
+  contactCompanyIds: { id: string; name: string }[];
+
+  // Practice Group NPIs
+  practiceGroupNpis: {
+    groupNpiNumber: string;
+    groupName: string;
+    status: string;
+    notes: string;
+  }[];
 
   // Deal
   interestedServiceIds: string[];
@@ -179,6 +189,9 @@ const initialFormState: LeadFormState = {
   primaryContactEmail: "",
   primaryContactPhone: "",
   primaryContactDesignation: "",
+  contactPracticeIds: [],
+  contactCompanyIds: [],
+  practiceGroupNpis: [],
 
   interestedServiceIds: [],
   estimatedValue: "",
@@ -259,6 +272,11 @@ function CreateLeadPage() {
     null,
   );
 
+  // Template search state
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const templateDropdownRef = useRef<HTMLDivElement>(null);
+
   // Agreement Redirect State
   const [showAgreementModal, setShowAgreementModal] = useState(false);
 
@@ -311,6 +329,9 @@ function CreateLeadPage() {
 
       // 2. Handle Practice
       if (form.practiceRelation === "new") {
+        const validGroupNpis = form.practiceGroupNpis.filter(
+          (g) => g.groupNpiNumber.trim() && g.groupName.trim(),
+        );
         const practicePayload: PracticeBody = {
           name: form.practiceName.trim(),
           npi: form.practiceNpi.trim(),
@@ -322,6 +343,15 @@ function CreateLeadPage() {
             .map((item) => item.trim())
             .filter(Boolean),
           companyId: companyId || undefined,
+          ...(validGroupNpis.length > 0 && {
+            groupNpis: validGroupNpis.map((g) => ({
+              groupNpiNumber: g.groupNpiNumber.trim(),
+              groupName: g.groupName.trim(),
+              status: g.status || "ACTIVE",
+              notes: g.notes || "",
+              taxId: form.taxIds.find((t) => t.taxIdNumber)?.taxIdNumber || "",
+            })),
+          }),
         };
         const practiceRow = await createPracticeApi(practicePayload);
         practiceId = practiceRow.id;
@@ -331,6 +361,21 @@ function CreateLeadPage() {
       // 3. Handle Contact
       if (form.contactRelation === "new") {
         const parsedContact = parseContactName(form.primaryContactName);
+        const mergedPracticeIds = [
+          ...new Set(
+            [practiceId, ...form.contactPracticeIds.map((p) => p.id)].filter(
+              Boolean,
+            ),
+          ),
+        ];
+        const mergedCompanyIds = [
+          ...new Set(
+            [
+              ...(companyId ? [companyId] : []),
+              ...form.contactCompanyIds.map((c) => c.id),
+            ].filter(Boolean),
+          ),
+        ];
         const personPayload: PersonBody = {
           firstName: parsedContact.firstName,
           lastName: parsedContact.lastName,
@@ -339,8 +384,8 @@ function CreateLeadPage() {
           email: form.primaryContactEmail.trim(),
           phone: form.primaryContactPhone.trim() || undefined,
           designation: form.primaryContactDesignation.trim() || undefined,
-          practiceIds: [practiceId],
-          companyIds: companyId ? [companyId] : [],
+          practiceIds: mergedPracticeIds,
+          companyIds: mergedCompanyIds,
         };
         const personRow = await createPersonApi(personPayload);
         contactId = personRow.id;
@@ -348,10 +393,18 @@ function CreateLeadPage() {
       } else if (form.practiceRelation === "new" && contactId) {
         const existingPerson = await getPerson(contactId);
         const nextPracticeIds = [
-          ...new Set([...(existingPerson.practices?.map((p) => p.id) ?? []), practiceId]),
+          ...new Set([
+            ...(existingPerson.practices?.map((p) => p.id) ?? []),
+            practiceId,
+            ...form.contactPracticeIds.map((p) => p.id),
+          ]),
         ];
         const nextCompanyIds = [
-          ...new Set([...(existingPerson.companies?.map((c) => c.id) ?? []), ...(companyId ? [companyId] : [])]),
+          ...new Set([
+            ...(existingPerson.companies?.map((c) => c.id) ?? []),
+            ...(companyId ? [companyId] : []),
+            ...form.contactCompanyIds.map((c) => c.id),
+          ]),
         ];
 
         await updatePersonApi(contactId, {
@@ -497,11 +550,15 @@ function CreateLeadPage() {
     } catch (error) {
       console.error(error);
       const cleanupTasks: Array<Promise<unknown>> = [];
-      if (createdAgreementId) cleanupTasks.push(deleteAgreementApi(createdAgreementId));
+      if (createdAgreementId)
+        cleanupTasks.push(deleteAgreementApi(createdAgreementId));
       if (createdDealId) cleanupTasks.push(deleteDealApi(createdDealId));
-      if (createdContactId) cleanupTasks.push(deletePersonApi(createdContactId));
-      if (createdPracticeId) cleanupTasks.push(deletePracticeApi(createdPracticeId));
-      if (createdCompanyId) cleanupTasks.push(deleteCompanyApi(createdCompanyId));
+      if (createdContactId)
+        cleanupTasks.push(deletePersonApi(createdContactId));
+      if (createdPracticeId)
+        cleanupTasks.push(deletePracticeApi(createdPracticeId));
+      if (createdCompanyId)
+        cleanupTasks.push(deleteCompanyApi(createdCompanyId));
 
       if (cleanupTasks.length > 0) {
         const cleanupResults = await Promise.allSettled(cleanupTasks);
@@ -516,6 +573,19 @@ function CreateLeadPage() {
       setIsSaving(false);
     }
   };
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        templateDropdownRef.current &&
+        !templateDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowTemplateDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     async function loadInitialData() {
@@ -628,6 +698,66 @@ function CreateLeadPage() {
     setForm(initialFormState);
   };
 
+  const updateGroupNpi = (index: number, field: string, value: string) => {
+    setForm((current) => ({
+      ...current,
+      practiceGroupNpis: current.practiceGroupNpis.map((entry, i) =>
+        i === index ? { ...entry, [field]: value } : entry,
+      ),
+    }));
+  };
+
+  const addGroupNpi = () => {
+    setForm((current) => ({
+      ...current,
+      practiceGroupNpis: [
+        ...current.practiceGroupNpis,
+        { groupNpiNumber: "", groupName: "", status: "ACTIVE", notes: "" },
+      ],
+    }));
+  };
+
+  const removeGroupNpi = (index: number) => {
+    setForm((current) => ({
+      ...current,
+      practiceGroupNpis: current.practiceGroupNpis.filter(
+        (_, i) => i !== index,
+      ),
+    }));
+  };
+
+  const addContactCompanyId = (id: string, option?: SearchSelectOption) => {
+    setForm((current) => ({
+      ...current,
+      contactCompanyIds: current.contactCompanyIds.some((c) => c.id === id)
+        ? current.contactCompanyIds
+        : [...current.contactCompanyIds, { id, name: option?.label || id }],
+    }));
+  };
+
+  const removeContactCompanyId = (id: string) => {
+    setForm((current) => ({
+      ...current,
+      contactCompanyIds: current.contactCompanyIds.filter((c) => c.id !== id),
+    }));
+  };
+
+  const addContactPracticeId = (id: string, option?: SearchSelectOption) => {
+    setForm((current) => ({
+      ...current,
+      contactPracticeIds: current.contactPracticeIds.some((p) => p.id === id)
+        ? current.contactPracticeIds
+        : [...current.contactPracticeIds, { id, name: option?.label || id }],
+    }));
+  };
+
+  const removeContactPracticeId = (id: string) => {
+    setForm((current) => ({
+      ...current,
+      contactPracticeIds: current.contactPracticeIds.filter((p) => p.id !== id),
+    }));
+  };
+
   // Search Functions
   const handleSearchCompanies = async (
     query: string,
@@ -657,6 +787,20 @@ function CreateLeadPage() {
       label: row.values.name as string,
       value: row.id,
       subLabel: `NPI: ${row.values.npi} • ${row.values.region}`,
+    }));
+  };
+
+  const handleSearchAllPractices = async (
+    query: string,
+  ): Promise<SearchSelectOption[]> => {
+    const view = await getPracticesView({
+      search: query || undefined,
+      limit: 10,
+    });
+    return view.rows.map((row) => ({
+      label: row.values.name as string,
+      value: row.id,
+      subLabel: `NPI: ${row.values.npi} • ${row.values.status}`,
     }));
   };
 
@@ -714,6 +858,15 @@ function CreateLeadPage() {
         toast.error("Company industry is required.");
         return;
       }
+      if (
+        form.companyEmail.trim() &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.companyEmail.trim())
+      ) {
+        toast.error(
+          "Company email must include @ and a domain (e.g. user@example.com).",
+        );
+        return;
+      }
     }
     // No mandatory selectedCompanyId for 'existing' if they want an individual practice
 
@@ -724,6 +877,10 @@ function CreateLeadPage() {
       }
       if (!form.practiceNpi.trim()) {
         toast.error("Practice NPI is required.");
+        return;
+      }
+      if (!/^\d{10}$/.test(form.practiceNpi.trim())) {
+        toast.error("Practice NPI must be exactly 10 digits.");
         return;
       }
     } else {
@@ -742,11 +899,64 @@ function CreateLeadPage() {
         toast.error("Contact email is required.");
         return;
       }
-    } else {
-      if (!form.selectedContactId) {
-        toast.error("Please select an existing contact.");
+      if (
+        form.primaryContactEmail.trim() &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.primaryContactEmail.trim())
+      ) {
+        toast.error(
+          "Contact email must include @ and a domain (e.g. user@example.com).",
+        );
         return;
       }
+    }
+
+    // Validate phone formats
+    if (
+      form.companyPhone.trim() &&
+      !/^\d{10}$/.test(form.companyPhone.trim())
+    ) {
+      toast.error("Company phone must be exactly 10 digits.");
+      return;
+    }
+    if (
+      form.primaryContactPhone.trim() &&
+      !/^\d{10}$/.test(form.primaryContactPhone.trim())
+    ) {
+      toast.error("Contact phone must be exactly 10 digits.");
+      return;
+    }
+
+    // Validate NPI format
+    if (
+      form.practiceRelation === "new" &&
+      !/^\d{10}$/.test(form.practiceNpi.trim())
+    ) {
+      toast.error("Practice NPI must be exactly 10 digits.");
+      return;
+    }
+
+    // Validate Group NPI format
+    if (form.practiceRelation === "new") {
+      for (const entry of form.practiceGroupNpis) {
+        if (
+          entry.groupNpiNumber.trim() &&
+          !/^\d{10}$/.test(entry.groupNpiNumber.trim())
+        ) {
+          toast.error("Each Group NPI must be exactly 10 digits.");
+          return;
+        }
+      }
+    }
+
+    // Validate Company ZIP format
+    if (form.companyZip.trim() && !/^\d{5,9}$/.test(form.companyZip.trim())) {
+      toast.error("Company ZIP must be 5 to 9 digits.");
+      return;
+    }
+
+    if (form.contactRelation !== "new" && !form.selectedContactId) {
+      toast.error("Please select an existing contact.");
+      return;
     }
 
     if (!form.estimatedValue) {
@@ -764,6 +974,17 @@ function CreateLeadPage() {
       form.agreement.templateIds.length === 0
     ) {
       toast.error("Please select at least one agreement template.");
+      return;
+    }
+
+    if (
+      form.agreement.action === "create" &&
+      form.agreement.effectiveDate &&
+      form.agreement.renewalDate &&
+      new Date(form.agreement.renewalDate) <=
+        new Date(form.agreement.effectiveDate)
+    ) {
+      toast.error("Renewal date must be greater than effective date");
       return;
     }
 
@@ -914,10 +1135,16 @@ function CreateLeadPage() {
                           Phone
                         </span>
                         <input
-                          type="text"
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={10}
+                          pattern="[0-9]{10}"
                           value={form.companyPhone}
                           onChange={(e) =>
-                            updateField("companyPhone", e.target.value)
+                            updateField(
+                              "companyPhone",
+                              e.target.value.replace(/\D/g, "").slice(0, 10),
+                            )
                           }
                           className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                         />
@@ -928,6 +1155,8 @@ function CreateLeadPage() {
                         </span>
                         <input
                           type="email"
+                          pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+                          title="Must include @ and .com (e.g. user@example.com)"
                           value={form.companyEmail}
                           onChange={(e) =>
                             updateField("companyEmail", e.target.value)
@@ -935,6 +1164,173 @@ function CreateLeadPage() {
                           className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                         />
                       </label>
+                    </div>
+                    <label className="block md:col-span-2">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Website
+                      </span>
+                      <input
+                        type="url"
+                        value={form.companyWebsite}
+                        onChange={(e) =>
+                          updateField("companyWebsite", e.target.value)
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        placeholder="https://example.com"
+                      />
+                    </label>
+                    <div className="md:col-span-2 border-t border-[#e8e4dc] pt-3">
+                      <span className="mb-2 block text-[12px] font-medium text-slate-600">
+                        Address
+                      </span>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="block">
+                          <span className="mb-1 block text-[12px] text-slate-500">
+                            Street
+                          </span>
+                          <input
+                            type="text"
+                            value={form.companyStreet}
+                            onChange={(e) =>
+                              updateField("companyStreet", e.target.value)
+                            }
+                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[12px] text-slate-500">
+                            City
+                          </span>
+                          <input
+                            type="text"
+                            value={form.companyCity}
+                            onChange={(e) =>
+                              updateField("companyCity", e.target.value)
+                            }
+                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[12px] text-slate-500">
+                            State
+                          </span>
+                          <input
+                            type="text"
+                            value={form.companyState}
+                            onChange={(e) =>
+                              updateField("companyState", e.target.value)
+                            }
+                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[12px] text-slate-500">
+                            ZIP
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={9}
+                            pattern="[0-9]{5,9}"
+                            value={form.companyZip}
+                            onChange={(e) =>
+                              updateField(
+                                "companyZip",
+                                e.target.value.replace(/\D/g, "").slice(0, 9),
+                              )
+                            }
+                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          />
+                        </label>
+                        <label className="block md:col-span-2">
+                          <span className="mb-1 block text-[12px] text-slate-500">
+                            Country
+                          </span>
+                          <input
+                            type="text"
+                            value={form.companyCountry}
+                            onChange={(e) =>
+                              updateField("companyCountry", e.target.value)
+                            }
+                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    <div className="md:col-span-2 border-t border-[#e8e4dc] pt-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="block text-[12px] font-medium text-slate-600">
+                          Tax IDs
+                        </span>
+                        <button
+                          type="button"
+                          onClick={addTaxId}
+                          className="flex items-center gap-1 text-[12px] text-[#4f63ea] hover:text-[#3d4ed1]"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add Tax ID
+                        </button>
+                      </div>
+                      {form.taxIds.map((taxId, index) => (
+                        <div
+                          key={index}
+                          className="mb-2 rounded-lg border border-[#e8e4dc] bg-white p-3"
+                        >
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-[11px] font-medium text-slate-500">
+                              Tax ID {index + 1}
+                            </span>
+                            {form.taxIds.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeTaxId(index)}
+                                className="text-[11px] text-red-500 hover:text-red-700"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={taxId.taxIdNumber}
+                              onChange={(e) =>
+                                updateTaxId(
+                                  index,
+                                  "taxIdNumber",
+                                  e.target.value.replace(/\D/g, ""),
+                                )
+                              }
+                              placeholder="9-digit Tax ID"
+                              inputMode="numeric"
+                              maxLength={9}
+                              className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
+                            />
+                            <input
+                              type="text"
+                              value={taxId.legalEntityName}
+                              onChange={(e) =>
+                                updateTaxId(
+                                  index,
+                                  "legalEntityName",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Legal Entity Name"
+                              className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
+                            />
+                            <input
+                              type="text"
+                              value={taxId.notes}
+                              onChange={(e) =>
+                                updateTaxId(index, "notes", e.target.value)
+                              }
+                              placeholder="Notes (optional)"
+                              className="app-control w-full rounded-md px-2 py-1.5 text-[12px] col-span-2"
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1016,9 +1412,15 @@ function CreateLeadPage() {
                       </span>
                       <input
                         type="text"
+                        inputMode="numeric"
+                        maxLength={10}
+                        pattern="[0-9]{10}"
                         value={form.practiceNpi}
                         onChange={(e) =>
-                          updateField("practiceNpi", e.target.value)
+                          updateField(
+                            "practiceNpi",
+                            e.target.value.replace(/\D/g, "").slice(0, 10),
+                          )
                         }
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
@@ -1073,6 +1475,73 @@ function CreateLeadPage() {
                           placeholder="e.g. Radiology"
                         />
                       </label>
+                    </div>
+                    <div className="md:col-span-2 border-t border-[#e8e4dc] pt-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="block text-[12px] font-medium text-slate-600">
+                          Group NPIs
+                        </span>
+                        <button
+                          type="button"
+                          onClick={addGroupNpi}
+                          className="flex items-center gap-1 text-[12px] text-[#4f63ea] hover:text-[#3d4ed1]"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add Group NPI
+                        </button>
+                      </div>
+                      {form.practiceGroupNpis.map((entry, index) => (
+                        <div
+                          key={index}
+                          className="mb-2 rounded-lg border border-[#e8e4dc] bg-white p-3"
+                        >
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-[11px] font-medium text-slate-500">
+                              Group NPI {index + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeGroupNpi(index)}
+                              className="text-[11px] text-red-500 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={10}
+                              pattern="[0-9]{10}"
+                              value={entry.groupNpiNumber}
+                              onChange={(e) =>
+                                updateGroupNpi(
+                                  index,
+                                  "groupNpiNumber",
+                                  e.target.value
+                                    .replace(/\D/g, "")
+                                    .slice(0, 10),
+                                )
+                              }
+                              placeholder="Group NPI Number"
+                              className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
+                            />
+                            <input
+                              type="text"
+                              value={entry.groupName}
+                              onChange={(e) =>
+                                updateGroupNpi(
+                                  index,
+                                  "groupName",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Group Name"
+                              className="app-control w-full rounded-md px-2 py-1.5 text-[12px]"
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1154,6 +1623,8 @@ function CreateLeadPage() {
                       </span>
                       <input
                         type="email"
+                        pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+                        title="Must include @ and .com (e.g. user@example.com)"
                         value={form.primaryContactEmail}
                         onChange={(e) =>
                           updateField("primaryContactEmail", e.target.value)
@@ -1166,10 +1637,16 @@ function CreateLeadPage() {
                         Phone
                       </span>
                       <input
-                        type="text"
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
+                        pattern="[0-9]{10}"
                         value={form.primaryContactPhone}
                         onChange={(e) =>
-                          updateField("primaryContactPhone", e.target.value)
+                          updateField(
+                            "primaryContactPhone",
+                            e.target.value.replace(/\D/g, "").slice(0, 10),
+                          )
                         }
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
@@ -1190,6 +1667,70 @@ function CreateLeadPage() {
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </label>
+                    <div className="md:col-span-2 border-t border-[#e8e4dc] pt-3">
+                      <span className="mb-2 block text-[12px] font-medium text-slate-600">
+                        Link to Companies
+                      </span>
+                      <SearchSelect
+                        value=""
+                        onChange={(val, opt) => addContactCompanyId(val, opt)}
+                        onSearch={handleSearchCompanies}
+                        placeholder="Search and select companies..."
+                        clearOnSelect
+                      />
+                      {form.contactCompanyIds.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {form.contactCompanyIds.map((entry) => (
+                            <span
+                              key={entry.id}
+                              className="inline-flex items-center gap-1 rounded-md bg-[#e8f5e9] px-2 py-1 text-[12px] text-[#2e7d32]"
+                            >
+                              {entry.name}
+                              <button
+                                type="button"
+                                onClick={() => removeContactCompanyId(entry.id)}
+                                className="hover:text-red-500"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="md:col-span-2 border-t border-[#e8e4dc] pt-3">
+                      <span className="mb-2 block text-[12px] font-medium text-slate-600">
+                        Link to Practices
+                      </span>
+                      <SearchSelect
+                        value=""
+                        onChange={(val, opt) => addContactPracticeId(val, opt)}
+                        onSearch={handleSearchAllPractices}
+                        placeholder="Search and select practices..."
+                        clearOnSelect
+                      />
+                      {form.contactPracticeIds.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {form.contactPracticeIds.map((entry) => (
+                            <span
+                              key={entry.id}
+                              className="inline-flex items-center gap-1 rounded-md bg-[#e8e5f9] px-2 py-1 text-[12px] text-[#4f63ea]"
+                            >
+                              {entry.name}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeContactPracticeId(entry.id)
+                                }
+                                className="hover:text-red-500"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1413,7 +1954,7 @@ function CreateLeadPage() {
                           >
                             {existingAgreements.map((ag) => (
                               <option key={ag.id} value={ag.id}>
-                                {ag.type} - Created{" "}
+                                {ag.practice.name} - {ag.type} - Created{" "}
                                 {new Date(ag.createdAt).toLocaleDateString()}
                               </option>
                             ))}
@@ -1431,9 +1972,27 @@ function CreateLeadPage() {
                           </span>
                           <select
                             value={form.agreement.type}
-                            onChange={(e) =>
-                              updateAgreementField("type", e.target.value)
-                            }
+                            onChange={(e) => {
+                              const newType = e.target.value;
+                              updateAgreementField("type", newType);
+                              if (newType === "MSA") {
+                                const autoSelectIds = templates
+                                  .filter((t) =>
+                                    AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+                                      t.name
+                                        .toLowerCase()
+                                        .includes(name.toLowerCase()),
+                                    ),
+                                  )
+                                  .map((t) => String(t.id));
+                                updateAgreementField("templateIds", [
+                                  ...new Set([
+                                    ...form.agreement.templateIds,
+                                    ...autoSelectIds,
+                                  ]),
+                                ]);
+                              }
+                            }}
                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                           >
                             {agreementTypeOptions.map((opt) => (
@@ -1483,81 +2042,144 @@ function CreateLeadPage() {
                         <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
                           DocuSeal Templates *
                         </span>
-                        <div className="flex-1 min-h-0 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 custom-scrollbar">
-                          {templates.length === 0 ? (
-                            <p className="text-[12px] text-slate-400 text-center py-4">
-                              Loading templates...
-                            </p>
-                          ) : (
-                            <div className="space-y-1">
-                              {(() => {
-                                const autoIncludeIds = templates
-                                  .filter((t) =>
-                                    AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
-                                      t.name
+
+                        {form.agreement.templateIds.length > 0 && (
+                          <div className="mb-2 flex flex-wrap gap-1.5">
+                            {form.agreement.templateIds.map(
+                              (templateId: string) => {
+                                const template = templates.find(
+                                  (t) => String(t.id) === templateId,
+                                );
+                                const isAutoInclude = template
+                                  ? AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+                                      template.name
                                         .toLowerCase()
                                         .includes(name.toLowerCase()),
-                                    ),
-                                  )
-                                  .map((t) => String(t.id));
-
-                                return templates.map((template) => {
-                                  const templateId = String(template.id);
-                                  const isAutoInclude =
-                                    form.agreement.type === "MSA" &&
-                                    autoIncludeIds.includes(templateId);
-                                  const isSelected =
-                                    isAutoInclude ||
-                                    form.agreement.templateIds.includes(
-                                      templateId,
-                                    );
-
-                                  return (
-                                    <label
-                                      key={template.id}
-                                      className={`flex items-center gap-3 p-2 rounded-lg transition-all border ${
-                                        isSelected
-                                          ? "bg-indigo-50 border-indigo-100"
-                                          : "hover:bg-slate-50 border-transparent hover:border-slate-100"
-                                      } ${isAutoInclude ? "cursor-default opacity-80" : "cursor-pointer"}`}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={isSelected}
-                                        disabled={isAutoInclude}
-                                        onChange={() => {
-                                          if (isAutoInclude) return;
-                                          const next = isSelected
-                                            ? form.agreement.templateIds.filter(
-                                                (t) => t !== templateId,
-                                              )
-                                            : [
-                                                ...form.agreement.templateIds,
-                                                templateId,
-                                              ];
+                                    )
+                                  : false;
+                                return (
+                                  <span
+                                    key={templateId}
+                                    className="inline-flex items-center gap-1 rounded-md bg-[#f0f2fe] px-2 py-1 text-[12px] text-[#4f63ea]"
+                                  >
+                                    {template?.name || templateId}
+                                    {!isAutoInclude && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
                                           updateAgreementField(
                                             "templateIds",
-                                            next,
-                                          );
-                                        }}
-                                        className={`h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 ${isAutoInclude ? "bg-indigo-100" : ""}`}
-                                      />
-                                      <div className="flex flex-col">
-                                        <span
-                                          className={`text-[13px] line-clamp-1 ${isSelected ? "font-semibold text-indigo-700" : "text-slate-600"}`}
+                                            form.agreement.templateIds.filter(
+                                              (id: string) => id !== templateId,
+                                            ),
+                                          )
+                                        }
+                                        className="hover:text-red-500"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </span>
+                                );
+                              },
+                            )}
+                          </div>
+                        )}
+
+                        <div className="relative" ref={templateDropdownRef}>
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              value={templateSearch}
+                              onChange={(e) => {
+                                setTemplateSearch(e.target.value);
+                                if (!showTemplateDropdown)
+                                  setShowTemplateDropdown(true);
+                              }}
+                              onFocus={() => setShowTemplateDropdown(true)}
+                              placeholder="Search templates..."
+                              className="app-control w-full rounded-md py-2 pl-8 pr-3 text-[13px]"
+                            />
+                          </div>
+
+                          {showTemplateDropdown && (
+                            <div className="absolute z-10 mt-1 max-h-[200px] w-full overflow-y-auto rounded-md border border-[#ece8e1] bg-white shadow-lg">
+                              {templates.length === 0 ? (
+                                <div className="flex items-center justify-center py-6 text-[13px] text-slate-400">
+                                  Loading...
+                                </div>
+                              ) : (
+                                (() => {
+                                  const filtered = templateSearch
+                                    ? templates.filter((t) =>
+                                        t.name
+                                          .toLowerCase()
+                                          .includes(
+                                            templateSearch.toLowerCase(),
+                                          ),
+                                      )
+                                    : templates;
+                                  return filtered.length === 0 ? (
+                                    <div className="px-4 py-6 text-center text-[13px] text-slate-400">
+                                      No templates match
+                                    </div>
+                                  ) : (
+                                    filtered.map((template) => {
+                                      const templateId = String(template.id);
+                                      const isSelected =
+                                        form.agreement.templateIds.includes(
+                                          templateId,
+                                        );
+                                      const isAutoInclude =
+                                        form.agreement.type === "MSA" &&
+                                        AUTO_INCLUDE_TEMPLATE_NAMES.some(
+                                          (name) =>
+                                            template.name
+                                              .toLowerCase()
+                                              .includes(name.toLowerCase()),
+                                        );
+                                      const isDisabled =
+                                        isSelected || isAutoInclude;
+                                      return (
+                                        <button
+                                          key={template.id}
+                                          type="button"
+                                          onClick={() => {
+                                            if (isDisabled) return;
+                                            updateAgreementField(
+                                              "templateIds",
+                                              [
+                                                ...form.agreement.templateIds,
+                                                templateId,
+                                              ],
+                                            );
+                                            setTemplateSearch("");
+                                          }}
+                                          className={`w-full px-3 py-2 text-left text-[13px] hover:bg-[#faf9f7] ${
+                                            isDisabled
+                                              ? "cursor-not-allowed text-slate-400"
+                                              : "text-slate-700"
+                                          }`}
+                                          disabled={isDisabled}
                                         >
                                           {template.name}
-                                        </span>
-                                        {isAutoInclude && (
-                                          <span className="text-[10px] text-indigo-400 font-bold uppercase">
-                                            Required for MSA
-                                          </span>
-                                        )}
-                                      </div>
-                                    </label>
+                                          {isAutoInclude && (
+                                            <span className="ml-1 text-xs text-slate-400">
+                                              (required)
+                                            </span>
+                                          )}
+                                          {isSelected && !isAutoInclude && (
+                                            <span className="ml-1 text-xs text-[#4f63ea]">
+                                              (selected)
+                                            </span>
+                                          )}
+                                        </button>
+                                      );
+                                    })
                                   );
-                                });
-                              })()}
+                                })()
+                              )}
                             </div>
                           )}
                         </div>

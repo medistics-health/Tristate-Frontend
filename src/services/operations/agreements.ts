@@ -1,6 +1,10 @@
 import axios from "axios";
 import { apiConnector } from "../apiConnector";
-import { agreementEndpoints, agreementVersionEndpoints, agreementServiceTermEndpoints } from "../apis";
+import {
+  agreementEndpoints,
+  agreementVersionEndpoints,
+  agreementServiceTermEndpoints,
+} from "../apis";
 
 const {
   LIST,
@@ -584,7 +588,7 @@ export async function getAgreementsByPractice(
       credentials: true,
     });
     const { agreements } = response.data as { agreements: Agreement[] };
-    return agreements;
+    return agreements.filter((init: any) => init.practice.id === practiceId);
   } catch (error) {
     throw new Error(
       getErrorMessage(error, "Unable to fetch agreements for practice."),
@@ -627,9 +631,11 @@ export type AgreementVersionsViewData = {
   };
 };
 
-export async function getAgreementVersions(
-  params?: { agreementId?: string; page?: number; limit?: number }
-): Promise<AgreementVersionsViewData> {
+export async function getAgreementVersions(params?: {
+  agreementId?: string;
+  page?: number;
+  limit?: number;
+}): Promise<AgreementVersionsViewData> {
   try {
     const queryString = new URLSearchParams();
     if (params?.agreementId) queryString.set("agreementId", params.agreementId);
@@ -648,11 +654,15 @@ export async function getAgreementVersions(
 
     return response.data as AgreementVersionsViewData;
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to fetch agreement versions."));
+    throw new Error(
+      getErrorMessage(error, "Unable to fetch agreement versions."),
+    );
   }
 }
 
-export async function getAgreementVersion(id: string): Promise<AgreementVersion> {
+export async function getAgreementVersion(
+  id: string,
+): Promise<AgreementVersion> {
   try {
     const response = await apiConnector({
       method: "GET",
@@ -661,7 +671,9 @@ export async function getAgreementVersion(id: string): Promise<AgreementVersion>
     });
     return (response.data as { version: AgreementVersion }).version;
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to fetch agreement version."));
+    throw new Error(
+      getErrorMessage(error, "Unable to fetch agreement version."),
+    );
   }
 }
 
@@ -677,7 +689,9 @@ export async function createAgreementVersionApi(
     });
     return (response.data as { version: AgreementVersion }).version;
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to create agreement version."));
+    throw new Error(
+      getErrorMessage(error, "Unable to create agreement version."),
+    );
   }
 }
 
@@ -694,7 +708,9 @@ export async function updateAgreementVersionApi(
     });
     return (response.data as { version: AgreementVersion }).version;
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to update agreement version."));
+    throw new Error(
+      getErrorMessage(error, "Unable to update agreement version."),
+    );
   }
 }
 
@@ -706,7 +722,9 @@ export async function deleteAgreementVersionApi(id: string): Promise<void> {
       credentials: true,
     });
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to delete agreement version."));
+    throw new Error(
+      getErrorMessage(error, "Unable to delete agreement version."),
+    );
   }
 }
 
@@ -781,19 +799,18 @@ export type AgreementServiceTermsViewData = {
   };
 };
 
-export async function getAgreementServiceTerms(
-  params?: {
-    agreementId?: string;
-    agreementVersionId?: string;
-    serviceId?: string;
-    page?: number;
-    limit?: number;
-  },
-): Promise<AgreementServiceTermsViewData> {
+export async function getAgreementServiceTerms(params?: {
+  agreementId?: string;
+  agreementVersionId?: string;
+  serviceId?: string;
+  page?: number;
+  limit?: number;
+}): Promise<AgreementServiceTermsViewData> {
   try {
     const queryString = new URLSearchParams();
     if (params?.agreementId) queryString.set("agreementId", params.agreementId);
-    if (params?.agreementVersionId) queryString.set("agreementVersionId", params.agreementVersionId);
+    if (params?.agreementVersionId)
+      queryString.set("agreementVersionId", params.agreementVersionId);
     if (params?.serviceId) queryString.set("serviceId", params.serviceId);
     if (params?.page) queryString.set("page", String(params.page));
     if (params?.limit) queryString.set("limit", String(params.limit));
@@ -810,11 +827,15 @@ export async function getAgreementServiceTerms(
 
     return response.data as AgreementServiceTermsViewData;
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to fetch agreement service terms."));
+    throw new Error(
+      getErrorMessage(error, "Unable to fetch agreement service terms."),
+    );
   }
 }
 
-export async function getAgreementServiceTerm(id: string): Promise<AgreementServiceTerm> {
+export async function getAgreementServiceTerm(
+  id: string,
+): Promise<AgreementServiceTerm> {
   try {
     const response = await apiConnector({
       method: "GET",
@@ -823,7 +844,9 @@ export async function getAgreementServiceTerm(id: string): Promise<AgreementServ
     });
     return (response.data as { term: AgreementServiceTerm }).term;
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to fetch agreement service term."));
+    throw new Error(
+      getErrorMessage(error, "Unable to fetch agreement service term."),
+    );
   }
 }
 
@@ -839,7 +862,9 @@ export async function createAgreementServiceTermApi(
     });
     return (response.data as { term: AgreementServiceTerm }).term;
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to create agreement service term."));
+    throw new Error(
+      getErrorMessage(error, "Unable to create agreement service term."),
+    );
   }
 }
 
@@ -856,7 +881,9 @@ export async function updateAgreementServiceTermApi(
     });
     return (response.data as { term: AgreementServiceTerm }).term;
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to update agreement service term."));
+    throw new Error(
+      getErrorMessage(error, "Unable to update agreement service term."),
+    );
   }
 }
 
@@ -868,7 +895,9 @@ export async function deleteAgreementServiceTermApi(id: string): Promise<void> {
       credentials: true,
     });
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to delete agreement service term."));
+    throw new Error(
+      getErrorMessage(error, "Unable to delete agreement service term."),
+    );
   }
 }
 
