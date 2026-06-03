@@ -66,6 +66,37 @@ function getPendingSubmissionChangeStatus(agreement: Agreement) {
   return getSubmissionApprovalStatus(agreement);
 }
 
+function getTemplateSubmitterGroups(
+  templates: DocusealTemplate[],
+  templateId: number,
+  fieldValues: Record<string, string>,
+) {
+  const template = templates.find((item) => item.id === templateId);
+  if (!template) {
+    return [];
+  }
+
+  const groupedFields = (template.fields || []).reduce<
+    Record<string, typeof template.fields>
+  >((acc, field) => {
+    const submitterUuid = field.submitter_uuid || "unknown";
+    if (!acc[submitterUuid]) {
+      acc[submitterUuid] = [];
+    }
+    acc[submitterUuid].push(field);
+    return acc;
+  }, {});
+
+  return (template.submitters || []).map((submitter) => ({
+    submitterUuid: submitter.uuid,
+    submitterName: submitter.name || "Submitter",
+    fields: (groupedFields[submitter.uuid] || []).filter(
+      (field) =>
+        fieldValues[field.uuid] !== undefined || fieldValues[field.name] !== undefined,
+    ),
+  }));
+}
+
 function AgreementPendingSubmissionChangesPage() {
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(
@@ -156,14 +187,6 @@ function AgreementPendingSubmissionChangesPage() {
 
     void loadTemplates();
   }, []);
-
-  function getTemplateFieldLabel(templateId: number, fieldKey: string) {
-    const template = docusealTemplates.find((item) => item.id === templateId);
-    const field = template?.fields?.find(
-      (item) => item.uuid === fieldKey || item.name === fieldKey,
-    );
-    return field?.name?.trim() || fieldKey;
-  }
 
   function getTemplateFieldInputType(templateId: number, fieldKey: string) {
     const template = docusealTemplates.find((item) => item.id === templateId);
@@ -412,84 +435,114 @@ function AgreementPendingSubmissionChangesPage() {
                           submission.submissionApprovalStatus ===
                           "PENDING_APPROVAL",
                       )
-                      .map((submission) => (
-                        <div
-                          key={submission.id}
-                          className="rounded-2xl border border-slate-200 p-4"
-                        >
-                          <div>
-                            <div className="text-sm font-medium text-slate-800">
-                              {decodeURIComponent(
-                                submission?.url?.split("/").pop() || "",
-                              ).replace(".pdf", "")}{" "}
-                              - {submission.templateId}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              Submission status: {submission.status}
-                              {submission.submissionApprovalStatus
-                                ? ` | Approval: ${formatStatusLabel(submission.submissionApprovalStatus)}`
-                                : ""}
-                            </div>
-                          </div>
+                      .map((submission) => {
+                        const submissionFields =
+                          editableFieldValues[submission.id] ||
+                          submission.fieldValues ||
+                          {};
+                        const submitterGroups = getTemplateSubmitterGroups(
+                          docusealTemplates,
+                          submission.templateId,
+                          submissionFields,
+                        );
 
-                          <div className="mt-3 grid gap-3 md:grid-cols-2">
-                            {Object.entries(
-                              editableFieldValues[submission.id] ||
-                                submission.fieldValues ||
-                                {},
-                            ).length > 0 ? (
-                              Object.entries(
-                                editableFieldValues[submission.id] ||
-                                  submission.fieldValues ||
-                                  {},
-                              ).map(([key, value]) => {
-                                const inputType = getTemplateFieldInputType(
-                                  submission.templateId,
-                                  key,
-                                );
-
-                                return (
-                                  <div
-                                    key={key}
-                                    className="rounded-xl bg-slate-50 px-3 py-2"
-                                  >
-                                    <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                                      {getTemplateFieldLabel(
-                                        submission.templateId,
-                                        key,
-                                      )}
-                                    </div>
-                                    <input
-                                      type={inputType}
-                                      value={
-                                        inputType === "date"
-                                          ? normalizeDateInputValue(value)
-                                          : value || ""
-                                      }
-                                      onChange={(event) =>
-                                        setEditableFieldValues((current) => ({
-                                          ...current,
-                                          [submission.id]: {
-                                            ...(current[submission.id] ||
-                                              submission.fieldValues ||
-                                              {}),
-                                            [key]: event.target.value,
-                                          },
-                                        }))
-                                      }
-                                      className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#4f63ea]"
-                                    />
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <div className="text-sm text-slate-400">
-                                No template input values were saved.
+                        return (
+                          <div
+                            key={submission.id}
+                            className="rounded-2xl border border-slate-200 p-4"
+                          >
+                            <div>
+                              <div className="text-sm font-medium text-slate-800">
+                                {decodeURIComponent(
+                                  submission?.url?.split("/").pop() || "",
+                                ).replace(".pdf", "")}{" "}
+                                - {submission.templateId}
                               </div>
-                            )}
+                              <div className="text-xs text-slate-500">
+                                Submission status: {submission.status}
+                                {submission.submissionApprovalStatus
+                                  ? ` | Approval: ${formatStatusLabel(submission.submissionApprovalStatus)}`
+                                  : ""}
+                              </div>
+                            </div>
+
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                              {submitterGroups.some(
+                                (group) => group.fields.length > 0,
+                              ) ? (
+                                submitterGroups.map((group) =>
+                                  group.fields.length > 0 ? (
+                                    <div
+                                      key={group.submitterUuid}
+                                      className="md:col-span-2"
+                                    >
+                                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        {group.submitterName}
+                                      </div>
+                                      <div className="grid gap-3 md:grid-cols-2">
+                                        {group.fields.map((field) => {
+                                          const key = field.uuid || field.name;
+                                          const value =
+                                            submissionFields[field.uuid] ??
+                                            submissionFields[field.name] ??
+                                            "";
+                                          const inputType =
+                                            getTemplateFieldInputType(
+                                              submission.templateId,
+                                              key,
+                                            );
+
+                                          return (
+                                            <div
+                                              key={field.uuid}
+                                              className="rounded-xl bg-slate-50 px-3 py-2"
+                                            >
+                                              <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                                {field.name || field.type}
+                                              </div>
+                                              <input
+                                                type={inputType}
+                                                value={
+                                                  inputType === "date"
+                                                    ? normalizeDateInputValue(
+                                                        value,
+                                                      )
+                                                    : value || ""
+                                                }
+                                                onChange={(event) =>
+                                                  setEditableFieldValues(
+                                                    (current) => ({
+                                                      ...current,
+                                                      [submission.id]: {
+                                                        ...(current[
+                                                          submission.id
+                                                        ] ||
+                                                          submission.fieldValues ||
+                                                          {}),
+                                                        [key]:
+                                                          event.target.value,
+                                                      },
+                                                    }),
+                                                  )
+                                                }
+                                                className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#4f63ea]"
+                                              />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ) : null,
+                                )
+                              ) : (
+                                <div className="text-sm text-slate-400">
+                                  No template input values were saved.
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                   ) : (
                     <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
                       No pending submission changes were attached to this

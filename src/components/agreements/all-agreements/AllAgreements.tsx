@@ -141,6 +141,34 @@ function buildTemplateFieldValues(template?: DocusealTemplate) {
   return values;
 }
 
+function getTemplateSubmitterGroups(
+  template: DocusealTemplate | undefined,
+  fieldValues: Record<string, string>,
+) {
+  if (!template) {
+    return [];
+  }
+
+  const editableFields = (template.fields || []).filter(isEditableDocusealField);
+  const groupedFields = editableFields.reduce<Record<string, DocusealField[]>>(
+    (acc, field) => {
+      const submitterUuid = field.submitter_uuid || "unknown";
+      if (!acc[submitterUuid]) {
+        acc[submitterUuid] = [];
+      }
+      acc[submitterUuid].push(field);
+      return acc;
+    },
+    {},
+  );
+
+  return (template.submitters || []).map((submitter) => ({
+    submitterUuid: submitter.uuid,
+    submitterName: submitter.name || "Submitter",
+    fields: groupedFields[submitter.uuid] || [],
+  }));
+}
+
 type AgreementFormState = {
   practiceId: string;
   dealId: string;
@@ -2320,6 +2348,12 @@ function AllAgreementsPage() {
                     const editableFields = (template.fields || []).filter(
                       isEditableDocusealField,
                     );
+                    const templateFieldValues =
+                      createForm.docusealFieldValues[templateId] || {};
+                    const submitterGroups = getTemplateSubmitterGroups(
+                      template,
+                      templateFieldValues,
+                    );
 
                     return (
                       <div
@@ -2346,53 +2380,68 @@ function AllAgreementsPage() {
                             This template has no editable fields.
                           </p>
                         ) : (
-                          <div className="grid gap-3 md:grid-cols-2">
-                            {editableFields.map((field, fieldIndex) => {
-                              const inputType =
-                                getDocusealFieldInputType(field);
-                              const value =
-                                createForm.docusealFieldValues[templateId]?.[
-                                  field.uuid
-                                ] || "";
+                          <div className="space-y-4">
+                            {submitterGroups.map((group) =>
+                              group.fields.length > 0 ? (
+                                <div key={group.submitterUuid}>
+                                  <div className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
+                                    {group.submitterName}
+                                  </div>
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    {group.fields.map((field, fieldIndex) => {
+                                      const inputType =
+                                        getDocusealFieldInputType(field);
+                                      const value =
+                                        templateFieldValues[field.uuid] ||
+                                        templateFieldValues[field.name] ||
+                                        "";
 
-                              return (
-                                <label
-                                  key={field.uuid}
-                                  className={`block ${
-                                    editableFields.length % 2 === 1 &&
-                                    fieldIndex === editableFields.length - 1
-                                      ? "md:col-span-2"
-                                      : ""
-                                  }`}
-                                >
-                                  <span className="mb-1 block text-[12px] font-medium text-slate-700">
-                                    {getDocusealFieldLabel(field, fieldIndex)}
-                                    {isClientNameField(field) && (
-                                      <span className="ml-1 text-red-500">
-                                        *
-                                      </span>
-                                    )}
-                                  </span>
-                                  <input
-                                    type={inputType}
-                                    value={value}
-                                    onChange={(event) =>
-                                      updateTemplateFieldValue(
-                                        templateId,
-                                        field.uuid,
-                                        event.target.value,
-                                        setCreateForm,
-                                      )
-                                    }
-                                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                                    placeholder={`Enter ${getDocusealFieldLabel(
-                                      field,
-                                      fieldIndex,
-                                    )}`}
-                                  />
-                                </label>
-                              );
-                            })}
+                                      return (
+                                        <label
+                                          key={field.uuid}
+                                          className={`block ${
+                                            group.fields.length % 2 === 1 &&
+                                            fieldIndex ===
+                                              group.fields.length - 1
+                                              ? "md:col-span-2"
+                                              : ""
+                                          }`}
+                                        >
+                                          <span className="mb-1 block text-[12px] font-medium text-slate-700">
+                                            {getDocusealFieldLabel(
+                                              field,
+                                              fieldIndex,
+                                            )}
+                                            {isClientNameField(field) && (
+                                              <span className="ml-1 text-red-500">
+                                                *
+                                              </span>
+                                            )}
+                                          </span>
+                                          <input
+                                            type={inputType}
+                                            value={value}
+                                            onChange={(event) =>
+                                              updateTemplateFieldValue(
+                                                templateId,
+                                                field.uuid,
+                                                event.target.value,
+                                                setCreateForm,
+                                              )
+                                            }
+                                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                                            placeholder={`Enter ${getDocusealFieldLabel(
+                                              field,
+                                              fieldIndex,
+                                            )}`}
+                                          />
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : null,
+                            )}
                           </div>
                         )}
                       </div>

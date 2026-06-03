@@ -108,6 +108,36 @@ function buildEditableFieldValues(agreement?: Agreement | null) {
   }, {});
 }
 
+function getTemplateSubmitterGroups(
+  template: DocusealTemplate | undefined,
+  fieldValues: Record<string, string>,
+) {
+  if (!template) {
+    return [];
+  }
+
+  const templateFields = template.fields || [];
+  const groupedFields = templateFields.reduce<
+    Record<string, typeof templateFields>
+  >((acc, field) => {
+    const submitterUuid = field.submitter_uuid || "unknown";
+    if (!acc[submitterUuid]) {
+      acc[submitterUuid] = [];
+    }
+    acc[submitterUuid].push(field);
+    return acc;
+  }, {});
+
+  return (template.submitters || []).map((submitter) => ({
+    submitterUuid: submitter.uuid,
+    submitterName: submitter.name || "Submitter",
+    fields: (groupedFields[submitter.uuid] || []).filter(
+      (field) =>
+        fieldValues[field.uuid] !== undefined || fieldValues[field.name] !== undefined,
+    ),
+  }));
+}
+
 function AgreementPendingSignaturesPage() {
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -342,14 +372,6 @@ function AgreementPendingSignaturesPage() {
     } finally {
       setIsSubmittingForApproval(false);
     }
-  }
-
-  function getTemplateFieldLabel(templateId: number, fieldKey: string) {
-    const template = templates.find((item) => item.id === templateId);
-    const field = template?.fields?.find(
-      (item) => item.uuid === fieldKey || item.name === fieldKey,
-    );
-    return field?.name?.trim() || fieldKey;
   }
 
   function getTemplateFieldInputType(templateId: number, fieldKey: string) {
@@ -767,6 +789,10 @@ function AgreementPendingSignaturesPage() {
                                     {},
                                   ) ||
                                   {};
+                                const submitterGroups = getTemplateSubmitterGroups(
+                                  template,
+                                  submissionFields,
+                                );
 
                                 return (
                                   <div
@@ -800,48 +826,62 @@ function AgreementPendingSignaturesPage() {
                                     </div>
 
                                     <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                      {Object.entries(submissionFields).length >
-                                      0 ? (
-                                        Object.entries(submissionFields).map(
-                                          ([key, value]) => {
-                                            const inputType =
-                                              getTemplateFieldInputType(
-                                                submission.templateId,
-                                                key,
-                                              );
-
-                                            return (
-                                              <div
-                                                key={key}
-                                                className="rounded-xl bg-slate-50 px-3 py-2"
-                                              >
-                                                <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                                                  {getTemplateFieldLabel(
-                                                    submission.templateId,
-                                                    key,
-                                                  )}
-                                                </div>
-                                                <input
-                                                  type={inputType}
-                                                  value={
-                                                    inputType === "date"
-                                                      ? normalizeDateInputValue(
-                                                          value,
-                                                        )
-                                                      : value || ""
-                                                  }
-                                                  onChange={(event) =>
-                                                    handleFieldValueChange(
-                                                      submission.id,
-                                                      key,
-                                                      event.target.value,
-                                                    )
-                                                  }
-                                                  className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#4f63ea]"
-                                                />
+                                      {submitterGroups.some(
+                                        (group) => group.fields.length > 0,
+                                      ) ? (
+                                        submitterGroups.map((group) =>
+                                          group.fields.length > 0 ? (
+                                            <div
+                                              key={group.submitterUuid}
+                                              className="md:col-span-2"
+                                            >
+                                              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                {group.submitterName}
                                               </div>
-                                            );
-                                          },
+                                              <div className="grid gap-3 md:grid-cols-2">
+                                                {group.fields.map((field) => {
+                                                  const value =
+                                                    submissionFields[field.uuid] ??
+                                                    submissionFields[field.name] ??
+                                                    "";
+                                                  const inputType =
+                                                    getTemplateFieldInputType(
+                                                      submission.templateId,
+                                                      field.uuid || field.name,
+                                                    );
+
+                                                  return (
+                                                    <div
+                                                      key={field.uuid}
+                                                      className="rounded-xl bg-slate-50 px-3 py-2"
+                                                    >
+                                                      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                                        {field.name || field.type}
+                                                      </div>
+                                                      <input
+                                                        type={inputType}
+                                                        value={
+                                                          inputType === "date"
+                                                            ? normalizeDateInputValue(
+                                                                value,
+                                                              )
+                                                            : value || ""
+                                                        }
+                                                        onChange={(event) =>
+                                                          handleFieldValueChange(
+                                                            submission.id,
+                                                            field.uuid || field.name,
+                                                            event.target.value,
+                                                          )
+                                                        }
+                                                        className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#4f63ea]"
+                                                      />
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          ) : null,
                                         )
                                       ) : (
                                         <div className="text-sm text-slate-400">
