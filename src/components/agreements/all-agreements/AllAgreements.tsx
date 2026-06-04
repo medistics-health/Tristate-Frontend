@@ -1664,6 +1664,16 @@ function AllAgreementsPage() {
                               <span className="text-[13px] font-medium text-slate-700">
                                 {term.service?.name || "Unknown Service"}
                               </span>
+                              {term.approvalStatus === "PENDING" && (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                                  Pending Approval
+                                </span>
+                              )}
+                              {term.approvalStatus === "REJECTED" && (
+                                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700">
+                                  Rejected
+                                </span>
+                              )}
                               {term.isActive && (
                                 <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700">
                                   Active
