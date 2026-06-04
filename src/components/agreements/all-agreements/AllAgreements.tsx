@@ -7,6 +7,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { useRef } from "react";
+import { hasAdminAccess, readStoredUser } from "../../../utils/auth";
 import {
   ChevronLeft,
   Circle,
@@ -149,7 +150,9 @@ function getTemplateSubmitterGroups(
     return [];
   }
 
-  const editableFields = (template.fields || []).filter(isEditableDocusealField);
+  const editableFields = (template.fields || []).filter(
+    isEditableDocusealField,
+  );
   const groupedFields = editableFields.reduce<Record<string, DocusealField[]>>(
     (acc, field) => {
       const submitterUuid = field.submitter_uuid || "unknown";
@@ -254,6 +257,8 @@ type AgreementRow = {
 };
 
 function AllAgreementsPage() {
+  const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
+
   const [rows, setRows] = useState<AgreementRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
@@ -597,6 +602,8 @@ function AllAgreementsPage() {
 
   function openCreateForm() {
     setCreateForm(initialFormState);
+    setTemplateSearch("");
+    setShowTemplateDropdown(false);
     setShowCreateForm(true);
     setShowDetailPanel(false);
     setSelectedRowId(null);
@@ -606,6 +613,8 @@ function AllAgreementsPage() {
   function closeCreateForm() {
     setShowCreateForm(false);
     setCreateForm(initialFormState);
+    setTemplateSearch("");
+    setShowTemplateDropdown(false);
   }
 
   function addTemplateToForm(
@@ -738,6 +747,10 @@ function AllAgreementsPage() {
       toast.error("Practice is required");
       return;
     }
+    if (createForm.docusealTemplates.length === 0) {
+      toast.error("Agreement template is required");
+      return;
+    }
     if (
       createForm.effectiveDate &&
       createForm.renewalDate &&
@@ -747,15 +760,15 @@ function AllAgreementsPage() {
       return;
     }
 
-    if (createForm.docusealTemplates.length > 0) {
-      const missingField = validateTemplateFieldValues(createForm);
-      if (missingField) {
-        toast.error(
-          `${missingField.templateName}: ${missingField.fieldName} is required`,
-        );
-        return;
-      }
-    }
+    // if (createForm.docusealTemplates.length > 0) {
+    //   const missingField = validateTemplateFieldValues(createForm);
+    //   if (missingField) {
+    //     toast.error(
+    //       `${missingField.templateName}: ${missingField.fieldName} is required`,
+    //     );
+    //     return;
+    //   }
+    // }
 
     setIsSubmitting(true);
     try {
@@ -1146,6 +1159,7 @@ function AllAgreementsPage() {
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
                       Agreement Templates
+                      <span className="ml-1 text-red-500">*</span>
                     </label>
 
                     {selectedAgreement?.docusealSubmissions?.length ? (
@@ -1157,7 +1171,12 @@ function AllAgreementsPage() {
                                 template.id === submission.templateId,
                             )?.name ||
                             (submission.templateId
-                              ? `Template #${submission.templateId}`
+                              ? `${
+                                  submission?.name ||
+                                  decodeURIComponent(
+                                    submission?.url?.split("/").pop() || "",
+                                  ).replace(".pdf", "")
+                                } - ${submission.templateId}`
                               : "DocuSeal Template");
                           const savedFieldCount = Object.keys(
                             submission.fieldValues || {},
@@ -2201,7 +2220,7 @@ function AllAgreementsPage() {
 
           <div>
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
-              Agreement Templates
+              Agreement Templates <span className="text-red-500">*</span>
             </label>
 
             {/* Selected templates as chips */}
@@ -2253,7 +2272,7 @@ function AllAgreementsPage() {
                     if (!showTemplateDropdown) setShowTemplateDropdown(true);
                   }}
                   onFocus={() => {
-                    if (docusealTemplates.length === 0) loadDocusealTemplates();
+                    loadDocusealTemplates();
                     setShowTemplateDropdown(true);
                   }}
                   placeholder="Search templates..."
@@ -2412,11 +2431,11 @@ function AllAgreementsPage() {
                                               field,
                                               fieldIndex,
                                             )}
-                                            {isClientNameField(field) && (
+                                            {/*{isClientNameField(field) && (
                                               <span className="ml-1 text-red-500">
                                                 *
                                               </span>
-                                            )}
+                                            )}*/}
                                           </span>
                                           <input
                                             type={inputType}
@@ -2465,7 +2484,12 @@ function AllAgreementsPage() {
               disabled={isSubmitting}
               className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#f7f5f1] cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting ? "Creating..." : "Create Agreement"}
+              {
+                // isSubmitting
+                // ? "Creating..."
+                //   :
+                isAdmin ? "Create Agreement" : "Sent Agreement For Approval"
+              }
             </button>
           </div>
           {/*<button

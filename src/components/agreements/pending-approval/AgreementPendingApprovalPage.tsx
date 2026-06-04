@@ -187,10 +187,17 @@ function AgreementPendingApprovalPage() {
             editableFieldValues[submission.id] || submission.fieldValues || {},
         }));
 
-      await updateAgreementApi(selectedAgreement.id, {
-        approvalStatus: nextStatus,
-        docusealSubmissions,
-      });
+      if (action === "approve") {
+        await updateAgreementApi(selectedAgreement.id, {
+          approvalStatus: nextStatus,
+          docusealSubmissions,
+        });
+      }
+      if (action === "reject") {
+        await updateAgreementApi(selectedAgreement.id, {
+          approvalStatus: nextStatus,
+        });
+      }
       toast.success(
         nextStatus === "APPROVED"
           ? "Agreement request approved"

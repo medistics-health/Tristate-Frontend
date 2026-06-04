@@ -129,6 +129,7 @@ export type DocusealSubmission = {
   status: string;
   approval_status?: string | null;
   submissionApprovalStatus?: string | null;
+  submissionApprovalNote?: string | null;
   url?: string | null;
   embedUrl?: string | null;
   slug?: string | null;
@@ -350,6 +351,7 @@ export type AgreementBody = {
     url?: string;
     templateId?: number;
     fieldValues?: Record<string, string>;
+    submissionApprovalNote?: string | null;
   }>;
 };
 

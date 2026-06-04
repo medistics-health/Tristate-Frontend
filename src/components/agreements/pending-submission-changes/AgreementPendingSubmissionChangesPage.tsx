@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, RefreshCw } from "lucide-react";
+import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../../layout/AppLayout";
 import {
@@ -92,7 +92,8 @@ function getTemplateSubmitterGroups(
     submitterName: submitter.name || "Submitter",
     fields: (groupedFields[submitter.uuid] || []).filter(
       (field) =>
-        fieldValues[field.uuid] !== undefined || fieldValues[field.name] !== undefined,
+        fieldValues[field.uuid] !== undefined ||
+        fieldValues[field.name] !== undefined,
     ),
   }));
 }
@@ -111,6 +112,7 @@ function AgreementPendingSubmissionChangesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isResubmitting, setIsResubmitting] = useState(false);
+  const [rejectionNote, setRejectionNote] = useState("");
 
   const loadAgreementDetail = useCallback(async (id: string) => {
     try {
@@ -118,6 +120,7 @@ function AgreementPendingSubmissionChangesPage() {
       const agreement = await getAgreement(id);
       setSelectedAgreement(agreement);
       setEditableFieldValues(buildEditableFieldValues(agreement));
+      setRejectionNote("");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to load agreement";
@@ -201,6 +204,54 @@ function AgreementPendingSubmissionChangesPage() {
     }
 
     return "text";
+  }
+
+  const [rejecting, setIsRejecting] = useState(false);
+
+  async function handleReject() {
+    if (!selectedAgreement) return;
+
+    if (!rejectionNote?.trim().length) {
+      toast.error("Please File Rejection Note");
+      return;
+    }
+    const pendingSubmissions = (
+      selectedAgreement.docusealSubmissions || []
+    ).filter(
+      (submission) =>
+        submission.submissionApprovalStatus === "PENDING_APPROVAL" &&
+        submission.personId &&
+        submission.templateId,
+    );
+
+    if (pendingSubmissions.length === 0) {
+      toast.error("No pending submission changes found for this agreement");
+      return;
+    }
+
+    try {
+      setIsRejecting(true);
+
+      await updateAgreementApi(selectedAgreement.id, {
+        submissionApprovalStatus: "REJECTED",
+        docusealSubmissions: pendingSubmissions.map((submission) => ({
+          id: submission.id,
+          templateId: submission.templateId,
+          submissionApprovalNote: rejectionNote.trim() || null,
+        })),
+      });
+
+      toast.success("Submission Rejected");
+      await loadPendingSubmissionChanges(selectedAgreement.id);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to save and resend submission changes";
+      toast.error(message);
+    } finally {
+      setIsRejecting(false);
+    }
   }
 
   async function handleSaveAndResubmit() {
@@ -424,6 +475,18 @@ function AgreementPendingSubmissionChangesPage() {
                   <h4 className="text-sm font-semibold text-slate-800">
                     Requested Template Changes
                   </h4>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Rejection Note
+                    </label>
+                    <textarea
+                      value={rejectionNote}
+                      onChange={(event) => setRejectionNote(event.target.value)}
+                      rows={3}
+                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#4f63ea]"
+                      placeholder="Explain why this resend request was rejected"
+                    />
+                  </div>
                   {selectedAgreement.docusealSubmissions?.some(
                     (submission) =>
                       submission.submissionApprovalStatus ===
@@ -553,6 +616,15 @@ function AgreementPendingSubmissionChangesPage() {
               </div>
 
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#f0ece6] px-5 py-4">
+                <button
+                  type="button"
+                  onClick={handleReject}
+                  disabled={rejecting}
+                  className="inline-flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <XCircle className="h-4 w-4" />
+                  {rejecting ? "Rejecting..." : "Reject"}
+                </button>
                 <button
                   type="button"
                   onClick={handleSaveAndResubmit}

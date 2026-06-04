@@ -7,11 +7,13 @@ import {
   getAgreement,
   getAgreementsView,
   getDocusealTemplates,
+  resubmitDocusealSubmissionApi,
   updateAgreementApi,
   type Agreement,
   type AgreementBody,
   type DocusealTemplate,
 } from "../../../services/operations/agreements";
+import { hasAdminAccess, readStoredUser } from "../../../utils/auth";
 
 const statusStyles: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
@@ -139,6 +141,7 @@ function getTemplateSubmitterGroups(
 }
 
 function AgreementPendingSignaturesPage() {
+  const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
@@ -352,6 +355,7 @@ function AgreementPendingSignaturesPage() {
               editableFieldValues[selectedSubmission.id] ||
               selectedSubmission.fieldValues ||
               {},
+            submissionApprovalNote: null,
           },
         ],
         submissionApprovalStatus: "PENDING_APPROVAL",
@@ -368,6 +372,57 @@ function AgreementPendingSignaturesPage() {
         error instanceof Error
           ? error.message
           : "Failed to submit change request";
+      toast.error(message);
+    } finally {
+      setIsSubmittingForApproval(false);
+    }
+  }
+
+  async function handleAdminSaveAndResubmit() {
+    const selectedSubmission = selectedAgreement?.docusealSubmissions?.find(
+      (submission) => submission.id === selectedSubmissionId,
+    );
+
+    if (!selectedRowId || !selectedPersonId || !selectedSubmission) {
+      toast.error("Select a signer and template before resubmitting");
+      return;
+    }
+
+    setIsSubmittingForApproval(true);
+    try {
+      const fieldValues =
+        editableFieldValues[selectedSubmission.id] ||
+        selectedSubmission.fieldValues ||
+        {};
+
+      await updateAgreementApi(selectedRowId, {
+        docusealSubmissions: [
+          {
+            id: selectedSubmission.id,
+            templateId: selectedSubmission.templateId,
+            fieldValues,
+            submissionApprovalNote: null,
+          },
+        ],
+      });
+
+      await resubmitDocusealSubmissionApi({
+        agreementId: selectedRowId,
+        personId: selectedPersonId,
+        templateId: selectedSubmission.templateId,
+        fieldValues,
+        submissionApprovalStatus: "APPROVED",
+      });
+
+      await refreshPendingSignatures();
+      const agreement = await getAgreement(selectedRowId);
+      setSelectedAgreement(agreement);
+      setEditForm(buildFormState(agreement));
+      setTemplateFieldsDirty(false);
+      toast.success("Submission saved and resent");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to save and resend";
       toast.error(message);
     } finally {
       setIsSubmittingForApproval(false);
@@ -823,6 +878,13 @@ function AgreementPendingSignaturesPage() {
                                             ? ` | Approval: ${formatStatusLabel(submission.approval_status)}`
                                             : ""}
                                       </div>
+                                      {submission.submissionApprovalStatus ===
+                                        "REJECTED" && (
+                                        <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                                          {submission.submissionApprovalNote?.trim() ||
+                                            "These field changes were saved, but the updated document was not sent."}
+                                        </div>
+                                      )}
                                     </div>
 
                                     <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -918,10 +980,14 @@ function AgreementPendingSignaturesPage() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleSubmitForApproval}
+                    onClick={
+                      isAdmin
+                        ? handleAdminSaveAndResubmit
+                        : handleSubmitForApproval
+                    }
                     disabled={
                       isSubmittingForApproval ||
-                      isSelectedSubmissionPendingApproval ||
+                      (!isAdmin && isSelectedSubmissionPendingApproval) ||
                       !selectedPersonId ||
                       !selectedSubmissionId ||
                       !templateFieldsDirty
@@ -930,7 +996,11 @@ function AgreementPendingSignaturesPage() {
                   >
                     <Save className="h-4 w-4" />
                     {isSubmittingForApproval
-                      ? "Submitting..."
+                      ? isAdmin
+                        ? "Saving..."
+                        : "Submitting..."
+                      : isAdmin
+                        ? "Save and Resubmit"
                       : isSelectedSubmissionPendingApproval
                         ? "Awaiting Approval"
                         : "Submit For Approval"}
