@@ -58,6 +58,27 @@ export type AgreementOption = {
   practice?: { id: string; name: string };
 };
 
+export function getAgreementApprovalStatus(agreement: {
+  status: string;
+  docusealSubmissions?: Array<{ approval_status?: string | null }>;
+}) {
+  const submissionApprovalStatus = agreement.docusealSubmissions?.find(
+    (submission) => submission.approval_status,
+  )?.approval_status;
+
+  return submissionApprovalStatus || agreement.status;
+}
+
+export function getSubmissionApprovalStatus(agreement: {
+  docusealSubmissions?: Array<{ submissionApprovalStatus?: string | null }>;
+}) {
+  return (
+    agreement.docusealSubmissions?.find(
+      (submission) => submission.submissionApprovalStatus,
+    )?.submissionApprovalStatus || ""
+  );
+}
+
 function agreementToRow(agreement: Agreement): AgreementsRow {
   const submissions = agreement.docusealSubmissions || [];
   const completedSubmissions = submissions.filter(
@@ -76,6 +97,7 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
       name: `${agreement.practice?.name || "Practice"} - ${agreement.type}`,
       type: agreement.type,
       status: agreement.status,
+      approvalStatus: getAgreementApprovalStatus(agreement),
       practiceName: agreement.practice?.name || "",
       practiceId: agreement.practiceId || "",
       dealName: agreement.deal?.name || "",
@@ -105,11 +127,15 @@ export type DocusealSubmission = {
   personId?: string | null;
   externalId: number;
   status: string;
+  approval_status?: string | null;
+  submissionApprovalStatus?: string | null;
+  submissionApprovalNote?: string | null;
   url?: string | null;
   embedUrl?: string | null;
   slug?: string | null;
   submitterUuid?: string | null;
   templateId: number;
+  fieldValues?: Record<string, string> | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -312,15 +338,20 @@ export type AgreementBody = {
   dealId?: string | null;
   type: string;
   status: string;
+  approvalStatus: string;
+  submissionApprovalStatus?: string;
   value?: number;
   effectiveDate?: string;
   renewalDate?: string;
   terminationDate?: string;
   docusealSubmissions?: Array<{
-    externalId: number;
-    status: string;
+    id?: string;
+    externalId?: number;
+    status?: string;
     url?: string;
     templateId?: number;
+    fieldValues?: Record<string, string>;
+    submissionApprovalNote?: string | null;
   }>;
 };
 
@@ -467,7 +498,9 @@ export async function getDocusealFormBySlug(slug: string): Promise<any> {
 export async function createDocusealSubmissionApi(data: {
   agreementId: string;
   personId: string;
-  templateId: any[];
+  templateId: number | number[];
+  fieldValues?: Record<string, string>;
+  fieldValuesByTemplateId?: Record<string, Record<string, string>>;
 }): Promise<any> {
   try {
     const response = await apiConnector({
@@ -489,6 +522,7 @@ export async function resubmitDocusealSubmissionApi(data: {
   personId: string;
   templateId: number;
   fieldValues: Record<string, string>;
+  submissionApprovalStatus: string;
 }): Promise<any> {
   try {
     const response = await apiConnector({
