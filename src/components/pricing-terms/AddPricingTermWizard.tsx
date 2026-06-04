@@ -115,6 +115,25 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+type PreviewDetailCard = {
+  label: string;
+  clientValue: string;
+  vendorValue: string;
+  marginValue: string;
+  marginPct?: number;
+};
+
+type ApprovalBasis = {
+  label: string;
+  preview: ReturnType<typeof calcMarginPreview>;
+};
+
+function formatDisplayValue(label: string, value: number | null, isPercent = false) {
+  const numeric = value ?? 0;
+  if (isPercent) return `${numeric.toFixed(2)}%`;
+  return `$${numeric.toLocaleString()}`;
+}
+
 type Props = {
   agreementId: string;
   agreementVersionId: string;
@@ -306,6 +325,173 @@ export default function AddPricingTermWizard({
   const clientAmount = getPricingAmount(model, cfg);
   const vendorAmount = hasVendor ? getPricingAmount(model, vendorCfg) : 0;
   const preview = calcMarginPreview(String(clientAmount ?? ""), String(vendorAmount ?? 0));
+
+  const buildPreviewDetailCards = (): PreviewDetailCard[] => {
+    if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
+      const rows = [
+        {
+          label: "Percentage",
+          client: parseAmount(cfg.percentage),
+          vendor: hasVendor ? parseAmount(vendorCfg.percentage) : 0,
+          isPercent: true,
+        },
+        {
+          label: "Minimum Fee",
+          client: parseAmount(cfg.minimumFee),
+          vendor: hasVendor ? parseAmount(vendorCfg.minimumFee) : 0,
+          isPercent: false,
+        },
+        {
+          label: "Maximum Fee",
+          client: parseAmount(cfg.maximumFee),
+          vendor: hasVendor ? parseAmount(vendorCfg.maximumFee) : 0,
+          isPercent: false,
+        },
+      ];
+
+      return rows.map((row) => {
+        const clientValue = row.client ?? 0;
+        const vendorValue = row.vendor ?? 0;
+        const marginValue = clientValue - vendorValue;
+        const marginPct = clientValue > 0 ? Number(((marginValue / clientValue) * 100).toFixed(2)) : undefined;
+        return {
+          label: row.label,
+          clientValue: formatDisplayValue(row.label, clientValue, row.isPercent),
+          vendorValue: formatDisplayValue(row.label, vendorValue, row.isPercent),
+          marginValue: formatDisplayValue(row.label, marginValue, row.isPercent),
+          marginPct,
+        };
+      });
+    }
+
+    if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
+      const rows = [
+        {
+          label: "Rate per Unit",
+          client: parseAmount(cfg.unitRate),
+          vendor: hasVendor ? parseAmount(vendorCfg.unitRate) : 0,
+        },
+        {
+          label: "Minimum Fee",
+          client: parseAmount(cfg.minimumFee),
+          vendor: hasVendor ? parseAmount(vendorCfg.minimumFee) : 0,
+        },
+      ];
+
+      return rows.map((row) => {
+        const clientValue = row.client ?? 0;
+        const vendorValue = row.vendor ?? 0;
+        const marginValue = clientValue - vendorValue;
+        const marginPct = clientValue > 0 ? Number(((marginValue / clientValue) * 100).toFixed(2)) : undefined;
+        return {
+          label: row.label,
+          clientValue: formatDisplayValue(row.label, clientValue),
+          vendorValue: formatDisplayValue(row.label, vendorValue),
+          marginValue: formatDisplayValue(row.label, marginValue),
+          marginPct,
+        };
+      });
+    }
+
+    if (model === "PER_CPT_CODE") {
+      return (cfg.cptCodes ?? []).map((row, index) => {
+        const clientValue = parseAmount(row.rate) ?? 0;
+        const vendorValue = hasVendor ? (parseAmount(vendorCfg.cptCodes?.[index]?.rate) ?? 0) : 0;
+        const marginValue = clientValue - vendorValue;
+        const marginPct = clientValue > 0 ? Number(((marginValue / clientValue) * 100).toFixed(2)) : undefined;
+        return {
+          label: row.code?.trim() ? `CPT ${row.code}` : `CPT Row ${index + 1}`,
+          clientValue: formatDisplayValue(row.code, clientValue),
+          vendorValue: formatDisplayValue(row.code, vendorValue),
+          marginValue: formatDisplayValue(row.code, marginValue),
+          marginPct,
+        };
+      });
+    }
+
+    if (model === "HYBRID") {
+      return (cfg.components ?? []).map((component, index) => {
+        const clientValue = parseAmount(component.value) ?? 0;
+        const vendorValue = hasVendor ? (parseAmount(vendorCfg.components?.[index]?.value) ?? 0) : 0;
+        const marginValue = clientValue - vendorValue;
+        const marginPct = clientValue > 0 ? Number(((marginValue / clientValue) * 100).toFixed(2)) : undefined;
+        return {
+          label: component.type || `Component ${index + 1}`,
+          clientValue: formatDisplayValue(component.type, clientValue),
+          vendorValue: formatDisplayValue(component.type, vendorValue),
+          marginValue: formatDisplayValue(component.type, marginValue),
+          marginPct,
+        };
+      });
+    }
+
+    return [];
+  };
+
+  const previewDetailCards = buildPreviewDetailCards();
+  const showDetailedPreview = previewDetailCards.length > 0;
+
+  const getApprovalBasis = (): ApprovalBasis => {
+    if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
+      const client = parseAmount(cfg.percentage) ?? 0;
+      const vendor = hasVendor ? (parseAmount(vendorCfg.percentage) ?? 0) : 0;
+      return {
+        label: "Percentage",
+        preview: calcMarginPreview(String(client), String(vendor)),
+      };
+    }
+
+    if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
+      const client = parseAmount(cfg.unitRate) ?? 0;
+      const vendor = hasVendor ? (parseAmount(vendorCfg.unitRate) ?? 0) : 0;
+      return {
+        label: "Rate per Unit",
+        preview: calcMarginPreview(String(client), String(vendor)),
+      };
+    }
+
+    if (model === "PER_CPT_CODE") {
+      const client = (cfg.cptCodes ?? []).reduce(
+        (sum, row) => sum + (parseAmount(row.rate) ?? 0),
+        0,
+      );
+      const vendor = hasVendor
+        ? (vendorCfg.cptCodes ?? []).reduce(
+            (sum, row) => sum + (parseAmount(row.rate) ?? 0),
+            0,
+          )
+        : 0;
+      return {
+        label: "CPT Rates",
+        preview: calcMarginPreview(String(client), String(vendor)),
+      };
+    }
+
+    if (model === "HYBRID") {
+      const client = (cfg.components ?? []).reduce(
+        (sum, component) => sum + (parseAmount(component.value) ?? 0),
+        0,
+      );
+      const vendor = hasVendor
+        ? (vendorCfg.components ?? []).reduce(
+            (sum, component) => sum + (parseAmount(component.value) ?? 0),
+            0,
+          )
+        : 0;
+      return {
+        label: "Hybrid Components",
+        preview: calcMarginPreview(String(client), String(vendor)),
+      };
+    }
+
+    return {
+      label: "Overall",
+      preview,
+    };
+  };
+
+  const approvalBasis = getApprovalBasis();
+  const approvalPreview = approvalBasis.preview;
 
   const buildPricingConfigPayload = () => {
     const nextConfig: PricingConfigShape & Record<string, unknown> = {
@@ -714,12 +900,6 @@ export default function AddPricingTermWizard({
                     {model === "PER_CPT_CODE" && renderVendorTable(vendorCfg.cptCodes ?? [])}
                     {model === "HYBRID" && renderVendorComponents(vendorCfg.components ?? [])}
 
-                    <div className="flex items-center justify-between rounded-lg bg-[#faf9f7] px-3 py-2 text-[12px]">
-                      <span className="font-medium text-slate-500">Vendor Total</span>
-                      <span className="font-semibold text-slate-700">
-                        ${Number(vendorAmount ?? 0).toLocaleString()}
-                      </span>
-                    </div>
                   </div>
                 </div>
               )}
@@ -730,25 +910,52 @@ export default function AddPricingTermWizard({
           {step === 4 && (
             <div className="space-y-4">
               <h3 className="text-[15px] font-semibold text-slate-700">Margin Preview</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {([
-                  ["Est. Client Revenue", `$${preview.clientRevenue.toLocaleString()}`, "text-[#4f63ea]"],
-                  ["Est. Vendor Cost",    `$${preview.vendorCost.toLocaleString()}`,    "text-red-500"],
-                  ["Est. Gross Margin",   `$${preview.grossMargin.toLocaleString()}`,   "text-emerald-600"],
-                  ["Margin %",           `${toFixedDisplay(preview.marginPct)}%`,       preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"],
-                ] as const).map(([k, v, color]) => (
-                  <div key={k} className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4">
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{k}</p>
-                    <p className={`mt-1 text-[22px] font-bold ${color}`}>{v}</p>
-                  </div>
-                ))}
-              </div>
-              {preview.requiresApproval && (
+              {showDetailedPreview ? (
+                <div className={`grid gap-3 ${previewDetailCards.length >= 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+                  {previewDetailCards.map((card) => (
+                    <div key={card.label} className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4">
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{card.label}</p>
+                      <div className="mt-3 space-y-2 text-[13px]">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-slate-400">Rate</span>
+                          <span className="font-semibold text-[#4f63ea]">{card.clientValue}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-slate-400">Vendor</span>
+                          <span className="font-semibold text-red-500">{card.vendorValue}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 border-t border-[#ece8e1] pt-2">
+                          <span className="text-slate-500">Margin</span>
+                          <span className="font-semibold text-emerald-600">
+                            {card.marginValue}
+                            {card.marginPct !== undefined ? ` (${toFixedDisplay(card.marginPct)}%)` : ""}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    ["Est. Client Revenue", `$${preview.clientRevenue.toLocaleString()}`, "text-[#4f63ea]"],
+                    ["Est. Vendor Cost",    `$${preview.vendorCost.toLocaleString()}`,    "text-red-500"],
+                    ["Est. Gross Margin",   `$${preview.grossMargin.toLocaleString()}`,   "text-emerald-600"],
+                    ["Margin %",           `${toFixedDisplay(preview.marginPct)}%`,       preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"],
+                  ] as const).map(([k, v, color]) => (
+                    <div key={k} className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4">
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{k}</p>
+                      <p className={`mt-1 text-[22px] font-bold ${color}`}>{v}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {approvalPreview.requiresApproval && (
                 <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
                   <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold">Low Margin — Approval Required</p>
-                    <p className="text-[12px] mt-0.5">Margin {toFixedDisplay(preview.marginPct)}% is below the 20% threshold. Proceed to step 6 to add approval notes.</p>
+                    <p className="text-[12px] mt-0.5">{approvalBasis.label} margin {toFixedDisplay(approvalPreview.marginPct)}% is below the 20% threshold. Proceed to step 6 to add approval notes.</p>
                   </div>
                 </div>
               )}
@@ -759,13 +966,13 @@ export default function AddPricingTermWizard({
           {step === 5 && (
             <div className="space-y-4">
               <h3 className="text-[15px] font-semibold text-slate-700">Internal Approval</h3>
-              {preview.requiresApproval ? (
+              {approvalPreview.requiresApproval ? (
                 <>
                   <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
                     <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold">⚠ Approval Required</p>
-                      <p className="text-[12px] mt-0.5">Margin is {toFixedDisplay(preview.marginPct)}%, below the minimum 20% threshold. Please request manager approval before finalizing.</p>
+                      <p className="text-[12px] mt-0.5">{approvalBasis.label} margin is {toFixedDisplay(approvalPreview.marginPct)}%, below the minimum 20% threshold. Please request manager approval before finalizing.</p>
                     </div>
                   </div>
                   <div>
@@ -780,7 +987,7 @@ export default function AddPricingTermWizard({
                   <CheckCircle2 className="h-6 w-6 shrink-0" />
                   <div>
                     <p className="font-semibold">No Approval Needed</p>
-                    <p className="text-[12px] mt-0.5">Margin of {toFixedDisplay(preview.marginPct)}% meets the minimum threshold. You can proceed to finalize.</p>
+                    <p className="text-[12px] mt-0.5">{approvalBasis.label} margin of {toFixedDisplay(approvalPreview.marginPct)}% meets the minimum threshold. You can proceed to finalize.</p>
                   </div>
                 </div>
               )}
@@ -826,10 +1033,10 @@ export default function AddPricingTermWizard({
                 <p className="mt-1 text-[12px] text-slate-400">Emails from the related people are auto-filled. Use comma-separated emails for multiple signers.</p>
               </div>
 
-              {preview.requiresApproval && (
+              {approvalPreview.requiresApproval && (
                 <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  Approval required — ensure manager sign-off before activating this term
+                  Approval required based on {approvalBasis.label.toLowerCase()} margin — ensure manager sign-off before activating this term
                 </div>
               )}
             </div>
