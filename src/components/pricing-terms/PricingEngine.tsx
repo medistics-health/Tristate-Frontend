@@ -13,7 +13,10 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
-import { getAllPractices, getPractice } from "../../services/operations/practices";
+import {
+  getAllPractices,
+  getPractice,
+} from "../../services/operations/practices";
 import { getAllServices } from "../../services/operations/services";
 import { getAllVendorsApi } from "../../services/operations/vendors";
 import type { Practice } from "../practices/types";
@@ -56,14 +59,20 @@ const MODEL_COLOR: Record<string, string> = {
 };
 
 function fmtModel(m: string) {
-  return PRICING_MODEL_OPTIONS.find((o) => o.value === m)?.label ?? m.replace(/_/g, " ");
+  return (
+    PRICING_MODEL_OPTIONS.find((o) => o.value === m)?.label ??
+    m.replace(/_/g, " ")
+  );
 }
 
 function fmtMoney(v?: number | string | null) {
   if (v === undefined || v === null || v === "") return "-";
   const n = Number(v);
   if (isNaN(n)) return String(v);
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(n);
 }
 
 function fmtPercent(value: number) {
@@ -106,7 +115,8 @@ function extractClientRate(term: AgreementServiceTerm): number {
 
 function extractVendorRate(term: AgreementServiceTerm): number {
   const config = term.pricingConfig as PricingConfigShape;
-  const vendorPricing = (config?.vendorPricing ?? null) as VendorPricingShape | null;
+  const vendorPricing = (config?.vendorPricing ??
+    null) as VendorPricingShape | null;
   const nestedVendorTotal = sumPricingConfig(vendorPricing);
   if (nestedVendorTotal > 0) return nestedVendorTotal;
 
@@ -117,16 +127,24 @@ function extractVendorRate(term: AgreementServiceTerm): number {
   return isNaN(n) ? 0 : n;
 }
 
-function sumPricingConfig(config?: Partial<PricingConfigShape> | VendorPricingShape | null): number {
+function sumPricingConfig(
+  config?: Partial<PricingConfigShape> | VendorPricingShape | null,
+): number {
   if (!config) return 0;
   if (config.amount) return parseFloat(config.amount) || 0;
   if (config.unitRate) return parseFloat(config.unitRate) || 0;
   if (config.percentage) return parseFloat(config.percentage) || 0;
   if (config.cptCodes?.length) {
-    return config.cptCodes.reduce((sum, row) => sum + (parseFloat(row.rate || "0") || 0), 0);
+    return config.cptCodes.reduce(
+      (sum, row) => sum + (parseFloat(row.rate || "0") || 0),
+      0,
+    );
   }
   if (config.components?.length) {
-    return config.components.reduce((sum, component) => sum + (parseFloat(component.value || "0") || 0), 0);
+    return config.components.reduce(
+      (sum, component) => sum + (parseFloat(component.value || "0") || 0),
+      0,
+    );
   }
   return 0;
 }
@@ -143,7 +161,10 @@ function SkeletonSummaryCards() {
   return (
     <div className="grid grid-cols-4 gap-3 border-b border-[#f0ece6] p-4">
       {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 space-y-2">
+        <div
+          key={i}
+          className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 space-y-2"
+        >
           <Skeleton className="h-3 w-24" />
           <Skeleton className="h-7 w-20" />
         </div>
@@ -157,21 +178,48 @@ function SkeletonTableRows() {
     <table className="w-full">
       <thead>
         <tr className="border-b border-[#f0ece6] bg-[#faf9f7]">
-          {["Service", "Pricing Model", "Client Rate", "Vendor Rate", "Margin", "Vendor", "Status"].map((h) => (
-            <th key={h} className="px-4 py-2.5 text-left text-[12px] font-medium text-slate-500">{h}</th>
+          {[
+            "Service",
+            "Pricing Model",
+            "Client Rate",
+            "Vendor Rate",
+            "Margin",
+            "Vendor",
+            "Status",
+          ].map((h) => (
+            <th
+              key={h}
+              className="px-4 py-2.5 text-left text-[12px] font-medium text-slate-500"
+            >
+              {h}
+            </th>
           ))}
         </tr>
       </thead>
       <tbody>
         {[1, 2, 3, 4, 5].map((i) => (
           <tr key={i} className="border-b border-[#f0ece6]">
-            <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
-            <td className="px-4 py-3"><Skeleton className="h-5 w-28 rounded-full" /></td>
-            <td className="px-4 py-3"><Skeleton className="h-4 w-16 ml-auto" /></td>
-            <td className="px-4 py-3"><Skeleton className="h-4 w-14 ml-auto" /></td>
-            <td className="px-4 py-3"><Skeleton className="h-4 w-10 ml-auto" /></td>
-            <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
-            <td className="px-4 py-3"><Skeleton className="h-5 w-12 rounded-full" /></td>
+            <td className="px-4 py-3">
+              <Skeleton className="h-4 w-24" />
+            </td>
+            <td className="px-4 py-3">
+              <Skeleton className="h-5 w-28 rounded-full" />
+            </td>
+            <td className="px-4 py-3">
+              <Skeleton className="h-4 w-16 ml-auto" />
+            </td>
+            <td className="px-4 py-3">
+              <Skeleton className="h-4 w-14 ml-auto" />
+            </td>
+            <td className="px-4 py-3">
+              <Skeleton className="h-4 w-10 ml-auto" />
+            </td>
+            <td className="px-4 py-3">
+              <Skeleton className="h-4 w-16" />
+            </td>
+            <td className="px-4 py-3">
+              <Skeleton className="h-5 w-12 rounded-full" />
+            </td>
           </tr>
         ))}
       </tbody>
@@ -183,10 +231,14 @@ function SkeletonTableRows() {
 
 export default function PricingEnginePage() {
   const [practices, setPractices] = useState<Practice[]>([]);
-  const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
+  const [selectedPractice, setSelectedPractice] = useState<Practice | null>(
+    null,
+  );
   const [services, setServices] = useState<Service[]>([]);
   const [vendors, setVendors] = useState<{ id: string; name: string }[]>([]);
-  const [agreements, setAgreements] = useState<{ id: string; label: string }[]>([]);
+  const [agreements, setAgreements] = useState<{ id: string; label: string }[]>(
+    [],
+  );
   const [versions, setVersions] = useState<AgreementVersion[]>([]);
 
   const [selectedPracticeId, setSelectedPracticeId] = useState("");
@@ -197,15 +249,23 @@ export default function PricingEnginePage() {
 
   const [showWizard, setShowWizard] = useState(false);
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
-  const [editingTerm, setEditingTerm] = useState<AgreementServiceTerm | null>(null);
+  const [editingTerm, setEditingTerm] = useState<AgreementServiceTerm | null>(
+    null,
+  );
   const [showDetail, setShowDetail] = useState(false);
-  const [selectedTerm, setSelectedTerm] = useState<AgreementServiceTerm | null>(null);
+  const [selectedTerm, setSelectedTerm] = useState<AgreementServiceTerm | null>(
+    null,
+  );
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Load options on mount
   useEffect(() => {
     Promise.all([getAllPractices(), getAllServices(), getAllVendorsApi()])
-      .then(([p, s, v]) => { setPractices(p); setServices(s); setVendors(v); })
+      .then(([p, s, v]) => {
+        setPractices(p);
+        setServices(s);
+        setVendors(v);
+      })
       .catch(console.error);
   }, []);
 
@@ -213,9 +273,22 @@ export default function PricingEnginePage() {
 
   // Load agreements when practice changes
   useEffect(() => {
-    if (!selectedPracticeId) { setAgreements([]); setSelectedAgreementId(""); setVersions([]); setSelectedVersionId(""); return; }
+    if (!selectedPracticeId) {
+      setAgreements([]);
+      setSelectedAgreementId("");
+      setVersions([]);
+      setSelectedVersionId("");
+      return;
+    }
     getAgreementsView({ practiceId: selectedPracticeId, limit: 100 })
-      .then((d) => setAgreements(d.rows.map((r) => ({ id: r.id, label: String(r.values.name || r.id) }))))
+      .then((d) =>
+        setAgreements(
+          d.rows.map((r) => ({
+            id: r.id,
+            label: String(r.values.name || r.id),
+          })),
+        ),
+      )
       .catch(console.error);
   }, [selectedPracticeId]);
 
@@ -229,13 +302,21 @@ export default function PricingEnginePage() {
       .then(setSelectedPractice)
       .catch((error) => {
         console.error(error);
-        setSelectedPractice(practices.find((practice) => practice.id === selectedPracticeId) ?? null);
+        setSelectedPractice(
+          practices.find((practice) => practice.id === selectedPracticeId) ??
+            null,
+        );
       });
   }, [selectedPracticeId, practices]);
 
   // Load versions when agreement changes
   useEffect(() => {
-    if (!selectedAgreementId) { setVersions([]); setSelectedVersionId(""); setTerms([]); return; }
+    if (!selectedAgreementId) {
+      setVersions([]);
+      setSelectedVersionId("");
+      setTerms([]);
+      return;
+    }
     getAgreementVersions({ agreementId: selectedAgreementId, limit: 50 })
       .then((d) => {
         setVersions(d.versions);
@@ -248,7 +329,10 @@ export default function PricingEnginePage() {
 
   // Load terms when version changes
   useEffect(() => {
-    if (!selectedVersionId) { setTerms([]); return; }
+    if (!selectedVersionId) {
+      setTerms([]);
+      return;
+    }
     loadTerms();
   }, [selectedVersionId]);
 
@@ -256,7 +340,11 @@ export default function PricingEnginePage() {
     if (!selectedVersionId) return;
     setIsLoading(true);
     try {
-      const d = await getPricingTerms({ agreementId: selectedAgreementId, agreementVersionId: selectedVersionId, limit: 100 });
+      const d = await getPricingTerms({
+        agreementId: selectedAgreementId,
+        agreementVersionId: selectedVersionId,
+        limit: 100,
+      });
       setTerms(d.terms);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load terms");
@@ -286,7 +374,10 @@ export default function PricingEnginePage() {
   const totalClient = terms.reduce((s, t) => s + extractClientRate(t), 0);
   const totalVendor = terms.reduce((s, t) => s + extractVendorRate(t), 0);
   const totalMargin = totalClient - totalVendor;
-  const marginPct = totalClient > 0 ? Number(((totalMargin / totalClient) * 100).toFixed(2)) : 0;
+  const marginPct =
+    totalClient > 0
+      ? Number(((totalMargin / totalClient) * 100).toFixed(2))
+      : 0;
 
   const canAddTerm = !!selectedAgreementId && !!selectedVersionId;
 
@@ -296,17 +387,24 @@ export default function PricingEnginePage() {
       activeModule="Pricing Engine"
       activeSubItem="Rate Finalization"
       navbarIcon={<DollarSign className="h-4 w-4 text-slate-500" />}
-      navbarActions={canAddTerm ? [{
-        label: "Add Pricing Term",
-        icon: <Plus className="h-4 w-4" />,
-        onClick: () => { setEditingTerm(null); setShowWizard(true); },
-      }] : []}
+      navbarActions={
+        canAddTerm
+          ? [
+              {
+                label: "Add Pricing Term",
+                icon: <Plus className="h-4 w-4" />,
+                onClick: () => {
+                  setEditingTerm(null);
+                  setShowWizard(true);
+                },
+              },
+            ]
+          : []
+      }
     >
       <div className="flex h-full gap-2">
-
         {/* ── Main table panel ── */}
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white">
-
           {/* Toolbar */}
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <span className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700">
@@ -322,7 +420,7 @@ export default function PricingEnginePage() {
                 value={selectedPracticeId}
                 onChange={setSelectedPracticeId}
                 placeholder="Select Practice"
-                options={practices.map(p => ({ label: p.name, value: p.id }))}
+                options={practices.map((p) => ({ label: p.name, value: p.id }))}
               />
             </div>
 
@@ -332,7 +430,10 @@ export default function PricingEnginePage() {
                   value={selectedAgreementId}
                   onChange={setSelectedAgreementId}
                   placeholder="Select Agreement"
-                  options={agreements.map(a => ({ label: a.label, value: a.id }))}
+                  options={agreements.map((a) => ({
+                    label: a.label,
+                    value: a.id,
+                  }))}
                 />
               </div>
             )}
@@ -343,9 +444,9 @@ export default function PricingEnginePage() {
                   value={selectedVersionId}
                   onChange={setSelectedVersionId}
                   placeholder="Select Version"
-                  options={versions.map(v => ({
+                  options={versions.map((v) => ({
                     label: `v${v.versionNumber}${v.isCurrent ? " (current)" : ""}`,
-                    value: v.id
+                    value: v.id,
                   }))}
                 />
               </div>
@@ -353,15 +454,22 @@ export default function PricingEnginePage() {
 
             {canAddTerm && (
               <div className="ml-auto flex items-center gap-2">
-                <button type="button"
-                  onClick={() => { setEditingTerm(null); setShowWizard(true); }}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-1.5 text-[13px] font-medium text-white hover:bg-[#3d4ed1] transition-colors">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTerm(null);
+                    setShowWizard(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-1.5 text-[13px] font-medium text-white hover:bg-[#3d4ed1] transition-colors"
+                >
                   <Plus className="h-3.5 w-3.5" /> Add Pricing Term
                 </button>
                 {terms.length > 0 && (
-                  <button type="button"
+                  <button
+                    type="button"
                     onClick={() => setShowFinalizeConfirm(true)}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-1.5 text-[13px] font-medium text-white hover:bg-emerald-700 transition-colors shadow-sm">
+                    className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-1.5 text-[13px] font-medium text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                  >
                     <CheckCircle2 className="h-3.5 w-3.5" /> Finalize
                   </button>
                 )}
@@ -375,14 +483,37 @@ export default function PricingEnginePage() {
           ) : terms.length > 0 ? (
             <div className="grid grid-cols-4 gap-3 border-b border-[#f0ece6] p-4">
               {[
-                { label: "Client Revenue", value: fmtMoney(totalClient), color: "text-[#4f63ea]" },
-                { label: "Vendor Cost", value: fmtMoney(totalVendor), color: "text-red-500" },
-                { label: "Gross Margin", value: fmtMoney(totalMargin), color: "text-emerald-600" },
-                { label: "Margin %", value: fmtPercent(marginPct), color: marginPct < 20 ? "text-amber-600" : "text-emerald-600" },
+                {
+                  label: "Client Revenue",
+                  value: fmtMoney(totalClient),
+                  color: "text-[#4f63ea]",
+                },
+                {
+                  label: "Vendor Cost",
+                  value: fmtMoney(totalVendor),
+                  color: "text-red-500",
+                },
+                {
+                  label: "Gross Margin",
+                  value: fmtMoney(totalMargin),
+                  color: "text-emerald-600",
+                },
+                {
+                  label: "Margin %",
+                  value: fmtPercent(marginPct),
+                  color: marginPct < 20 ? "text-amber-600" : "text-emerald-600",
+                },
               ].map((c) => (
-                <div key={c.label} className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
-                  <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{c.label}</div>
-                  <div className={`mt-1 text-[20px] font-semibold ${c.color}`}>{c.value}</div>
+                <div
+                  key={c.label}
+                  className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3"
+                >
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                    {c.label}
+                  </div>
+                  <div className={`mt-1 text-[20px] font-semibold ${c.color}`}>
+                    {c.value}
+                  </div>
                 </div>
               ))}
             </div>
@@ -391,19 +522,34 @@ export default function PricingEnginePage() {
           {/* Table / empty states */}
           <div className="flex-1 overflow-auto">
             {!selectedPracticeId ? (
-              <EmptyHint icon={<TrendingUp className="h-8 w-8 opacity-30" />} text="Select a practice to view pricing terms" />
+              <EmptyHint
+                icon={<TrendingUp className="h-8 w-8 opacity-30" />}
+                text="Select a practice to view pricing terms"
+              />
             ) : !selectedAgreementId ? (
-              <EmptyHint icon={<TrendingUp className="h-8 w-8 opacity-30" />} text="Select an agreement to configure pricing" />
+              <EmptyHint
+                icon={<TrendingUp className="h-8 w-8 opacity-30" />}
+                text="Select an agreement to configure pricing"
+              />
             ) : !selectedVersionId ? (
-              <EmptyHint icon={<TrendingUp className="h-8 w-8 opacity-30" />} text="Select an agreement version" />
+              <EmptyHint
+                icon={<TrendingUp className="h-8 w-8 opacity-30" />}
+                text="Select an agreement version"
+              />
             ) : isLoading ? (
               <SkeletonTableRows />
             ) : terms.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
                 <DollarSign className="h-8 w-8 opacity-30" />
                 <p className="text-[14px]">No pricing terms yet.</p>
-                <button type="button" onClick={() => { setEditingTerm(null); setShowWizard(true); }}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTerm(null);
+                    setShowWizard(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
+                >
                   <Plus className="h-4 w-4" /> Add First Pricing Term
                 </button>
               </div>
@@ -425,27 +571,72 @@ export default function PricingEnginePage() {
                     const cl = extractClientRate(term);
                     const vn = extractVendorRate(term);
                     const mg = cl - vn;
-                    const mp = cl > 0 ? Number(((mg / cl) * 100).toFixed(2)) : 0;
+                    const mp =
+                      cl > 0 ? Number(((mg / cl) * 100).toFixed(2)) : 0;
                     return (
-                      <tr key={term.id}
-                        onClick={() => { setSelectedTerm(term); setShowDetail(true); }}
-                        className="cursor-pointer border-b border-[#f0ece6] hover:bg-[#faf9f7] transition-colors">
-                        <td className="px-4 py-2.5 font-medium text-slate-700">{term.service?.name ?? "-"}</td>
+                      <tr
+                        key={term.id}
+                        onClick={() => {
+                          setSelectedTerm(term);
+                          setShowDetail(true);
+                        }}
+                        className="cursor-pointer border-b border-[#f0ece6] hover:bg-[#faf9f7] transition-colors"
+                      >
+                        <td className="px-4 py-2.5 font-medium text-slate-700">
+                          {term.service?.name ?? "-"}
+                        </td>
                         <td className="px-4 py-2.5">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${MODEL_COLOR[term.pricingModel] ?? "bg-slate-100 text-slate-600"}`}>
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${MODEL_COLOR[term.pricingModel] ?? "bg-slate-100 text-slate-600"}`}
+                          >
                             {fmtModel(term.pricingModel)}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-right text-slate-700">{fmtMoney(cl)}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-500">{term.vendorId ? fmtMoney(vn) : "-"}</td>
-                        <td className="px-4 py-2.5 text-right">
-                          {cl > 0 ? <span className={mp < 20 ? "text-amber-600 font-medium" : "text-emerald-600 font-medium"}>{fmtPercent(mp)}</span> : "-"}
+                        <td className="px-4 py-2.5 text-right text-slate-700">
+                          {fmtMoney(cl)}
                         </td>
-                        <td className="px-4 py-2.5 text-slate-500">{term.vendor?.name ?? "-"}</td>
-                        <td className="px-4 py-2.5">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${term.isActive ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-600"}`}>
-                            {term.isActive ? "Active" : "Inactive"}
-                          </span>
+                        <td className="px-4 py-2.5 text-right text-slate-500">
+                          {term.vendorId ? fmtMoney(vn) : "-"}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          {cl > 0 ? (
+                            <span
+                              className={
+                                mp < 20
+                                  ? "text-amber-600 font-medium"
+                                  : "text-emerald-600 font-medium"
+                              }
+                            >
+                              {fmtPercent(mp)}
+                            </span>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-500">
+                          {term.vendor?.name ?? "-"}
+                        </td>
+                        <td className="px-4 py-2.5 flex gap-1">
+                          {term.approvalStatus === "PENDING" && (
+                            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                              Pending Approval
+                            </span>
+                          )}
+                          {term.approvalStatus === "REJECTED" && (
+                            <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                              Rejected
+                            </span>
+                          )}
+                          {term.isActive && (
+                            <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                              Active
+                            </span>
+                          )}
+                          {!term.isActive && !term.approvalStatus && (
+                            <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                              Inactive
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -460,8 +651,15 @@ export default function PricingEnginePage() {
         {showDetail && selectedTerm && (
           <TermDetailPanel
             term={selectedTerm}
-            onClose={() => { setShowDetail(false); setSelectedTerm(null); }}
-            onEdit={() => { setEditingTerm(selectedTerm); setShowDetail(false); setShowWizard(true); }}
+            onClose={() => {
+              setShowDetail(false);
+              setSelectedTerm(null);
+            }}
+            onEdit={() => {
+              setEditingTerm(selectedTerm);
+              setShowDetail(false);
+              setShowWizard(true);
+            }}
             onDelete={handleDelete}
             isDeleting={isDeleting}
           />
@@ -476,8 +674,14 @@ export default function PricingEnginePage() {
           services={activeServices}
           vendors={vendors}
           editingTerm={editingTerm}
-          defaultSignerEmail={pickDefaultSignerEmail(selectedPractice ?? practices.find((p) => p.id === selectedPracticeId))}
-          onClose={() => { setShowWizard(false); setEditingTerm(null); }}
+          defaultSignerEmail={pickDefaultSignerEmail(
+            selectedPractice ??
+              practices.find((p) => p.id === selectedPracticeId),
+          )}
+          onClose={() => {
+            setShowWizard(false);
+            setEditingTerm(null);
+          }}
           onSaved={async () => {
             setShowWizard(false);
             setEditingTerm(null);
@@ -494,22 +698,32 @@ export default function PricingEnginePage() {
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
                 <CheckCircle2 className="h-6 w-6 text-emerald-600" />
               </div>
-              <h3 className="mb-2 text-center text-[18px] font-semibold text-slate-800">Finalize Rate Packet</h3>
+              <h3 className="mb-2 text-center text-[18px] font-semibold text-slate-800">
+                Finalize Rate Packet
+              </h3>
               <p className="text-center text-[14px] leading-relaxed text-slate-500">
-                Are you sure you want to finalize this rate packet? This will lock the current terms and initiate the signing process.
+                Are you sure you want to finalize this rate packet? This will
+                lock the current terms and initiate the signing process.
               </p>
             </div>
             <div className="flex gap-3 bg-[#faf9f7] px-6 py-4">
-              <button type="button" onClick={() => setShowFinalizeConfirm(false)}
-                className="flex-1 rounded-xl border border-[#ece8e1] bg-white py-2.5 text-[14px] font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+              <button
+                type="button"
+                onClick={() => setShowFinalizeConfirm(false)}
+                className="flex-1 rounded-xl border border-[#ece8e1] bg-white py-2.5 text-[14px] font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+              >
                 Cancel
               </button>
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => {
                   setShowFinalizeConfirm(false);
-                  toast.success("Rate packet finalized and sent for signature.");
+                  toast.success(
+                    "Rate packet finalized and sent for signature.",
+                  );
                 }}
-                className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-[14px] font-medium text-white hover:bg-emerald-700 transition-colors shadow-sm">
+                className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-[14px] font-medium text-white hover:bg-emerald-700 transition-colors shadow-sm"
+              >
                 Yes, Finalize
               </button>
             </div>
@@ -533,8 +747,14 @@ function EmptyHint({ icon, text }: { icon?: React.ReactNode; text: string }) {
 
 // ─── Detail panel ─────────────────────────────────────────────────────────────
 
+// ─── Detail panel ─────────────────────────────────────────────────────────────
+
 function TermDetailPanel({
-  term, onClose, onEdit, onDelete, isDeleting,
+  term,
+  onClose,
+  onEdit,
+  onDelete,
+  isDeleting,
 }: {
   term: AgreementServiceTerm;
   onClose: () => void;
@@ -550,93 +770,316 @@ function TermDetailPanel({
   function InfoRow({ label, value }: { label: string; value?: string | null }) {
     if (!value) return null;
     return (
-      <div className="flex items-center justify-between text-[13px]">
-        <span className="text-slate-400">{label}</span>
-        <span className="text-right font-medium text-slate-700">{value}</span>
+      <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+          {label}
+        </span>
+        <span className="text-[13px] font-medium text-slate-700 break-words whitespace-pre-wrap">
+          {value}
+        </span>
       </div>
     );
   }
 
+  function formatVendorPricing(pricing: any): string {
+    if (!pricing) return "-";
+    if (typeof pricing === "string") return pricing;
+    if (pricing.amount) return `$${parseFloat(pricing.amount).toFixed(2)}`;
+    if (pricing.percentage)
+      return `${parseFloat(pricing.percentage).toFixed(2)}%`;
+    if (pricing.unitRate) return `$${parseFloat(pricing.unitRate).toFixed(2)}`;
+    if (Array.isArray(pricing.cptCodes))
+      return `${pricing.cptCodes.length} CPT code${pricing.cptCodes.length === 1 ? "" : "s"}`;
+    if (Array.isArray(pricing.components))
+      return `${pricing.components.length} component${pricing.components.length === 1 ? "" : "s"}`;
+    return "-";
+  }
+
+  function formatSigners(signers?: string | string[] | null): string | null {
+    if (!signers) return null;
+    if (Array.isArray(signers)) {
+      const list = signers.filter(Boolean).map(String);
+      return list.length > 0 ? list.join(", ") : null;
+    }
+    return String(signers).trim() || null;
+  }
+
+  const signerEmailsText = formatSigners((cfg as any)?.signerEmails);
+
   return (
-    <aside className="app-panel flex w-[360px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+    <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
-        <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-slate-400 hover:text-slate-600"
+        >
           <ChevronLeft className="h-4 w-4" />
         </button>
         <Circle className="h-4 w-4 text-slate-300" />
         <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
           {term.service?.name ?? "Pricing Term"}
         </span>
-        <button type="button" onClick={onEdit} className="rounded-md p-1 text-slate-400 hover:text-[#4f63ea]">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="rounded-md p-1 text-slate-400 hover:text-[#4f63ea]"
+        >
           <Pencil className="h-4 w-4" />
         </button>
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-4">
-        <div className="space-y-2.5 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
-          <InfoRow label="Pricing Model" value={fmtModel(term.pricingModel)} />
+        {/* Basic Information */}
+        <div className="space-y-2">
+          <h4 className="text-[13px] font-semibold text-slate-700 mb-3">
+            Basic Information
+          </h4>
+
+          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Pricing Model
+            </span>
+            <span
+              className={`inline-flex self-start rounded-full px-2 py-0.5 text-xs font-medium ${MODEL_COLOR[term.pricingModel] ?? "bg-slate-100 text-slate-600"}`}
+            >
+              {fmtModel(term.pricingModel)}
+            </span>
+          </div>
+
           <InfoRow label="Vendor" value={term.vendor?.name} />
           <InfoRow label="Currency" value={term.currency} />
-          <InfoRow label="Status" value={term.isActive ? "Active" : "Inactive"} />
-          <InfoRow label="Effective Date" value={term.effectiveDate ? new Date(term.effectiveDate).toLocaleDateString() : undefined} />
-          <InfoRow label="End Date" value={term.endDate ? new Date(term.endDate).toLocaleDateString() : undefined} />
+
+          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Approval Status
+            </span>
+            <div className="flex gap-1">
+              {term.approvalStatus === "PENDING" && (
+                <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                  Pending
+                </span>
+              )}
+              {term.approvalStatus === "APPROVED" && (
+                <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                  ✓ Approved
+                </span>
+              )}
+              {term.approvalStatus === "REJECTED" && (
+                <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                  ✕ Rejected
+                </span>
+              )}
+              {!term.approvalStatus && (
+                <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                  Not Required
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Term Status
+            </span>
+            <span className="text-[13px] font-medium text-slate-700">
+              {term.isActive ? "Active" : "Inactive"}
+            </span>
+          </div>
+
+          <InfoRow
+            label="Effective Date"
+            value={
+              term.effectiveDate
+                ? new Date(term.effectiveDate).toLocaleDateString()
+                : undefined
+            }
+          />
+          <InfoRow
+            label="End Date"
+            value={
+              term.endDate
+                ? new Date(term.endDate).toLocaleDateString()
+                : undefined
+            }
+          />
         </div>
 
-        {/* Config values */}
-        {Object.entries(cfg ?? {}).filter(([, v]) => v !== undefined && v !== null && v !== "" && !Array.isArray(v)).length > 0 && (
-          <div>
-            <h4 className="mb-2 text-[13px] font-medium text-slate-700">Rate Configuration</h4>
-            <div className="space-y-2 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
-              {Object.entries(cfg ?? {}).map(([k, v]) => {
-                if (v === undefined || v === null || v === "" || ["cptCodes", "components"].includes(k)) return null;
-                const label = k.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
-                return <InfoRow key={k} label={label} value={String(v)} />;
-              })}
+        {/* Rate Configuration */}
+        <div className="space-y-2">
+          <h4 className="text-[13px] font-semibold text-slate-700 mb-3">
+            Rate Configuration
+          </h4>
+
+          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Client Amount
+            </span>
+            <span className="text-[15px] font-semibold text-[#4f63ea] break-words">
+              {fmtMoney(client)}
+            </span>
+          </div>
+
+          {signerEmailsText && (
+            <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                Signer Emails
+              </span>
+              <span className="text-[13px] font-medium text-slate-700 break-words whitespace-pre-wrap leading-relaxed">
+                {signerEmailsText}
+              </span>
             </div>
+          )}
+
+          {cfg.approvalNotes && (
+            <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                Approval Notes
+              </span>
+              <span className="text-[13px] font-medium text-slate-700 break-words whitespace-pre-wrap leading-relaxed">
+                {cfg.approvalNotes}
+              </span>
+            </div>
+          )}
+
+          {(cfg.collectionSource || cfg.vendorPricing?.collectionSource) && (
+            <InfoRow
+              label="Collection Source"
+              value={
+                cfg.collectionSource ?? cfg.vendorPricing?.collectionSource
+              }
+            />
+          )}
+        </div>
+
+        {/* Vendor Pricing */}
+        {cfg?.vendorPricing && (
+          <div className="space-y-2">
+            <h4 className="text-[13px] font-semibold text-slate-700 mb-3">
+              Vendor Pricing
+            </h4>
+
+            <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                Vendor Amount
+              </span>
+              <span className="text-[15px] font-semibold text-red-600 break-words">
+                {formatVendorPricing(cfg.vendorPricing)}
+              </span>
+            </div>
+
+            {cfg.vendorPricing?.collectionSource && (
+              <InfoRow
+                label="Vendor Collection Source"
+                value={cfg.vendorPricing.collectionSource}
+              />
+            )}
           </div>
         )}
 
         {/* CPT codes */}
         {(cfg?.cptCodes?.filter((c) => c.code)?.length ?? 0) > 0 && (
-          <div>
-            <h4 className="mb-2 text-[13px] font-medium text-slate-700">CPT Codes</h4>
-            {cfg.cptCodes!.filter((c) => c.code).map((c, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg border border-[#f0ece6] px-3 py-2 mb-1 text-[13px]">
-                <div><span className="font-mono font-medium text-slate-700">{c.code}</span><span className="ml-2 text-slate-400">{c.description}</span></div>
-                <span className="text-slate-700">{fmtMoney(parseFloat(c.rate))}</span>
-              </div>
-            ))}
+          <div className="space-y-2">
+            <h4 className="text-[13px] font-semibold text-slate-700 mb-3">
+              CPT Codes
+            </h4>
+            <div className="space-y-2">
+              {cfg
+                .cptCodes!.filter((c) => c.code)
+                .map((c, i) => (
+                  <div
+                    key={i}
+                    className="flex flex-col gap-2 rounded-lg border border-[#f0ece6] bg-white p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-mono text-[13px] font-semibold text-slate-700">
+                        {c.code}
+                      </span>
+                      <span className="text-[14px] font-semibold text-slate-700 whitespace-nowrap">
+                        {fmtMoney(parseFloat(c.rate))}
+                      </span>
+                    </div>
+                    {c.description && (
+                      <span className="text-[12px] text-slate-500 break-words">
+                        {c.description}
+                      </span>
+                    )}
+                  </div>
+                ))}
+            </div>
           </div>
         )}
 
         {/* Margin preview */}
-        <div>
-          <h4 className="mb-2 text-[13px] font-medium text-slate-700">Margin Preview</h4>
-          <div className="space-y-2 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
-            <InfoRow label="Est. Client Revenue" value={fmtMoney(preview.clientRevenue)} />
-            <InfoRow label="Est. Vendor Cost" value={fmtMoney(preview.vendorCost)} />
-            <InfoRow label="Est. Gross Margin" value={fmtMoney(preview.grossMargin)} />
-            <div className="flex items-center justify-between border-t border-[#f0ece6] pt-2">
-              <span className="text-slate-400">Margin %</span>
-              <span className={`text-[15px] font-bold ${preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"}`}>{fmtPercent(preview.marginPct)}</span>
-            </div>
+        <div className="space-y-2">
+          <h4 className="text-[13px] font-semibold text-slate-700 mb-3">
+            Margin Preview
+          </h4>
+
+          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Est. Client Revenue
+            </span>
+            <span className="text-[15px] font-semibold text-[#4f63ea] break-words">
+              {fmtMoney(preview.clientRevenue)}
+            </span>
           </div>
+
+          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Est. Vendor Cost
+            </span>
+            <span className="text-[15px] font-semibold text-red-600 break-words">
+              {fmtMoney(preview.vendorCost)}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Est. Gross Margin
+            </span>
+            <span className="text-[15px] font-semibold text-emerald-600 break-words">
+              {fmtMoney(preview.grossMargin)}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Margin %
+            </span>
+            <span
+              className={`text-[15px] font-semibold ${preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"}`}
+            >
+              {fmtPercent(preview.marginPct)}
+            </span>
+          </div>
+
           {preview.requiresApproval && (
-            <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              Margin below threshold — manager approval required
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-700">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span className="break-words">
+                Margin below threshold — manager approval required
+              </span>
             </div>
           )}
         </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-        <button type="button" onClick={onDelete} disabled={isDeleting}
-          className="flex items-center gap-1.5 text-[13px] text-red-500 hover:text-red-700 disabled:opacity-50">
-          <Trash2 className="h-4 w-4" />{isDeleting ? "Deleting…" : "Delete"}
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={isDeleting}
+          className="flex items-center gap-1.5 text-[13px] text-red-500 hover:text-red-700 disabled:opacity-50"
+        >
+          <Trash2 className="h-4 w-4" />
+          {isDeleting ? "Deleting…" : "Delete"}
         </button>
-        <button type="button" onClick={onEdit}
-          className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
+        >
           <Pencil className="h-3.5 w-3.5" /> Edit Term
         </button>
       </div>
