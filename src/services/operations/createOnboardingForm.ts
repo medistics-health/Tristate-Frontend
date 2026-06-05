@@ -13,6 +13,7 @@
 // 5. Go to Step 6 → you should see only Technology Stack (no Billing, no Credentialing, no Marketing)
 // 6. Go to Step 7 → you should see Care Program Readiness but no Lab/Pharmacy section
 import {
+  createExternalOnboarding,
   createOnboarding,
   type Onboarding,
   type OnboardingBody,
@@ -89,10 +90,12 @@ function mapValue(value: string | undefined, mapping: Record<string, string>) {
   return mapping[value] ?? value;
 }
 
-export async function createOnboardingFromForm(
+export function buildOnboardingPayload(
   formData: OnboardingBody,
-): Promise<Onboarding> {
-  const payload: CreateOnboardingPayload = {
+): CreateOnboardingPayload {
+  return {
+    practiceId: formData.practiceId,
+    personId: formData.personId,
     onboardingType: mapValue(formData.onboardingType, onboardingTypeMap),
     isAuthorizedPerson: formData.isAuthorizedPerson,
     nonAuthorizedRole: formData.nonAuthorizedRole,
@@ -189,6 +192,18 @@ export async function createOnboardingFromForm(
     careProgram: formData.careProgram,
     marketing: formData.marketing,
   };
+}
 
-  return createOnboarding(payload as OnboardingBody);
+export async function createOnboardingFromForm(
+  formData: OnboardingBody,
+): Promise<Onboarding> {
+  return createOnboarding(buildOnboardingPayload(formData) as OnboardingBody);
+}
+
+export async function createExternalOnboardingFromForm(
+  formData: OnboardingBody,
+): Promise<Onboarding> {
+  return createExternalOnboarding(
+    buildOnboardingPayload(formData) as OnboardingBody,
+  );
 }

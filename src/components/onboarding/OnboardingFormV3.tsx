@@ -17,10 +17,12 @@ import type {
   OnboardingProvider,
   OnboardingTechnology,
 } from "../../services/operations/onboarding";
-import { createOnboardingFromForm } from "../../services/operations/createOnboardingForm";
 import {
-  getOnboarding,
-  updateOnboarding,
+  createExternalOnboardingFromForm,
+  createOnboardingFromForm,
+} from "../../services/operations/createOnboardingForm";
+import {
+  getExternalOnboardingByPracticeId,
 } from "../../services/operations/onboarding";
 
 type Option = {
@@ -1110,15 +1112,19 @@ export default function OnboardingFormV3() {
     async function loadOnboarding() {
       setIsLoadingRecord(true);
       try {
-        const onboarding = await getOnboarding(id);
+        const onboarding = await getExternalOnboardingByPracticeId(id);
         if (!active) return;
 
+        if (!onboarding) {
+          setFormData(initialFormData);
+          setIsAlreadySubmitted(false);
+          setIsSubmitted(false);
+          return;
+        }
+
         setFormData(normalizeLoadedOnboarding(onboarding));
-        const locked =
-          !!onboarding.submissionDate ||
-          (!!onboarding.status && onboarding.status !== "DRAFT");
-        setIsAlreadySubmitted(locked);
-        setIsSubmitted(locked);
+        setIsAlreadySubmitted(true);
+        setIsSubmitted(true);
       } catch (error) {
         if (!active) return;
         const message =
@@ -1982,12 +1988,13 @@ export default function OnboardingFormV3() {
     try {
       const submissionPayload = {
         ...formData,
+        practiceId: id,
         submissionDate: new Date().toISOString().slice(0, 10),
         status: "IN_PROGRESS",
       };
 
       if (id) {
-        await updateOnboarding(id, submissionPayload);
+        await createExternalOnboardingFromForm(submissionPayload);
       } else {
         await createOnboardingFromForm(submissionPayload);
       }
