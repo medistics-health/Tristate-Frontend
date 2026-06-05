@@ -35,6 +35,7 @@ import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import type {
   PracticeCellValue,
+  Practice,
   PracticeRow,
   PracticeUserValue,
   PracticeViewData,
@@ -77,6 +78,14 @@ function getCellDisplayValue(value: PracticeCellValue): string {
   return String(value);
 }
 
+function normalizeNpiInput(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 10);
+}
+
+function normalizeGroupNpiStatus(value: unknown): string {
+  return value === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+}
+
 function buildFieldValuesByTemplateId(
   agreement: Agreement,
 ): Record<string, Record<string, string>> {
@@ -96,6 +105,31 @@ type TaxIdOption = {
   legalEntityName: string;
 };
 
+type GroupNpiFormEntry = {
+  id?: string;
+  groupNpiNumber: string;
+  groupName: string;
+  status: string;
+  notes: string;
+  taxId?: string;
+};
+
+function normalizeGroupNpiEntries(entries: unknown): GroupNpiFormEntry[] {
+  if (!Array.isArray(entries)) return [];
+
+  return entries.map((entry) => {
+    const group = entry as Partial<GroupNpiFormEntry>;
+    return {
+      id: group.id,
+      groupNpiNumber: normalizeNpiInput(String(group.groupNpiNumber || "")),
+      groupName: String(group.groupName || ""),
+      status: normalizeGroupNpiStatus(group.status),
+      notes: String(group.notes || ""),
+      taxId: group.taxId ? String(group.taxId) : undefined,
+    };
+  });
+}
+
 type PracticeFormData = {
   name: string;
   npi: string;
@@ -105,12 +139,7 @@ type PracticeFormData = {
   bucket: string;
   companyId: string;
   taxIdId: string;
-  groupNpis: {
-    groupNpiNumber: string;
-    groupName: string;
-    status: string;
-    notes: string;
-  }[];
+  groupNpis: GroupNpiFormEntry[];
 };
 
 const initialFormData: PracticeFormData = {
@@ -174,20 +203,17 @@ export default function AllPracticePage() {
     companyId: "",
   });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [groupNpiEntries, setGroupNpiEntries] = useState<
-    {
-      groupNpiNumber: string;
-      groupName: string;
-      status: string;
-      notes: string;
-    }[]
-  >([]);
+  const [groupNpiEntries, setGroupNpiEntries] = useState<GroupNpiFormEntry[]>(
+    [],
+  );
 
   const [showActivationModal, setShowActivationModal] = useState(false);
   const [activationPerson, setActivationPerson] = useState<Person | null>(null);
   const [activationAgreementType, setActivationAgreementType] = useState("");
   const [pendingActivationData, setPendingActivationData] =
     useState<Partial<PracticeBody> | null>(null);
+  const [selectedPracticeDetail, setSelectedPracticeDetail] =
+    useState<Practice | null>(null);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
@@ -250,7 +276,8 @@ export default function AllPracticePage() {
 
   useEffect(() => {
     if (selectedRow && !showCreateForm) {
-      const values = selectedRow.values;
+      const values = selectedPracticeDetail ?? selectedRow.values;
+      const existingGroupNpis = normalizeGroupNpiEntries(values.groupNpis);
 
       setFormData({
         name: String(values.name || ""),
@@ -258,14 +285,12 @@ export default function AllPracticePage() {
         status: String(values.status || "LEAD"),
         region: String(values.region || ""),
         source: String(values.source || "DIRECT"),
-        bucket: String(values.bucket || ""),
+        bucket: Array.isArray(values.bucket)
+          ? values.bucket.join(", ")
+          : String(values.bucket || ""),
         companyId: String(values.companyId || ""),
         taxIdId: String(values.taxIdId || ""),
-        groupNpis:
-          (values.groupNpis as {
-            groupNpiNumber: string;
-            groupName: string;
-          }[]) || [],
+        groupNpis: existingGroupNpis,
       });
 
       const companyId = String(values.companyId || "");
@@ -284,21 +309,11 @@ export default function AllPracticePage() {
         setCompanyTaxIds([]);
       }
 
-      const existingGroupNpis =
-        (values.groupNpis as { groupNpiNumber: string; groupName: string }[]) ||
-        [];
-      setGroupNpiEntries(
-        existingGroupNpis.map((g) => ({
-          groupNpiNumber: g.groupNpiNumber,
-          groupName: g.groupName || "",
-          status: "ACTIVE",
-          notes: "",
-        })),
-      );
+      setGroupNpiEntries(existingGroupNpis);
 
       setIsEditing(false);
     }
-  }, [selectedRow, showCreateForm, companies]);
+  }, [selectedRow, selectedPracticeDetail, showCreateForm, companies]);
 
   const visibleFields = useMemo(() => {
     if (!viewData) return [];
@@ -578,11 +593,17 @@ export default function AllPracticePage() {
 
   async function handleRowClick(rowId: string) {
     setSelectedRowId(rowId);
+    setSelectedPracticeDetail(null);
+    setCompaniesLoading(true);
     try {
-      const companyList = await getAllCompanies();
+      const [companyList, practiceDetail] = await Promise.all([
+        getAllCompanies(),
+        getPractice(rowId),
+      ]);
       setCompanies(companyList);
+      setSelectedPracticeDetail(practiceDetail);
     } catch (err) {
-      console.error("Failed to load companies:", err);
+      console.error("Failed to load practice details:", err);
     } finally {
       setCompaniesLoading(false);
     }
@@ -593,6 +614,7 @@ export default function AllPracticePage() {
   function closeDetailPanel() {
     setShowDetailPanel(false);
     setSelectedRowId(null);
+    setSelectedPracticeDetail(null);
     setIsEditing(false);
     setFormData(initialFormData);
     setGroupNpiEntries([]);
@@ -620,7 +642,10 @@ export default function AllPracticePage() {
 
   function handleFormChange(field: keyof PracticeFormData, value: string) {
     setFormData((prev) => {
-      const newData = { ...prev, [field]: value };
+      const newData = {
+        ...prev,
+        [field]: field === "npi" ? normalizeNpiInput(value) : value,
+      };
       if (field === "companyId") {
         if (value) {
           const company = companies.find((c) => c.id === value);
@@ -661,7 +686,9 @@ export default function AllPracticePage() {
         region: formData.region.trim(),
         groupNpis: groupNpiEntries.map((entry) => ({
           ...entry,
-          taxId: formData.taxIdId,
+          groupNpiNumber: normalizeNpiInput(entry.groupNpiNumber),
+          status: normalizeGroupNpiStatus(entry.status),
+          taxId: formData.taxIdId || entry.taxId || "",
         })),
         source: formData.source as
           | "DIRECT"
@@ -720,9 +747,8 @@ export default function AllPracticePage() {
                 agreementId: agreement.id,
                 personId: person?.id ?? "",
                 templateId: docusealId,
-                fieldValuesByTemplateId: buildFieldValuesByTemplateId(
-                  agreement,
-                ),
+                fieldValuesByTemplateId:
+                  buildFieldValuesByTemplateId(agreement),
               });
             }
             await sendAgreementEmail({
@@ -751,9 +777,8 @@ export default function AllPracticePage() {
                 agreementId: agreement.id,
                 personId: person?.id ?? "",
                 templateId: docusealId,
-                fieldValuesByTemplateId: buildFieldValuesByTemplateId(
-                  agreement,
-                ),
+                fieldValuesByTemplateId:
+                  buildFieldValuesByTemplateId(agreement),
               });
             }
             await sendAgreementEmail({
@@ -786,10 +811,13 @@ export default function AllPracticePage() {
     if (willBecomeActive) {
       try {
         const fullPractice = await getPractice(selectedRow.id);
+
+        console.log(fullPractice);
         const eligiblePerson = (fullPractice.persons ?? []).find(
           (p) =>
-            (p.person.role === "ADMIN" || p.person.role === "OWNER") &&
-            !!p.person.email,
+            // (p.person.role === "ADMIN" || p.person.role === "OWNER") &&
+            // !!p.person.email,
+            (p.role === "ADMIN" || p.role === "OWNER") && !!p.email,
         );
 
         if (!eligiblePerson) {
@@ -814,7 +842,9 @@ export default function AllPracticePage() {
           region: formData.region.trim(),
           groupNpis: groupNpiEntries.map((entry) => ({
             ...entry,
-            taxId: formData.taxIdId,
+            groupNpiNumber: normalizeNpiInput(entry.groupNpiNumber),
+            status: normalizeGroupNpiStatus(entry.status),
+            taxId: formData.taxIdId || entry.taxId || "",
           })),
           source: formData.source as
             | "DIRECT"
@@ -854,7 +884,9 @@ export default function AllPracticePage() {
         region: formData.region.trim(),
         groupNpis: groupNpiEntries.map((entry) => ({
           ...entry,
-          taxId: formData.taxIdId,
+          groupNpiNumber: normalizeNpiInput(entry.groupNpiNumber),
+          status: normalizeGroupNpiStatus(entry.status),
+          taxId: formData.taxIdId || entry.taxId || "",
         })),
         source: formData.source as
           | "DIRECT"
@@ -1150,6 +1182,8 @@ export default function AllPracticePage() {
             value={formData.npi}
             required
             onChange={(e) => handleFormChange("npi", e.target.value)}
+            inputMode="numeric"
+            maxLength={10}
             placeholder="National Provider Identifier"
             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
           />
@@ -1279,11 +1313,15 @@ export default function AllPracticePage() {
                   value={entry.groupNpiNumber}
                   onChange={(e) => {
                     const updated = [...groupNpiEntries];
-                    updated[index].groupNpiNumber = e.target.value;
+                    updated[index].groupNpiNumber = normalizeNpiInput(
+                      e.target.value,
+                    );
                     setGroupNpiEntries(updated);
                   }}
                   pattern="\d{10}"
                   title="Group NPI Number must be exactly 10 digits"
+                  inputMode="numeric"
+                  maxLength={10}
                   placeholder="Group NPI Number"
                   className="app-control rounded-md px-3 py-2 text-[13px]"
                 />
@@ -1303,7 +1341,9 @@ export default function AllPracticePage() {
                   value={entry.status}
                   onChange={(e) => {
                     const updated = [...groupNpiEntries];
-                    updated[index].status = e.target.value;
+                    updated[index].status = normalizeGroupNpiStatus(
+                      e.target.value,
+                    );
                     setGroupNpiEntries(updated);
                   }}
                   className="app-control rounded-md px-2 py-2 text-[13px]"
@@ -1592,15 +1632,17 @@ export default function AllPracticePage() {
                                               header.column.columnDef.header,
                                               header.getContext(),
                                             )}
-                                            {header.column.getCanSort() && header.id !== "select" && (
-                                              header.column.getIsSorted() === "asc" ? (
+                                            {header.column.getCanSort() &&
+                                              header.id !== "select" &&
+                                              (header.column.getIsSorted() ===
+                                              "asc" ? (
                                                 <ArrowUp className="h-3 w-3 text-slate-500" />
-                                              ) : header.column.getIsSorted() === "desc" ? (
+                                              ) : header.column.getIsSorted() ===
+                                                "desc" ? (
                                                 <ArrowDown className="h-3 w-3 text-slate-500" />
                                               ) : (
                                                 <ArrowUpDown className="h-3 w-3 text-slate-300" />
-                                              )
-                                            )}
+                                              ))}
                                           </div>
                                         )}
                                       </th>
@@ -1664,15 +1706,15 @@ export default function AllPracticePage() {
                                 header.column.columnDef.header,
                                 header.getContext(),
                               )}
-                              {header.column.getCanSort() && header.id !== "select" && (
-                                header.column.getIsSorted() === "asc" ? (
+                              {header.column.getCanSort() &&
+                                header.id !== "select" &&
+                                (header.column.getIsSorted() === "asc" ? (
                                   <ArrowUp className="h-3 w-3 text-slate-500" />
                                 ) : header.column.getIsSorted() === "desc" ? (
                                   <ArrowDown className="h-3 w-3 text-slate-500" />
                                 ) : (
                                   <ArrowUpDown className="h-3 w-3 text-slate-300" />
-                                )
-                              )}
+                                ))}
                             </button>
                           )}
                         </th>
@@ -1910,6 +1952,8 @@ export default function AllPracticePage() {
                     title="NPI Number must be exactly 10 digits"
                     value={formData.npi}
                     onChange={(e) => handleFormChange("npi", e.target.value)}
+                    inputMode="numeric"
+                    maxLength={10}
                     placeholder="National Provider Identifier"
                     className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                   />
@@ -2051,10 +2095,14 @@ export default function AllPracticePage() {
                           value={entry.groupNpiNumber}
                           onChange={(e) => {
                             const updated = [...groupNpiEntries];
-                            updated[index].groupNpiNumber = e.target.value;
+                            updated[index].groupNpiNumber = normalizeNpiInput(
+                              e.target.value,
+                            );
                             setGroupNpiEntries(updated);
                           }}
                           required
+                          inputMode="numeric"
+                          maxLength={10}
                           placeholder="Group NPI Number"
                           className="app-control rounded-md px-3 py-2 text-[13px]"
                         />
@@ -2074,7 +2122,9 @@ export default function AllPracticePage() {
                           value={entry.status}
                           onChange={(e) => {
                             const updated = [...groupNpiEntries];
-                            updated[index].status = e.target.value;
+                            updated[index].status = normalizeGroupNpiStatus(
+                              e.target.value,
+                            );
                             setGroupNpiEntries(updated);
                           }}
                           className="app-control rounded-md px-2 py-2 text-[13px]"
@@ -2160,8 +2210,9 @@ export default function AllPracticePage() {
                 <UserCircle2 className="h-5 w-5 text-slate-400 shrink-0" />
                 <div>
                   <p className="text-[14px] font-medium text-slate-700">
-                    {activationPerson.person.firstName}{" "}
-                    {activationPerson.person.lastName}
+                    {/*{activationPerson.person.firstName}{" "}
+                    {activationPerson.person.lastName}*/}
+                    {activationPerson.firstName} {activationPerson.lastName}
                   </p>
                   <p className="text-[12px] text-slate-400">Admin Person</p>
                 </div>
@@ -2169,13 +2220,15 @@ export default function AllPracticePage() {
               <div className="flex items-center gap-3">
                 <Mail className="h-5 w-5 text-slate-400 shrink-0" />
                 <span className="text-[13px] text-slate-600">
-                  {activationPerson.person.email}
+                  {/*{activationPerson.person.email}*/}
+                  {activationPerson.email}
                 </span>
               </div>
               <div className="flex items-center gap-3">
                 <Shield className="h-5 w-5 text-slate-400 shrink-0" />
                 <span className="text-[13px] text-slate-600">
-                  {activationPerson.person.role}
+                  {/*{activationPerson.person.role}*/}
+                  {activationPerson.role}
                 </span>
               </div>
             </div>

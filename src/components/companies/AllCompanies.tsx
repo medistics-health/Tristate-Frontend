@@ -67,6 +67,18 @@ function getCellDisplayValue(value: CompanyCellValue): string {
   return String(value);
 }
 
+function normalizePhoneInput(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 10);
+}
+
+function isValidCompanyPhone(value: string): boolean {
+  return /^\d{10}$/.test(value);
+}
+
+function isValidCompanyEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.com$/i.test(value);
+}
+
 type TaxIdFormData = {
   id?: string;
   taxIdNumber: string;
@@ -401,7 +413,10 @@ export default function AllCompaniesPage() {
   }
 
   function handleFormChange(field: keyof CompanyFormData, value: string) {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [field]: field === "phone" ? normalizePhoneInput(value) : value,
+    }));
   }
 
   function handleTaxIdChange(
@@ -435,13 +450,21 @@ export default function AllCompaniesPage() {
 
   async function handleCreateCompany(e: React.FormEvent) {
     e.preventDefault();
+    const trimmedPhone = formData.phone.trim();
+    const trimmedEmail = formData.email.trim();
+
     if (!formData.name.trim()) {
       toast.error("Company name is required");
       return;
     }
 
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      toast.error("Please enter a valid email address with @");
+    if (trimmedPhone && !isValidCompanyPhone(trimmedPhone)) {
+      toast.error("Company phone must be exactly 10 digits.");
+      return;
+    }
+
+    if (trimmedEmail && !isValidCompanyEmail(trimmedEmail)) {
+      toast.error("Company email must contain @ and end with .com");
       return;
     }
 
@@ -465,8 +488,8 @@ export default function AllCompaniesPage() {
         industry: formData.industry.trim() || undefined,
         size: formData.size ? parseInt(formData.size, 10) : undefined,
         revenue: formData.revenue ? parseInt(formData.revenue, 10) : undefined,
-        phone: formData.phone.trim() || undefined,
-        email: formData.email.trim() || undefined,
+        phone: trimmedPhone || undefined,
+        email: trimmedEmail || undefined,
         website: formData.website.trim() || undefined,
         status: formData.status as "LEAD" | "CUSTOMER" | "PARTNER" | "INACTIVE",
         address: {
@@ -501,13 +524,21 @@ export default function AllCompaniesPage() {
 
   async function handleUpdateCompany(e: React.FormEvent) {
     e.preventDefault();
+    const trimmedPhone = formData.phone.trim();
+    const trimmedEmail = formData.email.trim();
+
     if (!selectedRow || !formData.name.trim()) {
       toast.error("Company name is required");
       return;
     }
 
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      toast.error("Please enter a valid email address with @");
+    if (trimmedPhone && !isValidCompanyPhone(trimmedPhone)) {
+      toast.error("Company phone must be exactly 10 digits.");
+      return;
+    }
+
+    if (trimmedEmail && !isValidCompanyEmail(trimmedEmail)) {
+      toast.error("Company email must contain @ and end with .com");
       return;
     }
 
@@ -529,8 +560,8 @@ export default function AllCompaniesPage() {
         industry: formData.industry.trim() || undefined,
         size: formData.size ? parseInt(formData.size, 10) : undefined,
         revenue: formData.revenue ? parseInt(formData.revenue, 10) : undefined,
-        phone: formData.phone.trim() || undefined,
-        email: formData.email.trim() || undefined,
+        phone: trimmedPhone || undefined,
+        email: trimmedEmail || undefined,
         website: formData.website.trim() || undefined,
         status: formData.status as "LEAD" | "CUSTOMER" | "PARTNER" | "INACTIVE",
         address: {
@@ -858,8 +889,11 @@ export default function AllCompaniesPage() {
               type="tel"
               value={formData.phone}
               onChange={(e) => handleFormChange("phone", e.target.value)}
-              placeholder="+1 (555) 123-4567"
-              inputMode="tel"
+              placeholder="10-digit phone number"
+              inputMode="numeric"
+              maxLength={10}
+              pattern="\d{10}"
+              title="Phone number must be exactly 10 digits"
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
@@ -873,8 +907,8 @@ export default function AllCompaniesPage() {
               onChange={(e) => handleFormChange("email", e.target.value)}
               placeholder="info@company.com"
               inputMode="email"
-              pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
-              title="Must contain a valid email address with @"
+              pattern="[^\s@]+@[^\s@]+\.com"
+              title="Must contain @ and end with .com"
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
@@ -1557,8 +1591,11 @@ export default function AllCompaniesPage() {
                       onChange={(e) =>
                         handleFormChange("phone", e.target.value)
                       }
-                      placeholder="+1 (555) 123-4567"
-                      inputMode="tel"
+                      placeholder="10-digit phone number"
+                      inputMode="numeric"
+                      maxLength={10}
+                      pattern="\d{10}"
+                      title="Phone number must be exactly 10 digits"
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>
@@ -1574,8 +1611,8 @@ export default function AllCompaniesPage() {
                       }
                       placeholder="info@company.com"
                       inputMode="email"
-                      pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
-                      title="Must contain a valid email address with @"
+                      pattern="[^\s@]+@[^\s@]+\.com"
+                      title="Must contain @ and end with .com"
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>

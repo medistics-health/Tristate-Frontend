@@ -52,6 +52,14 @@ function getCellDisplayValue(value: PersonCellValue): string {
   return String(value);
 }
 
+function normalizePhoneInput(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 10);
+}
+
+function isValidPersonPhone(value: string): boolean {
+  return /^\d{10}$/.test(value);
+}
+
 type Company = {
   id: string;
   name: string;
@@ -450,7 +458,13 @@ export default function PersonsPage() {
     field: keyof PersonFormData,
     value: string | string[],
   ) {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [field]:
+        field === "phone" && typeof value === "string"
+          ? normalizePhoneInput(value)
+          : value,
+    }));
   }
 
   function handlePracticeToggle(practiceId: string) {
@@ -513,12 +527,18 @@ export default function PersonsPage() {
 
   async function handleCreatePerson(e: React.FormEvent) {
     e.preventDefault();
+    const trimmedPhone = formData.phone.trim();
+
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       toast.error("First name and last name are required");
       return;
     }
-    if (formData.practiceIds.length === 0) {
-      toast.error("Please select at least one practice");
+    // if (formData.practiceIds.length === 0) {
+    //   toast.error("Please select at least one practice");
+    //   return;
+    // }
+    if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
+      toast.error("Person phone must be exactly 10 digits.");
       return;
     }
 
@@ -530,7 +550,7 @@ export default function PersonsPage() {
         role: formData.role as PersonBody["role"],
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
-        phone: formData.phone.trim() || undefined,
+        phone: trimmedPhone || undefined,
         practiceIds: formData.practiceIds,
         companyIds: formData.companyIds,
         designation: formData.designation.trim() || undefined,
@@ -558,12 +578,18 @@ export default function PersonsPage() {
 
   async function handleUpdatePerson(e: React.FormEvent) {
     e.preventDefault();
+    const trimmedPhone = formData.phone.trim();
+
     if (
       !selectedRow ||
       !formData.firstName.trim() ||
       !formData.lastName.trim()
     ) {
       toast.error("First name and last name are required");
+      return;
+    }
+    if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
+      toast.error("Person phone must be exactly 10 digits.");
       return;
     }
 
@@ -575,7 +601,7 @@ export default function PersonsPage() {
         role: formData.role as PersonBody["role"],
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
-        phone: formData.phone.trim() || undefined,
+        phone: trimmedPhone || "",
         designation: formData.designation.trim() || undefined,
         practiceIds: formData.practiceIds,
         companyIds: formData.companyIds,
@@ -844,9 +870,14 @@ export default function PersonsPage() {
               Phone
             </label>
             <input
-              type="text"
+              type="tel"
               value={formData.phone}
               onChange={(e) => handleFormChange("phone", e.target.value)}
+              inputMode="numeric"
+              maxLength={10}
+              pattern="\d{10}"
+              title="Phone number must be exactly 10 digits"
+              placeholder="10-digit phone number"
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
@@ -1193,15 +1224,15 @@ export default function PersonsPage() {
                               header.column.columnDef.header,
                               header.getContext(),
                             )}
-                            {header.column.getCanSort() && header.id !== "select" && (
-                              header.column.getIsSorted() === "asc" ? (
+                            {header.column.getCanSort() &&
+                              header.id !== "select" &&
+                              (header.column.getIsSorted() === "asc" ? (
                                 <ArrowUp className="h-3 w-3 text-slate-500" />
                               ) : header.column.getIsSorted() === "desc" ? (
                                 <ArrowDown className="h-3 w-3 text-slate-500" />
                               ) : (
                                 <ArrowUpDown className="h-3 w-3 text-slate-300" />
-                              )
-                            )}
+                              ))}
                           </button>
                         )}
                       </th>
@@ -1510,12 +1541,16 @@ export default function PersonsPage() {
                       Phone
                     </label>
                     <input
-                      type="text"
+                      type="tel"
                       value={formData.phone}
                       onChange={(e) =>
                         handleFormChange("phone", e.target.value)
                       }
-                      placeholder="+1 (555) 123-4567"
+                      inputMode="numeric"
+                      maxLength={10}
+                      pattern="\d{10}"
+                      title="Phone number must be exactly 10 digits"
+                      placeholder="10-digit phone number"
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>
