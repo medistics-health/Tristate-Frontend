@@ -7,9 +7,10 @@ type DatePickerProps = {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  minDate?: string;
 };
 
-export default function DatePicker({ value, onChange, placeholder = "Select date", className = "" }: DatePickerProps) {
+export default function DatePicker({ value, onChange, placeholder = "Select date", className = "", minDate }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -62,7 +63,11 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
-    onChange(`${yyyy}-${mm}-${dd}`);
+    const nextValue = `${yyyy}-${mm}-${dd}`;
+    if (minDate && nextValue < minDate) {
+      return;
+    }
+    onChange(nextValue);
     setIsOpen(false);
   };
 
@@ -87,17 +92,21 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
     
     const isSelected = selectedDateStr === dateStr;
     const isToday = new Date().toISOString().split("T")[0] === dateStr;
+    const isDisabled = !!minDate && dateStr < minDate;
 
     days.push(
       <button
         key={day}
         type="button"
         onClick={() => handleSelectDate(day)}
+        disabled={isDisabled}
         className={`w-8 h-8 flex items-center justify-center rounded-full text-[13px] transition-colors ${
           isSelected
             ? "bg-[#4f63ea] text-white font-medium shadow-sm"
             : isToday
             ? "bg-[#f0f2fe] text-[#4f63ea] font-medium"
+            : isDisabled
+            ? "cursor-not-allowed text-slate-300"
             : "text-slate-700 hover:bg-slate-100"
         }`}
       >

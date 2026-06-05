@@ -90,6 +90,9 @@ export type PricingConfigShape = {
   // Vendor pricing mirrors selected model structure
   vendorPricing?: VendorPricingShape;
   signerEmails?: string[];
+  approvalNotes?: string;
+  clientApprovalStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  internalApprovalStatus?: "PENDING" | "APPROVED" | "REJECTED";
   // effective dates (all models)
   effectiveStartDate?: string;
   effectiveEndDate?: string;

@@ -10,6 +10,9 @@ import {
   Trash2,
   TrendingUp,
   CheckCircle2,
+  Clock,
+  UserCheck,
+  XCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
@@ -29,7 +32,10 @@ import {
   type PricingConfigShape,
   type VendorPricingShape,
 } from "../../services/operations/pricingEngine";
-import type { AgreementServiceTerm } from "../../services/operations/agreements";
+import type {
+  AgreementServiceTerm,
+  PricingModel,
+} from "../../services/operations/agreements";
 import {
   getAgreementsView,
   getAgreementVersions,
@@ -58,6 +64,18 @@ const MODEL_COLOR: Record<string, string> = {
   CUSTOM_ATTACHMENT_DEFINED: "bg-zinc-100 text-zinc-600",
 };
 
+type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+// ✅ NEW: Helper to check if pricing model is percentage-based
+function isPercentageBasedModel(model: PricingModel | string): boolean {
+  return [
+    "PERCENT_COLLECTIONS",
+    "PERCENT_REVENUE",
+    "PERCENT_PROFIT",
+    "SUCCESS_FEE",
+  ].includes(model as PricingModel);
+}
+
 function fmtModel(m: string) {
   return (
     PRICING_MODEL_OPTIONS.find((o) => o.value === m)?.label ??
@@ -77,6 +95,21 @@ function fmtMoney(v?: number | string | null) {
 
 function fmtPercent(value: number) {
   return `${value.toFixed(2)}%`;
+}
+
+// ✅ NEW: Format value based on pricing model
+function fmtModelValue(
+  value: number | null | undefined,
+  model: PricingModel | string,
+): string {
+  if (value === null || value === undefined) return "-";
+  const n = Number(value);
+  if (isNaN(n)) return "-";
+
+  if (isPercentageBasedModel(model)) {
+    return fmtPercent(n);
+  }
+  return fmtMoney(n);
 }
 
 function pickDefaultSignerEmail(practice?: Practice) {
@@ -110,27 +143,38 @@ function pickDefaultSignerEmail(practice?: Practice) {
 
 function extractClientRate(term: AgreementServiceTerm): number {
   const c = term.pricingConfig as PricingConfigShape;
-  return sumPricingConfig(c);
+  return sumPricingConfig(c, term.pricingModel);
 }
 
 function extractVendorRate(term: AgreementServiceTerm): number {
   const config = term.pricingConfig as PricingConfigShape;
   const vendorPricing = (config?.vendorPricing ??
     null) as VendorPricingShape | null;
-  const nestedVendorTotal = sumPricingConfig(vendorPricing);
+
+  // Get vendor model from vendor pricing or use main model
+  const vendorModel =
+    (vendorPricing?.pricingModel as PricingModel) ?? term.pricingModel;
+  const nestedVendorTotal = sumPricingConfig(vendorPricing, vendorModel);
   if (nestedVendorTotal > 0) return nestedVendorTotal;
 
-  // minimumFee can be a string (Prisma Decimal) or number
   const raw = term.minimumFee;
   if (raw === null || raw === undefined) return 0;
   const n = typeof raw === "number" ? raw : parseFloat(String(raw));
   return isNaN(n) ? 0 : n;
 }
 
+// ✅ UPDATED: Accept pricing model to handle percentage-based models
 function sumPricingConfig(
   config?: Partial<PricingConfigShape> | VendorPricingShape | null,
+  model?: PricingModel | string,
 ): number {
   if (!config) return 0;
+
+  // For percentage-based models, return percentage value
+  if (model && isPercentageBasedModel(model)) {
+    if (config.percentage) return parseFloat(config.percentage) || 0;
+  }
+
   if (config.amount) return parseFloat(config.amount) || 0;
   if (config.unitRate) return parseFloat(config.unitRate) || 0;
   if (config.percentage) return parseFloat(config.percentage) || 0;
@@ -147,6 +191,49 @@ function sumPricingConfig(
     );
   }
   return 0;
+}
+
+// ✅ FIXED: Default to PENDING instead of APPROVED
+function getApprovalStatuses(term: AgreementServiceTerm): {
+  clientApprovalStatus: ApprovalStatus;
+  internalApprovalStatus: ApprovalStatus;
+} {
+  const config = term.pricingConfig as any;
+  return {
+    clientApprovalStatus: config?.clientApprovalStatus ?? "PENDING", // ✅ DEFAULT TO PENDING
+    internalApprovalStatus: config?.internalApprovalStatus ?? "PENDING", // ✅ DEFAULT TO PENDING
+  };
+}
+
+function getOverallStatus(term: AgreementServiceTerm): string {
+  const { clientApprovalStatus, internalApprovalStatus } =
+    getApprovalStatuses(term);
+
+  // If either is rejected, overall is rejected
+  if (
+    clientApprovalStatus === "REJECTED" ||
+    internalApprovalStatus === "REJECTED"
+  ) {
+    return "REJECTED";
+  }
+
+  // If either is pending, overall is pending
+  if (
+    clientApprovalStatus === "PENDING" ||
+    internalApprovalStatus === "PENDING"
+  ) {
+    return "PENDING";
+  }
+
+  // Both approved
+  if (
+    clientApprovalStatus === "APPROVED" &&
+    internalApprovalStatus === "APPROVED"
+  ) {
+    return term.isActive ? "ACTIVE" : "INACTIVE";
+  }
+
+  return "INACTIVE";
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -258,7 +345,7 @@ export default function PricingEnginePage() {
   );
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Load options on mount
+  // ✅ Load initial data (practices, services, vendors)
   useEffect(() => {
     Promise.all([getAllPractices(), getAllServices(), getAllVendorsApi()])
       .then(([p, s, v]) => {
@@ -271,27 +358,42 @@ export default function PricingEnginePage() {
 
   const activeServices = services.filter((svc) => svc.isActive);
 
-  // Load agreements when practice changes
+  // ✅ STEP 1: Load agreements when practice changes (FILTERED BY PRACTICE)
   useEffect(() => {
     if (!selectedPracticeId) {
+      // Reset everything when no practice is selected
       setAgreements([]);
       setSelectedAgreementId("");
       setVersions([]);
       setSelectedVersionId("");
+      setTerms([]);
       return;
     }
+
+    // Load ONLY agreements for this specific practice
+    setIsLoading(true);
     getAgreementsView({ practiceId: selectedPracticeId, limit: 100 })
-      .then((d) =>
-        setAgreements(
-          d.rows.map((r) => ({
-            id: r.id,
-            label: String(r.values.name || r.id),
-          })),
-        ),
-      )
-      .catch(console.error);
+      .then((d) => {
+        const practiceAgreements = d.rows.map((r) => ({
+          id: r.id,
+          label: String(r.values.name || r.id),
+        }));
+        setAgreements(practiceAgreements);
+        
+        // Reset downstream selections
+        setSelectedAgreementId("");
+        setVersions([]);
+        setSelectedVersionId("");
+        setTerms([]);
+      })
+      .catch((error) => {
+        console.error("Failed to load agreements:", error);
+        toast.error("Failed to load agreements for this practice");
+      })
+      .finally(() => setIsLoading(false));
   }, [selectedPracticeId]);
 
+  // ✅ Load practice details
   useEffect(() => {
     if (!selectedPracticeId) {
       setSelectedPractice(null);
@@ -301,7 +403,8 @@ export default function PricingEnginePage() {
     getPractice(selectedPracticeId)
       .then(setSelectedPractice)
       .catch((error) => {
-        console.error(error);
+        console.error("Failed to load practice details:", error);
+        // Fallback to basic practice data
         setSelectedPractice(
           practices.find((practice) => practice.id === selectedPracticeId) ??
             null,
@@ -309,35 +412,53 @@ export default function PricingEnginePage() {
       });
   }, [selectedPracticeId, practices]);
 
-  // Load versions when agreement changes
+  // ✅ STEP 2: Load versions when agreement changes (FILTERED BY AGREEMENT)
   useEffect(() => {
     if (!selectedAgreementId) {
+      // Reset when no agreement is selected
       setVersions([]);
       setSelectedVersionId("");
       setTerms([]);
       return;
     }
+
+    // Load ONLY versions for this specific agreement
+    setIsLoading(true);
     getAgreementVersions({ agreementId: selectedAgreementId, limit: 50 })
       .then((d) => {
         setVersions(d.versions);
-        // auto-select the current version
+        
+        // Auto-select current version or first version
         const current = d.versions.find((v) => v.isCurrent) ?? d.versions[0];
-        setSelectedVersionId(current?.id ?? "");
+        if (current) {
+          setSelectedVersionId(current.id);
+        } else {
+          setSelectedVersionId("");
+          setTerms([]);
+        }
       })
-      .catch(console.error);
+      .catch((error) => {
+        console.error("Failed to load versions:", error);
+        toast.error("Failed to load agreement versions");
+        setVersions([]);
+        setSelectedVersionId("");
+        setTerms([]);
+      })
+      .finally(() => setIsLoading(false));
   }, [selectedAgreementId]);
 
-  // Load terms when version changes
+  // ✅ STEP 3: Load terms when version changes (FILTERED BY VERSION)
   useEffect(() => {
-    if (!selectedVersionId) {
+    if (!selectedVersionId || !selectedAgreementId) {
       setTerms([]);
       return;
     }
     loadTerms();
-  }, [selectedVersionId]);
+  }, [selectedVersionId, selectedAgreementId]);
 
   async function loadTerms() {
-    if (!selectedVersionId) return;
+    if (!selectedVersionId || !selectedAgreementId) return;
+    
     setIsLoading(true);
     try {
       const d = await getPricingTerms({
@@ -345,9 +466,11 @@ export default function PricingEnginePage() {
         agreementVersionId: selectedVersionId,
         limit: 100,
       });
-      setTerms(d.terms);
+      setTerms(d.terms || []);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load terms");
+      console.error("Failed to load pricing terms:", e);
+      toast.error(e instanceof Error ? e.message : "Failed to load pricing terms");
+      setTerms([]);
     } finally {
       setIsLoading(false);
     }
@@ -370,7 +493,12 @@ export default function PricingEnginePage() {
     }
   }
 
-  // Summary totals
+  // ✅ Check if we have any percentage-based models
+  const hasPercentageModel = terms.some((t) =>
+    isPercentageBasedModel(t.pricingModel),
+  );
+
+  // ✅ Calculate summary totals
   const totalClient = terms.reduce((s, t) => s + extractClientRate(t), 0);
   const totalVendor = terms.reduce((s, t) => s + extractVendorRate(t), 0);
   const totalMargin = totalClient - totalVendor;
@@ -411,25 +539,47 @@ export default function PricingEnginePage() {
               <LayoutList className="h-3.5 w-3.5 text-slate-400" />
               Rate Finalization
             </span>
+            {selectedPracticeId && (
+              <span className="text-[12px] text-slate-400">
+                {practices.find(p => p.id === selectedPracticeId)?.name || "Practice"}
+                {selectedAgreementId && agreements.length > 0 && (
+                  <> → {agreements.find(a => a.id === selectedAgreementId)?.label || "Agreement"}</>
+                )}
+                {selectedVersionId && versions.length > 0 && (
+                  <> → v{versions.find(v => v.id === selectedVersionId)?.versionNumber || "?"}</>
+                )}
+              </span>
+            )}
           </div>
 
           {/* Filter bar */}
           <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] px-4 py-3">
+            {/* ✅ STEP 1: Practice Selection */}
             <div className="w-84">
               <Select
                 value={selectedPracticeId}
-                onChange={setSelectedPracticeId}
+                onChange={(value) => {
+                  setSelectedPracticeId(value);
+                  // Reset downstream when practice changes
+                  setSelectedAgreementId("");
+                  setSelectedVersionId("");
+                }}
                 placeholder="Select Practice"
                 options={practices.map((p) => ({ label: p.name, value: p.id }))}
               />
             </div>
 
-            {agreements.length > 0 && (
+            {/* ✅ STEP 2: Agreement Selection (Only shows if practice is selected) */}
+            {selectedPracticeId && agreements.length > 0 && (
               <div className="w-84">
                 <Select
                   value={selectedAgreementId}
-                  onChange={setSelectedAgreementId}
-                  placeholder="Select Agreement"
+                  onChange={(value) => {
+                    setSelectedAgreementId(value);
+                    // Reset version when agreement changes
+                    setSelectedVersionId("");
+                  }}
+                  placeholder={`Select Agreement (${agreements.length})`}
                   options={agreements.map((a) => ({
                     label: a.label,
                     value: a.id,
@@ -438,12 +588,13 @@ export default function PricingEnginePage() {
               </div>
             )}
 
-            {versions.length > 0 && (
+            {/* ✅ STEP 3: Version Selection (Only shows if agreement is selected) */}
+            {selectedAgreementId && versions.length > 0 && (
               <div className="w-42">
                 <Select
                   value={selectedVersionId}
                   onChange={setSelectedVersionId}
-                  placeholder="Select Version"
+                  placeholder={`Select Version (${versions.length})`}
                   options={versions.map((v) => ({
                     label: `v${v.versionNumber}${v.isCurrent ? " (current)" : ""}`,
                     value: v.id,
@@ -477,25 +628,35 @@ export default function PricingEnginePage() {
             )}
           </div>
 
-          {/* Summary cards — skeleton while loading, real values when loaded */}
+          {/* Summary cards */}
           {isLoading && selectedVersionId ? (
             <SkeletonSummaryCards />
           ) : terms.length > 0 ? (
             <div className="grid grid-cols-4 gap-3 border-b border-[#f0ece6] p-4">
               {[
                 {
-                  label: "Client Revenue",
-                  value: fmtMoney(totalClient),
+                  label: hasPercentageModel
+                    ? "Total Client Rate"
+                    : "Client Revenue",
+                  value: hasPercentageModel
+                    ? fmtPercent(totalClient)
+                    : fmtMoney(totalClient),
                   color: "text-[#4f63ea]",
                 },
                 {
-                  label: "Vendor Cost",
-                  value: fmtMoney(totalVendor),
+                  label: hasPercentageModel
+                    ? "Total Vendor Rate"
+                    : "Vendor Cost",
+                  value: hasPercentageModel
+                    ? fmtPercent(totalVendor)
+                    : fmtMoney(totalVendor),
                   color: "text-red-500",
                 },
                 {
                   label: "Gross Margin",
-                  value: fmtMoney(totalMargin),
+                  value: hasPercentageModel
+                    ? fmtPercent(totalMargin)
+                    : fmtMoney(totalMargin),
                   color: "text-emerald-600",
                 },
                 {
@@ -529,12 +690,16 @@ export default function PricingEnginePage() {
             ) : !selectedAgreementId ? (
               <EmptyHint
                 icon={<TrendingUp className="h-8 w-8 opacity-30" />}
-                text="Select an agreement to configure pricing"
+                text={agreements.length === 0 
+                  ? "No agreements found for this practice" 
+                  : "Select an agreement to configure pricing"}
               />
             ) : !selectedVersionId ? (
               <EmptyHint
                 icon={<TrendingUp className="h-8 w-8 opacity-30" />}
-                text="Select an agreement version"
+                text={versions.length === 0
+                  ? "No versions found for this agreement"
+                  : "Select an agreement version"}
               />
             ) : isLoading ? (
               <SkeletonTableRows />
@@ -573,6 +738,8 @@ export default function PricingEnginePage() {
                     const mg = cl - vn;
                     const mp =
                       cl > 0 ? Number(((mg / cl) * 100).toFixed(2)) : 0;
+                    const overallStatus = getOverallStatus(term);
+
                     return (
                       <tr
                         key={term.id}
@@ -593,10 +760,12 @@ export default function PricingEnginePage() {
                           </span>
                         </td>
                         <td className="px-4 py-2.5 text-right text-slate-700">
-                          {fmtMoney(cl)}
+                          {fmtModelValue(cl, term.pricingModel)}
                         </td>
                         <td className="px-4 py-2.5 text-right text-slate-500">
-                          {term.vendorId ? fmtMoney(vn) : "-"}
+                          {term.vendorId
+                            ? fmtModelValue(vn, term.pricingModel)
+                            : "-"}
                         </td>
                         <td className="px-4 py-2.5 text-right">
                           {cl > 0 ? (
@@ -616,27 +785,8 @@ export default function PricingEnginePage() {
                         <td className="px-4 py-2.5 text-slate-500">
                           {term.vendor?.name ?? "-"}
                         </td>
-                        <td className="px-4 py-2.5 flex gap-1">
-                          {term.approvalStatus === "PENDING" && (
-                            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                              Pending Approval
-                            </span>
-                          )}
-                          {term.approvalStatus === "REJECTED" && (
-                            <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                              Rejected
-                            </span>
-                          )}
-                          {term.isActive && (
-                            <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                              Active
-                            </span>
-                          )}
-                          {!term.isActive && !term.approvalStatus && (
-                            <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
-                              Inactive
-                            </span>
-                          )}
+                        <td className="px-4 py-2.5">
+                          <StatusBadge status={overallStatus} />
                         </td>
                       </tr>
                     );
@@ -734,6 +884,40 @@ export default function PricingEnginePage() {
   );
 }
 
+// ─── Status Badge Component ────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "PENDING") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+        <Clock className="h-3 w-3" />
+        Pending
+      </span>
+    );
+  }
+  if (status === "REJECTED") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+        <XCircle className="h-3 w-3" />
+        Rejected
+      </span>
+    );
+  }
+  if (status === "ACTIVE") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+        <CheckCircle2 className="h-3 w-3" />
+        Active
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+      Inactive
+    </span>
+  );
+}
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function EmptyHint({ icon, text }: { icon?: React.ReactNode; text: string }) {
@@ -744,8 +928,6 @@ function EmptyHint({ icon, text }: { icon?: React.ReactNode; text: string }) {
     </div>
   );
 }
-
-// ─── Detail panel ─────────────────────────────────────────────────────────────
 
 // ─── Detail panel ─────────────────────────────────────────────────────────────
 
@@ -766,6 +948,9 @@ function TermDetailPanel({
   const client = extractClientRate(term);
   const vendor = extractVendorRate(term);
   const preview = calcMarginPreview(String(client), String(vendor));
+  const { clientApprovalStatus, internalApprovalStatus } =
+    getApprovalStatuses(term);
+  const isPercentageBased = isPercentageBasedModel(term.pricingModel);
 
   function InfoRow({ label, value }: { label: string; value?: string | null }) {
     if (!value) return null;
@@ -781,9 +966,50 @@ function TermDetailPanel({
     );
   }
 
+  function ApprovalStatusBadge({
+    status,
+    label,
+  }: {
+    status: ApprovalStatus;
+    label: string;
+  }) {
+    const config = {
+      PENDING: { bg: "bg-amber-100", text: "text-amber-700", icon: Clock },
+      APPROVED: {
+        bg: "bg-green-100",
+        text: "text-green-700",
+        icon: CheckCircle2,
+      },
+      REJECTED: { bg: "bg-red-100", text: "text-red-700", icon: XCircle },
+    };
+
+    const { bg, text, icon: Icon } = config[status];
+
+    return (
+      <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+          {label}
+        </span>
+        <span
+          className={`inline-flex items-center gap-1 self-start rounded-full ${bg} px-2 py-0.5 text-xs font-medium ${text}`}
+        >
+          <Icon className="h-3 w-3" />
+          {status.charAt(0) + status.slice(1).toLowerCase()}
+        </span>
+      </div>
+    );
+  }
+
   function formatVendorPricing(pricing: any): string {
     if (!pricing) return "-";
     if (typeof pricing === "string") return pricing;
+
+    // ✅ UPDATED: Handle percentage-based models
+    if (isPercentageBased) {
+      if (pricing.percentage)
+        return `${parseFloat(pricing.percentage).toFixed(2)}%`;
+    }
+
     if (pricing.amount) return `$${parseFloat(pricing.amount).toFixed(2)}`;
     if (pricing.percentage)
       return `${parseFloat(pricing.percentage).toFixed(2)}%`;
@@ -848,35 +1074,15 @@ function TermDetailPanel({
           </div>
 
           <InfoRow label="Vendor" value={term.vendor?.name} />
-          <InfoRow label="Currency" value={term.currency} />
 
-          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-              Approval Status
-            </span>
-            <div className="flex gap-1">
-              {term.approvalStatus === "PENDING" && (
-                <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                  Pending
-                </span>
-              )}
-              {term.approvalStatus === "APPROVED" && (
-                <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                  ✓ Approved
-                </span>
-              )}
-              {term.approvalStatus === "REJECTED" && (
-                <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                  ✕ Rejected
-                </span>
-              )}
-              {!term.approvalStatus && (
-                <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                  Not Required
-                </span>
-              )}
-            </div>
-          </div>
+          <ApprovalStatusBadge
+            status={clientApprovalStatus}
+            label="Client Approval Status"
+          />
+          <ApprovalStatusBadge
+            status={internalApprovalStatus}
+            label="Internal Approval Status"
+          />
 
           <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
             <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
@@ -888,7 +1094,7 @@ function TermDetailPanel({
           </div>
 
           <InfoRow
-            label="Effective Date"
+            label="Effective Start Date"
             value={
               term.effectiveDate
                 ? new Date(term.effectiveDate).toLocaleDateString()
@@ -896,7 +1102,7 @@ function TermDetailPanel({
             }
           />
           <InfoRow
-            label="End Date"
+            label="Effective End Date"
             value={
               term.endDate
                 ? new Date(term.endDate).toLocaleDateString()
@@ -911,12 +1117,13 @@ function TermDetailPanel({
             Rate Configuration
           </h4>
 
+          {/* ✅ UPDATED: Use model-aware formatting */}
           <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
             <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-              Client Amount
+              {isPercentageBased ? "Client Rate" : "Client Amount"}
             </span>
             <span className="text-[15px] font-semibold text-[#4f63ea] break-words">
-              {fmtMoney(client)}
+              {fmtModelValue(client, term.pricingModel)}
             </span>
           </div>
 
@@ -959,9 +1166,10 @@ function TermDetailPanel({
               Vendor Pricing
             </h4>
 
+            {/* ✅ UPDATED: Use model-aware formatting */}
             <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
               <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-                Vendor Amount
+                {isPercentageBased ? "Vendor Rate" : "Vendor Amount"}
               </span>
               <span className="text-[15px] font-semibold text-red-600 break-words">
                 {formatVendorPricing(cfg.vendorPricing)}
@@ -1016,21 +1224,22 @@ function TermDetailPanel({
             Margin Preview
           </h4>
 
+          {/* ✅ UPDATED: Use model-aware labels and formatting */}
           <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
             <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-              Est. Client Revenue
+              {isPercentageBased ? "Est. Client Rate" : "Est. Client Revenue"}
             </span>
             <span className="text-[15px] font-semibold text-[#4f63ea] break-words">
-              {fmtMoney(preview.clientRevenue)}
+              {fmtModelValue(preview.clientRevenue, term.pricingModel)}
             </span>
           </div>
 
           <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
             <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-              Est. Vendor Cost
+              {isPercentageBased ? "Est. Vendor Rate" : "Est. Vendor Cost"}
             </span>
             <span className="text-[15px] font-semibold text-red-600 break-words">
-              {fmtMoney(preview.vendorCost)}
+              {fmtModelValue(preview.vendorCost, term.pricingModel)}
             </span>
           </div>
 
@@ -1039,7 +1248,7 @@ function TermDetailPanel({
               Est. Gross Margin
             </span>
             <span className="text-[15px] font-semibold text-emerald-600 break-words">
-              {fmtMoney(preview.grossMargin)}
+              {fmtModelValue(preview.grossMargin, term.pricingModel)}
             </span>
           </div>
 
@@ -1058,7 +1267,7 @@ function TermDetailPanel({
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-700">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <span className="break-words">
-                Margin below threshold — manager approval required
+                Margin below threshold ({preview.marginPct.toFixed(2)}%)
               </span>
             </div>
           )}

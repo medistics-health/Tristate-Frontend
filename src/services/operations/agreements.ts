@@ -798,6 +798,7 @@ export type AgreementServiceTerm = {
   effectiveDate?: string | null;
   endDate?: string | null;
   isActive?: boolean;
+  approvalStatus?: "PENDING" | "APPROVED" | "REJECTED" | null;
   externalReference?: string | null;
   createdAt: string;
   updatedAt: string;

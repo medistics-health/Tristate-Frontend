@@ -1,19 +1,75 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronRight, X } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  X,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import {
-  PRICING_MODEL_OPTIONS, calcMarginPreview, emptyConfig,
-  createPricingTerm, updatePricingTerm, getPricingTerms,
+  PRICING_MODEL_OPTIONS,
+  calcMarginPreview,
+  emptyConfig,
+  createPricingTerm,
+  updatePricingTerm,
+  getPricingTerms,
   type CptCodeRow,
   type HybridComponent,
   type PricingConfigShape,
   type VendorPricingShape,
 } from "../../services/operations/pricingEngine";
-import type { AgreementServiceTerm, PricingModel } from "../../services/operations/agreements";
+import type {
+  AgreementServiceTerm,
+  PricingModel,
+} from "../../services/operations/agreements";
 import { RateFormFields } from "./RateFormFields";
 import Select from "../shared/Select";
 
-const STEPS = ["Service","Model","Rates","Vendor","Margin","Approval","Finalize"];
+const STEPS = [
+  "Service",
+  "Model",
+  "Rates",
+  "Vendor",
+  "Margin",
+  "Approval",
+  "Finalize",
+];
+
+// ✅ NEW: Helper to check if pricing model is percentage-based
+function isPercentageBasedModel(model: PricingModel): boolean {
+  return [
+    "PERCENT_COLLECTIONS",
+    "PERCENT_REVENUE",
+    "PERCENT_PROFIT",
+    "SUCCESS_FEE",
+  ].includes(model);
+}
+
+type FieldErrors = {
+  service?: string;
+  model?: string;
+  amount?: string;
+  percentage?: string;
+  unitRate?: string;
+  cptCodes?: string;
+  components?: string;
+  vendor?: string;
+  vendorAmount?: string;
+  vendorPercentage?: string;
+  vendorUnitRate?: string;
+  vendorMinimumFee?: string;
+  vendorMaximumFee?: string;
+  vendorCptCodes?: string;
+  vendorComponents?: string;
+  approvalNotes?: string;
+  signerEmails?: string;
+  effectiveStartDate?: string;
+  effectiveEndDate?: string;
+  minimumFee?: string;
+  maximumFee?: string;
+  collectionSource?: string;
+};
 
 function toFixedDisplay(value: number) {
   return value.toFixed(2);
@@ -30,6 +86,14 @@ function isNonNegative(value?: string | null) {
   return num !== null && num >= 0;
 }
 
+function todayIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function buildMirroredVendorPricing(
   model: PricingModel,
   cfg: PricingConfigShape,
@@ -37,22 +101,41 @@ function buildMirroredVendorPricing(
 ): VendorPricingShape {
   const vendorPricing: VendorPricingShape = {
     pricingModel: model,
-    collectionSource: existing?.collectionSource ?? cfg.collectionSource ?? "PM System",
+    collectionSource:
+      existing?.collectionSource ?? cfg.collectionSource ?? "PM System",
   };
 
-  if (["FIXED_MONTHLY", "RETAINER", "FIXED_ONE_TIME"].includes(model)) {
+  if (
+    [
+      "FIXED_MONTHLY",
+      "RETAINER",
+      "FIXED_ONE_TIME",
+      "TIERED_VOLUME",
+      "CUSTOM_ATTACHMENT_DEFINED",
+    ].includes(model)
+  ) {
     vendorPricing.amount = existing?.amount ?? "0";
     return vendorPricing;
   }
 
-  if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
+  if (
+    ["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)
+  ) {
     vendorPricing.percentage = existing?.percentage ?? "0";
     vendorPricing.minimumFee = existing?.minimumFee ?? "0";
     vendorPricing.maximumFee = existing?.maximumFee ?? "0";
     return vendorPricing;
   }
 
-  if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
+  if (
+    [
+      "PER_ENCOUNTER",
+      "PER_PATIENT",
+      "PER_PROVIDER",
+      "PER_SITE",
+      "PER_UNIT",
+    ].includes(model)
+  ) {
     vendorPricing.unitRate = existing?.unitRate ?? "0";
     vendorPricing.minimumFee = existing?.minimumFee ?? "0";
     return vendorPricing;
@@ -81,26 +164,48 @@ function buildMirroredVendorPricing(
   return vendorPricing;
 }
 
-function getPricingAmount(model: PricingModel, config?: Partial<PricingConfigShape> | VendorPricingShape | null): number | null {
+function getPricingAmount(
+  model: PricingModel,
+  config?: Partial<PricingConfigShape> | VendorPricingShape | null,
+): number | null {
   if (!config) return null;
+
   if (["FIXED_MONTHLY", "RETAINER", "FIXED_ONE_TIME"].includes(model)) {
     return parseAmount(config.amount);
   }
-  if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
-    const percent = parseAmount(config.percentage);
-    const minFee = parseAmount(config.minimumFee);
-    const maxFee = parseAmount(config.maximumFee);
-    return [percent, minFee, maxFee].reduce((sum, value) => sum + (value ?? 0), 0);
+
+  if (
+    ["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)
+  ) {
+    return parseAmount(config.percentage);
   }
-  if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
-    return (parseAmount(config.unitRate) ?? 0) + (parseAmount(config.minimumFee) ?? 0);
+
+  if (
+    [
+      "PER_ENCOUNTER",
+      "PER_PATIENT",
+      "PER_PROVIDER",
+      "PER_SITE",
+      "PER_UNIT",
+    ].includes(model)
+  ) {
+    return parseAmount(config.unitRate);
   }
+
   if (model === "PER_CPT_CODE") {
-    return (config.cptCodes ?? []).reduce((sum, row) => sum + (parseAmount(row.rate) ?? 0), 0);
+    return (config.cptCodes ?? []).reduce(
+      (sum, row) => sum + (parseAmount(row.rate) ?? 0),
+      0,
+    );
   }
+
   if (model === "HYBRID") {
-    return (config.components ?? []).reduce((sum, comp) => sum + (parseAmount(comp.value) ?? 0), 0);
+    return (config.components ?? []).reduce(
+      (sum, comp) => sum + (parseAmount(comp.value) ?? 0),
+      0,
+    );
   }
+
   return parseAmount(config.amount);
 }
 
@@ -128,36 +233,73 @@ type ApprovalBasis = {
   preview: ReturnType<typeof calcMarginPreview>;
 };
 
-function formatDisplayValue(label: string, value: number | null, isPercent = false) {
+// ✅ UPDATED: Format based on pricing model
+function formatDisplayValue(
+  label: string,
+  value: number | null,
+  isPercent = false,
+) {
   const numeric = value ?? 0;
   if (isPercent) return `${numeric.toFixed(2)}%`;
-  return `$${numeric.toLocaleString()}`;
+  return `$${numeric.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// ✅ NEW: Format value based on pricing model context
+function formatModelValue(model: PricingModel, value: number | null): string {
+  const numeric = value ?? 0;
+  if (isPercentageBasedModel(model)) {
+    return `${numeric.toFixed(2)}%`;
+  }
+  return `$${numeric.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 type Props = {
   agreementId: string;
   agreementVersionId: string;
   services: { id: string; name: string }[];
-  vendors:  { id: string; name: string }[];
+  vendors: { id: string; name: string }[];
   editingTerm: AgreementServiceTerm | null;
   defaultSignerEmail?: string | null;
   onClose: () => void;
   onSaved: () => void;
 };
 
-export default function AddPricingTermWizard({
-  agreementId, agreementVersionId, services, vendors, editingTerm, defaultSignerEmail, onClose, onSaved,
-}: Props) {
-  const editingConfig = editingTerm?.pricingConfig as PricingConfigShape | undefined;
-  const [step, setStep]           = useState(0);
-  const [serviceId, setSvc]       = useState(editingTerm?.serviceId ?? "");
-  const [model, setModelState]         = useState<PricingModel>(editingTerm?.pricingModel ?? "FIXED_MONTHLY");
-  const [cfg, setCfg]                   = useState<PricingConfigShape>(
-    editingTerm ? (editingTerm.pricingConfig as PricingConfigShape) : emptyConfig()
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <div className="flex items-center gap-1.5 mt-1.5 text-[12px] text-red-600">
+      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+      <span>{message}</span>
+    </div>
   );
-  const [hasVendor, setHasVendor]       = useState(!!editingTerm?.vendorId);
-  const [vendorId, setVId]              = useState(editingTerm?.vendorId ?? "");
-  const [vendorCfg, setVendorCfg]       = useState<VendorPricingShape>(
+}
+
+export default function AddPricingTermWizard({
+  agreementId,
+  agreementVersionId,
+  services,
+  vendors,
+  editingTerm,
+  defaultSignerEmail,
+  onClose,
+  onSaved,
+}: Props) {
+  const editingConfig = editingTerm?.pricingConfig as
+    | PricingConfigShape
+    | undefined;
+  const [step, setStep] = useState(0);
+  const [serviceId, setSvc] = useState(editingTerm?.serviceId ?? "");
+  const [model, setModelState] = useState<PricingModel>(
+    editingTerm?.pricingModel ?? "FIXED_MONTHLY",
+  );
+  const [cfg, setCfg] = useState<PricingConfigShape>(
+    editingTerm
+      ? (editingTerm.pricingConfig as PricingConfigShape)
+      : emptyConfig(),
+  );
+  const [hasVendor, setHasVendor] = useState(!!editingTerm?.vendorId);
+  const [vendorId, setVId] = useState(editingTerm?.vendorId ?? "");
+  const [vendorCfg, setVendorCfg] = useState<VendorPricingShape>(
     buildMirroredVendorPricing(
       editingTerm?.pricingModel ?? "FIXED_MONTHLY",
       editingConfig ?? emptyConfig(),
@@ -165,19 +307,22 @@ export default function AddPricingTermWizard({
     ),
   );
   const [approvalNotes, setApprovalNotes] = useState("");
-  const [signerEmail, setEmail]         = useState(
-    editingConfig?.signerEmails?.join(", ")
-      ?? editingTerm?.externalReference
-      ?? (defaultSignerEmail ?? ""),
+  const [signerEmail, setEmail] = useState(
+    editingConfig?.signerEmails?.join(", ") ??
+      editingTerm?.externalReference ??
+      defaultSignerEmail ??
+      "",
   );
-  const [saving, setSaving]             = useState(false);
-  const [stepError, setStepError]       = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [stepError, setStepError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const setModel = (nextModel: PricingModel) => {
     setModelState(nextModel);
     setCfg(emptyConfig());
     setApprovalNotes("");
     setVendorCfg(buildMirroredVendorPricing(nextModel, emptyConfig(), null));
+    setFieldErrors({});
   };
 
   useEffect(() => {
@@ -196,138 +341,253 @@ export default function AddPricingTermWizard({
     setEmail((current) => current.trim() || (defaultSignerEmail ?? ""));
   }, [defaultSignerEmail, editingTerm]);
 
-  const upd = (p: Partial<PricingConfigShape>) => setCfg((prev) => ({ ...prev, ...p }));
+  const upd = (p: Partial<PricingConfigShape>) => {
+    setCfg((prev) => ({ ...prev, ...p }));
+    const keys = Object.keys(p);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      keys.forEach((key) => {
+        if (key in next) delete next[key as keyof FieldErrors];
+      });
+      return next;
+    });
+  };
 
-  const validateRates = () => {
+  const validateRates = (): { valid: boolean; errors: FieldErrors } => {
+    const errors: FieldErrors = {};
+
+    if (!cfg.effectiveStartDate) {
+      errors.effectiveStartDate = "Effective start date is required";
+    }
+
+    if (!cfg.effectiveEndDate) {
+      errors.effectiveEndDate = "Effective end date is required";
+    }
+
+    if (cfg.effectiveStartDate && cfg.effectiveEndDate) {
+      const start = new Date(cfg.effectiveStartDate);
+      const end = new Date(cfg.effectiveEndDate);
+      if (start >= end) {
+        errors.effectiveEndDate = "End date must be greater than start date";
+      }
+    }
+
+    if (cfg.effectiveEndDate && cfg.effectiveEndDate < todayIso()) {
+      errors.effectiveEndDate = "Effective end date must be today or later";
+    }
+
     if (["FIXED_MONTHLY", "RETAINER", "FIXED_ONE_TIME"].includes(model)) {
       if (!isNonNegative(cfg.amount)) {
-        return { valid: false, message: "Amount is required and must be 0 or greater." };
+        errors.amount = "Amount is required and must be 0 or greater";
       }
     }
 
-    if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
+    if (
+      ["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)
+    ) {
       if (!isNonNegative(cfg.percentage)) {
-        return { valid: false, message: "Percentage is required and must be 0 or greater." };
+        errors.percentage = "Percentage is required and must be 0 or greater";
       }
     }
 
-    if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
+    if (
+      [
+        "PER_ENCOUNTER",
+        "PER_PATIENT",
+        "PER_PROVIDER",
+        "PER_SITE",
+        "PER_UNIT",
+      ].includes(model)
+    ) {
       if (!isNonNegative(cfg.unitRate)) {
-        return { valid: false, message: "Rate per unit is required and must be 0 or greater." };
+        errors.unitRate = "Rate per unit is required and must be 0 or greater";
       }
     }
 
     if (model === "PER_CPT_CODE") {
       const codes = cfg.cptCodes ?? [];
       if (codes.length === 0) {
-        return { valid: false, message: "At least one CPT code is required." };
-      }
-      const invalidRow = codes.find((row) => !row.code?.trim() || !isNonNegative(row.rate));
-      if (invalidRow) {
-        return { valid: false, message: "Each CPT entry must include a code and a non-negative rate." };
+        errors.cptCodes = "At least one CPT code is required";
+      } else {
+        const invalidRow = codes.find(
+          (row) => !row.code?.trim() || !isNonNegative(row.rate),
+        );
+        if (invalidRow) {
+          errors.cptCodes =
+            "Each CPT entry must include a code and a non-negative rate";
+        }
       }
     }
 
     if (model === "HYBRID") {
       const comps = cfg.components ?? [];
       if (comps.length === 0) {
-        return { valid: false, message: "At least one hybrid component is required." };
-      }
-      const invalidComponent = comps.find((comp) => comp.value?.toString().trim() === "" || !isNonNegative(comp.value));
-      if (invalidComponent) {
-        return { valid: false, message: "Each hybrid component must have a non-negative value." };
+        errors.components = "At least one hybrid component is required";
+      } else {
+        const invalidComponent = comps.find(
+          (comp) =>
+            comp.value?.toString().trim() === "" || !isNonNegative(comp.value),
+        );
+        if (invalidComponent) {
+          errors.components =
+            "Each hybrid component must have a non-negative value";
+        }
       }
     }
 
-    return { valid: true };
+    if (["TIERED_VOLUME", "CUSTOM_ATTACHMENT_DEFINED"].includes(model)) {
+      if (!isNonNegative(cfg.amount)) {
+        errors.amount = "Amount is required and must be 0 or greater";
+      }
+    }
+
+    return { valid: Object.keys(errors).length === 0, errors };
   };
 
-  const validateVendor = () => {
-    if (!hasVendor) return { valid: true };
+  const validateVendor = (): { valid: boolean; errors: FieldErrors } => {
+    const errors: FieldErrors = {};
+
+    if (!hasVendor) return { valid: true, errors };
+
     if (!vendorId) {
-      return { valid: false, message: "Vendor is required when a subcontractor is selected." };
+      errors.vendor = "Vendor is required when a subcontractor is selected";
     }
 
     if (["FIXED_MONTHLY", "RETAINER", "FIXED_ONE_TIME"].includes(model)) {
       if (!isNonNegative(vendorCfg.amount)) {
-        return { valid: false, message: "Vendor amount is required and must be 0 or greater." };
+        errors.vendorAmount =
+          "Vendor amount is required and must be 0 or greater";
       }
     }
 
-    if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
-      const hasPercentFields =
-        isNonNegative(vendorCfg.percentage) &&
-        isNonNegative(vendorCfg.minimumFee) &&
-        isNonNegative(vendorCfg.maximumFee);
-      if (!hasPercentFields) {
-        return { valid: false, message: "Vendor percentage, minimum fee, and maximum fee must be 0 or greater." };
+    if (["TIERED_VOLUME", "CUSTOM_ATTACHMENT_DEFINED"].includes(model)) {
+      if (!isNonNegative(vendorCfg.amount)) {
+        errors.vendorAmount =
+          "Vendor amount is required and must be 0 or greater";
       }
     }
 
-    if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
-      if (!isNonNegative(vendorCfg.unitRate) || !isNonNegative(vendorCfg.minimumFee)) {
-        return { valid: false, message: "Vendor unit rate and minimum fee must be 0 or greater." };
+    if (
+      ["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)
+    ) {
+      if (!isNonNegative(vendorCfg.percentage)) {
+        errors.vendorPercentage =
+          "Vendor percentage is required and must be 0 or greater";
+      }
+      if (!isNonNegative(vendorCfg.minimumFee)) {
+        errors.vendorMinimumFee = "Vendor minimum fee must be 0 or greater";
+      }
+      if (!isNonNegative(vendorCfg.maximumFee)) {
+        errors.vendorMaximumFee = "Vendor maximum fee must be 0 or greater";
+      }
+    }
+
+    if (
+      [
+        "PER_ENCOUNTER",
+        "PER_PATIENT",
+        "PER_PROVIDER",
+        "PER_SITE",
+        "PER_UNIT",
+      ].includes(model)
+    ) {
+      if (!isNonNegative(vendorCfg.unitRate)) {
+        errors.vendorUnitRate =
+          "Vendor unit rate is required and must be 0 or greater";
+      }
+      if (!isNonNegative(vendorCfg.minimumFee)) {
+        errors.vendorMinimumFee = "Vendor minimum fee must be 0 or greater";
       }
     }
 
     if (model === "PER_CPT_CODE") {
       const vendorRows = vendorCfg.cptCodes ?? [];
       if (vendorRows.length === 0) {
-        return { valid: false, message: "Vendor CPT rows are required." };
-      }
-      const invalidRow = vendorRows.find((row) => !row.code?.trim() || !isNonNegative(row.rate));
-      if (invalidRow) {
-        return { valid: false, message: "Each vendor CPT row must include a code and a non-negative rate." };
+        errors.vendorCptCodes = "Vendor CPT rows are required";
+      } else {
+        const invalidRow = vendorRows.find(
+          (row) => !row.code?.trim() || !isNonNegative(row.rate),
+        );
+        if (invalidRow) {
+          errors.vendorCptCodes =
+            "Each vendor CPT row must include a code and a non-negative rate";
+        }
       }
     }
 
     if (model === "HYBRID") {
       const vendorComponents = vendorCfg.components ?? [];
       if (vendorComponents.length === 0) {
-        return { valid: false, message: "Vendor components are required." };
-      }
-      const invalidComponent = vendorComponents.find((component) => component.value?.toString().trim() === "" || !isNonNegative(component.value));
-      if (invalidComponent) {
-        return { valid: false, message: "Each vendor component must have a non-negative value." };
+        errors.vendorComponents = "Vendor components are required";
+      } else {
+        const invalidComponent = vendorComponents.find(
+          (component) =>
+            component.value?.toString().trim() === "" ||
+            !isNonNegative(component.value),
+        );
+        if (invalidComponent) {
+          errors.vendorComponents =
+            "Each vendor component must have a non-negative value";
+        }
       }
     }
 
     const clientAmount = getPricingAmount(model, cfg);
     const vendorAmount = getPricingAmount(model, vendorCfg);
-    if (clientAmount !== null && vendorAmount !== null && clientAmount === vendorAmount) {
-      return { valid: false, message: "Client and vendor totals cannot be exactly equal. 0% margin is not allowed when both rates are entered." };
+    if (
+      clientAmount !== null &&
+      vendorAmount !== null &&
+      clientAmount === vendorAmount
+    ) {
+      errors.vendorAmount =
+        "Client and vendor totals cannot be exactly equal. 0% margin is not allowed";
     }
 
-    return { valid: true };
+    return { valid: Object.keys(errors).length === 0, errors };
   };
 
-  const validateAll = () => {
-    if (!serviceId) return { valid: false, message: "Service selection is required." };
-    if (!model) return { valid: false, message: "Pricing model is required." };
-    const ratesResult = validateRates();
-    if (!ratesResult.valid) return ratesResult;
-    const vendorResult = validateVendor();
-    if (!vendorResult.valid) return vendorResult;
-    const signerResult = validateSignerEmails();
-    if (!signerResult.valid) return signerResult;
-    return { valid: true };
-  };
-
-  const validateSignerEmails = () => {
+  const validateSignerEmails = (): { valid: boolean; errors: FieldErrors } => {
+    const errors: FieldErrors = {};
     const emails = parseEmailList(signerEmail);
     const invalidEmail = emails.find((email) => !isValidEmail(email));
     if (invalidEmail) {
-      return { valid: false, message: `Invalid signer email: ${invalidEmail}` };
+      errors.signerEmails = `Invalid email format: ${invalidEmail}`;
     }
-    return { valid: true };
+    return { valid: Object.keys(errors).length === 0, errors };
+  };
+
+  const validateAll = () => {
+    const errors: FieldErrors = {};
+
+    if (!serviceId) errors.service = "Service selection is required";
+    if (!model) errors.model = "Pricing model is required";
+
+    const ratesResult = validateRates();
+    Object.assign(errors, ratesResult.errors);
+
+    const vendorResult = validateVendor();
+    Object.assign(errors, vendorResult.errors);
+
+    const signerResult = validateSignerEmails();
+    Object.assign(errors, signerResult.errors);
+
+    return { valid: Object.keys(errors).length === 0, errors };
   };
 
   const clientAmount = getPricingAmount(model, cfg);
   const vendorAmount = hasVendor ? getPricingAmount(model, vendorCfg) : 0;
-  const preview = calcMarginPreview(String(clientAmount ?? ""), String(vendorAmount ?? 0));
+  const preview = calcMarginPreview(
+    String(clientAmount ?? ""),
+    String(vendorAmount ?? 0),
+  );
+
+  // ✅ NEW: Track if model is percentage-based
+  const isPercentageBased = isPercentageBasedModel(model);
 
   const buildPreviewDetailCards = (): PreviewDetailCard[] => {
-    if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
+    if (
+      ["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)
+    ) {
       const rows = [
         {
           label: "Percentage",
@@ -353,18 +613,41 @@ export default function AddPricingTermWizard({
         const clientValue = row.client ?? 0;
         const vendorValue = row.vendor ?? 0;
         const marginValue = clientValue - vendorValue;
-        const marginPct = clientValue > 0 ? Number(((marginValue / clientValue) * 100).toFixed(2)) : undefined;
+        const marginPct =
+          clientValue > 0
+            ? Number(((marginValue / clientValue) * 100).toFixed(2))
+            : undefined;
         return {
           label: row.label,
-          clientValue: formatDisplayValue(row.label, clientValue, row.isPercent),
-          vendorValue: formatDisplayValue(row.label, vendorValue, row.isPercent),
-          marginValue: formatDisplayValue(row.label, marginValue, row.isPercent),
+          clientValue: formatDisplayValue(
+            row.label,
+            clientValue,
+            row.isPercent,
+          ),
+          vendorValue: formatDisplayValue(
+            row.label,
+            vendorValue,
+            row.isPercent,
+          ),
+          marginValue: formatDisplayValue(
+            row.label,
+            marginValue,
+            row.isPercent,
+          ),
           marginPct,
         };
       });
     }
 
-    if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
+    if (
+      [
+        "PER_ENCOUNTER",
+        "PER_PATIENT",
+        "PER_PROVIDER",
+        "PER_SITE",
+        "PER_UNIT",
+      ].includes(model)
+    ) {
       const rows = [
         {
           label: "Rate per Unit",
@@ -382,7 +665,10 @@ export default function AddPricingTermWizard({
         const clientValue = row.client ?? 0;
         const vendorValue = row.vendor ?? 0;
         const marginValue = clientValue - vendorValue;
-        const marginPct = clientValue > 0 ? Number(((marginValue / clientValue) * 100).toFixed(2)) : undefined;
+        const marginPct =
+          clientValue > 0
+            ? Number(((marginValue / clientValue) * 100).toFixed(2))
+            : undefined;
         return {
           label: row.label,
           clientValue: formatDisplayValue(row.label, clientValue),
@@ -396,9 +682,14 @@ export default function AddPricingTermWizard({
     if (model === "PER_CPT_CODE") {
       return (cfg.cptCodes ?? []).map((row, index) => {
         const clientValue = parseAmount(row.rate) ?? 0;
-        const vendorValue = hasVendor ? (parseAmount(vendorCfg.cptCodes?.[index]?.rate) ?? 0) : 0;
+        const vendorValue = hasVendor
+          ? (parseAmount(vendorCfg.cptCodes?.[index]?.rate) ?? 0)
+          : 0;
         const marginValue = clientValue - vendorValue;
-        const marginPct = clientValue > 0 ? Number(((marginValue / clientValue) * 100).toFixed(2)) : undefined;
+        const marginPct =
+          clientValue > 0
+            ? Number(((marginValue / clientValue) * 100).toFixed(2))
+            : undefined;
         return {
           label: row.code?.trim() ? `CPT ${row.code}` : `CPT Row ${index + 1}`,
           clientValue: formatDisplayValue(row.code, clientValue),
@@ -412,9 +703,14 @@ export default function AddPricingTermWizard({
     if (model === "HYBRID") {
       return (cfg.components ?? []).map((component, index) => {
         const clientValue = parseAmount(component.value) ?? 0;
-        const vendorValue = hasVendor ? (parseAmount(vendorCfg.components?.[index]?.value) ?? 0) : 0;
+        const vendorValue = hasVendor
+          ? (parseAmount(vendorCfg.components?.[index]?.value) ?? 0)
+          : 0;
         const marginValue = clientValue - vendorValue;
-        const marginPct = clientValue > 0 ? Number(((marginValue / clientValue) * 100).toFixed(2)) : undefined;
+        const marginPct =
+          clientValue > 0
+            ? Number(((marginValue / clientValue) * 100).toFixed(2))
+            : undefined;
         return {
           label: component.type || `Component ${index + 1}`,
           clientValue: formatDisplayValue(component.type, clientValue),
@@ -432,7 +728,9 @@ export default function AddPricingTermWizard({
   const showDetailedPreview = previewDetailCards.length > 0;
 
   const getApprovalBasis = (): ApprovalBasis => {
-    if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
+    if (
+      ["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)
+    ) {
       const client = parseAmount(cfg.percentage) ?? 0;
       const vendor = hasVendor ? (parseAmount(vendorCfg.percentage) ?? 0) : 0;
       return {
@@ -441,7 +739,15 @@ export default function AddPricingTermWizard({
       };
     }
 
-    if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
+    if (
+      [
+        "PER_ENCOUNTER",
+        "PER_PATIENT",
+        "PER_PROVIDER",
+        "PER_SITE",
+        "PER_UNIT",
+      ].includes(model)
+    ) {
       const client = parseAmount(cfg.unitRate) ?? 0;
       const vendor = hasVendor ? (parseAmount(vendorCfg.unitRate) ?? 0) : 0;
       return {
@@ -500,11 +806,21 @@ export default function AddPricingTermWizard({
       signerEmails: parseEmailList(signerEmail),
     };
 
-    if (["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)) {
+    if (
+      ["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)
+    ) {
       nextConfig.ratePercent = cfg.percentage ?? "";
     }
 
-    if (["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model)) {
+    if (
+      [
+        "PER_ENCOUNTER",
+        "PER_PATIENT",
+        "PER_PROVIDER",
+        "PER_SITE",
+        "PER_UNIT",
+      ].includes(model)
+    ) {
       nextConfig.rate = cfg.unitRate ?? "";
     }
 
@@ -523,53 +839,96 @@ export default function AddPricingTermWizard({
 
   const handleNext = () => {
     setStepError(null);
-    if (step === 0 && !serviceId) {
-      setStepError("Service selection is required.");
-      return;
+    setFieldErrors({});
+
+    if (step === 0) {
+      if (!serviceId) {
+        setFieldErrors({ service: "Service selection is required" });
+        setStepError("Please select a service before continuing");
+        return;
+      }
     }
-    if (step === 1 && !model) {
-      setStepError("Pricing model is required.");
-      return;
+
+    if (step === 1) {
+      if (!model) {
+        setFieldErrors({ model: "Pricing model is required" });
+        setStepError("Please select a pricing model before continuing");
+        return;
+      }
     }
+
     if (step === 2) {
       const result = validateRates();
-      if (!result.valid) { setStepError(result.message ?? "Please fix the rate inputs before continuing."); return; }
+      if (!result.valid) {
+        setFieldErrors(result.errors);
+        setStepError("Please fix the validation errors before continuing" + `${Object.keys(result.errors).length > 0 ? ": " + Object.values(result.errors).join("; ") : ""}`);
+        return;
+      }
     }
+
     if (step === 3) {
       const result = validateVendor();
-      if (!result.valid) { setStepError(result.message ?? "Please fix the vendor inputs before continuing."); return; }
+      if (!result.valid) {
+        setFieldErrors(result.errors);
+        setStepError("Please fix the validation errors before continuing" + `${Object.keys(result.errors).length > 0 ? ": " + Object.values(result.errors).join("; ") : ""}`);
+        return;
+      }
     }
+
     if (step === 5 && preview.requiresApproval && approvalNotes.trim() === "") {
-      setStepError("Approval Notes / Justification are required before continuing.");
+      setFieldErrors({
+        approvalNotes: "Approval notes are required when margin is below 20%",
+      });
+      setStepError(
+        "Approval Notes / Justification are required before continuing",
+      );
       return;
     }
-    if (step === 5 || step === 6) {
+
+    if (step === 6) {
       const result = validateSignerEmails();
-      if (!result.valid) { setStepError(result.message ?? "Please fix the signer emails before continuing."); return; }
+      if (!result.valid) {
+        setFieldErrors(result.errors);
+        setStepError("Please fix the email validation errors");
+        return;
+      }
     }
+
     setStep((current) => current + 1);
   };
 
   async function submit() {
     const validation = validateAll();
     if (!validation.valid) {
-      setStepError(validation.message ?? "Please fix the form before saving.");
+      setFieldErrors(validation.errors);
+      setStepError("Please fix all validation errors before saving");
+      setStep(0);
       return;
     }
+
     if (!agreementId || !agreementVersionId || !serviceId || !model) {
       toast.error("Agreement, version, service and model are required");
       return;
     }
 
     if (preview.requiresApproval && approvalNotes.trim() === "") {
-      setStepError("Approval Notes / Justification are required when approval is triggered.");
+      setFieldErrors({ approvalNotes: "Approval notes are required" });
+      setStepError(
+        "Approval Notes / Justification are required when approval is triggered",
+      );
+      setStep(5);
       return;
     }
 
-    // Check for overlapping ACTIVE pricing terms for the same agreement/service/vendor/model
     try {
-      const existing = await getPricingTerms({ agreementId, agreementVersionId, serviceId });
-      const startA = cfg.effectiveStartDate ? new Date(cfg.effectiveStartDate) : null;
+      const existing = await getPricingTerms({
+        agreementId,
+        agreementVersionId,
+        serviceId,
+      });
+      const startA = cfg.effectiveStartDate
+        ? new Date(cfg.effectiveStartDate)
+        : null;
       const endA = cfg.effectiveEndDate ? new Date(cfg.effectiveEndDate) : null;
       const conflicts = (existing.terms || []).filter((t) => {
         if (editingTerm && t.id === editingTerm.id) return false;
@@ -578,10 +937,14 @@ export default function AddPricingTermWizard({
         const tVendor = t.vendorId ?? null;
         const vId = hasVendor && vendorId ? vendorId : null;
         if ((tVendor ?? null) !== (vId ?? null)) return false;
-        // date overlap logic: open ranges count as overlap
         const s = t.effectiveDate ? new Date(t.effectiveDate) : null;
         const e = t.endDate ? new Date(t.endDate) : null;
-        const overlap = (aStart: Date | null, aEnd: Date | null, bStart: Date | null, bEnd: Date | null) => {
+        const overlap = (
+          aStart: Date | null,
+          aEnd: Date | null,
+          bStart: Date | null,
+          bEnd: Date | null,
+        ) => {
           if (!aStart && !aEnd) return true;
           if (!bStart && !bEnd) return true;
           const as = aStart ? aStart.getTime() : -Infinity;
@@ -593,38 +956,63 @@ export default function AddPricingTermWizard({
         return overlap(startA, endA, s, e);
       });
       if (conflicts.length > 0) {
-        setStepError("An active pricing term with overlapping effective dates already exists for this Agreement+Service+Vendor+Model. Adjust dates or supersede the existing term.");
+        setStepError(
+          "An active pricing term with overlapping effective dates already exists for this Agreement+Service+Vendor+Model",
+        );
         return;
       }
     } catch (err) {
-      // non-fatal — allow submit but warn in console
       console.warn("Warning: unable to validate overlapping terms", err);
     }
+
     setSaving(true);
     try {
       const payload = {
-        agreementId, agreementVersionId, serviceId, pricingModel: model,
+        agreementId,
+        agreementVersionId,
+        serviceId,
+        pricingModel: model,
         pricingConfig: buildPricingConfigPayload() as Record<string, unknown>,
         vendorId: hasVendor && vendorId ? vendorId : null,
         minimumFee: hasVendor ? (vendorAmount ?? 0) : null,
         effectiveDate: cfg.effectiveStartDate || undefined,
         endDate: cfg.effectiveEndDate || undefined,
         externalReference: parseEmailList(signerEmail).join(", ") || undefined,
-        currency: "USD", isActive: true,
+        currency: "USD",
+        isActive: true,
       };
-      if (editingTerm) { await updatePricingTerm(editingTerm.id, payload); toast.success("Updated"); }
-      else             { await createPricingTerm(payload);                  toast.success("Created"); }
+      if (editingTerm) {
+        await updatePricingTerm(editingTerm.id, payload);
+        toast.success("Updated");
+      } else {
+        await createPricingTerm(payload);
+        toast.success("Created");
+      }
       onSaved();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
-    finally     { setSaving(false); }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const svcName    = services.find((s) => s.id === serviceId)?.name ?? "-";
-  const modelLabel = PRICING_MODEL_OPTIONS.find((o) => o.value === model)?.label ?? model;
+  const svcName = services.find((s) => s.id === serviceId)?.name ?? "-";
+  const modelLabel =
+    PRICING_MODEL_OPTIONS.find((o) => o.value === model)?.label ?? model;
   const vendorFieldsReadOnly = !!editingTerm;
 
   const updateVendorCfg = (patch: Partial<VendorPricingShape>) => {
     setVendorCfg((prev) => ({ ...prev, ...patch }));
+    const keys = Object.keys(patch);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      keys.forEach((key) => {
+        const vendorKey =
+          `vendor${key.charAt(0).toUpperCase()}${key.slice(1)}` as keyof FieldErrors;
+        if (vendorKey in next) delete next[vendorKey];
+      });
+      return next;
+    });
   };
 
   const renderVendorTable = (rows: CptCodeRow[]) => (
@@ -632,16 +1020,27 @@ export default function AddPricingTermWizard({
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-[#f0ece6] bg-white">
-            <th className="px-3 py-2 text-left font-medium text-slate-500">Code</th>
-            <th className="px-3 py-2 text-left font-medium text-slate-500">Description</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-500">Vendor Rate</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500">
+              Code
+            </th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500">
+              Description
+            </th>
+            <th className="px-3 py-2 text-right font-medium text-slate-500">
+              Vendor Rate
+            </th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr key={`${row.code}-${index}`} className="border-b border-[#f0ece6] last:border-b-0">
+            <tr
+              key={`${row.code}-${index}`}
+              className="border-b border-[#f0ece6] last:border-b-0"
+            >
               <td className="px-3 py-2 text-slate-700">{row.code || "-"}</td>
-              <td className="px-3 py-2 text-slate-500">{row.description || "-"}</td>
+              <td className="px-3 py-2 text-slate-500">
+                {row.description || "-"}
+              </td>
               <td className="px-3 py-2">
                 <input
                   type="number"
@@ -654,20 +1053,28 @@ export default function AddPricingTermWizard({
                     next[index] = { ...next[index], rate: e.target.value };
                     updateVendorCfg({ cptCodes: next });
                   }}
-                  className="app-control w-full rounded-md px-3 py-2 text-right text-[13px]"
+                  className={`app-control w-full rounded-md px-3 py-2 text-right text-[13px] ${
+                    fieldErrors.vendorCptCodes
+                      ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                      : ""
+                  }`}
                 />
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <FieldError message={fieldErrors.vendorCptCodes} />
     </div>
   );
 
   const renderVendorComponents = (rows: HybridComponent[]) => (
     <div className="space-y-2">
       {rows.map((component, index) => (
-        <div key={`${component.type}-${index}`} className="grid grid-cols-[1fr_140px] gap-3">
+        <div
+          key={`${component.type}-${index}`}
+          className="grid grid-cols-[1fr_140px] gap-3"
+        >
           <div className="rounded-md border border-[#ece8e1] bg-white px-3 py-2 text-[13px] text-slate-700">
             {component.type}
           </div>
@@ -682,28 +1089,44 @@ export default function AddPricingTermWizard({
               next[index] = { ...next[index], value: e.target.value };
               updateVendorCfg({ components: next });
             }}
-            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            className={`app-control w-full rounded-md px-3 py-2 text-[13px] ${
+              fieldErrors.vendorComponents
+                ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                : ""
+            }`}
           />
         </div>
       ))}
+      <FieldError message={fieldErrors.vendorComponents} />
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-2xl"
-        style={{ maxHeight: "92vh" }}>
-
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-2xl"
+        style={{ maxHeight: "92vh" }}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#f0ece6] px-6 py-4">
           <div>
             <h2 className="text-[16px] font-semibold text-slate-800">
               {editingTerm ? "Edit Pricing Term" : "Add Pricing Term"}
             </h2>
-            <p className="text-[12px] text-slate-400 mt-0.5">Step {step+1} of {STEPS.length} — {STEPS[step]}</p>
+            <p className="text-[12px] text-slate-400 mt-0.5">
+              Step {step + 1} of {STEPS.length} — {STEPS[step]}
+            </p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -711,13 +1134,19 @@ export default function AddPricingTermWizard({
         {/* Step pills */}
         <div className="flex gap-1.5 border-b border-[#f0ece6] px-6 py-2.5 overflow-x-auto">
           {STEPS.map((s, i) => (
-            <button key={s} type="button"
+            <button
+              key={s}
+              type="button"
               onClick={() => i < step && setStep(i)}
               className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-medium transition-all ${
-                i === step ? "bg-[#4f63ea] text-white" :
-                i <  step  ? "cursor-pointer bg-emerald-100 text-emerald-700" :
-                             "bg-slate-100 text-slate-400"}`}>
-              {i+1}. {s}
+                i === step
+                  ? "bg-[#4f63ea] text-white"
+                  : i < step
+                    ? "cursor-pointer bg-emerald-100 text-emerald-700"
+                    : "bg-slate-100 text-slate-400"
+              }`}
+            >
+              {i + 1}. {s}
             </button>
           ))}
         </div>
@@ -725,48 +1154,87 @@ export default function AddPricingTermWizard({
         {/* Body */}
         <div className="flex-1 overflow-auto px-6 py-5 space-y-4 text-[13px]">
           {stepError ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {stepError}
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+              <span>{stepError}</span>
             </div>
           ) : null}
 
           {/* Step 0 — Service */}
           {step === 0 && (
             <div className="space-y-3">
-              <h3 className="text-[15px] font-semibold text-slate-700">Select Service</h3>
+              <h3 className="text-[15px] font-semibold text-slate-700">
+                Select Service <span className="text-red-500">*</span>
+              </h3>
               <div className="grid grid-cols-2 gap-2">
                 {services.map((svc) => (
-                  <button key={svc.id} type="button" onClick={() => setSvc(svc.id)}
+                  <button
+                    key={svc.id}
+                    type="button"
+                    onClick={() => {
+                      setSvc(svc.id);
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        service: undefined,
+                      }));
+                    }}
                     className={`rounded-xl border px-4 py-3 text-left text-[13px] font-medium transition-all ${
-                      serviceId === svc.id ? "border-[#4f63ea] bg-[#f0f2fe] text-[#4f63ea]" :
-                      "border-[#f0ece6] text-slate-700 hover:border-[#c7cdf5] hover:bg-[#f7f8fe]"}`}>
+                      serviceId === svc.id
+                        ? "border-[#4f63ea] bg-[#f0f2fe] text-[#4f63ea]"
+                        : fieldErrors.service
+                          ? "border-red-300"
+                          : "border-[#f0ece6] text-slate-700 hover:border-[#c7cdf5] hover:bg-[#f7f8fe]"
+                    }`}
+                  >
                     {svc.name}
                   </button>
                 ))}
               </div>
+              <FieldError message={fieldErrors.service} />
             </div>
           )}
 
           {/* Step 1 — Model */}
           {step === 1 && (
             <div className="space-y-4">
-              <h3 className="text-[15px] font-semibold text-slate-700">Select Pricing Model</h3>
-              {["Flat","Variable","Per Unit","Advanced"].map((group) => (
+              <h3 className="text-[15px] font-semibold text-slate-700">
+                Select Pricing Model <span className="text-red-500">*</span>
+              </h3>
+              {["Flat", "Variable", "Per Unit", "Advanced"].map((group) => (
                 <div key={group}>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{group}</p>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    {group}
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {PRICING_MODEL_OPTIONS.filter((o) => o.group === group).map((opt) => (
-                      <button key={opt.value} type="button" onClick={() => setModel(opt.value)}
-                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-[13px] transition-all ${
-                          model === opt.value ? "border-[#4f63ea] bg-[#f0f2fe] text-[#4f63ea] font-medium" :
-                          "border-[#f0ece6] text-slate-600 hover:border-[#c7cdf5]"}`}>
-                        <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${model === opt.value ? "border-[#4f63ea] bg-[#4f63ea]" : "border-slate-300"}`} />
-                        {opt.label}
-                      </button>
-                    ))}
+                    {PRICING_MODEL_OPTIONS.filter((o) => o.group === group).map(
+                      (opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setModel(opt.value);
+                            setFieldErrors((prev) => ({
+                              ...prev,
+                              model: undefined,
+                            }));
+                          }}
+                          className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-[13px] transition-all ${
+                            model === opt.value
+                              ? "border-[#4f63ea] bg-[#f0f2fe] text-[#4f63ea] font-medium"
+                              : "border-[#f0ece6] text-slate-600 hover:border-[#c7cdf5]"
+                          }`}
+                        >
+                          <span
+                            className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${model === opt.value ? "border-[#4f63ea] bg-[#4f63ea]" : "border-slate-300"}`}
+                          />
+                          {opt.label}
+                        </button>
+                      ),
+                    )}
                   </div>
                 </div>
               ))}
+              <FieldError message={fieldErrors.model} />
             </div>
           )}
 
@@ -776,14 +1244,24 @@ export default function AddPricingTermWizard({
           {/* Step 3 — Vendor */}
           {step === 3 && (
             <div className="space-y-4">
-              <h3 className="text-[15px] font-semibold text-slate-700">Vendor Pricing</h3>
-              <p className="text-slate-500">Does this service have a vendor / subcontractor?</p>
+              <h3 className="text-[15px] font-semibold text-slate-700">
+                Vendor Pricing
+              </h3>
+              <p className="text-slate-500">
+                Does this service have a vendor / subcontractor?
+              </p>
               <div className="flex gap-3">
-                {[true,false].map((v) => (
-                  <button key={String(v)} type="button" onClick={() => setHasVendor(v)}
+                {[true, false].map((v) => (
+                  <button
+                    key={String(v)}
+                    type="button"
+                    onClick={() => setHasVendor(v)}
                     className={`flex-1 rounded-xl border py-3 text-[13px] font-medium transition-all ${
-                      hasVendor === v ? "border-[#4f63ea] bg-[#f0f2fe] text-[#4f63ea]" :
-                      "border-[#f0ece6] text-slate-500 hover:border-slate-300"}`}>
+                      hasVendor === v
+                        ? "border-[#4f63ea] bg-[#f0f2fe] text-[#4f63ea]"
+                        : "border-[#f0ece6] text-slate-500 hover:border-slate-300"
+                    }`}
+                  >
                     {v ? "Yes" : "No"}
                   </button>
                 ))}
@@ -791,20 +1269,28 @@ export default function AddPricingTermWizard({
               {hasVendor && (
                 <div className="space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4">
                   <div>
-                    <label className="mb-1 block font-medium text-slate-700">Vendor <span className="text-red-500">*</span></label>
+                    <label className="mb-1 block font-medium text-slate-700">
+                      Vendor <span className="text-red-500">*</span>
+                    </label>
                     <Select
                       value={vendorId}
                       onChange={setVId}
                       placeholder="Select Vendor"
-                      options={vendors.map(v => ({ label: v.name, value: v.id }))}
+                      options={vendors.map((v) => ({
+                        label: v.name,
+                        value: v.id,
+                      }))}
                     />
                   </div>
                   <div className="rounded-xl border border-dashed border-[#d7d2cb] bg-white p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-700">Vendor rates follow the selected pricing model</p>
+                        <p className="font-medium text-slate-700">
+                          Vendor rates follow the selected pricing model
+                        </p>
                         <p className="text-[12px] text-slate-400">
-                          Default values start at 0. Existing vendor values stay read-only.
+                          Default values start at 0. Existing vendor values stay
+                          read-only.
                         </p>
                       </div>
                       <div className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-500">
@@ -812,94 +1298,142 @@ export default function AddPricingTermWizard({
                       </div>
                     </div>
 
-                    {["FIXED_MONTHLY", "RETAINER", "FIXED_ONE_TIME"].includes(model) && (
+                    {[
+                      "FIXED_MONTHLY",
+                      "RETAINER",
+                      "FIXED_ONE_TIME",
+                      "TIERED_VOLUME",
+                      "CUSTOM_ATTACHMENT_DEFINED",
+                    ].includes(
+                      model,
+                    ) && (
                       <div>
-                        <label className="mb-1 block font-medium text-slate-700">Vendor Amount (USD)</label>
+                        <label className="mb-1 block font-medium text-slate-700">
+                          Vendor Amount (USD)
+                        </label>
                         <input
                           type="number"
                           min="0"
                           step="any"
                           readOnly={vendorFieldsReadOnly}
                           value={vendorCfg.amount ?? "0"}
-                          onChange={(e) => updateVendorCfg({ amount: e.target.value })}
-                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          onChange={(e) =>
+                            updateVendorCfg({ amount: e.target.value })
+                          }
+                          className={`app-control w-full rounded-md px-3 py-2 text-[13px] ${
+                            fieldErrors.vendorAmount
+                              ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                          }`}
                         />
+                        <FieldError message={fieldErrors.vendorAmount} />
                       </div>
                     )}
 
-                    {["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model) && (
+                    {[
+                      "PERCENT_COLLECTIONS",
+                      "PERCENT_REVENUE",
+                      "SUCCESS_FEE",
+                    ].includes(model) && (
                       <div className="grid grid-cols-3 gap-3">
                         <div>
-                          <label className="mb-1 block font-medium text-slate-700">Vendor %</label>
+                          <label className="mb-1 block font-medium text-slate-700">
+                            Vendor %
+                          </label>
                           <input
                             type="number"
                             min="0"
                             step="any"
                             readOnly={vendorFieldsReadOnly}
                             value={vendorCfg.percentage ?? "0"}
-                            onChange={(e) => updateVendorCfg({ percentage: e.target.value })}
+                            onChange={(e) =>
+                              updateVendorCfg({ percentage: e.target.value })
+                            }
                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block font-medium text-slate-700">Vendor Min Fee</label>
+                          <label className="mb-1 block font-medium text-slate-700">
+                            Vendor Min Fee
+                          </label>
                           <input
                             type="number"
                             min="0"
                             step="any"
                             readOnly={vendorFieldsReadOnly}
                             value={vendorCfg.minimumFee ?? "0"}
-                            onChange={(e) => updateVendorCfg({ minimumFee: e.target.value })}
+                            onChange={(e) =>
+                              updateVendorCfg({ minimumFee: e.target.value })
+                            }
                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block font-medium text-slate-700">Vendor Max Fee</label>
+                          <label className="mb-1 block font-medium text-slate-700">
+                            Vendor Max Fee
+                          </label>
                           <input
                             type="number"
                             min="0"
                             step="any"
                             readOnly={vendorFieldsReadOnly}
                             value={vendorCfg.maximumFee ?? "0"}
-                            onChange={(e) => updateVendorCfg({ maximumFee: e.target.value })}
+                            onChange={(e) =>
+                              updateVendorCfg({ maximumFee: e.target.value })
+                            }
                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                           />
                         </div>
                       </div>
                     )}
 
-                    {["PER_ENCOUNTER", "PER_PATIENT", "PER_PROVIDER", "PER_SITE", "PER_UNIT"].includes(model) && (
+                    {[
+                      "PER_ENCOUNTER",
+                      "PER_PATIENT",
+                      "PER_PROVIDER",
+                      "PER_SITE",
+                      "PER_UNIT",
+                    ].includes(model) && (
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="mb-1 block font-medium text-slate-700">Vendor Rate per Unit</label>
+                          <label className="mb-1 block font-medium text-slate-700">
+                            Vendor Rate per Unit
+                          </label>
                           <input
                             type="number"
                             min="0"
                             step="any"
                             readOnly={vendorFieldsReadOnly}
                             value={vendorCfg.unitRate ?? "0"}
-                            onChange={(e) => updateVendorCfg({ unitRate: e.target.value })}
+                            onChange={(e) =>
+                              updateVendorCfg({ unitRate: e.target.value })
+                            }
                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block font-medium text-slate-700">Vendor Minimum Fee</label>
+                          <label className="mb-1 block font-medium text-slate-700">
+                            Vendor Minimum Fee
+                          </label>
                           <input
                             type="number"
                             min="0"
                             step="any"
                             readOnly={vendorFieldsReadOnly}
                             value={vendorCfg.minimumFee ?? "0"}
-                            onChange={(e) => updateVendorCfg({ minimumFee: e.target.value })}
+                            onChange={(e) =>
+                              updateVendorCfg({ minimumFee: e.target.value })
+                            }
                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                           />
                         </div>
                       </div>
                     )}
 
-                    {model === "PER_CPT_CODE" && renderVendorTable(vendorCfg.cptCodes ?? [])}
-                    {model === "HYBRID" && renderVendorComponents(vendorCfg.components ?? [])}
-
+                    {model === "PER_CPT_CODE" &&
+                      renderVendorTable(vendorCfg.cptCodes ?? [])}
+                    {model === "HYBRID" &&
+                      renderVendorComponents(vendorCfg.components ?? [])}
                   </div>
                 </div>
               )}
@@ -909,26 +1443,41 @@ export default function AddPricingTermWizard({
           {/* Step 4 — Margin */}
           {step === 4 && (
             <div className="space-y-4">
-              <h3 className="text-[15px] font-semibold text-slate-700">Margin Preview</h3>
+              <h3 className="text-[15px] font-semibold text-slate-700">
+                Margin Preview
+              </h3>
               {showDetailedPreview ? (
-                <div className={`grid gap-3 ${previewDetailCards.length >= 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+                <div
+                  className={`grid gap-3 ${previewDetailCards.length >= 3 ? "grid-cols-3" : "grid-cols-2"}`}
+                >
                   {previewDetailCards.map((card) => (
-                    <div key={card.label} className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4">
-                      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{card.label}</p>
+                    <div
+                      key={card.label}
+                      className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4"
+                    >
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                        {card.label}
+                      </p>
                       <div className="mt-3 space-y-2 text-[13px]">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-slate-400">Rate</span>
-                          <span className="font-semibold text-[#4f63ea]">{card.clientValue}</span>
+                          <span className="font-semibold text-[#4f63ea]">
+                            {card.clientValue}
+                          </span>
                         </div>
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-slate-400">Vendor</span>
-                          <span className="font-semibold text-red-500">{card.vendorValue}</span>
+                          <span className="font-semibold text-red-500">
+                            {card.vendorValue}
+                          </span>
                         </div>
                         <div className="flex items-center justify-between gap-3 border-t border-[#ece8e1] pt-2">
                           <span className="text-slate-500">Margin</span>
                           <span className="font-semibold text-emerald-600">
                             {card.marginValue}
-                            {card.marginPct !== undefined ? ` (${toFixedDisplay(card.marginPct)}%)` : ""}
+                            {card.marginPct !== undefined
+                              ? ` (${toFixedDisplay(card.marginPct)}%)`
+                              : ""}
                           </span>
                         </div>
                       </div>
@@ -937,15 +1486,47 @@ export default function AddPricingTermWizard({
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  {([
-                    ["Est. Client Revenue", `$${preview.clientRevenue.toLocaleString()}`, "text-[#4f63ea]"],
-                    ["Est. Vendor Cost",    `$${preview.vendorCost.toLocaleString()}`,    "text-red-500"],
-                    ["Est. Gross Margin",   `$${preview.grossMargin.toLocaleString()}`,   "text-emerald-600"],
-                    ["Margin %",           `${toFixedDisplay(preview.marginPct)}%`,       preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"],
-                  ] as const).map(([k, v, color]) => (
-                    <div key={k} className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4">
-                      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{k}</p>
-                      <p className={`mt-1 text-[22px] font-bold ${color}`}>{v}</p>
+                  {/* ✅ UPDATED: Use percentage-aware formatting */}
+                  {(
+                    [
+                      [
+                        isPercentageBased
+                          ? "Est. Client Rate"
+                          : "Est. Client Revenue",
+                        formatModelValue(model, preview.clientRevenue),
+                        "text-[#4f63ea]",
+                      ],
+                      [
+                        isPercentageBased
+                          ? "Est. Vendor Rate"
+                          : "Est. Vendor Cost",
+                        formatModelValue(model, preview.vendorCost),
+                        "text-red-500",
+                      ],
+                      [
+                        "Est. Gross Margin",
+                        formatModelValue(model, preview.grossMargin),
+                        "text-emerald-600",
+                      ],
+                      [
+                        "Margin %",
+                        `${toFixedDisplay(preview.marginPct)}%`,
+                        preview.marginPct < 20
+                          ? "text-amber-600"
+                          : "text-emerald-600",
+                      ],
+                    ] as const
+                  ).map(([k, v, color]) => (
+                    <div
+                      key={k}
+                      className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4"
+                    >
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                        {k}
+                      </p>
+                      <p className={`mt-1 text-[22px] font-bold ${color}`}>
+                        {v}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -954,8 +1535,14 @@ export default function AddPricingTermWizard({
                 <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
                   <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold">Low Margin — Approval Required</p>
-                    <p className="text-[12px] mt-0.5">{approvalBasis.label} margin {toFixedDisplay(approvalPreview.marginPct)}% is below the 20% threshold. Proceed to step 6 to add approval notes.</p>
+                    <p className="font-semibold">
+                      Low Margin — Approval Required
+                    </p>
+                    <p className="text-[12px] mt-0.5">
+                      {approvalBasis.label} margin{" "}
+                      {toFixedDisplay(approvalPreview.marginPct)}% is below the
+                      20% threshold. Proceed to step 6 to add approval notes.
+                    </p>
                   </div>
                 </div>
               )}
@@ -997,19 +1584,34 @@ export default function AddPricingTermWizard({
           {/* Step 6 — Finalize */}
           {step === 6 && (
             <div className="space-y-4">
-              <h3 className="text-[15px] font-semibold text-slate-700">Finalize Rate Packet</h3>
+              <h3 className="text-[15px] font-semibold text-slate-700">
+                Finalize Rate Packet
+              </h3>
 
-              {/* Summary */}
+              {/* ✅ UPDATED: Summary with percentage-aware formatting */}
               <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4 space-y-2.5">
-                <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Included Services</p>
+                <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                  Included Services
+                </p>
                 {[
-                  ["Service",       svcName],
+                  ["Service", svcName],
                   ["Pricing Model", modelLabel],
-                  ["Client Rate",   `$${preview.clientRevenue.toLocaleString()}`],
-                  ...(hasVendor ? [
-                    ["Vendor",      vendors.find((v) => v.id === vendorId)?.name ?? "-"],
-                    ["Vendor Total", `$${preview.vendorCost.toLocaleString()}`],
-                  ] : []),
+                  [
+                    "Client Rate",
+                    formatModelValue(model, preview.clientRevenue),
+                  ],
+                  ...(hasVendor
+                    ? [
+                        [
+                          "Vendor",
+                          vendors.find((v) => v.id === vendorId)?.name ?? "-",
+                        ],
+                        [
+                          "Vendor Total",
+                          formatModelValue(model, preview.vendorCost),
+                        ],
+                      ]
+                    : []),
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between">
                     <span className="text-slate-400">{k}</span>
@@ -1017,26 +1619,54 @@ export default function AddPricingTermWizard({
                   </div>
                 ))}
                 <div className="flex justify-between border-t border-[#f0ece6] pt-2.5">
-                  <span className="font-semibold text-slate-700">Pricing Summary — Gross Margin</span>
-                  <span className={`font-bold text-[15px] ${preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"}`}>
-                    ${preview.grossMargin.toLocaleString()} ({toFixedDisplay(preview.marginPct)}%)
+                  <span className="font-semibold text-slate-700">
+                    Pricing Summary — Gross Margin
+                  </span>
+                  <span
+                    className={`font-bold text-[15px] ${preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"}`}
+                  >
+                    {/* ✅ UPDATED: Show margin in percentage format for percentage-based models */}
+                    {formatModelValue(model, preview.grossMargin)} (
+                    {toFixedDisplay(preview.marginPct)}%)
                   </span>
                 </div>
               </div>
 
               {/* Signer email */}
               <div>
-                <label className="mb-1 block font-medium text-slate-700">Signer Email <span className="text-slate-400 font-normal">(optional)</span></label>
-                <input type="text" value={signerEmail} onChange={(e) => setEmail(e.target.value)}
+                <label className="mb-1 block font-medium text-slate-700">
+                  Signer Email{" "}
+                  <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={signerEmail}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      signerEmails: undefined,
+                    }));
+                  }}
                   placeholder="client@example.com, owner@example.com"
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]" />
-                <p className="mt-1 text-[12px] text-slate-400">Emails from the related people are auto-filled. Use comma-separated emails for multiple signers.</p>
+                  className={`app-control w-full rounded-md px-3 py-2 text-[13px] ${
+                    fieldErrors.signerEmails
+                      ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                      : ""
+                  }`}
+                />
+                <FieldError message={fieldErrors.signerEmails} />
+                <p className="mt-1 text-[12px] text-slate-400">
+                  Emails from the related people are auto-filled. Use
+                  comma-separated emails for multiple signers.
+                </p>
               </div>
 
               {approvalPreview.requiresApproval && (
                 <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  Approval required based on {approvalBasis.label.toLowerCase()} margin — ensure manager sign-off before activating this term
+                  Approval required based on {approvalBasis.label.toLowerCase()}{" "}
+                  margin — ensure internal manager/admin sign-off before activating this term
                 </div>
               )}
             </div>
@@ -1045,19 +1675,29 @@ export default function AddPricingTermWizard({
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-[#f0ece6] px-6 py-4">
-          <button type="button"
-            onClick={() => step > 0 ? setStep(step-1) : onClose()}
-            className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]">
+          <button
+            type="button"
+            onClick={() => (step > 0 ? setStep(step - 1) : onClose())}
+            className="rounded-md border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+          >
             {step === 0 ? "Cancel" : "← Back"}
           </button>
-          {step < STEPS.length-1 ? (
-            <button type="button" onClick={handleNext} disabled={!canNext}
-              className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-5 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-40">
+          {step < STEPS.length - 1 ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!canNext}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-5 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-40"
+            >
               Next <ChevronRight className="h-3.5 w-3.5" />
             </button>
           ) : (
-            <button type="button" onClick={submit} disabled={saving}
-              className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-5 py-2 text-[13px] font-medium text-white hover:bg-emerald-700 disabled:opacity-40">
+            <button
+              type="button"
+              onClick={submit}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-5 py-2 text-[13px] font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
+            >
               {saving ? "Saving…" : "✓ Generate Packet"}
             </button>
           )}
