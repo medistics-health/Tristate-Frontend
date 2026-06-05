@@ -1,7 +1,9 @@
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import Login from "./components/auth/Login";
 import Signup from "./components/auth/Signup";
+import AdminRoute from "./components/auth/AdminRoute";
 import AllAgreementsPage from "./components/agreements/all-agreements/AllAgreements";
+import AgreementPendingApprovalPage from "./components/agreements/pending-approval/AgreementPendingApprovalPage";
 import AllPracticeAuditsPage from "./components/audits/AllPracticeAudits";
 import Audits from "./components/audits/Audits";
 import AuditStatusBoard from "./components/audits/AuditStatusBoard";
@@ -23,6 +25,7 @@ import AssessmentProgressPage from "./components/assessments/AssessmentProgress"
 import InvoiceStatusBoardPage from "./components/invoices/InvoiceStatusBoard";
 import AllInvoicePage from "./components/invoices/AllInvoices";
 import AgreementPendingSignaturesPage from "./components/agreements/pending-signatures/PendingSignatures";
+import AgreementPendingSubmissionChangesPage from "./components/agreements/pending-submission-changes/AgreementPendingSubmissionChangesPage";
 import VendorContractPage from "./components/vendors/VendorContracts";
 import AllVendorsPage from "./components/vendors/AllVendors";
 import PipelineBoardPage from "./components/practices/PipelineBoard";
@@ -254,6 +257,17 @@ function App() {
       />
 
       <Route
+        path="/agreements/pending-approval"
+        element={
+          <ProtectedRoute>
+            {/*<AdminRoute>*/}
+            <AgreementPendingApprovalPage />
+            {/*</AdminRoute>*/}
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/invoice/overdue"
         element={
           <ProtectedRoute>
@@ -267,6 +281,17 @@ function App() {
         element={
           <ProtectedRoute>
             <AgreementPendingSignaturesPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/agreements/pending-submission-changes"
+        element={
+          <ProtectedRoute>
+            {/*<AdminRoute>*/}
+            <AgreementPendingSubmissionChangesPage />
+            {/*</AdminRoute>*/}
           </ProtectedRoute>
         }
       />

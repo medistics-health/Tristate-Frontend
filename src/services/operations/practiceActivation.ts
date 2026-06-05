@@ -59,13 +59,30 @@ export async function activatePracticeWithAgreementEmail(
 ): Promise<void> {
   const { agreement, eligiblePerson } =
     await validatePracticeActivation(practiceId);
+
+  const documentApprovalStatus = agreement.docusealSubmissions?.find(
+    (init: any) => init.approval_status === "PENDING_APPROVAL",
+  );
+
+  if (documentApprovalStatus) {
+    throw new Error("This practice agreement needs admin approval");
+  }
   const docusealIds = getAgreementDocusealId(agreement);
+  const fieldValuesByTemplateId = (agreement.docusealSubmissions || []).reduce<
+    Record<string, Record<string, string>>
+  >((acc, submission) => {
+    if (submission.templateId) {
+      acc[String(submission.templateId)] = submission.fieldValues || {};
+    }
+    return acc;
+  }, {});
 
   if (docusealIds?.length) {
     await createDocusealSubmissionApi({
       agreementId: agreement.id,
       personId: eligiblePerson.id,
       templateId: docusealIds,
+      fieldValuesByTemplateId,
     });
   }
 
