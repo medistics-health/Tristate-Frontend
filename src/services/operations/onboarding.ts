@@ -2,7 +2,8 @@ import axios from "axios";
 import { onboardingEndpoints } from "../apis";
 import { apiConnector } from "../apiConnector";
 
-const { EXTERNAL, LIST, GET, CREATE, UPDATE, DELETE } = onboardingEndpoints;
+const { EXTERNAL, EXTERNAL_GET, LIST, GET, CREATE, UPDATE, DELETE } =
+  onboardingEndpoints;
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError(error)) {
@@ -217,6 +218,8 @@ export type OnboardingServiceSetup = {
 };
 
 export type OnboardingBody = {
+  practiceId?: string;
+  personId?: string;
   onboardingType?: string;
   isAuthorizedPerson?: boolean;
   nonAuthorizedRole?: string;
@@ -366,12 +369,31 @@ export async function createExternalOnboarding(
   }
 }
 
+export async function getExternalOnboardingByPracticeId(
+  practiceId: string
+): Promise<Onboarding | null> {
+  try {
+    const response = await axios.get(EXTERNAL_GET(practiceId));
+    const onboarding = (response.data as { onboarding?: BackendOnboarding | null })
+      .onboarding;
+
+    return onboarding ? normalizeOnboarding(onboarding) : null;
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to fetch onboarding.")
+    );
+  }
+}
+
 export async function getOnboardings(params?: {
   page?: number;
   limit?: number;
   search?: string;
   status?: string;
-}): Promise<{ onboardings: Onboarding[]; pagination: any }> {
+}): Promise<{
+  onboardings: Onboarding[];
+  pagination: Record<string, unknown>;
+}> {
   try {
     const queryString = new URLSearchParams();
     if (params?.page) queryString.set("page", String(params.page));
@@ -391,7 +413,7 @@ export async function getOnboardings(params?: {
 
     const data = response.data as {
       onboardings: BackendOnboarding[];
-      pagination: any;
+      pagination: Record<string, unknown>;
     };
 
     return {

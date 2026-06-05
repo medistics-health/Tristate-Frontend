@@ -17,10 +17,12 @@ import type {
   OnboardingProvider,
   OnboardingTechnology,
 } from "../../services/operations/onboarding";
-import { createOnboardingFromForm } from "../../services/operations/createOnboardingForm";
 import {
-  getOnboarding,
-  updateOnboarding,
+  createExternalOnboardingFromForm,
+  createOnboardingFromForm,
+} from "../../services/operations/createOnboardingForm";
+import {
+  getExternalOnboardingByPracticeId,
 } from "../../services/operations/onboarding";
 
 type Option = {
@@ -859,13 +861,13 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
+    <div className="block">
       <span className="mb-1 block text-sm font-medium text-slate-700">
         {label}
         {required ? <span className="text-red-500"> *</span> : null}
       </span>
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -1110,15 +1112,19 @@ export default function OnboardingFormV3() {
     async function loadOnboarding() {
       setIsLoadingRecord(true);
       try {
-        const onboarding = await getOnboarding(id);
+        const onboarding = await getExternalOnboardingByPracticeId(id);
         if (!active) return;
 
+        if (!onboarding) {
+          setFormData(initialFormData);
+          setIsAlreadySubmitted(false);
+          setIsSubmitted(false);
+          return;
+        }
+
         setFormData(normalizeLoadedOnboarding(onboarding));
-        const locked =
-          !!onboarding.submissionDate ||
-          (!!onboarding.status && onboarding.status !== "DRAFT");
-        setIsAlreadySubmitted(locked);
-        setIsSubmitted(locked);
+        setIsAlreadySubmitted(true);
+        setIsSubmitted(true);
       } catch (error) {
         if (!active) return;
         const message =
@@ -1205,6 +1211,12 @@ export default function OnboardingFormV3() {
     (formData.requestedServices ?? []).some((service) =>
       ["LAB_RELATIONSHIP_SUPPORT", "PHARMACY_PROGRAM_SUPPORT"].includes(service),
     );
+  const hasFixedPracticeCount =
+    formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION";
+  const requiredPracticeCount = Math.max(
+    0,
+    Number(formData.numberOfPractices ?? 0) || 0,
+  );
   const visibleSteps = steps.filter(
     (step) => !(formData.isIndividualPractice && step.id === 2),
   );
@@ -1233,30 +1245,38 @@ export default function OnboardingFormV3() {
     field: K,
     value: string,
   ) {
-    const values = ((formData[field] as string[] | undefined) ?? []).slice();
-    const nextValues = values.includes(value)
-      ? values.filter((entry) => entry !== value)
-      : [...values, value];
-    updateField(field, nextValues as OnboardingBody[K]);
+    setFormData((prev) => {
+      const values = ((prev[field] as string[] | undefined) ?? []).slice();
+      const nextValues = values.includes(value)
+        ? values.filter((entry) => entry !== value)
+        : [...values, value];
+      return {
+        ...prev,
+        [field]: nextValues as OnboardingBody[K],
+      };
+    });
   }
 
   function toggleNestedArrayValue<
     K extends NestedSectionKey,
     F extends keyof NonNullable<OnboardingBody[K]>,
   >(section: K, field: F, value: string) {
-    const values = (
-      ((formData[section] as NonNullable<OnboardingBody[K]> | undefined)?.[
-        field
-      ] as string[] | undefined) ?? []
-    ).slice();
-    const nextValues = values.includes(value)
-      ? values.filter((entry) => entry !== value)
-      : [...values, value];
-    updateNestedField(
-      section,
-      field,
-      nextValues as NonNullable<OnboardingBody[K]>[F],
-    );
+    setFormData((prev) => {
+      const sectionData =
+        (prev[section] as NonNullable<OnboardingBody[K]> | undefined) ?? {};
+      const values = ((sectionData[field] as string[] | undefined) ?? []).slice();
+      const nextValues = values.includes(value)
+        ? values.filter((entry) => entry !== value)
+        : [...values, value];
+
+      return {
+        ...prev,
+        [section]: {
+          ...sectionData,
+          [field]: nextValues as NonNullable<OnboardingBody[K]>[F],
+        },
+      };
+    });
   }
 
   function updateServiceSetup(
@@ -1317,11 +1337,17 @@ export default function OnboardingFormV3() {
   }
 
   function toggleService(value: string) {
-    const currentServices = formData.requestedServices ?? [];
-    const nextServices = currentServices.includes(value)
-      ? currentServices.filter((service) => service !== value)
-      : [...currentServices, value];
-    updateServiceSetup("requestedServices", nextServices);
+    setFormData((prev) => {
+      const currentServices = prev.requestedServices ?? [];
+      const nextServices = currentServices.includes(value)
+        ? currentServices.filter((service) => service !== value)
+        : [...currentServices, value];
+
+      return {
+        ...prev,
+        requestedServices: nextServices,
+      };
+    });
   }
 
   function addContact() {
@@ -1354,6 +1380,10 @@ export default function OnboardingFormV3() {
   }
 
   function addPractice() {
+    if (hasFixedPracticeCount) {
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       practices: [...(prev.practices ?? []), { ...initialPractice }],
@@ -1374,6 +1404,10 @@ export default function OnboardingFormV3() {
   }
 
   function removePractice(index: number) {
+    if (hasFixedPracticeCount) {
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       practices: (prev.practices ?? []).filter(
@@ -1496,6 +1530,113 @@ export default function OnboardingFormV3() {
     }));
   }
 
+  function toggleContactArrayValue<K extends keyof OnboardingContact>(
+    index: number,
+    field: K,
+    value: string,
+  ) {
+    setFormData((prev) => ({
+      ...prev,
+      contacts: (prev.contacts ?? []).map((contact, contactIndex) => {
+        if (contactIndex !== index) return contact;
+        const values = ((contact[field] as string[] | undefined) ?? []).slice();
+        const nextValues = values.includes(value)
+          ? values.filter((entry) => entry !== value)
+          : [...values, value];
+        return {
+          ...contact,
+          [field]: nextValues as OnboardingContact[K],
+        };
+      }),
+    }));
+  }
+
+  function togglePracticeArrayValue<K extends keyof OnboardingPractice>(
+    index: number,
+    field: K,
+    value: string,
+  ) {
+    setFormData((prev) => ({
+      ...prev,
+      practices: (prev.practices ?? []).map((practice, practiceIndex) => {
+        if (practiceIndex !== index) return practice;
+        const values = ((practice[field] as string[] | undefined) ?? []).slice();
+        const nextValues = values.includes(value)
+          ? values.filter((entry) => entry !== value)
+          : [...values, value];
+        return {
+          ...practice,
+          [field]: nextValues as OnboardingPractice[K],
+        };
+      }),
+    }));
+  }
+
+  function toggleProviderArrayValue<K extends keyof OnboardingProvider>(
+    practiceIndex: number,
+    providerIndex: number,
+    field: K,
+    value: string,
+  ) {
+    setFormData((prev) => ({
+      ...prev,
+      practices: (prev.practices ?? []).map((practice, index) => {
+        if (index !== practiceIndex) return practice;
+        return {
+          ...practice,
+          providers: (practice.providers ?? []).map((provider, innerIndex) => {
+            if (innerIndex !== providerIndex) return provider;
+            const values = ((provider[field] as string[] | undefined) ?? []).slice();
+            const nextValues = values.includes(value)
+              ? values.filter((entry) => entry !== value)
+              : [...values, value];
+            return {
+              ...provider,
+              [field]: nextValues as OnboardingProvider[K],
+            };
+          }),
+        };
+      }),
+    }));
+  }
+
+  function toggleServiceSetupArrayValue(
+    field: "selectedPractices",
+    value: string,
+  ) {
+    setFormData((prev) => {
+      const values = (prev[field] ?? []).slice();
+      const nextValues = values.includes(value)
+        ? values.filter((entry) => entry !== value)
+        : [...values, value];
+      return {
+        ...prev,
+        [field]: nextValues,
+      };
+    });
+  }
+
+  function toggleCareProgramArrayValue(
+    field: "programsPlanned",
+    value: string,
+  ) {
+    setFormData((prev) => {
+      const currentCareProgram = prev.careProgram ?? {};
+      const values = (currentCareProgram[field] ?? []).slice();
+      const nextValues = values.includes(value)
+        ? values.filter((entry) => entry !== value)
+        : [...values, value];
+
+      return {
+        ...prev,
+        careProgram: {
+          ...currentCareProgram,
+          [field]: nextValues,
+        },
+      };
+    });
+  }
+
   function removeProvider(practiceIndex: number, providerIndex: number) {
     setFormData((prev) => ({
       ...prev,
@@ -1560,6 +1701,11 @@ export default function OnboardingFormV3() {
         errors.push("Main company phone (must be 10 digits)");
       }
 
+      const mainCompanyFax = formData.mainCompanyFax?.trim() ?? "";
+      if (mainCompanyFax && !isValidTenDigitPhone(mainCompanyFax)) {
+        errors.push("Main company fax (must be 10 digits)");
+      }
+
       const mainCompanyEmail = formData.mainCompanyEmail?.trim() ?? "";
       if (!mainCompanyEmail) {
         errors.push("Main company email");
@@ -1587,15 +1733,19 @@ export default function OnboardingFormV3() {
             const fullName = contact.fullName?.trim() ?? "";
             const contactRole = contact.contactRole?.trim() ?? "";
             const email = contact.email?.trim() ?? "";
+            const phone = contact.phone?.trim() ?? "";
             const isValid =
-              !!fullName && !!contactRole && isValidCompanyEmail(email);
+              !!fullName &&
+              !!contactRole &&
+              isValidCompanyEmail(email) &&
+              (!phone || isValidTenDigitPhone(phone));
             return isValid ? null : index + 1;
           })
           .filter((index): index is number => index !== null);
 
         if (invalidContactIndexes.length) {
           errors.push(
-            `Contact ${invalidContactIndexes.join(", ")} (full name, contact role, and email are required)`,
+            `Contact ${invalidContactIndexes.join(", ")} (full name, contact role, email, and 10-digit phone are required when phone is entered)`,
           );
         }
       }
@@ -1838,12 +1988,13 @@ export default function OnboardingFormV3() {
     try {
       const submissionPayload = {
         ...formData,
+        practiceId: id,
         submissionDate: new Date().toISOString().slice(0, 10),
         status: "IN_PROGRESS",
       };
 
       if (id) {
-        await updateOnboarding(id, submissionPayload);
+        await createExternalOnboardingFromForm(submissionPayload);
       } else {
         await createOnboardingFromForm(submissionPayload);
       }
@@ -2142,10 +2293,15 @@ export default function OnboardingFormV3() {
                 <Field label="Main Company Fax">
                   <TextInput
                     type="tel"
+                    placeholder="1234567890"
                     value={formData.mainCompanyFax ?? ""}
                     onChange={(event) =>
                       updateField("mainCompanyFax", event.target.value)
                     }
+                    inputMode="numeric"
+                    maxLength={10}
+                    pattern="\d{10}"
+                    title="Main company fax must be exactly 10 digits"
                   />
                 </Field>
 
@@ -2386,6 +2542,11 @@ export default function OnboardingFormV3() {
                     <Field label="Phone">
                       <TextInput
                         type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
+                        pattern="\d{10}"
+                        title="Contact phone must be exactly 10 digits"
+                        placeholder="1234567890"
                         value={contact.phone ?? ""}
                         onChange={(event) =>
                           updateContact(index, "phone", event.target.value)
@@ -2435,18 +2596,13 @@ export default function OnboardingFormV3() {
                         <CheckboxGroup
                           options={responsibilityOptions}
                           values={contact.additionalResponsibilities ?? []}
-                          onToggle={(value) => {
-                            const currentValues =
-                              contact.additionalResponsibilities ?? [];
-                            const nextValues = currentValues.includes(value)
-                              ? currentValues.filter((entry) => entry !== value)
-                              : [...currentValues, value];
-                            updateContact(
+                          onToggle={(value) =>
+                            toggleContactArrayValue(
                               index,
                               "additionalResponsibilities",
-                              nextValues,
-                            );
-                          }}
+                              value,
+                            )
+                          }
                         />
                       </Field>
                     </div>
@@ -2490,8 +2646,8 @@ export default function OnboardingFormV3() {
           >
             <RepeaterHeader
               title="Practices"
-              actionLabel="+ Add Practice"
-              onAction={addPractice}
+              actionLabel={hasFixedPracticeCount ? undefined : "+ Add Practice"}
+              onAction={hasFixedPracticeCount ? undefined : addPractice}
             />
             <div className="space-y-6">
               {(formData.practices ?? []).map((practice, practiceIndex) => (
@@ -2508,7 +2664,8 @@ export default function OnboardingFormV3() {
                         Capture practice demographics, locations, and providers.
                       </p>
                     </div>
-                    {(formData.practices ?? []).length > 1 ? (
+                    {!hasFixedPracticeCount &&
+                    (formData.practices ?? []).length > 1 ? (
                       <button
                         type="button"
                         onClick={() => removePractice(practiceIndex)}
@@ -2516,6 +2673,11 @@ export default function OnboardingFormV3() {
                       >
                         Remove
                       </button>
+                    ) : hasFixedPracticeCount ? (
+                      <p className="text-xs text-slate-400">
+                        Locked to {requiredPracticeCount} practice
+                        {requiredPracticeCount === 1 ? "" : "s"}
+                      </p>
                     ) : null}
                   </div>
 
@@ -2695,18 +2857,13 @@ export default function OnboardingFormV3() {
                         <CheckboxGroup
                           options={specialtyOptions}
                           values={practice.additionalSpecialtyAreas ?? []}
-                          onToggle={(value) => {
-                            const values =
-                              practice.additionalSpecialtyAreas ?? [];
-                            const nextValues = values.includes(value)
-                              ? values.filter((entry) => entry !== value)
-                              : [...values, value];
-                            updatePractice(
+                          onToggle={(value) =>
+                            togglePracticeArrayValue(
                               practiceIndex,
                               "additionalSpecialtyAreas",
-                              nextValues,
-                            );
-                          }}
+                              value,
+                            )
+                          }
                         />
                       </Field>
                     </div>
@@ -2732,18 +2889,13 @@ export default function OnboardingFormV3() {
                         <CheckboxGroup
                           options={currentServiceOptions}
                           values={practice.currentServicesOffered ?? []}
-                          onToggle={(value) => {
-                            const values =
-                              practice.currentServicesOffered ?? [];
-                            const nextValues = values.includes(value)
-                              ? values.filter((entry) => entry !== value)
-                              : [...values, value];
-                            updatePractice(
+                          onToggle={(value) =>
+                            togglePracticeArrayValue(
                               practiceIndex,
                               "currentServicesOffered",
-                              nextValues,
-                            );
-                          }}
+                              value,
+                            )
+                          }
                         />
                       </Field>
                     </div>
@@ -2753,17 +2905,13 @@ export default function OnboardingFormV3() {
                         <CheckboxGroup
                           options={painPointOptions}
                           values={practice.operationalPainPoints ?? []}
-                          onToggle={(value) => {
-                            const values = practice.operationalPainPoints ?? [];
-                            const nextValues = values.includes(value)
-                              ? values.filter((entry) => entry !== value)
-                              : [...values, value];
-                            updatePractice(
+                          onToggle={(value) =>
+                            togglePracticeArrayValue(
                               practiceIndex,
                               "operationalPainPoints",
-                              nextValues,
-                            );
-                          }}
+                              value,
+                            )
+                          }
                         />
                       </Field>
                     </div>
@@ -3267,23 +3415,14 @@ export default function OnboardingFormV3() {
                                     values={
                                       provider.participatingLocations ?? []
                                     }
-                                    onToggle={(value) => {
-                                      const currentValues =
-                                        provider.participatingLocations ?? [];
-                                      const nextValues = currentValues.includes(
-                                        value,
-                                      )
-                                        ? currentValues.filter(
-                                            (entry) => entry !== value,
-                                          )
-                                        : [...currentValues, value];
-                                      updateProvider(
+                                    onToggle={(value) =>
+                                      toggleProviderArrayValue(
                                         practiceIndex,
                                         providerIndex,
                                         "participatingLocations",
-                                        nextValues,
-                                      );
-                                    }}
+                                        value,
+                                      )
+                                    }
                                   />
                                 </Field>
                               </div>
@@ -3408,13 +3547,9 @@ export default function OnboardingFormV3() {
                         value: name,
                       }))}
                       values={formData.selectedPractices ?? []}
-                      onToggle={(value) => {
-                        const currentValues = formData.selectedPractices ?? [];
-                        const nextValues = currentValues.includes(value)
-                          ? currentValues.filter((entry) => entry !== value)
-                          : [...currentValues, value];
-                        updateServiceSetup("selectedPractices", nextValues);
-                      }}
+                      onToggle={(value) =>
+                        toggleServiceSetupArrayValue("selectedPractices", value)
+                      }
                     />
                   </Field>
                 ) : formData.servicesForAllPractices ===
@@ -4170,20 +4305,9 @@ export default function OnboardingFormV3() {
                         careProgramServiceValues.includes(option.value),
                       )}
                       values={formData.careProgram?.programsPlanned ?? []}
-                      onToggle={(value) => {
-                        const values =
-                          formData.careProgram?.programsPlanned ?? [];
-                        const nextValues = values.includes(value)
-                          ? values.filter((entry) => entry !== value)
-                          : [...values, value];
-                        setFormData((prev) => ({
-                          ...prev,
-                          careProgram: {
-                            ...(prev.careProgram ?? {}),
-                            programsPlanned: nextValues,
-                          },
-                        }));
-                      }}
+                      onToggle={(value) =>
+                        toggleCareProgramArrayValue("programsPlanned", value)
+                      }
                     />
                   </Field>
 
