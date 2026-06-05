@@ -345,7 +345,7 @@ export default function PricingEnginePage() {
   );
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Load options on mount
+  // ✅ Load initial data (practices, services, vendors)
   useEffect(() => {
     Promise.all([getAllPractices(), getAllServices(), getAllVendorsApi()])
       .then(([p, s, v]) => {
@@ -358,27 +358,42 @@ export default function PricingEnginePage() {
 
   const activeServices = services.filter((svc) => svc.isActive);
 
-  // Load agreements when practice changes
+  // ✅ STEP 1: Load agreements when practice changes (FILTERED BY PRACTICE)
   useEffect(() => {
     if (!selectedPracticeId) {
+      // Reset everything when no practice is selected
       setAgreements([]);
       setSelectedAgreementId("");
       setVersions([]);
       setSelectedVersionId("");
+      setTerms([]);
       return;
     }
+
+    // Load ONLY agreements for this specific practice
+    setIsLoading(true);
     getAgreementsView({ practiceId: selectedPracticeId, limit: 100 })
-      .then((d) =>
-        setAgreements(
-          d.rows.map((r) => ({
-            id: r.id,
-            label: String(r.values.name || r.id),
-          })),
-        ),
-      )
-      .catch(console.error);
+      .then((d) => {
+        const practiceAgreements = d.rows.map((r) => ({
+          id: r.id,
+          label: String(r.values.name || r.id),
+        }));
+        setAgreements(practiceAgreements);
+        
+        // Reset downstream selections
+        setSelectedAgreementId("");
+        setVersions([]);
+        setSelectedVersionId("");
+        setTerms([]);
+      })
+      .catch((error) => {
+        console.error("Failed to load agreements:", error);
+        toast.error("Failed to load agreements for this practice");
+      })
+      .finally(() => setIsLoading(false));
   }, [selectedPracticeId]);
 
+  // ✅ Load practice details
   useEffect(() => {
     if (!selectedPracticeId) {
       setSelectedPractice(null);
@@ -388,7 +403,8 @@ export default function PricingEnginePage() {
     getPractice(selectedPracticeId)
       .then(setSelectedPractice)
       .catch((error) => {
-        console.error(error);
+        console.error("Failed to load practice details:", error);
+        // Fallback to basic practice data
         setSelectedPractice(
           practices.find((practice) => practice.id === selectedPracticeId) ??
             null,
@@ -396,34 +412,53 @@ export default function PricingEnginePage() {
       });
   }, [selectedPracticeId, practices]);
 
-  // Load versions when agreement changes
+  // ✅ STEP 2: Load versions when agreement changes (FILTERED BY AGREEMENT)
   useEffect(() => {
     if (!selectedAgreementId) {
+      // Reset when no agreement is selected
       setVersions([]);
       setSelectedVersionId("");
       setTerms([]);
       return;
     }
+
+    // Load ONLY versions for this specific agreement
+    setIsLoading(true);
     getAgreementVersions({ agreementId: selectedAgreementId, limit: 50 })
       .then((d) => {
         setVersions(d.versions);
+        
+        // Auto-select current version or first version
         const current = d.versions.find((v) => v.isCurrent) ?? d.versions[0];
-        setSelectedVersionId(current?.id ?? "");
+        if (current) {
+          setSelectedVersionId(current.id);
+        } else {
+          setSelectedVersionId("");
+          setTerms([]);
+        }
       })
-      .catch(console.error);
+      .catch((error) => {
+        console.error("Failed to load versions:", error);
+        toast.error("Failed to load agreement versions");
+        setVersions([]);
+        setSelectedVersionId("");
+        setTerms([]);
+      })
+      .finally(() => setIsLoading(false));
   }, [selectedAgreementId]);
 
-  // Load terms when version changes
+  // ✅ STEP 3: Load terms when version changes (FILTERED BY VERSION)
   useEffect(() => {
-    if (!selectedVersionId) {
+    if (!selectedVersionId || !selectedAgreementId) {
       setTerms([]);
       return;
     }
     loadTerms();
-  }, [selectedVersionId]);
+  }, [selectedVersionId, selectedAgreementId]);
 
   async function loadTerms() {
-    if (!selectedVersionId) return;
+    if (!selectedVersionId || !selectedAgreementId) return;
+    
     setIsLoading(true);
     try {
       const d = await getPricingTerms({
@@ -431,9 +466,11 @@ export default function PricingEnginePage() {
         agreementVersionId: selectedVersionId,
         limit: 100,
       });
-      setTerms(d.terms);
+      setTerms(d.terms || []);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load terms");
+      console.error("Failed to load pricing terms:", e);
+      toast.error(e instanceof Error ? e.message : "Failed to load pricing terms");
+      setTerms([]);
     } finally {
       setIsLoading(false);
     }
@@ -456,12 +493,12 @@ export default function PricingEnginePage() {
     }
   }
 
-  // ✅ UPDATED: Check if we have any percentage-based models
+  // ✅ Check if we have any percentage-based models
   const hasPercentageModel = terms.some((t) =>
     isPercentageBasedModel(t.pricingModel),
   );
 
-  // ✅ UPDATED: Summary totals - use model-aware display
+  // ✅ Calculate summary totals
   const totalClient = terms.reduce((s, t) => s + extractClientRate(t), 0);
   const totalVendor = terms.reduce((s, t) => s + extractVendorRate(t), 0);
   const totalMargin = totalClient - totalVendor;
@@ -502,25 +539,47 @@ export default function PricingEnginePage() {
               <LayoutList className="h-3.5 w-3.5 text-slate-400" />
               Rate Finalization
             </span>
+            {selectedPracticeId && (
+              <span className="text-[12px] text-slate-400">
+                {practices.find(p => p.id === selectedPracticeId)?.name || "Practice"}
+                {selectedAgreementId && agreements.length > 0 && (
+                  <> → {agreements.find(a => a.id === selectedAgreementId)?.label || "Agreement"}</>
+                )}
+                {selectedVersionId && versions.length > 0 && (
+                  <> → v{versions.find(v => v.id === selectedVersionId)?.versionNumber || "?"}</>
+                )}
+              </span>
+            )}
           </div>
 
           {/* Filter bar */}
           <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] px-4 py-3">
+            {/* ✅ STEP 1: Practice Selection */}
             <div className="w-84">
               <Select
                 value={selectedPracticeId}
-                onChange={setSelectedPracticeId}
+                onChange={(value) => {
+                  setSelectedPracticeId(value);
+                  // Reset downstream when practice changes
+                  setSelectedAgreementId("");
+                  setSelectedVersionId("");
+                }}
                 placeholder="Select Practice"
                 options={practices.map((p) => ({ label: p.name, value: p.id }))}
               />
             </div>
 
-            {agreements.length > 0 && (
+            {/* ✅ STEP 2: Agreement Selection (Only shows if practice is selected) */}
+            {selectedPracticeId && agreements.length > 0 && (
               <div className="w-84">
                 <Select
                   value={selectedAgreementId}
-                  onChange={setSelectedAgreementId}
-                  placeholder="Select Agreement"
+                  onChange={(value) => {
+                    setSelectedAgreementId(value);
+                    // Reset version when agreement changes
+                    setSelectedVersionId("");
+                  }}
+                  placeholder={`Select Agreement (${agreements.length})`}
                   options={agreements.map((a) => ({
                     label: a.label,
                     value: a.id,
@@ -529,12 +588,13 @@ export default function PricingEnginePage() {
               </div>
             )}
 
-            {versions.length > 0 && (
+            {/* ✅ STEP 3: Version Selection (Only shows if agreement is selected) */}
+            {selectedAgreementId && versions.length > 0 && (
               <div className="w-42">
                 <Select
                   value={selectedVersionId}
                   onChange={setSelectedVersionId}
-                  placeholder="Select Version"
+                  placeholder={`Select Version (${versions.length})`}
                   options={versions.map((v) => ({
                     label: `v${v.versionNumber}${v.isCurrent ? " (current)" : ""}`,
                     value: v.id,
@@ -573,7 +633,6 @@ export default function PricingEnginePage() {
             <SkeletonSummaryCards />
           ) : terms.length > 0 ? (
             <div className="grid grid-cols-4 gap-3 border-b border-[#f0ece6] p-4">
-              
               {[
                 {
                   label: hasPercentageModel
@@ -631,12 +690,16 @@ export default function PricingEnginePage() {
             ) : !selectedAgreementId ? (
               <EmptyHint
                 icon={<TrendingUp className="h-8 w-8 opacity-30" />}
-                text="Select an agreement to configure pricing"
+                text={agreements.length === 0 
+                  ? "No agreements found for this practice" 
+                  : "Select an agreement to configure pricing"}
               />
             ) : !selectedVersionId ? (
               <EmptyHint
                 icon={<TrendingUp className="h-8 w-8 opacity-30" />}
-                text="Select an agreement version"
+                text={versions.length === 0
+                  ? "No versions found for this agreement"
+                  : "Select an agreement version"}
               />
             ) : isLoading ? (
               <SkeletonTableRows />
@@ -696,7 +759,6 @@ export default function PricingEnginePage() {
                             {fmtModel(term.pricingModel)}
                           </span>
                         </td>
-                        {/* ✅ UPDATED: Use model-aware formatting */}
                         <td className="px-4 py-2.5 text-right text-slate-700">
                           {fmtModelValue(cl, term.pricingModel)}
                         </td>

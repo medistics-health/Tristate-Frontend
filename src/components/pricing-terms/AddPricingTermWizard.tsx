@@ -86,6 +86,14 @@ function isNonNegative(value?: string | null) {
   return num !== null && num >= 0;
 }
 
+function todayIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function buildMirroredVendorPricing(
   model: PricingModel,
   cfg: PricingConfigShape,
@@ -364,6 +372,10 @@ export default function AddPricingTermWizard({
       }
     }
 
+    if (cfg.effectiveEndDate && cfg.effectiveEndDate < todayIso()) {
+      errors.effectiveEndDate = "Effective end date must be today or later";
+    }
+
     if (["FIXED_MONTHLY", "RETAINER", "FIXED_ONE_TIME"].includes(model)) {
       if (!isNonNegative(cfg.amount)) {
         errors.amount = "Amount is required and must be 0 or greater";
@@ -423,6 +435,12 @@ export default function AddPricingTermWizard({
       }
     }
 
+    if (["TIERED_VOLUME", "CUSTOM_ATTACHMENT_DEFINED"].includes(model)) {
+      if (!isNonNegative(cfg.amount)) {
+        errors.amount = "Amount is required and must be 0 or greater";
+      }
+    }
+
     return { valid: Object.keys(errors).length === 0, errors };
   };
 
@@ -436,6 +454,13 @@ export default function AddPricingTermWizard({
     }
 
     if (["FIXED_MONTHLY", "RETAINER", "FIXED_ONE_TIME"].includes(model)) {
+      if (!isNonNegative(vendorCfg.amount)) {
+        errors.vendorAmount =
+          "Vendor amount is required and must be 0 or greater";
+      }
+    }
+
+    if (["TIERED_VOLUME", "CUSTOM_ATTACHMENT_DEFINED"].includes(model)) {
       if (!isNonNegative(vendorCfg.amount)) {
         errors.vendorAmount =
           "Vendor amount is required and must be 0 or greater";
@@ -836,7 +861,7 @@ export default function AddPricingTermWizard({
       const result = validateRates();
       if (!result.valid) {
         setFieldErrors(result.errors);
-        setStepError("Please fix the validation errors before continuing");
+        setStepError("Please fix the validation errors before continuing" + `${Object.keys(result.errors).length > 0 ? ": " + Object.values(result.errors).join("; ") : ""}`);
         return;
       }
     }
@@ -845,7 +870,7 @@ export default function AddPricingTermWizard({
       const result = validateVendor();
       if (!result.valid) {
         setFieldErrors(result.errors);
-        setStepError("Please fix the validation errors before continuing");
+        setStepError("Please fix the validation errors before continuing" + `${Object.keys(result.errors).length > 0 ? ": " + Object.values(result.errors).join("; ") : ""}`);
         return;
       }
     }
@@ -1273,7 +1298,13 @@ export default function AddPricingTermWizard({
                       </div>
                     </div>
 
-                    {["FIXED_MONTHLY", "RETAINER", "FIXED_ONE_TIME"].includes(
+                    {[
+                      "FIXED_MONTHLY",
+                      "RETAINER",
+                      "FIXED_ONE_TIME",
+                      "TIERED_VOLUME",
+                      "CUSTOM_ATTACHMENT_DEFINED",
+                    ].includes(
                       model,
                     ) && (
                       <div>
@@ -1289,8 +1320,13 @@ export default function AddPricingTermWizard({
                           onChange={(e) =>
                             updateVendorCfg({ amount: e.target.value })
                           }
-                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          className={`app-control w-full rounded-md px-3 py-2 text-[13px] ${
+                            fieldErrors.vendorAmount
+                              ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                              : ""
+                          }`}
                         />
+                        <FieldError message={fieldErrors.vendorAmount} />
                       </div>
                     )}
 
@@ -1630,7 +1666,7 @@ export default function AddPricingTermWizard({
                 <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                   Approval required based on {approvalBasis.label.toLowerCase()}{" "}
-                  margin — ensure manager sign-off before activating this term
+                  margin — ensure internal manager/admin sign-off before activating this term
                 </div>
               )}
             </div>

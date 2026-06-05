@@ -30,6 +30,7 @@ type Props = { model: PricingModel; cfg: PricingConfigShape; upd: (p: Partial<Pr
 
 export function RateFormFields({ model, cfg, upd }: Props) {
   const label = PRICING_MODEL_OPTIONS.find((o) => o.value === model)?.label ?? model;
+  const today = new Date().toISOString().split("T")[0];
 
   const dates = (
     <div className="grid grid-cols-2 gap-3">
@@ -39,7 +40,7 @@ export function RateFormFields({ model, cfg, upd }: Props) {
       </div>
       <div>
         <label className="mb-1 block text-[13px] font-medium text-slate-700">Effective End Date</label>
-        <DatePicker value={cfg.effectiveEndDate ?? ""} onChange={(v) => upd({ effectiveEndDate: v })} />
+        <DatePicker value={cfg.effectiveEndDate ?? ""} onChange={(v) => upd({ effectiveEndDate: v })} minDate={today} />
       </div>
     </div>
   );
