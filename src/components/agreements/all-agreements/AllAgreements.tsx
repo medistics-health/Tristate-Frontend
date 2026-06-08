@@ -161,6 +161,45 @@ function formatDateForInput(value?: string | null) {
   return date.toISOString().slice(0, 10);
 }
 
+function buildCreateFormDocusealPrefillValues(
+  template: DocusealTemplate | undefined,
+  form: Pick<AgreementFormState, "practiceId" | "effectiveDate">,
+  practices: Practice[],
+) {
+  const values: Record<string, string> = {};
+  if (!template) return values;
+
+  const practice = practices.find((item) => item.id === form.practiceId);
+  const effectiveDate = form.effectiveDate || "";
+
+  for (const field of template.fields || []) {
+    if (!isEditableDocusealField(field)) continue;
+
+    const fieldName = (field.name || "").toLowerCase();
+    let value = "";
+
+    if (
+      fieldName.includes("client") ||
+      fieldName.includes("practice") ||
+      fieldName.includes("clinic")
+    ) {
+      value = practice?.name || "";
+    } else if (fieldName.includes("npi")) {
+      value = practice?.npi || "";
+    } else if (fieldName.includes("effective")) {
+      value = effectiveDate;
+    } else if (field.type === "date" && fieldName.includes("date")) {
+      value = effectiveDate;
+    }
+
+    if (value) {
+      values[field.uuid] = value;
+    }
+  }
+
+  return values;
+}
+
 function buildFormState(agreement?: Agreement | null): AgreementFormState {
   if (!agreement) return initialFormState;
   const docusealSubmissions = agreement.docusealSubmissions || [];
@@ -237,6 +276,9 @@ function AllAgreementsPage() {
   const [templateSearch, setTemplateSearch] = useState("");
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const templateDropdownRef = useRef<HTMLDivElement>(null);
+  const createFormAutoFilledValuesRef = useRef<
+    Record<string, Record<string, string>>
+  >({});
 
   // Tabs for detail panel
   const [activeTab, setActiveTab] = useState<"overview" | "versions" | "terms">(
@@ -540,6 +582,7 @@ function AllAgreementsPage() {
 
   function openCreateForm() {
     setCreateForm(initialFormState);
+    createFormAutoFilledValuesRef.current = {};
     setTemplateSearch("");
     setShowTemplateDropdown(false);
     setShowCreateForm(true);
@@ -551,6 +594,7 @@ function AllAgreementsPage() {
   function closeCreateForm() {
     setShowCreateForm(false);
     setCreateForm(initialFormState);
+    createFormAutoFilledValuesRef.current = {};
     setTemplateSearch("");
     setShowTemplateDropdown(false);
   }
@@ -573,6 +617,7 @@ function AllAgreementsPage() {
           [templateId]: {
             ...(prev.docusealFieldValues[templateId] || {}),
             ...buildTemplateFieldValues(template),
+            ...buildCreateFormDocusealPrefillValues(template, prev, practices),
           },
         },
       };
@@ -863,6 +908,7 @@ function AllAgreementsPage() {
         nextFieldValues[templateId] = {
           ...(prev.docusealFieldValues[templateId] || {}),
           ...buildTemplateFieldValues(template),
+          ...buildCreateFormDocusealPrefillValues(template, prev, practices),
         };
       }
       return {
@@ -892,6 +938,68 @@ function AllAgreementsPage() {
       applyAutoSelectTemplates(docusealTemplates);
     }
   }
+
+  useEffect(() => {
+    if (createForm.docusealTemplates.length === 0) {
+      createFormAutoFilledValuesRef.current = {};
+      return;
+    }
+
+    setCreateForm((prev) => {
+      let hasChanges = false;
+      const nextFieldValues = { ...prev.docusealFieldValues };
+      const nextAutoFilledValues: Record<string, Record<string, string>> = {};
+
+      for (const templateId of prev.docusealTemplates) {
+        const template = docusealTemplates.find(
+          (item) => String(item.id) === templateId,
+        );
+        if (!template) continue;
+
+        const previousAutoFilled =
+          createFormAutoFilledValuesRef.current[templateId] || {};
+        const nextAutoFilled = buildCreateFormDocusealPrefillValues(
+          template,
+          prev,
+          practices,
+        );
+        const currentValues = nextFieldValues[templateId] || {};
+        const updatedValues = { ...currentValues };
+
+        for (const [fieldUuid, nextValue] of Object.entries(nextAutoFilled)) {
+          const currentValue = currentValues[fieldUuid] || "";
+          const previousValue = previousAutoFilled[fieldUuid] || "";
+
+          if (!currentValue || currentValue === previousValue) {
+            updatedValues[fieldUuid] = nextValue;
+            if (currentValue !== nextValue) {
+              hasChanges = true;
+            }
+          }
+        }
+
+        nextFieldValues[templateId] = updatedValues;
+        nextAutoFilledValues[templateId] = nextAutoFilled;
+      }
+
+      createFormAutoFilledValuesRef.current = nextAutoFilledValues;
+
+      if (!hasChanges) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        docusealFieldValues: nextFieldValues,
+      };
+    });
+  }, [
+    createForm.practiceId,
+    createForm.effectiveDate,
+    createForm.docusealTemplates,
+    docusealTemplates,
+    practices,
+  ]);
 
   const navbarActions = [
     {
@@ -1063,11 +1171,7 @@ function AllAgreementsPage() {
                       required
                     >
                       {agreementStatusOptions.map((status) => (
-                        <option
-                          key={status}
-                          value={status}
-                          disabled={status === "SIGNED"}
-                        >
+                        <option key={status} value={status} disabled={true}>
                           {formatStatusLabel(status)}
                         </option>
                       ))}

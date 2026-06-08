@@ -710,6 +710,36 @@ function parseNumber(value: string) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function formatNpiInput(value: string) {
+  return value.replace(/\D/g, "").slice(0, 10);
+}
+
+function formatEmailInput(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function getDocumentDateError(document: OnboardingDocument) {
+  if (!document.dateRequested || !document.dateReceived) {
+    return "";
+  }
+
+  const requestedDate = new Date(document.dateRequested);
+  const receivedDate = new Date(document.dateReceived);
+
+  if (
+    Number.isNaN(requestedDate.getTime()) ||
+    Number.isNaN(receivedDate.getTime())
+  ) {
+    return "";
+  }
+
+  if (receivedDate <= requestedDate) {
+    return "Date received should be greater than date requested.";
+  }
+
+  return "";
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(199,231,255,0.95),_transparent_34%),linear-gradient(135deg,_#f4f9ff_0%,_#edf4ef_46%,_#f8efe4_100%)] text-slate-950">
@@ -1393,10 +1423,15 @@ export default function OnboardingFormV2() {
       if (!formData.billing?.currentBillingModel) errors.push("Billing model");
     }
 
-    // if (currentStep === 8) {
-    //   if (!formData.informationAccurate) errors.push("Accuracy confirmation");
-    //   if (!formData.authorizeUse) errors.push("Authorization confirmation");
-    // }
+    if (currentStep === 8) {
+      const invalidDocumentIndex = (formData.documents ?? []).findIndex(
+        (document) => !!getDocumentDateError(document),
+      );
+
+      if (invalidDocumentIndex >= 0) {
+        errors.push(`Document ${invalidDocumentIndex + 1} received date`);
+      }
+    }
 
     if (errors.length) {
       toast.error(`Please complete: ${errors.join(", ")}`);
@@ -1503,11 +1538,13 @@ export default function OnboardingFormV2() {
     if (!validateCurrentStep()) return;
 
     if (!formData.informationAccurate) {
-      toast.error("Accuracy confirmation");
+      toast.error("Please confirm that the information provided is accurate.");
       return;
     }
     if (!formData.authorizeUse) {
-      toast.error("Authorization confirmation");
+      toast.error(
+        "Please check the authorization confirmation before submitting.",
+      );
       return;
     }
 
@@ -2214,11 +2251,14 @@ export default function OnboardingFormV2() {
                     <Field label="Group NPI">
                       <TextInput
                         value={practice.groupNpi ?? ""}
+                        inputMode="numeric"
+                        maxLength={10}
+                        pattern="\d{10}"
                         onChange={(event) =>
                           updatePractice(
                             practiceIndex,
                             "groupNpi",
-                            event.target.value,
+                            formatNpiInput(event.target.value),
                           )
                         }
                       />
@@ -2579,12 +2619,15 @@ export default function OnboardingFormV2() {
                               <Field label="ZIP Code">
                                 <TextInput
                                   value={location.zipCode ?? ""}
+                                  inputMode="numeric"
+                                  maxLength={10}
+                                  pattern="^\d{5}(-\d{4})?$"
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
                                       locationIndex,
                                       "zipCode",
-                                      event.target.value,
+                                      formatZipCodeInput(event.target.value),
                                     )
                                   }
                                 />
@@ -2594,12 +2637,15 @@ export default function OnboardingFormV2() {
                                 <TextInput
                                   type="tel"
                                   value={location.mainPhoneNumber ?? ""}
+                                  inputMode="numeric"
+                                  maxLength={10}
+                                  pattern="\d{10}"
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
                                       locationIndex,
                                       "mainPhoneNumber",
-                                      event.target.value,
+                                      formatNpiInput(event.target.value),
                                     )
                                   }
                                 />
@@ -2609,12 +2655,15 @@ export default function OnboardingFormV2() {
                                 <TextInput
                                   type="tel"
                                   value={location.mainFaxNumber ?? ""}
+                                  inputMode="numeric"
+                                  maxLength={10}
+                                  pattern="\d{10}"
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
                                       locationIndex,
                                       "mainFaxNumber",
-                                      event.target.value,
+                                      formatNpiInput(event.target.value),
                                     )
                                   }
                                 />
@@ -2624,12 +2673,13 @@ export default function OnboardingFormV2() {
                                 <TextInput
                                   type="email"
                                   value={location.officeEmail ?? ""}
+                                  pattern="^[^\s@]+@[^\s@]+\.com$"
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
                                       locationIndex,
                                       "officeEmail",
-                                      event.target.value,
+                                      formatEmailInput(event.target.value),
                                     )
                                   }
                                 />
@@ -2827,12 +2877,15 @@ export default function OnboardingFormV2() {
                               <Field label="NPI">
                                 <TextInput
                                   value={provider.npi ?? ""}
+                                  inputMode="numeric"
+                                  maxLength={10}
+                                  pattern="\d{10}"
                                   onChange={(event) =>
                                     updateProvider(
                                       practiceIndex,
                                       providerIndex,
                                       "npi",
-                                      event.target.value,
+                                      formatNpiInput(event.target.value),
                                     )
                                   }
                                 />
@@ -4235,17 +4288,24 @@ export default function OnboardingFormV2() {
                       </Field>
 
                       <Field label="Date Received">
-                        <TextInput
-                          type="date"
-                          value={document.dateReceived ?? ""}
-                          onChange={(event) =>
-                            updateDocument(
-                              index,
-                              "dateReceived",
-                              event.target.value,
-                            )
-                          }
-                        />
+                        <div className="space-y-1">
+                          <TextInput
+                            type="date"
+                            value={document.dateReceived ?? ""}
+                            onChange={(event) =>
+                              updateDocument(
+                                index,
+                                "dateReceived",
+                                event.target.value,
+                              )
+                            }
+                          />
+                          {getDocumentDateError(document) ? (
+                            <p className="text-sm text-red-500">
+                              {getDocumentDateError(document)}
+                            </p>
+                          ) : null}
+                        </div>
                       </Field>
 
                       <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
