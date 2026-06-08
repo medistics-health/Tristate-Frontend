@@ -21,6 +21,15 @@ import { getAllCompanies, type Company } from "../../services/operations/compani
 import { getMercuryAccounts } from "../../services/operations/mercury";
 import QuickBooksIntegrations from "../integrations/QuickBooksIntegrations";
 
+function parseNotifyToEmails(value: string) {
+  return [...new Set(
+    value
+      .split(/[\n,;]/)
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+  )];
+}
+
 export default function SettingsPage() {
   const location = useLocation();
   const [isSaving, setIsSaving] = useState(false);
@@ -44,8 +53,11 @@ export default function SettingsPage() {
     organizationName: "",
     domain: "",
     address: "",
-    supportEmail: ""
+    supportEmail: "",
+    authorizedSigner: "",
+    notifyTo: [] as string[],
   });
+  const [notifyToInput, setNotifyToInput] = useState("");
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
 
   // Mercury Status state
@@ -110,7 +122,17 @@ export default function SettingsPage() {
     setIsLoadingSettings(true);
     try {
       const data = await getSystemSettingsApi();
-      setOrgSettings(data);
+      setOrgSettings({
+        organizationName: data.organizationName || "",
+        domain: data.domain || "",
+        address: data.address || "",
+        supportEmail: data.supportEmail || "",
+        authorizedSigner: data.authorizedSigner || "",
+        notifyTo: Array.isArray(data.notifyTo) ? data.notifyTo : [],
+      });
+      setNotifyToInput(
+        Array.isArray(data.notifyTo) ? data.notifyTo.join(", ") : "",
+      );
     } catch (e) {
       toast.error("Failed to load organization settings");
     } finally {
@@ -121,7 +143,11 @@ export default function SettingsPage() {
   const handleSaveGeneral = async () => {
     setIsSaving(true);
     try {
-      await updateSystemSettingsApi(orgSettings);
+      await updateSystemSettingsApi({
+        ...orgSettings,
+        authorizedSigner: orgSettings.authorizedSigner.trim(),
+        notifyTo: parseNotifyToEmails(notifyToInput),
+      });
       toast.success("Organization profile updated");
     } catch (e) {
       toast.error("Failed to save settings");
@@ -264,6 +290,43 @@ export default function SettingsPage() {
                         onChange={e => setOrgSettings({ ...orgSettings, supportEmail: e.target.value })}
                         className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
                       />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Authorized Signer</label>
+                      <input
+                        type="email"
+                        value={orgSettings.authorizedSigner}
+                        onChange={e =>
+                          setOrgSettings({
+                            ...orgSettings,
+                            authorizedSigner: e.target.value,
+                          })
+                        }
+                        placeholder="signer@company.com"
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                      />
+                      <p className="text-xs text-slate-400">
+                        Primary signer email for the first party agreement request.
+                      </p>
+                    </div>
+                    <div className="col-span-2 space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Notify To</label>
+                      <textarea
+                        rows={3}
+                        value={notifyToInput}
+                        onChange={e => {
+                          setNotifyToInput(e.target.value);
+                          setOrgSettings((current) => ({
+                            ...current,
+                            notifyTo: parseNotifyToEmails(e.target.value),
+                          }));
+                        }}
+                        placeholder="copy1@company.com, copy2@company.com"
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                      />
+                      <p className="text-xs text-slate-400">
+                        Enter multiple email addresses separated by commas or new lines.
+                      </p>
                     </div>
                     <div className="col-span-2 space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Business Address</label>

@@ -11,6 +11,14 @@ import {
   type Agreement,
   type DocusealTemplate,
 } from "../../../services/operations/agreements";
+import {
+  getDocusealFieldInputType,
+  getDocusealFieldLabel,
+  getDocusealFieldKey,
+  getDocusealFieldValue,
+  getMissingRequiredDocusealFields,
+  getTemplateSubmitterGroups,
+} from "../../../utils/docuseal";
 
 const approvalStatusStyles: Record<string, string> = {
   PENDING_APPROVAL: "bg-amber-100 text-amber-700",
@@ -41,38 +49,6 @@ function toApprovalAgreementStatus(agreement: Agreement) {
   }
 
   return getAgreementApprovalStatus(agreement);
-}
-
-function getTemplateSubmitterGroups(
-  templates: DocusealTemplate[],
-  templateId: number,
-  fieldValues: Record<string, string>,
-) {
-  const template = templates.find((item) => item.id === templateId);
-  if (!template) {
-    return [];
-  }
-
-  const groupedFields = (template.fields || []).reduce<
-    Record<string, typeof template.fields>
-  >((acc, field) => {
-    const submitterUuid = field.submitter_uuid || "unknown";
-    if (!acc[submitterUuid]) {
-      acc[submitterUuid] = [];
-    }
-    acc[submitterUuid].push(field);
-    return acc;
-  }, {});
-
-  return (template.submitters || []).map((submitter) => ({
-    submitterUuid: submitter.uuid,
-    submitterName: submitter.name || "Submitter",
-    fields: (groupedFields[submitter.uuid] || []).filter(
-      (field) =>
-        fieldValues[field.uuid] !== undefined ||
-        fieldValues[field.name] !== undefined,
-    ),
-  }));
 }
 
 function AgreementPendingApprovalPage() {
@@ -173,6 +149,29 @@ function AgreementPendingApprovalPage() {
     [loadAgreementDetail],
   );
 
+  function validateRequiredFields() {
+    for (const submission of selectedAgreement?.docusealSubmissions || []) {
+      const template = docusealTemplates.find(
+        (item) => item.id === submission.templateId,
+      );
+      const fieldValues =
+        editableFieldValues[submission.id] || submission.fieldValues || {};
+      const missingField = getMissingRequiredDocusealFields(
+        template,
+        fieldValues,
+      )[0];
+
+      if (missingField) {
+        return {
+          templateName: template?.name || `Template ${submission.templateId}`,
+          fieldName: getDocusealFieldLabel(missingField),
+        };
+      }
+    }
+
+    return null;
+  }
+
   async function handleDecision(nextStatus: "APPROVED" | "REJECTED") {
     if (!selectedAgreement) return;
 
@@ -188,6 +187,14 @@ function AgreementPendingApprovalPage() {
         }));
 
       if (action === "approve") {
+        const missingField = validateRequiredFields();
+        if (missingField) {
+          toast.error(
+            `${missingField.templateName}: ${missingField.fieldName} is required`,
+          );
+          return;
+        }
+
         await updateAgreementApi(selectedAgreement.id, {
           approvalStatus: nextStatus,
           docusealSubmissions,
@@ -414,9 +421,11 @@ function AgreementPendingApprovalPage() {
                           editableFieldValues[submission.id] ||
                           submission.fieldValues ||
                           {};
+                        const template = docusealTemplates.find(
+                          (item) => item.id === submission.templateId,
+                        );
                         const submitterGroups = getTemplateSubmitterGroups(
-                          docusealTemplates,
-                          submission.templateId,
+                          template,
                           submissionFields,
                         );
 
@@ -455,11 +464,13 @@ function AgreementPendingApprovalPage() {
                                       </div>
                                       <div className="grid gap-3 md:grid-cols-2">
                                         {group.fields.map((field) => {
-                                          const key = field.uuid || field.name;
-                                          const value =
-                                            submissionFields[field.uuid] ??
-                                            submissionFields[field.name] ??
-                                            "";
+                                          const key = getDocusealFieldKey(field);
+                                          const value = getDocusealFieldValue(
+                                            submissionFields,
+                                            field,
+                                          );
+                                          const inputType =
+                                            getDocusealFieldInputType(field);
 
                                           return (
                                             <div
@@ -467,11 +478,17 @@ function AgreementPendingApprovalPage() {
                                               className="rounded-xl bg-slate-50 px-3 py-2"
                                             >
                                               <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                                                {field.name || field.type}
+                                                {getDocusealFieldLabel(field)}
+                                                {field.required && (
+                                                  <span className="ml-1 text-red-500">
+                                                    *
+                                                  </span>
+                                                )}
                                               </div>
                                               <input
-                                                type="text"
+                                                type={inputType}
                                                 value={value || ""}
+                                                required={field.required}
                                                 onChange={(event) =>
                                                   setEditableFieldValues(
                                                     (current) => ({

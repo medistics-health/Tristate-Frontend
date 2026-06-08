@@ -67,6 +67,16 @@ import { getAllServices } from "../../../services/operations/services";
 import { getAllVendorsApi } from "../../../services/operations/vendors";
 import type { Practice } from "../../practices/types";
 import { DetailCard } from "../../../components/shared/tablePageUtils";
+import {
+  buildTemplateFieldValues,
+  type DocusealField,
+  getDocusealFieldInputType,
+  getDocusealFieldLabel,
+  getDocusealFieldValue,
+  getMissingRequiredDocusealFields,
+  getTemplateSubmitterGroups,
+  isEditableDocusealField,
+} from "../../../utils/docuseal";
 
 const statusStyles: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
@@ -96,80 +106,8 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   "Exhibit P",
 ];
 
-type DocusealField = DocusealTemplate["fields"][number];
-
-function isEditableDocusealField(field: DocusealField) {
-  return field.type !== "signature";
-}
-
-function getDocusealFieldLabel(field: DocusealField, index: number) {
-  return field.name?.trim() || `Field ${index + 1}`;
-}
-
-function getDocusealFieldInputType(field: DocusealField) {
-  switch (field.type) {
-    case "date":
-      return "date";
-    case "number":
-      return "number";
-    case "email":
-      return "email";
-    case "tel":
-      return "tel";
-    default:
-      return "text";
-  }
-}
-
 function isClientNameField(field: DocusealField) {
   return /client\s*name/i.test(field.name || "");
-}
-
-function buildTemplateFieldValues(template?: DocusealTemplate) {
-  const values: Record<string, string> = {};
-  if (!template) return values;
-
-  for (const field of template.fields || []) {
-    if (!isEditableDocusealField(field)) continue;
-    values[field.uuid] =
-      typeof field.default_value === "string"
-        ? field.default_value
-        : field.default_value
-          ? String(field.default_value)
-          : "";
-  }
-
-  return values;
-}
-
-function getTemplateSubmitterGroups(
-  template: DocusealTemplate | undefined,
-  fieldValues: Record<string, string>,
-) {
-  if (!template) {
-    return [];
-  }
-
-  const editableFields = (template.fields || []).filter(
-    isEditableDocusealField,
-  );
-  const groupedFields = editableFields.reduce<Record<string, DocusealField[]>>(
-    (acc, field) => {
-      const submitterUuid = field.submitter_uuid || "unknown";
-      if (!acc[submitterUuid]) {
-        acc[submitterUuid] = [];
-      }
-      acc[submitterUuid].push(field);
-      return acc;
-    },
-    {},
-  );
-
-  return (template.submitters || []).map((submitter) => ({
-    submitterUuid: submitter.uuid,
-    submitterName: submitter.name || "Submitter",
-    fields: groupedFields[submitter.uuid] || [],
-  }));
 }
 
 type AgreementFormState = {
@@ -684,17 +622,31 @@ function AllAgreementsPage() {
       );
       if (!template) continue;
 
-      for (const field of template.fields || []) {
-        if (!isEditableDocusealField(field) || !isClientNameField(field))
-          continue;
-        const value =
-          form.docusealFieldValues[templateId]?.[field.uuid]?.trim() || "";
-        if (!value) {
-          return {
-            templateName: template.name,
-            fieldName: getDocusealFieldLabel(field, 0),
-          };
-        }
+      const fieldValues = form.docusealFieldValues[templateId] || {};
+      const missingRequiredField = getMissingRequiredDocusealFields(
+        template,
+        fieldValues,
+      )[0];
+
+      if (missingRequiredField) {
+        return {
+          templateName: template.name,
+          fieldName: getDocusealFieldLabel(missingRequiredField, 0),
+        };
+      }
+
+      const clientNameField = (template.fields || []).find(
+        (field) => isEditableDocusealField(field) && isClientNameField(field),
+      );
+
+      if (
+        clientNameField &&
+        !getDocusealFieldValue(fieldValues, clientNameField).trim()
+      ) {
+        return {
+          templateName: template.name,
+          fieldName: getDocusealFieldLabel(clientNameField, 0),
+        };
       }
     }
 
@@ -760,15 +712,15 @@ function AllAgreementsPage() {
       return;
     }
 
-    // if (createForm.docusealTemplates.length > 0) {
-    //   const missingField = validateTemplateFieldValues(createForm);
-    //   if (missingField) {
-    //     toast.error(
-    //       `${missingField.templateName}: ${missingField.fieldName} is required`,
-    //     );
-    //     return;
-    //   }
-    // }
+    if (createForm.docusealTemplates.length > 0) {
+      const missingField = validateTemplateFieldValues(createForm);
+      if (missingField) {
+        toast.error(
+          `${missingField.templateName}: ${missingField.fieldName} is required`,
+        );
+        return;
+      }
+    }
 
     setIsSubmitting(true);
     try {
@@ -1124,10 +1076,11 @@ function AllAgreementsPage() {
 
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Effective Date
+                      Effective Date <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="date"
+                      required
                       value={editForm.effectiveDate}
                       onChange={(event) =>
                         setEditForm((prev) => ({
@@ -1141,10 +1094,11 @@ function AllAgreementsPage() {
 
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Renewal Date
+                      Renewal Date <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="date"
+                      required
                       value={editForm.renewalDate}
                       onChange={(event) =>
                         setEditForm((prev) => ({
@@ -2150,7 +2104,8 @@ function AllAgreementsPage() {
                 <option
                   key={status}
                   value={status}
-                  disabled={status === "SIGNED" || status === "ACTIVE"}
+                  // disabled={status === "SIGNED" || status === "ACTIVE"}
+                  disabled={status !== "DRAFT"}
                 >
                   {formatStatusLabel(status)}
                 </option>
@@ -2179,10 +2134,11 @@ function AllAgreementsPage() {
 
           <div>
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
-              Effective Date
+              Effective Date <span className="text-red-500">*</span>
             </label>
             <input
               type="date"
+              required
               value={createForm.effectiveDate}
               onChange={(event) =>
                 setCreateForm((prev) => ({
@@ -2196,10 +2152,11 @@ function AllAgreementsPage() {
 
           <div>
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
-              Renewal Date
+              Renewal Date <span className="text-red-500">*</span>
             </label>
             <input
               type="date"
+              required
               value={createForm.renewalDate}
               onChange={(event) =>
                 setCreateForm((prev) => ({
@@ -2441,15 +2398,16 @@ function AllAgreementsPage() {
                                               field,
                                               fieldIndex,
                                             )}
-                                            {/*{isClientNameField(field) && (
+                                            {field.required && (
                                               <span className="ml-1 text-red-500">
                                                 *
                                               </span>
-                                            )}*/}
+                                            )}
                                           </span>
                                           <input
                                             type={inputType}
                                             value={value}
+                                            required={field.required}
                                             onChange={(event) =>
                                               updateTemplateFieldValue(
                                                 templateId,

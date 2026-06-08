@@ -14,6 +14,14 @@ import {
   type DocusealTemplate,
 } from "../../../services/operations/agreements";
 import { hasAdminAccess, readStoredUser } from "../../../utils/auth";
+import {
+  getDocusealFieldInputType,
+  getDocusealFieldKey,
+  getDocusealFieldLabel,
+  getDocusealFieldValue,
+  getMissingRequiredDocusealFields,
+  getTemplateSubmitterGroups,
+} from "../../../utils/docuseal";
 
 const statusStyles: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
@@ -108,36 +116,6 @@ function buildEditableFieldValues(agreement?: Agreement | null) {
     }, {});
     return acc;
   }, {});
-}
-
-function getTemplateSubmitterGroups(
-  template: DocusealTemplate | undefined,
-  fieldValues: Record<string, string>,
-) {
-  if (!template) {
-    return [];
-  }
-
-  const templateFields = template.fields || [];
-  const groupedFields = templateFields.reduce<
-    Record<string, typeof templateFields>
-  >((acc, field) => {
-    const submitterUuid = field.submitter_uuid || "unknown";
-    if (!acc[submitterUuid]) {
-      acc[submitterUuid] = [];
-    }
-    acc[submitterUuid].push(field);
-    return acc;
-  }, {});
-
-  return (template.submitters || []).map((submitter) => ({
-    submitterUuid: submitter.uuid,
-    submitterName: submitter.name || "Submitter",
-    fields: (groupedFields[submitter.uuid] || []).filter(
-      (field) =>
-        fieldValues[field.uuid] !== undefined || fieldValues[field.name] !== undefined,
-    ),
-  }));
 }
 
 function AgreementPendingSignaturesPage() {
@@ -315,6 +293,28 @@ function AgreementPendingSignaturesPage() {
     };
   }
 
+  function validateSubmissionRequiredFields(submissionId: string) {
+    const submission = selectedAgreement?.docusealSubmissions?.find(
+      (item) => item.id === submissionId,
+    );
+    if (!submission) return null;
+
+    const template = templates.find((item) => item.id === submission.templateId);
+    const fieldValues =
+      editableFieldValues[submission.id] || submission.fieldValues || {};
+    const missingField = getMissingRequiredDocusealFields(
+      template,
+      fieldValues,
+    )[0];
+
+    if (!missingField) return null;
+
+    return {
+      templateName: template?.name || `Template ${submission.templateId}`,
+      fieldName: getDocusealFieldLabel(missingField),
+    };
+  }
+
   async function refreshPendingSignatures() {
     const data = await getAgreementsView({
       page: pagination.page,
@@ -341,6 +341,14 @@ function AgreementPendingSignaturesPage() {
 
     if (!selectedRowId || !selectedPersonId || !selectedSubmission) {
       toast.error("Select a signer and template before submitting");
+      return;
+    }
+
+    const missingField = validateSubmissionRequiredFields(selectedSubmission.id);
+    if (missingField) {
+      toast.error(
+        `${missingField.templateName}: ${missingField.fieldName} is required`,
+      );
       return;
     }
 
@@ -388,6 +396,14 @@ function AgreementPendingSignaturesPage() {
       return;
     }
 
+    const missingField = validateSubmissionRequiredFields(selectedSubmission.id);
+    if (missingField) {
+      toast.error(
+        `${missingField.templateName}: ${missingField.fieldName} is required`,
+      );
+      return;
+    }
+
     setIsSubmittingForApproval(true);
     try {
       const fieldValues =
@@ -427,21 +443,6 @@ function AgreementPendingSignaturesPage() {
     } finally {
       setIsSubmittingForApproval(false);
     }
-  }
-
-  function getTemplateFieldInputType(templateId: number, fieldKey: string) {
-    const template = templates.find((item) => item.id === templateId);
-    const field = template?.fields?.find(
-      (item) => item.uuid === fieldKey || item.name === fieldKey,
-    );
-    const fieldName = field?.name || fieldKey;
-    const fieldType = field?.type?.toLowerCase();
-
-    if (fieldType === "date" || /date/i.test(fieldName)) {
-      return "date";
-    }
-
-    return "text";
   }
 
   function handleFieldValueChange(
@@ -903,13 +904,13 @@ function AgreementPendingSignaturesPage() {
                                               <div className="grid gap-3 md:grid-cols-2">
                                                 {group.fields.map((field) => {
                                                   const value =
-                                                    submissionFields[field.uuid] ??
-                                                    submissionFields[field.name] ??
-                                                    "";
+                                                    getDocusealFieldValue(
+                                                      submissionFields,
+                                                      field,
+                                                    );
                                                   const inputType =
-                                                    getTemplateFieldInputType(
-                                                      submission.templateId,
-                                                      field.uuid || field.name,
+                                                    getDocusealFieldInputType(
+                                                      field,
                                                     );
 
                                                   return (
@@ -918,7 +919,14 @@ function AgreementPendingSignaturesPage() {
                                                       className="rounded-xl bg-slate-50 px-3 py-2"
                                                     >
                                                       <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                                                        {field.name || field.type}
+                                                        {getDocusealFieldLabel(
+                                                          field,
+                                                        )}
+                                                        {field.required && (
+                                                          <span className="ml-1 text-red-500">
+                                                            *
+                                                          </span>
+                                                        )}
                                                       </div>
                                                       <input
                                                         type={inputType}
@@ -932,10 +940,13 @@ function AgreementPendingSignaturesPage() {
                                                         onChange={(event) =>
                                                           handleFieldValueChange(
                                                             submission.id,
-                                                            field.uuid || field.name,
+                                                            getDocusealFieldKey(
+                                                              field,
+                                                            ),
                                                             event.target.value,
                                                           )
                                                         }
+                                                        required={field.required}
                                                         className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#4f63ea]"
                                                       />
                                                     </div>
