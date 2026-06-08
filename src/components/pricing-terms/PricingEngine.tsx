@@ -615,7 +615,7 @@ export default function PricingEnginePage() {
                 >
                   <Plus className="h-3.5 w-3.5" /> Add Pricing Term
                 </button>
-                {terms.length > 0 && (
+                {/* {terms.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setShowFinalizeConfirm(true)}
@@ -623,13 +623,13 @@ export default function PricingEnginePage() {
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" /> Finalize
                   </button>
-                )}
+                )} */}
               </div>
             )}
           </div>
 
           {/* Summary cards */}
-          {isLoading && selectedVersionId ? (
+          {/* {isLoading && selectedVersionId ? (
             <SkeletonSummaryCards />
           ) : terms.length > 0 ? (
             <div className="grid grid-cols-4 gap-3 border-b border-[#f0ece6] p-4">
@@ -678,7 +678,7 @@ export default function PricingEnginePage() {
                 </div>
               ))}
             </div>
-          ) : null}
+          ) : null} */}
 
           {/* Table / empty states */}
           <div className="flex-1 overflow-auto">
