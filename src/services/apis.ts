@@ -164,6 +164,8 @@ export const onboardingEndpoints = {
     BACKEND_URL + `/api/v1/onboarding/external/${practiceId}`,
   UPLOAD_EXTERNAL_DOCUMENT:
     BACKEND_URL + "/api/v1/onboarding/external/upload-document",
+  DELETE_EXTERNAL_DOCUMENT:
+    BACKEND_URL + "/api/v1/onboarding/external/delete-document",
 };
 
 export const dealEndpoints = {

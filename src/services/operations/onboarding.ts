@@ -11,6 +11,7 @@ const {
   UPDATE,
   DELETE,
   UPLOAD_EXTERNAL_DOCUMENT,
+  DELETE_EXTERNAL_DOCUMENT,
 } =
   onboardingEndpoints;
 
@@ -463,12 +464,23 @@ export async function uploadExternalOnboardingDocument(params: {
   practiceId: string;
   practiceName: string;
   field: string;
-  fileName: string;
-  contentType: string;
-  base64: string;
+  file: File;
 }): Promise<{ fileUrl: string; fileName: string; field: string }> {
   try {
-    const response = await axios.post(UPLOAD_EXTERNAL_DOCUMENT, params);
+    const response = await axios.post(UPLOAD_EXTERNAL_DOCUMENT, params.file, {
+      headers: {
+        "Content-Type": params.file.type || "application/octet-stream",
+        "x-practice-id": encodeURIComponent(params.practiceId),
+        "x-practice-name": encodeURIComponent(params.practiceName),
+        "x-upload-field": encodeURIComponent(params.field),
+        "x-file-name": encodeURIComponent(params.file.name),
+        "x-file-content-type": encodeURIComponent(
+          params.file.type || "application/octet-stream",
+        ),
+      },
+      maxBodyLength: 25 * 1024 * 1024,
+      maxContentLength: 25 * 1024 * 1024,
+    });
     return response.data as {
       fileUrl: string;
       fileName: string;
@@ -477,6 +489,19 @@ export async function uploadExternalOnboardingDocument(params: {
   } catch (error) {
     throw new Error(
       getErrorMessage(error, "Unable to upload onboarding document.")
+    );
+  }
+}
+
+export async function deleteExternalOnboardingDocument(params: {
+  fileUrl: string;
+}): Promise<{ blobName?: string }> {
+  try {
+    const response = await axios.post(DELETE_EXTERNAL_DOCUMENT, params);
+    return response.data as { blobName?: string };
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to delete onboarding document.")
     );
   }
 }
