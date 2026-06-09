@@ -10,12 +10,21 @@ import type {
   OnboardingDocument,
   OnboardingLabPharmacy,
   OnboardingLocation,
+  OnboardingMarketing,
   OnboardingOutreach,
+  Onboarding,
   OnboardingPractice,
   OnboardingProvider,
   OnboardingTechnology,
 } from "../../services/operations/onboarding";
-import { createOnboardingFromForm } from "../../services/operations/createOnboardingForm";
+import {
+  createExternalOnboardingFromForm,
+  createOnboardingFromForm,
+} from "../../services/operations/createOnboardingForm";
+import {
+  getExternalOnboardingByPracticeId,
+  uploadExternalOnboardingDocument,
+} from "../../services/operations/onboarding";
 
 type Option = {
   label: string;
@@ -34,7 +43,8 @@ type NestedSectionKey =
   | "technology"
   | "outreach"
   | "labPharmacy"
-  | "compliance";
+  | "compliance"
+  | "marketing";
 
 const usStates: Option[] = [
   { label: "Alabama", value: "AL" },
@@ -197,6 +207,12 @@ const careProgramServiceValues = [
   "TCM",
 ];
 
+const marketingServiceValues = [
+  "PATIENT_ACQUISITION",
+  "BRAND_GROWTH",
+  "AI_VISIBILITY",
+];
+
 const painPointOptions: Option[] = [
   { label: "Billing", value: "BILLING" },
   { label: "Credentialing", value: "CREDENTIALING" },
@@ -250,6 +266,89 @@ const employmentStatusOptions: Option[] = [
   { label: "Locum", value: "LOCUM" },
   { label: "Other", value: "OTHER" },
 ];
+
+type ProviderDocumentField =
+  | "copyOfBoardCertification"
+  | "copyOfProfessionalLiabilityInsurance"
+  | "copyOfBachelorsDegree"
+  | "copyOfMastersDegree"
+  | "copyOfSocialSecurityCard"
+  | "copyOfDriversLicense"
+  | "passportSizedPhoto"
+  | "resume";
+
+const providerDocumentFieldOptions: Array<
+  Option & { value: ProviderDocumentField }
+> = [
+  {
+    label: "Copy of Board Certification",
+    value: "copyOfBoardCertification",
+  },
+  {
+    label: "Copy of Professional Liability Insurance (PLI)",
+    value: "copyOfProfessionalLiabilityInsurance",
+  },
+  {
+    label: "Copy of Bachelor's Degree",
+    value: "copyOfBachelorsDegree",
+  },
+  {
+    label: "Copy of Master's Degree",
+    value: "copyOfMastersDegree",
+  },
+  {
+    label: "Copy of Social Security Card (required for credentialing)",
+    value: "copyOfSocialSecurityCard",
+  },
+  {
+    label: "Copy of Driver's License",
+    value: "copyOfDriversLicense",
+  },
+  {
+    label: "Passport-sized Photo",
+    value: "passportSizedPhoto",
+  },
+  {
+    label: "Resume (with MM/DD/YYYY format)",
+    value: "resume",
+  },
+];
+
+function isValidCompanyEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.com$/i.test(value.trim());
+}
+
+function isValidWebsite(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.hostname.includes(".")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isValidZipCode(value: string) {
+  return /^\d{5}(?:-\d{4})?$/.test(value.trim());
+}
+
+function isValidTenDigitPhone(value: string) {
+  return value.replace(/\D/g, "").length === 10;
+}
+
+function isDocumentReceivedAfterRequested(
+  dateRequested?: string,
+  dateReceived?: string,
+) {
+  const requested = dateRequested?.trim() ?? "";
+  const received = dateReceived?.trim() ?? "";
+
+  if (!requested || !received) return true;
+
+  return received > requested;
+}
 
 const yesNoMaybeOptions: Option[] = [
   { label: "Yes", value: "YES" },
@@ -502,11 +601,55 @@ const initialLocation: OnboardingLocation = {
 const initialProvider: OnboardingProvider = {
   firstName: "",
   lastName: "",
+  fullName: "",
+  dateOfBirth: "",
+  gender: "",
   credentials: "",
   providerType: "",
   specialty: "",
+  cliaNumber: "",
   npi: "",
   caqhId: "",
+  ssnFullDigits: "",
+  licenseNumber: "",
+  licenseExpiryDate: "",
+  stateOfLicense: "",
+  licenseType: "",
+  taxonomy: "",
+  primarySpecialty: "",
+  secondarySpecialty: "",
+  boardCertifications: "",
+  caqhUsername: "",
+  caqhPassword: "",
+  caqhLastAttestationDate: "",
+  languagesSpoken: "",
+  telehealthAvailable: false,
+  malpracticeCarrier: "",
+  malpracticePolicyNumber: "",
+  malpracticeEffectiveDate: "",
+  malpracticeExpiryDate: "",
+  hospitalAffiliations: "",
+  personalCellNumber: "",
+  personalEmail: "",
+  practiceEmail: "",
+  medicarePtanIndividual: "",
+  medicaidIdIndividual: "",
+  ipaAffiliationsProviderLevel: "",
+  nppesUsername: "",
+  nppesPassword: "",
+  railroadMedicareIndividual: "",
+  copyOfBoardCertification: "",
+  copyOfProfessionalLiabilityInsurance: "",
+  copyOfBachelorsDegree: "",
+  copyOfMastersDegree: "",
+  copyOfSocialSecurityCard: "",
+  copyOfDriversLicense: "",
+  passportSizedPhoto: "",
+  resume: "",
+  providerEffectiveDateWithGroup: "",
+  countryOfBirth: "",
+  statePlaceOfBirth: "",
+  homeAddress: "",
   stateLicenseNumber: "",
   deaNumber: "",
   boardCertified: false,
@@ -525,6 +668,18 @@ const initialPractice: OnboardingPractice = {
   additionalSpecialtyAreas: [],
   groupNpi: "",
   taxIdEin: "",
+  medicaidIdNumber: "",
+  groupMedicaidNpi: "",
+  groupMedicarePtan: "",
+  groupTaxonomy: "",
+  ipaAffiliations: "",
+  practiceManagerName: "",
+  practiceManagerEmail: "",
+  practiceManagerPhone: "",
+  billingAddress: "",
+  mailingAddress: "",
+  practiceWorkStartDate: "",
+  railroadMedicareGroup: "",
   approximateNumberOfProviders: 0,
   approximateNumberOfLocations: 0,
   approximateMonthlyPatientVolume: 0,
@@ -556,6 +711,9 @@ const initialBilling: OnboardingBilling = {
   mainBillingContactName: "",
   mainBillingContactEmail: "",
   mainBillingContactPhone: "",
+  recentW9Form: "",
+  voidCheck: "",
+  formalLetterFromBank: "",
   currentlyBilledServices: [],
   activePayers: "",
   eftEraSetup: "",
@@ -570,6 +728,12 @@ const initialCredentialing: OnboardingCredentialing = {
   credentialingNeeded: false,
   credentialingFor: [],
   payersToEnroll: "",
+  approvedInsurancesTracker: "",
+  designatedPortalContactName: "",
+  designatedPortalContactEmail: "",
+  designatedPortalContactPhone: "",
+  irsDocument147c: "",
+  desiredInsurancePlans: "",
   caqhMaintained: false,
   currentCredentialingIssues: [],
   medicarePtanAvailable: "",
@@ -623,15 +787,28 @@ const initialCompliance: OnboardingCompliance = {
   additionalNotes: "",
 };
 
+const initialMarketing: OnboardingMarketing = {
+  websiteUrl: "",
+  socialMediaChannels: [],
+  currentMarketingChannels: [],
+  targetPatientDemographics: "",
+  monthlyMarketingBudget: "",
+  existingBrandAssets: "",
+  googleBusinessProfileClaimed: false,
+  patientAcquisitionGoals: "",
+  aiToolsUsed: "",
+  additionalMarketingNotes: "",
+};
+
 const initialFormData: OnboardingBody = {
   onboardingType: "",
   isAuthorizedPerson: true,
   nonAuthorizedRole: "",
   numberOfPractices: 1,
   numberOfLocations: 1,
-  billingManagedCentrally: "",
-  credentialingManagedCentrally: "",
-  contractingManagedCentrally: "",
+  billingManagedCentrally: "NO",
+  credentialingManagedCentrally: "NO",
+  contractingManagedCentrally: "NO",
   oneMainContact: true,
   legalCompanyName: "",
   dbaName: "",
@@ -702,42 +879,46 @@ const initialFormData: OnboardingBody = {
     patientMinutesTracker: "",
     complianceConcerns: "",
   },
+  marketing: { ...initialMarketing },
 };
+
+function normalizeLoadedOnboarding(onboarding: Onboarding): OnboardingBody {
+  return {
+    ...initialFormData,
+    ...onboarding,
+    documents: (onboarding.documents ?? []).map((document) => ({
+      ...document,
+      documentType: Array.isArray(document.documentType)
+        ? (document.documentType[0] ?? "")
+        : (document.documentType ?? ""),
+    })) as unknown as OnboardingDocument[],
+    billing: onboarding.billing ?? initialFormData.billing,
+    credentialing: onboarding.credentialing ?? initialFormData.credentialing,
+    technology: onboarding.technology ?? initialFormData.technology,
+    outreach: onboarding.outreach ?? initialFormData.outreach,
+    labPharmacy: onboarding.labPharmacy ?? initialFormData.labPharmacy,
+    compliance: onboarding.compliance ?? initialFormData.compliance,
+    careProgram: initialFormData.careProgram,
+    marketing: onboarding.marketing ?? initialFormData.marketing,
+    serviceSetup: {
+      requestedServices: onboarding.requestedServices ?? [],
+      primaryServiceToLaunch: onboarding.primaryServiceToLaunch ?? "",
+      requestedGoLiveDate: onboarding.requestedGoLiveDate ?? "",
+      priorityLevel: onboarding.priorityLevel ?? "",
+      servicesForAllPractices: onboarding.servicesForAllPractices ?? "",
+      selectedPractices: onboarding.selectedPractices ?? [],
+      replacingExistingVendor: onboarding.replacingExistingVendor ?? false,
+      currentVendorName: onboarding.currentVendorName ?? "",
+      currentVendorEndDate: onboarding.currentVendorEndDate ?? "",
+      engagementGoals: onboarding.engagementGoals ?? "",
+    },
+  };
+}
 
 function parseNumber(value: string) {
   if (value.trim() === "") return 0;
   const parsed = Number(value);
   return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function formatNpiInput(value: string) {
-  return value.replace(/\D/g, "").slice(0, 10);
-}
-
-function formatEmailInput(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function getDocumentDateError(document: OnboardingDocument) {
-  if (!document.dateRequested || !document.dateReceived) {
-    return "";
-  }
-
-  const requestedDate = new Date(document.dateRequested);
-  const receivedDate = new Date(document.dateReceived);
-
-  if (
-    Number.isNaN(requestedDate.getTime()) ||
-    Number.isNaN(receivedDate.getTime())
-  ) {
-    return "";
-  }
-
-  if (receivedDate <= requestedDate) {
-    return "Date received should be greater than date requested.";
-  }
-
-  return "";
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -793,13 +974,13 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
+    <div className="block">
       <span className="mb-1 block text-sm font-medium text-slate-700">
         {label}
         {required ? <span className="text-red-500"> *</span> : null}
       </span>
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -998,6 +1179,78 @@ function StepBar({
   );
 }
 
+function DocumentUploadField({
+  value,
+  onSelect,
+  onClear,
+  isUploading = false,
+  accept = ".pdf,.png,.jpg,.jpeg,.doc,.docx,.csv,.xlsx",
+}: {
+  value?: string;
+  onSelect: (file: File) => void;
+  onClear: () => void;
+  isUploading?: boolean;
+  accept?: string;
+}) {
+  const displayValue = value
+    ? (value.split("/").pop()?.split("?")[0] ?? value)
+    : "";
+
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+      <div className="flex flex-col gap-3">
+        <div>
+          <p className="text-sm font-medium text-slate-800">
+            {isUploading
+              ? "Uploading document..."
+              : value
+                ? "Selected document"
+                : "No document selected"}
+          </p>
+          <p className="mt-1 break-all text-xs text-slate-500">
+            {displayValue ||
+              "Choose a file to upload this document one at a time."}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <label className="inline-flex cursor-pointer items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+            <span>
+              {isUploading
+                ? "Uploading..."
+                : value
+                  ? "Replace File"
+                  : "Upload File"}
+            </span>
+            <input
+              type="file"
+              accept={accept}
+              className="hidden"
+              disabled={isUploading}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) onSelect(file);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+
+          {value ? (
+            <button
+              type="button"
+              onClick={onClear}
+              disabled={isUploading}
+              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+            >
+              Remove
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RepeaterHeader({
   title,
   actionLabel,
@@ -1021,12 +1274,19 @@ function RepeaterHeader({
   );
 }
 
-export default function OnboardingFormV2() {
+export default function OnboardingFormV4() {
+  const { id } = useParams();
   const [formData, setFormData] = useState<OnboardingBody>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoadingRecord, setIsLoadingRecord] = useState(!!id);
+  const [isAlreadySubmitted, setIsAlreadySubmitted] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const { id } = useParams();
+  const [uploadingFieldKey, setUploadingFieldKey] = useState<string | null>(
+    null,
+  );
+  const [selectedProviderUploadField, setSelectedProviderUploadField] =
+    useState<Record<string, ProviderDocumentField>>({});
 
   useEffect(() => {
     if (id) {
@@ -1035,10 +1295,85 @@ export default function OnboardingFormV2() {
   }, [id]);
 
   useEffect(() => {
+    if (!id) return;
+
+    let active = true;
+
+    async function loadOnboarding() {
+      setIsLoadingRecord(true);
+      try {
+        const onboarding = await getExternalOnboardingByPracticeId(id);
+        if (!active) return;
+
+        if (!onboarding) {
+          setFormData(initialFormData);
+          setIsAlreadySubmitted(false);
+          setIsSubmitted(false);
+          return;
+        }
+
+        setFormData(normalizeLoadedOnboarding(onboarding));
+        setIsAlreadySubmitted(true);
+        setIsSubmitted(true);
+      } catch (error) {
+        if (!active) return;
+        const message =
+          error instanceof Error ? error.message : "Unable to load onboarding.";
+        toast.error(message);
+      } finally {
+        if (active) setIsLoadingRecord(false);
+      }
+    }
+
+    void loadOnboarding();
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  useEffect(() => {
     if (formData.isIndividualPractice && currentStep === 2) {
       setCurrentStep(3);
     }
   }, [currentStep, formData.isIndividualPractice]);
+
+  useEffect(() => {
+    if (formData.onboardingType !== "MULTI_PRACTICE_ORGANIZATION") {
+      return;
+    }
+
+    const practiceCount = Math.max(
+      0,
+      Number(formData.numberOfPractices ?? 0) || 0,
+    );
+
+    setFormData((prev) => {
+      const currentPractices = prev.practices ?? [];
+
+      if (currentPractices.length === practiceCount) {
+        return prev;
+      }
+
+      if (currentPractices.length > practiceCount) {
+        return {
+          ...prev,
+          practices: currentPractices.slice(0, practiceCount),
+        };
+      }
+
+      return {
+        ...prev,
+        practices: [
+          ...currentPractices,
+          ...Array.from(
+            { length: practiceCount - currentPractices.length },
+            () => ({ ...initialPractice }),
+          ),
+        ],
+      };
+    });
+  }, [formData.numberOfPractices, formData.onboardingType]);
 
   const practiceNames = (formData.practices ?? [])
     .map((practice) => practice.practiceName?.trim() ?? "")
@@ -1054,9 +1389,48 @@ export default function OnboardingFormV2() {
     (formData.requestedServices ?? []).some((service) =>
       careProgramServiceValues.includes(service),
     ) || (formData.careProgram?.programsPlanned ?? []).length > 0;
+  const hasCredentialingSelected = (formData.requestedServices ?? []).includes(
+    "CREDENTIALING",
+  );
+  const hasBillingRcmSelected = (formData.requestedServices ?? []).includes(
+    "BILLING_RCM",
+  );
+  const hasMarketingSelected = (formData.requestedServices ?? []).some(
+    (service) => marketingServiceValues.includes(service),
+  );
+  const hasLabPharmacySelected = (formData.requestedServices ?? []).some(
+    (service) =>
+      ["LAB_RELATIONSHIP_SUPPORT", "PHARMACY_PROGRAM_SUPPORT"].includes(
+        service,
+      ),
+  );
+  const hasFixedPracticeCount =
+    formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION";
+  const requiredPracticeCount = Math.max(
+    0,
+    Number(formData.numberOfPractices ?? 0) || 0,
+  );
   const visibleSteps = steps.filter(
     (step) => !(formData.isIndividualPractice && step.id === 2),
   );
+
+  function getProviderUploadStateKey(
+    practiceIndex: number,
+    providerIndex: number,
+  ) {
+    return `${practiceIndex}-${providerIndex}`;
+  }
+
+  function getSelectedProviderUploadField(
+    practiceIndex: number,
+    providerIndex: number,
+  ): ProviderDocumentField {
+    return (
+      selectedProviderUploadField[
+        getProviderUploadStateKey(practiceIndex, providerIndex)
+      ] ?? "copyOfBoardCertification"
+    );
+  }
 
   function updateField<K extends keyof OnboardingBody>(
     field: K,
@@ -1082,30 +1456,40 @@ export default function OnboardingFormV2() {
     field: K,
     value: string,
   ) {
-    const values = ((formData[field] as string[] | undefined) ?? []).slice();
-    const nextValues = values.includes(value)
-      ? values.filter((entry) => entry !== value)
-      : [...values, value];
-    updateField(field, nextValues as OnboardingBody[K]);
+    setFormData((prev) => {
+      const values = ((prev[field] as string[] | undefined) ?? []).slice();
+      const nextValues = values.includes(value)
+        ? values.filter((entry) => entry !== value)
+        : [...values, value];
+      return {
+        ...prev,
+        [field]: nextValues as OnboardingBody[K],
+      };
+    });
   }
 
   function toggleNestedArrayValue<
     K extends NestedSectionKey,
     F extends keyof NonNullable<OnboardingBody[K]>,
   >(section: K, field: F, value: string) {
-    const values = (
-      ((formData[section] as NonNullable<OnboardingBody[K]> | undefined)?.[
-        field
-      ] as string[] | undefined) ?? []
-    ).slice();
-    const nextValues = values.includes(value)
-      ? values.filter((entry) => entry !== value)
-      : [...values, value];
-    updateNestedField(
-      section,
-      field,
-      nextValues as NonNullable<OnboardingBody[K]>[F],
-    );
+    setFormData((prev) => {
+      const sectionData =
+        (prev[section] as NonNullable<OnboardingBody[K]> | undefined) ?? {};
+      const values = (
+        (sectionData[field] as string[] | undefined) ?? []
+      ).slice();
+      const nextValues = values.includes(value)
+        ? values.filter((entry) => entry !== value)
+        : [...values, value];
+
+      return {
+        ...prev,
+        [section]: {
+          ...sectionData,
+          [field]: nextValues as NonNullable<OnboardingBody[K]>[F],
+        },
+      };
+    });
   }
 
   function updateServiceSetup(
@@ -1135,7 +1519,13 @@ export default function OnboardingFormV2() {
         : {}),
       ...(field === "priorityLevel" ? { priorityLevel: value as string } : {}),
       ...(field === "servicesForAllPractices"
-        ? { servicesForAllPractices: value as string }
+        ? {
+            servicesForAllPractices: value as string,
+            selectedPractices:
+              value === "SINGLE_PRACTICE_ONLY"
+                ? (prev.selectedPractices ?? []).slice(0, 1)
+                : (prev.selectedPractices ?? []),
+          }
         : {}),
       ...(field === "selectedPractices"
         ? { selectedPractices: value as string[] }
@@ -1160,11 +1550,17 @@ export default function OnboardingFormV2() {
   }
 
   function toggleService(value: string) {
-    const currentServices = formData.requestedServices ?? [];
-    const nextServices = currentServices.includes(value)
-      ? currentServices.filter((service) => service !== value)
-      : [...currentServices, value];
-    updateServiceSetup("requestedServices", nextServices);
+    setFormData((prev) => {
+      const currentServices = prev.requestedServices ?? [];
+      const nextServices = currentServices.includes(value)
+        ? currentServices.filter((service) => service !== value)
+        : [...currentServices, value];
+
+      return {
+        ...prev,
+        requestedServices: nextServices,
+      };
+    });
   }
 
   function addContact() {
@@ -1197,6 +1593,10 @@ export default function OnboardingFormV2() {
   }
 
   function addPractice() {
+    if (hasFixedPracticeCount) {
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       practices: [...(prev.practices ?? []), { ...initialPractice }],
@@ -1217,12 +1617,32 @@ export default function OnboardingFormV2() {
   }
 
   function removePractice(index: number) {
+    if (hasFixedPracticeCount) {
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       practices: (prev.practices ?? []).filter(
         (_, practiceIndex) => practiceIndex !== index,
       ),
     }));
+  }
+
+  function isValidPractice(practice: OnboardingPractice) {
+    const practiceName = practice.practiceName?.trim() ?? "";
+    const practiceType = practice.practiceType?.trim() ?? "";
+    const hasLocation = (practice.locations ?? []).some(
+      (location) => (location.locationName?.trim() ?? "").length > 0,
+    );
+    const hasProvider = (practice.providers ?? []).some((provider) => {
+      const firstName = provider.firstName?.trim() ?? "";
+      const lastName = provider.lastName?.trim() ?? "";
+      const providerType = provider.providerType?.trim() ?? "";
+      return !!firstName && !!lastName && !!providerType;
+    });
+
+    return !!practiceName && !!practiceType && hasLocation && hasProvider;
   }
 
   function addLocation(practiceIndex: number) {
@@ -1323,6 +1743,243 @@ export default function OnboardingFormV2() {
     }));
   }
 
+  function fileToBase64(file: File) {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result !== "string") {
+          reject(new Error("Unable to read file."));
+          return;
+        }
+
+        const [, base64 = ""] = result.split(",");
+        resolve(base64);
+      };
+
+      reader.onerror = () => {
+        reject(new Error("Unable to read file."));
+      };
+
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function getUploadPracticeName() {
+    return (
+      formData.practices?.[0]?.practiceName?.trim() ||
+      formData.legalCompanyName?.trim() ||
+      formData.dbaName?.trim() ||
+      ""
+    );
+  }
+
+  async function uploadNestedDocument<
+    K extends "billing" | "credentialing",
+    F extends keyof NonNullable<OnboardingBody[K]>,
+  >(section: K, field: F, file: File) {
+    if (!id) {
+      toast.error("Practice id is required before uploading documents.");
+      return;
+    }
+
+    const practiceName = getUploadPracticeName();
+
+    if (!practiceName) {
+      toast.error("Practice name is required before uploading documents.");
+      return;
+    }
+
+    const fieldKey = `${section}-${String(field)}`;
+    setUploadingFieldKey(fieldKey);
+
+    try {
+      const base64 = await fileToBase64(file);
+      const upload = await uploadExternalOnboardingDocument({
+        practiceId: id,
+        practiceName,
+        field: `${section}.${String(field)}`,
+        fileName: file.name,
+        contentType: file.type || "application/octet-stream",
+        base64,
+      });
+
+      updateNestedField(
+        section,
+        field,
+        upload.fileUrl as NonNullable<OnboardingBody[K]>[F],
+      );
+      toast.success("Document uploaded successfully.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to upload document.";
+      toast.error(message);
+    } finally {
+      setUploadingFieldKey(null);
+    }
+  }
+
+  async function uploadProviderDocument(
+    practiceIndex: number,
+    providerIndex: number,
+    field: keyof OnboardingProvider,
+    file: File,
+  ) {
+    if (!id) {
+      toast.error("Practice id is required before uploading documents.");
+      return;
+    }
+
+    const practiceName =
+      formData.practices?.[practiceIndex]?.practiceName?.trim() ?? "";
+
+    if (!practiceName) {
+      toast.error("Practice name is required before uploading documents.");
+      return;
+    }
+
+    const fieldKey = `${practiceIndex}-${providerIndex}-${String(field)}`;
+    setUploadingFieldKey(fieldKey);
+
+    try {
+      const base64 = await fileToBase64(file);
+      const upload = await uploadExternalOnboardingDocument({
+        practiceId: id,
+        practiceName,
+        field: String(field),
+        fileName: file.name,
+        contentType: file.type || "application/octet-stream",
+        base64,
+      });
+
+      updateProvider(
+        practiceIndex,
+        providerIndex,
+        field,
+        upload.fileUrl as OnboardingProvider[typeof field],
+      );
+      toast.success("Document uploaded successfully.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to upload document.";
+      toast.error(message);
+    } finally {
+      setUploadingFieldKey(null);
+    }
+  }
+
+  function toggleContactArrayValue<K extends keyof OnboardingContact>(
+    index: number,
+    field: K,
+    value: string,
+  ) {
+    setFormData((prev) => ({
+      ...prev,
+      contacts: (prev.contacts ?? []).map((contact, contactIndex) => {
+        if (contactIndex !== index) return contact;
+        const values = ((contact[field] as string[] | undefined) ?? []).slice();
+        const nextValues = values.includes(value)
+          ? values.filter((entry) => entry !== value)
+          : [...values, value];
+        return {
+          ...contact,
+          [field]: nextValues as OnboardingContact[K],
+        };
+      }),
+    }));
+  }
+
+  function togglePracticeArrayValue<K extends keyof OnboardingPractice>(
+    index: number,
+    field: K,
+    value: string,
+  ) {
+    setFormData((prev) => ({
+      ...prev,
+      practices: (prev.practices ?? []).map((practice, practiceIndex) => {
+        if (practiceIndex !== index) return practice;
+        const values = (
+          (practice[field] as string[] | undefined) ?? []
+        ).slice();
+        const nextValues = values.includes(value)
+          ? values.filter((entry) => entry !== value)
+          : [...values, value];
+        return {
+          ...practice,
+          [field]: nextValues as OnboardingPractice[K],
+        };
+      }),
+    }));
+  }
+
+  function toggleProviderArrayValue<K extends keyof OnboardingProvider>(
+    practiceIndex: number,
+    providerIndex: number,
+    field: K,
+    value: string,
+  ) {
+    setFormData((prev) => ({
+      ...prev,
+      practices: (prev.practices ?? []).map((practice, index) => {
+        if (index !== practiceIndex) return practice;
+        return {
+          ...practice,
+          providers: (practice.providers ?? []).map((provider, innerIndex) => {
+            if (innerIndex !== providerIndex) return provider;
+            const values = (
+              (provider[field] as string[] | undefined) ?? []
+            ).slice();
+            const nextValues = values.includes(value)
+              ? values.filter((entry) => entry !== value)
+              : [...values, value];
+            return {
+              ...provider,
+              [field]: nextValues as OnboardingProvider[K],
+            };
+          }),
+        };
+      }),
+    }));
+  }
+
+  function toggleServiceSetupArrayValue(
+    field: "selectedPractices",
+    value: string,
+  ) {
+    setFormData((prev) => {
+      const values = (prev[field] ?? []).slice();
+      const nextValues = values.includes(value)
+        ? values.filter((entry) => entry !== value)
+        : [...values, value];
+      return {
+        ...prev,
+        [field]: nextValues,
+      };
+    });
+  }
+
+  function toggleCareProgramArrayValue(
+    field: "programsPlanned",
+    value: string,
+  ) {
+    setFormData((prev) => {
+      const currentCareProgram = prev.careProgram ?? {};
+      const values = (currentCareProgram[field] ?? []).slice();
+      const nextValues = values.includes(value)
+        ? values.filter((entry) => entry !== value)
+        : [...values, value];
+
+      return {
+        ...prev,
+        careProgram: {
+          ...currentCareProgram,
+          [field]: nextValues,
+        },
+      };
+    });
+  }
+
   function removeProvider(practiceIndex: number, providerIndex: number) {
     setFormData((prev) => ({
       ...prev,
@@ -1379,35 +2036,75 @@ export default function OnboardingFormV2() {
     }
 
     if (currentStep === 2) {
-      if (!formData.legalCompanyName) errors.push("Legal company name");
-      if (!formData.mainCompanyEmail) errors.push("Main company email");
+      const legalCompanyName = formData.legalCompanyName?.trim() ?? "";
+      if (!legalCompanyName) errors.push("Legal company name");
+
+      const mainCompanyPhone = formData.mainCompanyPhone?.trim() ?? "";
+      if (mainCompanyPhone && !isValidTenDigitPhone(mainCompanyPhone)) {
+        errors.push("Main company phone (must be 10 digits)");
+      }
+
+      const mainCompanyFax = formData.mainCompanyFax?.trim() ?? "";
+      if (mainCompanyFax && !isValidTenDigitPhone(mainCompanyFax)) {
+        errors.push("Main company fax (must be 10 digits)");
+      }
+
+      const mainCompanyEmail = formData.mainCompanyEmail?.trim() ?? "";
+      if (!mainCompanyEmail) {
+        errors.push("Main company email");
+      } else if (!isValidCompanyEmail(mainCompanyEmail)) {
+        errors.push("Main company email (must end in .com)");
+      }
+
+      const companyWebsite = formData.companyWebsite?.trim() ?? "";
+      if (companyWebsite && !isValidWebsite(companyWebsite)) {
+        errors.push("Website (enter a valid URL)");
+      }
+
+      const companyZip = formData.companyZip?.trim() ?? "";
+      if (companyZip && !isValidZipCode(companyZip)) {
+        errors.push("ZIP Code (use 12345 or 12345-6789)");
+      }
     }
 
     if (currentStep === 3) {
       if (!(formData.contacts ?? []).length) {
         errors.push("At least one contact");
       } else {
-        const primaryContact = formData.contacts?.[0];
-        if (!primaryContact?.fullName) errors.push("Main contact name");
-        if (!primaryContact?.contactRole) errors.push("Contact role");
-        if (!primaryContact?.email) errors.push("Main contact email");
+        const invalidContactIndexes = (formData.contacts ?? [])
+          .map((contact, index) => {
+            const fullName = contact.fullName?.trim() ?? "";
+            const contactRole = contact.contactRole?.trim() ?? "";
+            const email = contact.email?.trim() ?? "";
+            const phone = contact.phone?.trim() ?? "";
+            const isValid =
+              !!fullName &&
+              !!contactRole &&
+              isValidCompanyEmail(email) &&
+              (!phone || isValidTenDigitPhone(phone));
+            return isValid ? null : index + 1;
+          })
+          .filter((index): index is number => index !== null);
+
+        if (invalidContactIndexes.length) {
+          errors.push(
+            `Contact ${invalidContactIndexes.join(", ")} (full name, contact role, email, and 10-digit phone are required when phone is entered)`,
+          );
+        }
       }
     }
 
     if (currentStep === 4) {
       if (!(formData.practices ?? []).length) {
         errors.push("At least one practice");
-      } else {
-        const firstPractice = formData.practices?.[0];
-        if (!firstPractice?.practiceName?.trim()) errors.push("Practice name");
-        if (!firstPractice?.practiceType) errors.push("Practice type");
-        if (
-          !(firstPractice?.locations ?? []).some((location) =>
-            location.locationName?.trim(),
-          )
-        ) {
-          errors.push("At least one location");
-        }
+      } else if (
+        !(formData.practices ?? []).every((practice) =>
+          isValidPractice(practice),
+        )
+      ) {
+        errors.push(
+          "Every practice needs a name, type, at least one location, and at least one provider",
+        );
       }
     }
 
@@ -1416,20 +2113,62 @@ export default function OnboardingFormV2() {
         errors.push("Requested services");
       if (!formData.primaryServiceToLaunch)
         errors.push("Primary service to launch");
+      if (
+        formData.servicesForAllPractices === "SELECTED_PRACTICES" &&
+        !(formData.selectedPractices ?? []).length
+      ) {
+        errors.push("Select at least one practice");
+      }
+      if (
+        formData.servicesForAllPractices === "SINGLE_PRACTICE_ONLY" &&
+        (formData.selectedPractices ?? []).length !== 1
+      ) {
+        errors.push("Which single practice");
+      }
+      if (
+        formData.replacingExistingVendor &&
+        !(formData.currentVendorName?.trim() ?? "")
+      ) {
+        errors.push("Current vendor name");
+      }
     }
 
     if (currentStep === 6) {
       if (!formData.technology?.ehrSystem) errors.push("EHR");
-      if (!formData.billing?.currentBillingModel) errors.push("Billing model");
+      if (hasBillingRcmSelected && !formData.billing?.currentBillingModel) {
+        errors.push("Billing model");
+      }
+      if (
+        (formData.billing?.currentBillingModel === "OUTSOURCED" ||
+          formData.billing?.currentBillingModel === "HYBRID") &&
+        !(formData.billing?.billingCompanyName?.trim() ?? "")
+      ) {
+        errors.push("Billing company name");
+      }
     }
 
     if (currentStep === 8) {
-      const invalidDocumentIndex = (formData.documents ?? []).findIndex(
-        (document) => !!getDocumentDateError(document),
-      );
+      const invalidDocumentIndexes = (formData.documents ?? [])
+        .map((document, index) => {
+          const documentType = document.documentType?.trim() ?? "";
+          const validDateOrder = isDocumentReceivedAfterRequested(
+            document.dateRequested,
+            document.dateReceived,
+          );
+          return documentType && validDateOrder ? null : index + 1;
+        })
+        .filter((index): index is number => index !== null);
 
-      if (invalidDocumentIndex >= 0) {
-        errors.push(`Document ${invalidDocumentIndex + 1} received date`);
+      if (invalidDocumentIndexes.length) {
+        errors.push(`Document ${invalidDocumentIndexes.join(", ")} type`);
+      }
+
+      if (!(formData.submittedByName?.trim() ?? "")) {
+        errors.push("Name of person submitting");
+      }
+
+      if (!(formData.submittedByTitle?.trim() ?? "")) {
+        errors.push("Title of person submitting");
       }
     }
 
@@ -1451,43 +2190,88 @@ export default function OnboardingFormV2() {
 
     if (stepId === 2) {
       if (formData.isIndividualPractice) return true;
-      return !!formData.legalCompanyName && !!formData.mainCompanyEmail;
-    }
-
-    if (stepId === 3) {
-      const primaryContact = formData.contacts?.[0];
-      return !!(
-        primaryContact?.fullName &&
-        primaryContact?.contactRole &&
-        primaryContact?.email
+      const mainCompanyPhone = formData.mainCompanyPhone?.trim() ?? "";
+      const mainCompanyEmail = formData.mainCompanyEmail?.trim() ?? "";
+      const companyWebsite = formData.companyWebsite?.trim() ?? "";
+      const companyZip = formData.companyZip?.trim() ?? "";
+      return (
+        !!(formData.legalCompanyName?.trim() ?? "") &&
+        (!mainCompanyPhone || isValidTenDigitPhone(mainCompanyPhone)) &&
+        isValidCompanyEmail(mainCompanyEmail) &&
+        (!companyWebsite || isValidWebsite(companyWebsite)) &&
+        (!companyZip || isValidZipCode(companyZip))
       );
     }
 
+    if (stepId === 3) {
+      return (formData.contacts ?? []).every((contact) => {
+        const fullName = contact.fullName?.trim() ?? "";
+        const contactRole = contact.contactRole?.trim() ?? "";
+        const email = contact.email?.trim() ?? "";
+        return !!fullName && !!contactRole && isValidCompanyEmail(email);
+      });
+    }
+
     if (stepId === 4) {
-      const firstPractice = formData.practices?.[0];
-      return !!(
-        firstPractice?.practiceName?.trim() &&
-        firstPractice?.practiceType &&
-        (firstPractice.locations ?? []).some((location) =>
-          location.locationName?.trim(),
-        )
+      return (formData.practices ?? []).every((practice) =>
+        isValidPractice(practice),
       );
     }
 
     if (stepId === 5) {
+      if (
+        formData.servicesForAllPractices === "SELECTED_PRACTICES" &&
+        !(formData.selectedPractices ?? []).length
+      ) {
+        return false;
+      }
+      if (
+        formData.servicesForAllPractices === "SINGLE_PRACTICE_ONLY" &&
+        (formData.selectedPractices ?? []).length !== 1
+      ) {
+        return false;
+      }
+      if (
+        formData.replacingExistingVendor &&
+        !(formData.currentVendorName?.trim() ?? "")
+      ) {
+        return false;
+      }
       return !!(
         formData.requestedServices?.length && formData.primaryServiceToLaunch
       );
     }
 
     if (stepId === 6) {
-      return !!(
-        formData.technology?.ehrSystem && formData.billing?.currentBillingModel
-      );
+      if (!formData.technology?.ehrSystem) return false;
+      if (hasBillingRcmSelected && !formData.billing?.currentBillingModel) {
+        return false;
+      }
+      if (
+        (formData.billing?.currentBillingModel === "OUTSOURCED" ||
+          formData.billing?.currentBillingModel === "HYBRID") &&
+        !(formData.billing?.billingCompanyName?.trim() ?? "")
+      ) {
+        return false;
+      }
+      return true;
     }
 
     if (stepId === 8) {
-      return !!(formData.informationAccurate && formData.authorizeUse);
+      const allDocumentsValid = (formData.documents ?? []).every(
+        (document) =>
+          !!(document.documentType?.trim() ?? "") &&
+          isDocumentReceivedAfterRequested(
+            document.dateRequested,
+            document.dateReceived,
+          ),
+      );
+      return (
+        !!(formData.informationAccurate && formData.authorizeUse) &&
+        !!(formData.submittedByName?.trim() ?? "") &&
+        !!(formData.submittedByTitle?.trim() ?? "") &&
+        allDocumentsValid
+      );
     }
 
     return true;
@@ -1538,13 +2322,11 @@ export default function OnboardingFormV2() {
     if (!validateCurrentStep()) return;
 
     if (!formData.informationAccurate) {
-      toast.error("Please confirm that the information provided is accurate.");
+      toast.error("Accuracy confirmation");
       return;
     }
     if (!formData.authorizeUse) {
-      toast.error(
-        "Please check the authorization confirmation before submitting.",
-      );
+      toast.error("Authorization confirmation");
       return;
     }
 
@@ -1552,12 +2334,22 @@ export default function OnboardingFormV2() {
     const loadingToast = toast.loading("Submitting your onboarding request...");
 
     try {
-      await createOnboardingFromForm({
+      const submissionPayload = {
         ...formData,
+        practiceId: id,
         submissionDate: new Date().toISOString().slice(0, 10),
-      });
+        status: "IN_PROGRESS",
+      };
+
+      if (id) {
+        await createExternalOnboardingFromForm(submissionPayload);
+      } else {
+        await createOnboardingFromForm(submissionPayload);
+      }
+
       toast.success("Onboarding submitted successfully!", { id: loadingToast });
       setIsSubmitted(true);
+      setIsAlreadySubmitted(true);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to submit onboarding.";
@@ -1587,23 +2379,37 @@ export default function OnboardingFormV2() {
             </svg>
           </div>
           <h2 className="mb-2 text-2xl font-semibold text-slate-950">
-            Thank You!
+            {isAlreadySubmitted ? "Already Submitted" : "Thank You!"}
           </h2>
           <p className="mb-8 max-w-md text-slate-600">
-            Your onboarding request has been submitted successfully. Our team
-            will review your information and follow up shortly.
+            {isAlreadySubmitted
+              ? "This onboarding form has already been submitted and can no longer be edited."
+              : "Your onboarding request has been submitted successfully. Our team will review your information and follow up shortly."}
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              setFormData(initialFormData);
-              setCurrentStep(1);
-              setIsSubmitted(false);
-            }}
-            className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            Submit Another Request
-          </button>
+          {!isAlreadySubmitted ? (
+            <button
+              type="button"
+              onClick={() => {
+                setFormData(initialFormData);
+                setCurrentStep(1);
+                setIsSubmitted(false);
+                setIsAlreadySubmitted(false);
+              }}
+              className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Submit Another Request
+            </button>
+          ) : null}
+        </div>
+      </Shell>
+    );
+  }
+
+  if (isLoadingRecord) {
+    return (
+      <Shell>
+        <div className="flex min-h-[50vh] items-center justify-center text-sm text-slate-500">
+          Loading onboarding form...
         </div>
       </Shell>
     );
@@ -1824,6 +2630,7 @@ export default function OnboardingFormV2() {
                 <Field label="Main Company Phone">
                   <TextInput
                     type="tel"
+                    placeholder="1234567890"
                     value={formData.mainCompanyPhone ?? ""}
                     onChange={(event) =>
                       updateField("mainCompanyPhone", event.target.value)
@@ -1834,16 +2641,22 @@ export default function OnboardingFormV2() {
                 <Field label="Main Company Fax">
                   <TextInput
                     type="tel"
+                    placeholder="1234567890"
                     value={formData.mainCompanyFax ?? ""}
                     onChange={(event) =>
                       updateField("mainCompanyFax", event.target.value)
                     }
+                    inputMode="numeric"
+                    maxLength={10}
+                    pattern="\d{10}"
+                    title="Main company fax must be exactly 10 digits"
                   />
                 </Field>
 
                 <Field label="Main Company Email" required>
                   <TextInput
                     type="email"
+                    placeholder="name@company.com"
                     value={formData.mainCompanyEmail ?? ""}
                     onChange={(event) =>
                       updateField("mainCompanyEmail", event.target.value)
@@ -1854,7 +2667,7 @@ export default function OnboardingFormV2() {
                 <Field label="Website">
                   <TextInput
                     type="url"
-                    placeholder="https://"
+                    placeholder="https://example.com"
                     value={formData.companyWebsite ?? ""}
                     onChange={(event) =>
                       updateField("companyWebsite", event.target.value)
@@ -1942,6 +2755,8 @@ export default function OnboardingFormV2() {
 
                 <Field label="ZIP Code">
                   <TextInput
+                    inputMode="numeric"
+                    placeholder="12345 or 12345-6789"
                     value={formData.companyZip ?? ""}
                     onChange={(event) =>
                       updateField("companyZip", event.target.value)
@@ -2029,7 +2844,7 @@ export default function OnboardingFormV2() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Field label="Full Name" required={index === 0}>
+                    <Field label="Full Name" required>
                       <TextInput
                         value={contact.fullName ?? ""}
                         onChange={(event) =>
@@ -2047,7 +2862,7 @@ export default function OnboardingFormV2() {
                       />
                     </Field>
 
-                    <Field label="Contact Role" required={index === 0}>
+                    <Field label="Contact Role" required>
                       <SelectInput
                         value={contact.contactRole ?? ""}
                         onChange={(event) =>
@@ -2061,9 +2876,10 @@ export default function OnboardingFormV2() {
                       />
                     </Field>
 
-                    <Field label="Email" required={index === 0}>
+                    <Field label="Email" required>
                       <TextInput
                         type="email"
+                        placeholder="name@company.com"
                         value={contact.email ?? ""}
                         onChange={(event) =>
                           updateContact(index, "email", event.target.value)
@@ -2074,6 +2890,11 @@ export default function OnboardingFormV2() {
                     <Field label="Phone">
                       <TextInput
                         type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
+                        pattern="\d{10}"
+                        title="Contact phone must be exactly 10 digits"
+                        placeholder="1234567890"
                         value={contact.phone ?? ""}
                         onChange={(event) =>
                           updateContact(index, "phone", event.target.value)
@@ -2123,18 +2944,13 @@ export default function OnboardingFormV2() {
                         <CheckboxGroup
                           options={responsibilityOptions}
                           values={contact.additionalResponsibilities ?? []}
-                          onToggle={(value) => {
-                            const currentValues =
-                              contact.additionalResponsibilities ?? [];
-                            const nextValues = currentValues.includes(value)
-                              ? currentValues.filter((entry) => entry !== value)
-                              : [...currentValues, value];
-                            updateContact(
+                          onToggle={(value) =>
+                            toggleContactArrayValue(
                               index,
                               "additionalResponsibilities",
-                              nextValues,
-                            );
-                          }}
+                              value,
+                            )
+                          }
                         />
                       </Field>
                     </div>
@@ -2178,8 +2994,8 @@ export default function OnboardingFormV2() {
           >
             <RepeaterHeader
               title="Practices"
-              actionLabel="+ Add Practice"
-              onAction={addPractice}
+              actionLabel={hasFixedPracticeCount ? undefined : "+ Add Practice"}
+              onAction={hasFixedPracticeCount ? undefined : addPractice}
             />
             <div className="space-y-6">
               {(formData.practices ?? []).map((practice, practiceIndex) => (
@@ -2196,7 +3012,8 @@ export default function OnboardingFormV2() {
                         Capture practice demographics, locations, and providers.
                       </p>
                     </div>
-                    {(formData.practices ?? []).length > 1 ? (
+                    {!hasFixedPracticeCount &&
+                    (formData.practices ?? []).length > 1 ? (
                       <button
                         type="button"
                         onClick={() => removePractice(practiceIndex)}
@@ -2204,6 +3021,11 @@ export default function OnboardingFormV2() {
                       >
                         Remove
                       </button>
+                    ) : hasFixedPracticeCount ? (
+                      <p className="text-xs text-slate-400">
+                        Locked to {requiredPracticeCount} practice
+                        {requiredPracticeCount === 1 ? "" : "s"}
+                      </p>
                     ) : null}
                   </div>
 
@@ -2234,7 +3056,7 @@ export default function OnboardingFormV2() {
                       />
                     </Field>
 
-                    <Field label="Practice Type" required={practiceIndex === 0}>
+                    <Field label="Practice Type" required>
                       <SelectInput
                         value={practice.practiceType ?? ""}
                         onChange={(event) =>
@@ -2251,14 +3073,11 @@ export default function OnboardingFormV2() {
                     <Field label="Group NPI">
                       <TextInput
                         value={practice.groupNpi ?? ""}
-                        inputMode="numeric"
-                        maxLength={10}
-                        pattern="\d{10}"
                         onChange={(event) =>
                           updatePractice(
                             practiceIndex,
                             "groupNpi",
-                            formatNpiInput(event.target.value),
+                            event.target.value,
                           )
                         }
                       />
@@ -2271,6 +3090,99 @@ export default function OnboardingFormV2() {
                           updatePractice(
                             practiceIndex,
                             "taxIdEin",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Medicaid ID Number">
+                      <TextInput
+                        value={practice.medicaidIdNumber ?? ""}
+                        onChange={(event) =>
+                          updatePractice(
+                            practiceIndex,
+                            "medicaidIdNumber",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Group Medicaid NPI">
+                      <TextInput
+                        value={practice.groupMedicaidNpi ?? ""}
+                        onChange={(event) =>
+                          updatePractice(
+                            practiceIndex,
+                            "groupMedicaidNpi",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Group Medicare PTAN">
+                      <TextInput
+                        value={practice.groupMedicarePtan ?? ""}
+                        onChange={(event) =>
+                          updatePractice(
+                            practiceIndex,
+                            "groupMedicarePtan",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Group Taxonomy">
+                      <TextInput
+                        value={practice.groupTaxonomy ?? ""}
+                        onChange={(event) =>
+                          updatePractice(
+                            practiceIndex,
+                            "groupTaxonomy",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Practice Manager Name">
+                      <TextInput
+                        value={practice.practiceManagerName ?? ""}
+                        onChange={(event) =>
+                          updatePractice(
+                            practiceIndex,
+                            "practiceManagerName",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Practice Manager Email">
+                      <TextInput
+                        type="email"
+                        value={practice.practiceManagerEmail ?? ""}
+                        onChange={(event) =>
+                          updatePractice(
+                            practiceIndex,
+                            "practiceManagerEmail",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Practice Manager Phone">
+                      <TextInput
+                        type="tel"
+                        value={practice.practiceManagerPhone ?? ""}
+                        onChange={(event) =>
+                          updatePractice(
+                            practiceIndex,
+                            "practiceManagerPhone",
                             event.target.value,
                           )
                         }
@@ -2381,23 +3293,45 @@ export default function OnboardingFormV2() {
                       />
                     </Field>
 
+                    <Field label="Practice Work Start Date">
+                      <TextInput
+                        type="date"
+                        value={practice.practiceWorkStartDate ?? ""}
+                        onChange={(event) =>
+                          updatePractice(
+                            practiceIndex,
+                            "practiceWorkStartDate",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Railroad Medicare (Group)">
+                      <TextInput
+                        value={practice.railroadMedicareGroup ?? ""}
+                        onChange={(event) =>
+                          updatePractice(
+                            practiceIndex,
+                            "railroadMedicareGroup",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
                     <div className="lg:col-span-3">
                       <Field label="Additional Specialty Areas">
                         <CheckboxGroup
                           options={specialtyOptions}
                           values={practice.additionalSpecialtyAreas ?? []}
-                          onToggle={(value) => {
-                            const values =
-                              practice.additionalSpecialtyAreas ?? [];
-                            const nextValues = values.includes(value)
-                              ? values.filter((entry) => entry !== value)
-                              : [...values, value];
-                            updatePractice(
+                          onToggle={(value) =>
+                            togglePracticeArrayValue(
                               practiceIndex,
                               "additionalSpecialtyAreas",
-                              nextValues,
-                            );
-                          }}
+                              value,
+                            )
+                          }
                         />
                       </Field>
                     </div>
@@ -2423,18 +3357,13 @@ export default function OnboardingFormV2() {
                         <CheckboxGroup
                           options={currentServiceOptions}
                           values={practice.currentServicesOffered ?? []}
-                          onToggle={(value) => {
-                            const values =
-                              practice.currentServicesOffered ?? [];
-                            const nextValues = values.includes(value)
-                              ? values.filter((entry) => entry !== value)
-                              : [...values, value];
-                            updatePractice(
+                          onToggle={(value) =>
+                            togglePracticeArrayValue(
                               practiceIndex,
                               "currentServicesOffered",
-                              nextValues,
-                            );
-                          }}
+                              value,
+                            )
+                          }
                         />
                       </Field>
                     </div>
@@ -2444,17 +3373,13 @@ export default function OnboardingFormV2() {
                         <CheckboxGroup
                           options={painPointOptions}
                           values={practice.operationalPainPoints ?? []}
-                          onToggle={(value) => {
-                            const values = practice.operationalPainPoints ?? [];
-                            const nextValues = values.includes(value)
-                              ? values.filter((entry) => entry !== value)
-                              : [...values, value];
-                            updatePractice(
+                          onToggle={(value) =>
+                            togglePracticeArrayValue(
                               practiceIndex,
                               "operationalPainPoints",
-                              nextValues,
-                            );
-                          }}
+                              value,
+                            )
+                          }
                         />
                       </Field>
                     </div>
@@ -2467,6 +3392,54 @@ export default function OnboardingFormV2() {
                             updatePractice(
                               practiceIndex,
                               "additionalNotes",
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <Field label="IPA Affiliations">
+                        <TextArea
+                          rows={3}
+                          value={practice.ipaAffiliations ?? ""}
+                          onChange={(event) =>
+                            updatePractice(
+                              practiceIndex,
+                              "ipaAffiliations",
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <Field label="Billing Address">
+                        <TextArea
+                          rows={3}
+                          value={practice.billingAddress ?? ""}
+                          onChange={(event) =>
+                            updatePractice(
+                              practiceIndex,
+                              "billingAddress",
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <Field label="Mailing Address">
+                        <TextArea
+                          rows={3}
+                          value={practice.mailingAddress ?? ""}
+                          onChange={(event) =>
+                            updatePractice(
+                              practiceIndex,
+                              "mailingAddress",
                               event.target.value,
                             )
                           }
@@ -2506,12 +3479,7 @@ export default function OnboardingFormV2() {
                             </div>
 
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                              <Field
-                                label="Location Name"
-                                required={
-                                  practiceIndex === 0 && locationIndex === 0
-                                }
-                              >
+                              <Field label="Location Name" required>
                                 <TextInput
                                   value={location.locationName ?? ""}
                                   onChange={(event) =>
@@ -2619,15 +3587,12 @@ export default function OnboardingFormV2() {
                               <Field label="ZIP Code">
                                 <TextInput
                                   value={location.zipCode ?? ""}
-                                  inputMode="numeric"
-                                  maxLength={10}
-                                  pattern="^\d{5}(-\d{4})?$"
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
                                       locationIndex,
                                       "zipCode",
-                                      formatZipCodeInput(event.target.value),
+                                      event.target.value,
                                     )
                                   }
                                 />
@@ -2637,15 +3602,12 @@ export default function OnboardingFormV2() {
                                 <TextInput
                                   type="tel"
                                   value={location.mainPhoneNumber ?? ""}
-                                  inputMode="numeric"
-                                  maxLength={10}
-                                  pattern="\d{10}"
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
                                       locationIndex,
                                       "mainPhoneNumber",
-                                      formatNpiInput(event.target.value),
+                                      event.target.value,
                                     )
                                   }
                                 />
@@ -2655,15 +3617,12 @@ export default function OnboardingFormV2() {
                                 <TextInput
                                   type="tel"
                                   value={location.mainFaxNumber ?? ""}
-                                  inputMode="numeric"
-                                  maxLength={10}
-                                  pattern="\d{10}"
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
                                       locationIndex,
                                       "mainFaxNumber",
-                                      formatNpiInput(event.target.value),
+                                      event.target.value,
                                     )
                                   }
                                 />
@@ -2673,13 +3632,12 @@ export default function OnboardingFormV2() {
                                 <TextInput
                                   type="email"
                                   value={location.officeEmail ?? ""}
-                                  pattern="^[^\s@]+@[^\s@]+\.com$"
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
                                       locationIndex,
                                       "officeEmail",
-                                      formatEmailInput(event.target.value),
+                                      event.target.value,
                                     )
                                   }
                                 />
@@ -2786,7 +3744,7 @@ export default function OnboardingFormV2() {
                             </div>
 
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                              <Field label="Provider First Name">
+                              <Field label="Provider First Name" required>
                                 <TextInput
                                   value={provider.firstName ?? ""}
                                   onChange={(event) =>
@@ -2800,7 +3758,7 @@ export default function OnboardingFormV2() {
                                 />
                               </Field>
 
-                              <Field label="Provider Last Name">
+                              <Field label="Provider Last Name" required>
                                 <TextInput
                                   value={provider.lastName ?? ""}
                                   onChange={(event) =>
@@ -2808,6 +3766,35 @@ export default function OnboardingFormV2() {
                                       practiceIndex,
                                       providerIndex,
                                       "lastName",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="Date of Birth">
+                                <TextInput
+                                  type="date"
+                                  value={provider.dateOfBirth ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "dateOfBirth",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="Gender">
+                                <TextInput
+                                  value={provider.gender ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "gender",
                                       event.target.value,
                                     )
                                   }
@@ -2829,7 +3816,7 @@ export default function OnboardingFormV2() {
                                 />
                               </Field>
 
-                              <Field label="Provider Type">
+                              <Field label="Provider Type" required>
                                 <SelectInput
                                   value={provider.providerType ?? ""}
                                   onChange={(event) =>
@@ -2877,15 +3864,26 @@ export default function OnboardingFormV2() {
                               <Field label="NPI">
                                 <TextInput
                                   value={provider.npi ?? ""}
-                                  inputMode="numeric"
-                                  maxLength={10}
-                                  pattern="\d{10}"
                                   onChange={(event) =>
                                     updateProvider(
                                       practiceIndex,
                                       providerIndex,
                                       "npi",
-                                      formatNpiInput(event.target.value),
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="SSN (Full Digits)">
+                                <TextInput
+                                  value={provider.ssnFullDigits ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "ssnFullDigits",
+                                      event.target.value,
                                     )
                                   }
                                 />
@@ -2899,6 +3897,20 @@ export default function OnboardingFormV2() {
                                       practiceIndex,
                                       providerIndex,
                                       "caqhId",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="CLIA Number">
+                                <TextInput
+                                  value={provider.cliaNumber ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "cliaNumber",
                                       event.target.value,
                                     )
                                   }
@@ -2919,6 +3931,77 @@ export default function OnboardingFormV2() {
                                 />
                               </Field>
 
+                              <Field label="License Expiry Date">
+                                <TextInput
+                                  type="date"
+                                  value={provider.licenseExpiryDate ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "licenseExpiryDate",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="State of License">
+                                <TextInput
+                                  value={provider.stateOfLicense ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "stateOfLicense",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="License Type (MD, NP, etc.)">
+                                <TextInput
+                                  value={provider.licenseType ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "licenseType",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="Taxonomy">
+                                <TextInput
+                                  value={provider.taxonomy ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "taxonomy",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="Secondary Specialty">
+                                <TextInput
+                                  value={provider.secondarySpecialty ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "secondarySpecialty",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
                               <Field label="DEA Number">
                                 <TextInput
                                   value={provider.deaNumber ?? ""}
@@ -2927,6 +4010,80 @@ export default function OnboardingFormV2() {
                                       practiceIndex,
                                       providerIndex,
                                       "deaNumber",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="Board Certifications">
+                                <TextArea
+                                  rows={3}
+                                  value={provider.boardCertifications ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "boardCertifications",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="CAQH Username">
+                                <TextInput
+                                  value={provider.caqhUsername ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "caqhUsername",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="CAQH Password">
+                                <TextInput
+                                  type="password"
+                                  value={provider.caqhPassword ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "caqhPassword",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="CAQH Last Attestation Date">
+                                <TextInput
+                                  type="date"
+                                  value={provider.caqhLastAttestationDate ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "caqhLastAttestationDate",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
+                              <Field label="Languages Spoken">
+                                <TextArea
+                                  rows={3}
+                                  value={provider.languagesSpoken ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "languagesSpoken",
                                       event.target.value,
                                     )
                                   }
@@ -2973,23 +4130,107 @@ export default function OnboardingFormV2() {
                                     values={
                                       provider.participatingLocations ?? []
                                     }
-                                    onToggle={(value) => {
-                                      const currentValues =
-                                        provider.participatingLocations ?? [];
-                                      const nextValues = currentValues.includes(
-                                        value,
-                                      )
-                                        ? currentValues.filter(
-                                            (entry) => entry !== value,
-                                          )
-                                        : [...currentValues, value];
-                                      updateProvider(
+                                    onToggle={(value) =>
+                                      toggleProviderArrayValue(
                                         practiceIndex,
                                         providerIndex,
                                         "participatingLocations",
-                                        nextValues,
-                                      );
-                                    }}
+                                        value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Medicare PTAN (Individual)">
+                                  <TextInput
+                                    value={
+                                      provider.medicarePtanIndividual ?? ""
+                                    }
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "medicarePtanIndividual",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Medicaid ID (Individual)">
+                                  <TextInput
+                                    value={provider.medicaidIdIndividual ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "medicaidIdIndividual",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="IPA Affiliations (Provider Level)">
+                                  <TextArea
+                                    rows={3}
+                                    value={
+                                      provider.ipaAffiliationsProviderLevel ??
+                                      ""
+                                    }
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "ipaAffiliationsProviderLevel",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="NPPES Username">
+                                  <TextInput
+                                    value={provider.nppesUsername ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "nppesUsername",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="NPPES Password">
+                                  <TextInput
+                                    type="password"
+                                    value={provider.nppesPassword ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "nppesPassword",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Railroad Medicare (Individual)">
+                                  <TextInput
+                                    value={
+                                      provider.railroadMedicareIndividual ?? ""
+                                    }
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "railroadMedicareIndividual",
+                                        event.target.value,
+                                      )
+                                    }
                                   />
                                 </Field>
                               </div>
@@ -3009,6 +4250,23 @@ export default function OnboardingFormV2() {
                                     }
                                   />
                                 </Field>
+
+                                <Field label="Telehealth Available (Yes/No)">
+                                  <BooleanRadioGroup
+                                    name={`telehealth-${practiceIndex}-${providerIndex}`}
+                                    value={
+                                      provider.telehealthAvailable ?? false
+                                    }
+                                    onChange={(value) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "telehealthAvailable",
+                                        value,
+                                      )
+                                    }
+                                  />
+                                </Field>
                               </div>
 
                               <div className="lg:col-span-3">
@@ -3022,6 +4280,533 @@ export default function OnboardingFormV2() {
                                         providerIndex,
                                         "notes",
                                         event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="lg:col-span-3 space-y-4">
+                                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                                  <Field label="Select Document Type">
+                                    <SelectInput
+                                      value={getSelectedProviderUploadField(
+                                        practiceIndex,
+                                        providerIndex,
+                                      )}
+                                      onChange={(event) =>
+                                        setSelectedProviderUploadField(
+                                          (prev) => ({
+                                            ...prev,
+                                            [getProviderUploadStateKey(
+                                              practiceIndex,
+                                              providerIndex,
+                                            )]: event.target
+                                              .value as ProviderDocumentField,
+                                          }),
+                                        )
+                                      }
+                                      options={providerDocumentFieldOptions}
+                                      placeholder="Select document type"
+                                    />
+                                  </Field>
+
+                                  <Field label="Upload Selected Document">
+                                    <DocumentUploadField
+                                      value={
+                                        provider[
+                                          getSelectedProviderUploadField(
+                                            practiceIndex,
+                                            providerIndex,
+                                          )
+                                        ] ?? ""
+                                      }
+                                      accept={
+                                        getSelectedProviderUploadField(
+                                          practiceIndex,
+                                          providerIndex,
+                                        ) === "passportSizedPhoto"
+                                          ? ".png,.jpg,.jpeg"
+                                          : ".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                                      }
+                                      isUploading={
+                                        uploadingFieldKey ===
+                                        `${practiceIndex}-${providerIndex}-${getSelectedProviderUploadField(
+                                          practiceIndex,
+                                          providerIndex,
+                                        )}`
+                                      }
+                                      onSelect={(file) =>
+                                        void uploadProviderDocument(
+                                          practiceIndex,
+                                          providerIndex,
+                                          getSelectedProviderUploadField(
+                                            practiceIndex,
+                                            providerIndex,
+                                          ),
+                                          file,
+                                        )
+                                      }
+                                      onClear={() =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          getSelectedProviderUploadField(
+                                            practiceIndex,
+                                            providerIndex,
+                                          ),
+                                          "",
+                                        )
+                                      }
+                                    />
+                                  </Field>
+                                </div>
+
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                  <p className="text-sm font-medium text-slate-800">
+                                    Uploaded Documents
+                                  </p>
+                                  {providerDocumentFieldOptions.filter(
+                                    (documentOption) =>
+                                      Boolean(provider[documentOption.value]),
+                                  ).length > 0 ? (
+                                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                      {providerDocumentFieldOptions
+                                        .filter((documentOption) =>
+                                          Boolean(provider[documentOption.value]),
+                                        )
+                                        .map((documentOption) => {
+                                          const documentValue =
+                                            provider[documentOption.value] ?? "";
+
+                                          return (
+                                            <div
+                                              key={documentOption.value}
+                                              className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                                            >
+                                              <p className="text-xs font-medium text-slate-600">
+                                                {documentOption.label}
+                                              </p>
+                                              <p className="mt-1 break-all text-xs text-slate-500">
+                                                {documentValue
+                                                  .split("/")
+                                                  .pop()
+                                                  ?.split("?")[0] ??
+                                                  documentValue}
+                                              </p>
+                                            </div>
+                                          );
+                                        })}
+                                    </div>
+                                  ) : (
+                                    <p className="mt-3 text-xs text-slate-500">
+                                      No documents uploaded yet.
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                <Field label="Malpractice Carrier">
+                                  <TextInput
+                                    value={provider.malpracticeCarrier ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "malpracticeCarrier",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Malpractice Policy #">
+                                  <TextInput
+                                    value={
+                                      provider.malpracticePolicyNumber ?? ""
+                                    }
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "malpracticePolicyNumber",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Malpractice Effective Date">
+                                  <TextInput
+                                    type="date"
+                                    value={
+                                      provider.malpracticeEffectiveDate ?? ""
+                                    }
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "malpracticeEffectiveDate",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Malpractice Expiry Date">
+                                  <TextInput
+                                    type="date"
+                                    value={provider.malpracticeExpiryDate ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "malpracticeExpiryDate",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Personal Cell Number">
+                                  <TextInput
+                                    type="tel"
+                                    value={provider.personalCellNumber ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "personalCellNumber",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Personal Email">
+                                  <TextInput
+                                    type="email"
+                                    value={provider.personalEmail ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "personalEmail",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Practice Email">
+                                  <TextInput
+                                    type="email"
+                                    value={provider.practiceEmail ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "practiceEmail",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Provider Effective Date with the Group">
+                                  <TextInput
+                                    type="date"
+                                    value={
+                                      provider.providerEffectiveDateWithGroup ??
+                                      ""
+                                    }
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "providerEffectiveDateWithGroup",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Country of Birth">
+                                  <TextInput
+                                    value={provider.countryOfBirth ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "countryOfBirth",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="State/Place of Birth">
+                                  <TextInput
+                                    value={provider.statePlaceOfBirth ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "statePlaceOfBirth",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="lg:col-span-3">
+                                <Field label="Hospital Affiliations">
+                                  <TextArea
+                                    rows={3}
+                                    value={provider.hospitalAffiliations ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "hospitalAffiliations",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="lg:col-span-3">
+                                <Field label="Home Address (for Medicaid applications)">
+                                  <TextArea
+                                    rows={3}
+                                    value={provider.homeAddress ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "homeAddress",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="hidden lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                <Field label="Copy of Board Certification">
+                                  <DocumentUploadField
+                                    value={
+                                      provider.copyOfBoardCertification ?? ""
+                                    }
+                                    isUploading={
+                                      uploadingFieldKey ===
+                                      `${practiceIndex}-${providerIndex}-copyOfBoardCertification`
+                                    }
+                                    onSelect={(file) =>
+                                      void uploadProviderDocument(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfBoardCertification",
+                                        file,
+                                      )
+                                    }
+                                    onClear={() =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfBoardCertification",
+                                        "",
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Copy of Professional Liability Insurance (PLI)">
+                                  <DocumentUploadField
+                                    value={
+                                      provider.copyOfProfessionalLiabilityInsurance ??
+                                      ""
+                                    }
+                                    isUploading={
+                                      uploadingFieldKey ===
+                                      `${practiceIndex}-${providerIndex}-copyOfProfessionalLiabilityInsurance`
+                                    }
+                                    onSelect={(file) =>
+                                      void uploadProviderDocument(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfProfessionalLiabilityInsurance",
+                                        file,
+                                      )
+                                    }
+                                    onClear={() =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfProfessionalLiabilityInsurance",
+                                        "",
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Copy of Bachelor’s Degree">
+                                  <DocumentUploadField
+                                    value={provider.copyOfBachelorsDegree ?? ""}
+                                    isUploading={
+                                      uploadingFieldKey ===
+                                      `${practiceIndex}-${providerIndex}-copyOfBachelorsDegree`
+                                    }
+                                    onSelect={(file) =>
+                                      void uploadProviderDocument(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfBachelorsDegree",
+                                        file,
+                                      )
+                                    }
+                                    onClear={() =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfBachelorsDegree",
+                                        "",
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Copy of Master’s Degree">
+                                  <DocumentUploadField
+                                    value={provider.copyOfMastersDegree ?? ""}
+                                    isUploading={
+                                      uploadingFieldKey ===
+                                      `${practiceIndex}-${providerIndex}-copyOfMastersDegree`
+                                    }
+                                    onSelect={(file) =>
+                                      void uploadProviderDocument(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfMastersDegree",
+                                        file,
+                                      )
+                                    }
+                                    onClear={() =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfMastersDegree",
+                                        "",
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Copy of Social Security Card (required for credentialing)">
+                                  <DocumentUploadField
+                                    value={
+                                      provider.copyOfSocialSecurityCard ?? ""
+                                    }
+                                    isUploading={
+                                      uploadingFieldKey ===
+                                      `${practiceIndex}-${providerIndex}-copyOfSocialSecurityCard`
+                                    }
+                                    onSelect={(file) =>
+                                      void uploadProviderDocument(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfSocialSecurityCard",
+                                        file,
+                                      )
+                                    }
+                                    onClear={() =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfSocialSecurityCard",
+                                        "",
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Copy of Driver’s License">
+                                  <DocumentUploadField
+                                    value={provider.copyOfDriversLicense ?? ""}
+                                    isUploading={
+                                      uploadingFieldKey ===
+                                      `${practiceIndex}-${providerIndex}-copyOfDriversLicense`
+                                    }
+                                    onSelect={(file) =>
+                                      void uploadProviderDocument(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfDriversLicense",
+                                        file,
+                                      )
+                                    }
+                                    onClear={() =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "copyOfDriversLicense",
+                                        "",
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Passport-sized Photo">
+                                  <DocumentUploadField
+                                    value={provider.passportSizedPhoto ?? ""}
+                                    accept=".png,.jpg,.jpeg"
+                                    isUploading={
+                                      uploadingFieldKey ===
+                                      `${practiceIndex}-${providerIndex}-passportSizedPhoto`
+                                    }
+                                    onSelect={(file) =>
+                                      void uploadProviderDocument(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "passportSizedPhoto",
+                                        file,
+                                      )
+                                    }
+                                    onClear={() =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "passportSizedPhoto",
+                                        "",
+                                      )
+                                    }
+                                  />
+                                </Field>
+
+                                <Field label="Resume (with MM/DD/YYYY format)">
+                                  <DocumentUploadField
+                                    value={provider.resume ?? ""}
+                                    isUploading={
+                                      uploadingFieldKey ===
+                                      `${practiceIndex}-${providerIndex}-resume`
+                                    }
+                                    onSelect={(file) =>
+                                      void uploadProviderDocument(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "resume",
+                                        file,
+                                      )
+                                    }
+                                    onClear={() =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "resume",
+                                        "",
                                       )
                                     }
                                   />
@@ -3104,20 +4889,35 @@ export default function OnboardingFormV2() {
                 </Field>
 
                 {formData.servicesForAllPractices === "SELECTED_PRACTICES" ? (
-                  <Field label="If selected practices, which practices?">
+                  <Field
+                    label="If selected practices, which practices?"
+                    required
+                  >
                     <CheckboxGroup
                       options={practiceNames.map((name) => ({
                         label: name,
                         value: name,
                       }))}
                       values={formData.selectedPractices ?? []}
-                      onToggle={(value) => {
-                        const currentValues = formData.selectedPractices ?? [];
-                        const nextValues = currentValues.includes(value)
-                          ? currentValues.filter((entry) => entry !== value)
-                          : [...currentValues, value];
-                        updateServiceSetup("selectedPractices", nextValues);
-                      }}
+                      onToggle={(value) =>
+                        toggleServiceSetupArrayValue("selectedPractices", value)
+                      }
+                    />
+                  </Field>
+                ) : formData.servicesForAllPractices ===
+                  "SINGLE_PRACTICE_ONLY" ? (
+                  <Field label="Which single practice?" required>
+                    <SelectInput
+                      value={formData.selectedPractices?.[0] ?? ""}
+                      onChange={(event) =>
+                        updateServiceSetup("selectedPractices", [
+                          event.target.value,
+                        ])
+                      }
+                      options={practiceNames.map((name) => ({
+                        label: name,
+                        value: name,
+                      }))}
                     />
                   </Field>
                 ) : null}
@@ -3134,7 +4934,10 @@ export default function OnboardingFormV2() {
 
                 {formData.replacingExistingVendor ? (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Field label="Current Vendor Name">
+                    <Field
+                      label="Current Vendor Name"
+                      required={!!formData.replacingExistingVendor}
+                    >
                       <TextInput
                         value={formData.currentVendorName ?? ""}
                         onChange={(event) =>
@@ -3192,7 +4995,7 @@ export default function OnboardingFormV2() {
                   />
                 </Field>
 
-                <Field label="Practice Management System">
+                <Field label="Practice Management System/Billing Software Name">
                   <TextInput
                     value={formData.technology?.practiceManagementSystem ?? ""}
                     onChange={(event) =>
@@ -3369,326 +5172,724 @@ export default function OnboardingFormV2() {
               </div>
             </SectionCard>
 
-            <SectionCard title="Billing / RCM Setup">
-              <div className="grid gap-6">
-                <Field label="Current Billing Model" required>
-                  <RadioGroup
-                    name="currentBillingModel"
-                    value={formData.billing?.currentBillingModel ?? ""}
-                    options={billingModelOptions}
-                    onChange={(value) =>
-                      updateNestedField("billing", "currentBillingModel", value)
-                    }
-                  />
-                </Field>
-
-                {formData.billing?.currentBillingModel === "OUTSOURCED" ||
-                formData.billing?.currentBillingModel === "HYBRID" ? (
-                  <Field label="Billing Company Name">
-                    <TextInput
-                      value={formData.billing?.billingCompanyName ?? ""}
-                      onChange={(event) =>
+            {hasBillingRcmSelected ? (
+              <SectionCard title="Billing / RCM Setup">
+                <div className="grid gap-6">
+                  <Field label="Current Billing Model" required>
+                    <RadioGroup
+                      name="currentBillingModel"
+                      value={formData.billing?.currentBillingModel ?? ""}
+                      options={billingModelOptions}
+                      onChange={(value) =>
                         updateNestedField(
                           "billing",
-                          "billingCompanyName",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
-                ) : null}
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  <Field label="Main Billing Contact Name">
-                    <TextInput
-                      value={formData.billing?.mainBillingContactName ?? ""}
-                      onChange={(event) =>
-                        updateNestedField(
-                          "billing",
-                          "mainBillingContactName",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
-
-                  <Field label="Main Billing Contact Email">
-                    <TextInput
-                      type="email"
-                      value={formData.billing?.mainBillingContactEmail ?? ""}
-                      onChange={(event) =>
-                        updateNestedField(
-                          "billing",
-                          "mainBillingContactEmail",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
-
-                  <Field label="Main Billing Contact Phone">
-                    <TextInput
-                      type="tel"
-                      value={formData.billing?.mainBillingContactPhone ?? ""}
-                      onChange={(event) =>
-                        updateNestedField(
-                          "billing",
-                          "mainBillingContactPhone",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
-
-                  <Field label="Are EFT / ERA already set up?">
-                    <SelectInput
-                      value={formData.billing?.eftEraSetup ?? ""}
-                      onChange={(event) =>
-                        updateNestedField(
-                          "billing",
-                          "eftEraSetup",
-                          event.target.value,
-                        )
-                      }
-                      options={[
-                        { label: "Yes", value: "YES" },
-                        { label: "No", value: "NO" },
-                        { label: "Partially", value: "PARTIALLY" },
-                        { label: "Not Sure", value: "NOT_SURE" },
-                      ]}
-                    />
-                  </Field>
-
-                  <Field label="Who should receive invoices?">
-                    <TextInput
-                      value={formData.billing?.invoiceRecipient ?? ""}
-                      onChange={(event) =>
-                        updateNestedField(
-                          "billing",
-                          "invoiceRecipient",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
-
-                  <Field label="Invoice Email">
-                    <TextInput
-                      type="email"
-                      value={formData.billing?.invoiceEmail ?? ""}
-                      onChange={(event) =>
-                        updateNestedField(
-                          "billing",
-                          "invoiceEmail",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
-
-                  <Field label="Preferred Billing / Reporting Cadence">
-                    <SelectInput
-                      value={formData.billing?.preferredReportingCadence ?? ""}
-                      onChange={(event) =>
-                        updateNestedField(
-                          "billing",
-                          "preferredReportingCadence",
-                          event.target.value,
-                        )
-                      }
-                      options={reportingCadenceOptions}
-                    />
-                  </Field>
-                </div>
-
-                <Field label="Are APCM / CCM / RPM / PCM / BHI currently billed today?">
-                  <CheckboxGroup
-                    options={[
-                      { label: "APCM", value: "APCM" },
-                      { label: "CCM", value: "CCM" },
-                      { label: "RPM", value: "RPM" },
-                      { label: "PCM", value: "PCM" },
-                      { label: "BHI", value: "BHI" },
-                      { label: "RTM", value: "RTM" },
-                      { label: "None", value: "NONE" },
-                      { label: "Not Sure", value: "NOT_SURE" },
-                    ]}
-                    values={formData.billing?.currentlyBilledServices ?? []}
-                    onToggle={(value) =>
-                      toggleNestedArrayValue(
-                        "billing",
-                        "currentlyBilledServices",
-                        value,
-                      )
-                    }
-                  />
-                </Field>
-
-                <Field label="Which payers are active?">
-                  <TextArea
-                    value={formData.billing?.activePayers ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "billing",
-                        "activePayers",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </Field>
-
-                <Field label="Current Billing Pain Points">
-                  <CheckboxGroup
-                    options={billingPainPointOptions}
-                    values={formData.billing?.billingPainPoints ?? []}
-                    onToggle={(value) =>
-                      toggleNestedArrayValue(
-                        "billing",
-                        "billingPainPoints",
-                        value,
-                      )
-                    }
-                  />
-                </Field>
-
-                <Field label="Additional Billing Notes">
-                  <TextArea
-                    value={formData.billing?.additionalNotes ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "billing",
-                        "additionalNotes",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </Field>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Credentialing / Payer Enrollment">
-              <div className="grid gap-6">
-                <Field label="Is credentialing needed?">
-                  <BooleanRadioGroup
-                    name="credentialingNeeded"
-                    value={formData.credentialing?.credentialingNeeded ?? false}
-                    onChange={(value) =>
-                      updateNestedField(
-                        "credentialing",
-                        "credentialingNeeded",
-                        value,
-                      )
-                    }
-                  />
-                </Field>
-
-                {formData.credentialing?.credentialingNeeded ? (
-                  <Field label="Credentialing Needed For">
-                    <CheckboxGroup
-                      options={credentialingForOptions}
-                      values={formData.credentialing?.credentialingFor ?? []}
-                      onToggle={(value) =>
-                        toggleNestedArrayValue(
-                          "credentialing",
-                          "credentialingFor",
+                          "currentBillingModel",
                           value,
                         )
                       }
                     />
                   </Field>
-                ) : null}
 
-                <Field label="List of Payers to Enroll / Update">
-                  <TextArea
-                    value={formData.credentialing?.payersToEnroll ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "credentialing",
-                        "payersToEnroll",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </Field>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  <Field label="Medicare PTAN Available?">
-                    <SelectInput
-                      value={
-                        formData.credentialing?.medicarePtanAvailable ?? ""
+                  {formData.billing?.currentBillingModel === "OUTSOURCED" ||
+                  formData.billing?.currentBillingModel === "HYBRID" ? (
+                    <Field
+                      label="Billing Company Name"
+                      required={
+                        formData.billing?.currentBillingModel ===
+                          "OUTSOURCED" ||
+                        formData.billing?.currentBillingModel === "HYBRID"
                       }
-                      onChange={(event) =>
-                        updateNestedField(
-                          "credentialing",
-                          "medicarePtanAvailable",
-                          event.target.value,
+                    >
+                      <TextInput
+                        value={formData.billing?.billingCompanyName ?? ""}
+                        onChange={(event) =>
+                          updateNestedField(
+                            "billing",
+                            "billingCompanyName",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+                  ) : null}
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Field label="Main Billing Contact Name">
+                      <TextInput
+                        value={formData.billing?.mainBillingContactName ?? ""}
+                        onChange={(event) =>
+                          updateNestedField(
+                            "billing",
+                            "mainBillingContactName",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Main Billing Contact Email">
+                      <TextInput
+                        type="email"
+                        value={formData.billing?.mainBillingContactEmail ?? ""}
+                        onChange={(event) =>
+                          updateNestedField(
+                            "billing",
+                            "mainBillingContactEmail",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Main Billing Contact Phone">
+                      <TextInput
+                        type="tel"
+                        value={formData.billing?.mainBillingContactPhone ?? ""}
+                        onChange={(event) =>
+                          updateNestedField(
+                            "billing",
+                            "mainBillingContactPhone",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Are EFT / ERA already set up?">
+                      <SelectInput
+                        value={formData.billing?.eftEraSetup ?? ""}
+                        onChange={(event) =>
+                          updateNestedField(
+                            "billing",
+                            "eftEraSetup",
+                            event.target.value,
+                          )
+                        }
+                        options={[
+                          { label: "Yes", value: "YES" },
+                          { label: "No", value: "NO" },
+                          { label: "Partially", value: "PARTIALLY" },
+                          { label: "Not Sure", value: "NOT_SURE" },
+                        ]}
+                      />
+                    </Field>
+
+                    <Field label="Who should receive invoices?">
+                      <TextInput
+                        value={formData.billing?.invoiceRecipient ?? ""}
+                        onChange={(event) =>
+                          updateNestedField(
+                            "billing",
+                            "invoiceRecipient",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Invoice Email">
+                      <TextInput
+                        type="email"
+                        value={formData.billing?.invoiceEmail ?? ""}
+                        onChange={(event) =>
+                          updateNestedField(
+                            "billing",
+                            "invoiceEmail",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Preferred Billing / Reporting Cadence">
+                      <SelectInput
+                        value={
+                          formData.billing?.preferredReportingCadence ?? ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "billing",
+                            "preferredReportingCadence",
+                            event.target.value,
+                          )
+                        }
+                        options={reportingCadenceOptions}
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Are APCM / CCM / RPM / PCM / BHI currently billed today?">
+                    <CheckboxGroup
+                      options={[
+                        { label: "APCM", value: "APCM" },
+                        { label: "CCM", value: "CCM" },
+                        { label: "RPM", value: "RPM" },
+                        { label: "PCM", value: "PCM" },
+                        { label: "BHI", value: "BHI" },
+                        { label: "RTM", value: "RTM" },
+                        { label: "None", value: "NONE" },
+                        { label: "Not Sure", value: "NOT_SURE" },
+                      ]}
+                      values={formData.billing?.currentlyBilledServices ?? []}
+                      onToggle={(value) =>
+                        toggleNestedArrayValue(
+                          "billing",
+                          "currentlyBilledServices",
+                          value,
                         )
                       }
-                      options={yesNoMaybeOptions}
                     />
                   </Field>
 
-                  <Field label="Medicaid Enrollment Active?">
-                    <SelectInput
-                      value={
-                        formData.credentialing?.medicaidEnrollmentActive ?? ""
-                      }
+                  <Field label="Which payers are active?">
+                    <TextArea
+                      value={formData.billing?.activePayers ?? ""}
                       onChange={(event) =>
                         updateNestedField(
-                          "credentialing",
-                          "medicaidEnrollmentActive",
+                          "billing",
+                          "activePayers",
                           event.target.value,
                         )
                       }
-                      options={yesNoMaybeOptions}
                     />
                   </Field>
 
-                  <Field label="Is CAQH currently maintained?">
+                  <Field label="Current Billing Pain Points">
+                    <CheckboxGroup
+                      options={billingPainPointOptions}
+                      values={formData.billing?.billingPainPoints ?? []}
+                      onToggle={(value) =>
+                        toggleNestedArrayValue(
+                          "billing",
+                          "billingPainPoints",
+                          value,
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Additional Billing Notes">
+                    <TextArea
+                      value={formData.billing?.additionalNotes ?? ""}
+                      onChange={(event) =>
+                        updateNestedField(
+                          "billing",
+                          "additionalNotes",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Field label="Recent W9 Form">
+                      <DocumentUploadField
+                        value={formData.billing?.recentW9Form ?? ""}
+                        isUploading={
+                          uploadingFieldKey === "billing-recentW9Form"
+                        }
+                        onSelect={(file) =>
+                          void uploadNestedDocument(
+                            "billing",
+                            "recentW9Form",
+                            file,
+                          )
+                        }
+                        onClear={() =>
+                          updateNestedField("billing", "recentW9Form", "")
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Void Check">
+                      <DocumentUploadField
+                        value={formData.billing?.voidCheck ?? ""}
+                        isUploading={uploadingFieldKey === "billing-voidCheck"}
+                        onSelect={(file) =>
+                          void uploadNestedDocument(
+                            "billing",
+                            "voidCheck",
+                            file,
+                          )
+                        }
+                        onClear={() =>
+                          updateNestedField("billing", "voidCheck", "")
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Formal Letter from Bank Stating the Client Holds an Account">
+                      <DocumentUploadField
+                        value={formData.billing?.formalLetterFromBank ?? ""}
+                        isUploading={
+                          uploadingFieldKey === "billing-formalLetterFromBank"
+                        }
+                        onSelect={(file) =>
+                          void uploadNestedDocument(
+                            "billing",
+                            "formalLetterFromBank",
+                            file,
+                          )
+                        }
+                        onClear={() =>
+                          updateNestedField(
+                            "billing",
+                            "formalLetterFromBank",
+                            "",
+                          )
+                        }
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </SectionCard>
+            ) : null}
+
+            {hasCredentialingSelected ? (
+              <SectionCard title="Credentialing / Payer Enrollment">
+                <div className="grid gap-6">
+                  <Field label="Is credentialing needed?">
                     <BooleanRadioGroup
-                      name="caqhMaintained"
-                      value={formData.credentialing?.caqhMaintained ?? false}
+                      name="credentialingNeeded"
+                      value={
+                        formData.credentialing?.credentialingNeeded ?? false
+                      }
                       onChange={(value) =>
                         updateNestedField(
                           "credentialing",
-                          "caqhMaintained",
+                          "credentialingNeeded",
                           value,
                         )
                       }
                     />
                   </Field>
+
+                  {formData.credentialing?.credentialingNeeded ? (
+                    <Field label="Credentialing Needed For">
+                      <CheckboxGroup
+                        options={credentialingForOptions}
+                        values={formData.credentialing?.credentialingFor ?? []}
+                        onToggle={(value) =>
+                          toggleNestedArrayValue(
+                            "credentialing",
+                            "credentialingFor",
+                            value,
+                          )
+                        }
+                      />
+                    </Field>
+                  ) : null}
+
+                  <Field label="List of Payers to Enroll / Update">
+                    <TextArea
+                      value={formData.credentialing?.payersToEnroll ?? ""}
+                      onChange={(event) =>
+                        updateNestedField(
+                          "credentialing",
+                          "payersToEnroll",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Field label="Medicare PTAN Available?">
+                      <SelectInput
+                        value={
+                          formData.credentialing?.medicarePtanAvailable ?? ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "credentialing",
+                            "medicarePtanAvailable",
+                            event.target.value,
+                          )
+                        }
+                        options={yesNoMaybeOptions}
+                      />
+                    </Field>
+
+                    <Field label="Medicaid Enrollment Active?">
+                      <SelectInput
+                        value={
+                          formData.credentialing?.medicaidEnrollmentActive ?? ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "credentialing",
+                            "medicaidEnrollmentActive",
+                            event.target.value,
+                          )
+                        }
+                        options={yesNoMaybeOptions}
+                      />
+                    </Field>
+
+                    <Field label="Is CAQH currently maintained?">
+                      <BooleanRadioGroup
+                        name="caqhMaintained"
+                        value={formData.credentialing?.caqhMaintained ?? false}
+                        onChange={(value) =>
+                          updateNestedField(
+                            "credentialing",
+                            "caqhMaintained",
+                            value,
+                          )
+                        }
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Are there any current credentialing issues?">
+                    <CheckboxGroup
+                      options={credentialingIssueOptions}
+                      values={
+                        formData.credentialing?.currentCredentialingIssues ?? []
+                      }
+                      onToggle={(value) =>
+                        toggleNestedArrayValue(
+                          "credentialing",
+                          "currentCredentialingIssues",
+                          value,
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Additional Credentialing Notes">
+                    <TextArea
+                      value={formData.credentialing?.additionalNotes ?? ""}
+                      onChange={(event) =>
+                        updateNestedField(
+                          "credentialing",
+                          "additionalNotes",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Excel spreadsheet or tracker listing all approved and in-network insurances, including online portal login credentials (if available)">
+                    <DocumentUploadField
+                      value={
+                        formData.credentialing?.approvedInsurancesTracker ?? ""
+                      }
+                      isUploading={
+                        uploadingFieldKey ===
+                        "credentialing-approvedInsurancesTracker"
+                      }
+                      onSelect={(file) =>
+                        void uploadNestedDocument(
+                          "credentialing",
+                          "approvedInsurancesTracker",
+                          file,
+                        )
+                      }
+                      onClear={() =>
+                        updateNestedField(
+                          "credentialing",
+                          "approvedInsurancesTracker",
+                          "",
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Field label="Designated contact person for all insurance portal setup, access, and maintenance matters">
+                      <TextInput
+                        value={
+                          formData.credentialing?.designatedPortalContactName ??
+                          ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "credentialing",
+                            "designatedPortalContactName",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Designated Contact Email">
+                      <TextInput
+                        type="email"
+                        value={
+                          formData.credentialing
+                            ?.designatedPortalContactEmail ?? ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "credentialing",
+                            "designatedPortalContactEmail",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Designated Contact Phone">
+                      <TextInput
+                        type="tel"
+                        value={
+                          formData.credentialing
+                            ?.designatedPortalContactPhone ?? ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "credentialing",
+                            "designatedPortalContactPhone",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="IRS Document – Letter 147C">
+                      <DocumentUploadField
+                        value={formData.credentialing?.irsDocument147c ?? ""}
+                        isUploading={
+                          uploadingFieldKey === "credentialing-irsDocument147c"
+                        }
+                        onSelect={(file) =>
+                          void uploadNestedDocument(
+                            "credentialing",
+                            "irsDocument147c",
+                            file,
+                          )
+                        }
+                        onClear={() =>
+                          updateNestedField(
+                            "credentialing",
+                            "irsDocument147c",
+                            "",
+                          )
+                        }
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Which insurance plans would you like us to enroll/credential this provider with? (Please list all desired commercial, Medicare, Medicaid, IPA/HMO, and specialty plans.)">
+                    <TextArea
+                      value={
+                        formData.credentialing?.desiredInsurancePlans ?? ""
+                      }
+                      onChange={(event) =>
+                        updateNestedField(
+                          "credentialing",
+                          "desiredInsurancePlans",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </Field>
                 </div>
+              </SectionCard>
+            ) : null}
 
-                <Field label="Are there any current credentialing issues?">
-                  <CheckboxGroup
-                    options={credentialingIssueOptions}
-                    values={
-                      formData.credentialing?.currentCredentialingIssues ?? []
-                    }
-                    onToggle={(value) =>
-                      toggleNestedArrayValue(
-                        "credentialing",
-                        "currentCredentialingIssues",
-                        value,
-                      )
-                    }
-                  />
-                </Field>
+            {hasMarketingSelected ? (
+              <SectionCard title="Marketing Setup">
+                <div className="grid gap-6">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Field label="Website URL">
+                      <TextInput
+                        type="url"
+                        placeholder="https://"
+                        value={formData.marketing?.websiteUrl ?? ""}
+                        onChange={(event) =>
+                          updateNestedField(
+                            "marketing",
+                            "websiteUrl",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
 
-                <Field label="Additional Credentialing Notes">
-                  <TextArea
-                    value={formData.credentialing?.additionalNotes ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "credentialing",
-                        "additionalNotes",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </Field>
-              </div>
-            </SectionCard>
+                    <Field label="Monthly Marketing Budget">
+                      <SelectInput
+                        value={formData.marketing?.monthlyMarketingBudget ?? ""}
+                        onChange={(event) =>
+                          updateNestedField(
+                            "marketing",
+                            "monthlyMarketingBudget",
+                            event.target.value,
+                          )
+                        }
+                        options={[
+                          {
+                            label: "Less than $1,000",
+                            value: "LESS_THAN_1000",
+                          },
+                          { label: "$1,000 - $5,000", value: "1000_TO_5000" },
+                          { label: "$5,000 - $10,000", value: "5000_TO_10000" },
+                          { label: "$10,000+", value: "OVER_10000" },
+                          { label: "Not Sure", value: "NOT_SURE" },
+                        ]}
+                      />
+                    </Field>
+
+                    <Field label="Google Business Profile Claimed?">
+                      <BooleanRadioGroup
+                        name="googleBusinessProfileClaimed"
+                        value={
+                          formData.marketing?.googleBusinessProfileClaimed ??
+                          false
+                        }
+                        onChange={(value) =>
+                          updateNestedField(
+                            "marketing",
+                            "googleBusinessProfileClaimed",
+                            value,
+                          )
+                        }
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Active Social Media Channels">
+                    <CheckboxGroup
+                      options={[
+                        { label: "Facebook", value: "FACEBOOK" },
+                        { label: "Instagram", value: "INSTAGRAM" },
+                        { label: "LinkedIn", value: "LINKEDIN" },
+                        { label: "Twitter / X", value: "TWITTER_X" },
+                        { label: "YouTube", value: "YOUTUBE" },
+                        { label: "TikTok", value: "TIKTOK" },
+                        { label: "Nextdoor", value: "NEXTDOOR" },
+                        { label: "None", value: "NONE" },
+                      ]}
+                      values={formData.marketing?.socialMediaChannels ?? []}
+                      onToggle={(value) =>
+                        toggleNestedArrayValue(
+                          "marketing",
+                          "socialMediaChannels",
+                          value,
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Current Marketing Channels">
+                    <CheckboxGroup
+                      options={[
+                        { label: "Google Ads", value: "GOOGLE_ADS" },
+                        {
+                          label: "Social Media Ads",
+                          value: "SOCIAL_MEDIA_ADS",
+                        },
+                        { label: "SEO", value: "SEO" },
+                        { label: "Email Marketing", value: "EMAIL_MARKETING" },
+                        { label: "Direct Mail", value: "DIRECT_MAIL" },
+                        {
+                          label: "Community Events",
+                          value: "COMMUNITY_EVENTS",
+                        },
+                        {
+                          label: "Referral Program",
+                          value: "REFERRAL_PROGRAM",
+                        },
+                        { label: "TV / Radio", value: "TV_RADIO" },
+                        { label: "Billboards", value: "BILLBOARDS" },
+                        { label: "None", value: "NONE" },
+                      ]}
+                      values={
+                        formData.marketing?.currentMarketingChannels ?? []
+                      }
+                      onToggle={(value) =>
+                        toggleNestedArrayValue(
+                          "marketing",
+                          "currentMarketingChannels",
+                          value,
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field label="Target Patient Demographics">
+                      <TextArea
+                        rows={3}
+                        value={
+                          formData.marketing?.targetPatientDemographics ?? ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "marketing",
+                            "targetPatientDemographics",
+                            event.target.value,
+                          )
+                        }
+                        placeholder="Describe your ideal patient demographics..."
+                      />
+                    </Field>
+
+                    <Field label="Patient Acquisition Goals">
+                      <TextArea
+                        rows={3}
+                        value={
+                          formData.marketing?.patientAcquisitionGoals ?? ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "marketing",
+                            "patientAcquisitionGoals",
+                            event.target.value,
+                          )
+                        }
+                        placeholder="What are your goals for new patient acquisition?"
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Existing Brand Assets">
+                    <TextArea
+                      rows={3}
+                      value={formData.marketing?.existingBrandAssets ?? ""}
+                      onChange={(event) =>
+                        updateNestedField(
+                          "marketing",
+                          "existingBrandAssets",
+                          event.target.value,
+                        )
+                      }
+                      placeholder="Describe any existing brand materials, logos, style guides..."
+                    />
+                  </Field>
+
+                  <Field label="AI Tools Currently Used">
+                    <TextArea
+                      rows={3}
+                      value={formData.marketing?.aiToolsUsed ?? ""}
+                      onChange={(event) =>
+                        updateNestedField(
+                          "marketing",
+                          "aiToolsUsed",
+                          event.target.value,
+                        )
+                      }
+                      placeholder="Describe any AI tools or platforms currently in use..."
+                    />
+                  </Field>
+
+                  <Field label="Additional Marketing Notes">
+                    <TextArea
+                      rows={3}
+                      value={formData.marketing?.additionalMarketingNotes ?? ""}
+                      onChange={(event) =>
+                        updateNestedField(
+                          "marketing",
+                          "additionalMarketingNotes",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </Field>
+                </div>
+              </SectionCard>
+            ) : null}
           </>
         ) : null}
 
@@ -3703,20 +5904,9 @@ export default function OnboardingFormV2() {
                         careProgramServiceValues.includes(option.value),
                       )}
                       values={formData.careProgram?.programsPlanned ?? []}
-                      onToggle={(value) => {
-                        const values =
-                          formData.careProgram?.programsPlanned ?? [];
-                        const nextValues = values.includes(value)
-                          ? values.filter((entry) => entry !== value)
-                          : [...values, value];
-                        setFormData((prev) => ({
-                          ...prev,
-                          careProgram: {
-                            ...(prev.careProgram ?? {}),
-                            programsPlanned: nextValues,
-                          },
-                        }));
-                      }}
+                      onToggle={(value) =>
+                        toggleCareProgramArrayValue("programsPlanned", value)
+                      }
                     />
                   </Field>
 
@@ -3976,125 +6166,127 @@ export default function OnboardingFormV2() {
               </div>
             </SectionCard>
 
-            <SectionCard title="Laboratory / Pharmacy / External Relationships">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Field label="Preferred Lab">
-                  <TextInput
-                    value={formData.labPharmacy?.preferredLab ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "labPharmacy",
-                        "preferredLab",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </Field>
-
-                <Field label="Lab Interface Status">
-                  <SelectInput
-                    value={formData.labPharmacy?.labInterfaceStatus ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "labPharmacy",
-                        "labInterfaceStatus",
-                        event.target.value,
-                      )
-                    }
-                    options={labStatusOptions}
-                  />
-                </Field>
-
-                <Field label="Pharmacy Partner Name">
-                  <TextInput
-                    value={formData.labPharmacy?.pharmacyPartnerName ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "labPharmacy",
-                        "pharmacyPartnerName",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </Field>
-
-                <Field label="Lab Contact Name">
-                  <TextInput
-                    value={formData.labPharmacy?.labContactName ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "labPharmacy",
-                        "labContactName",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </Field>
-
-                <Field label="Lab Contact Email">
-                  <TextInput
-                    type="email"
-                    value={formData.labPharmacy?.labContactEmail ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "labPharmacy",
-                        "labContactEmail",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </Field>
-
-                <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
-                  <Field label="Existing Lab Relationship in Place?">
-                    <BooleanRadioGroup
-                      name="existingLabRelationship"
-                      value={
-                        formData.labPharmacy?.existingLabRelationship ?? false
-                      }
-                      onChange={(value) =>
-                        updateNestedField(
-                          "labPharmacy",
-                          "existingLabRelationship",
-                          value,
-                        )
-                      }
-                    />
-                  </Field>
-
-                  <Field label="Is a pharmacy partner already involved?">
-                    <BooleanRadioGroup
-                      name="pharmacyPartnerInvolved"
-                      value={
-                        formData.labPharmacy?.pharmacyPartnerInvolved ?? false
-                      }
-                      onChange={(value) =>
-                        updateNestedField(
-                          "labPharmacy",
-                          "pharmacyPartnerInvolved",
-                          value,
-                        )
-                      }
-                    />
-                  </Field>
-                </div>
-
-                <div className="lg:col-span-3">
-                  <Field label="Additional Vendor / Partner Notes">
-                    <TextArea
-                      value={formData.labPharmacy?.additionalNotes ?? ""}
+            {hasLabPharmacySelected ? (
+              <SectionCard title="Laboratory / Pharmacy / External Relationships">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <Field label="Preferred Lab">
+                    <TextInput
+                      value={formData.labPharmacy?.preferredLab ?? ""}
                       onChange={(event) =>
                         updateNestedField(
                           "labPharmacy",
-                          "additionalNotes",
+                          "preferredLab",
                           event.target.value,
                         )
                       }
                     />
                   </Field>
+
+                  <Field label="Lab Interface Status">
+                    <SelectInput
+                      value={formData.labPharmacy?.labInterfaceStatus ?? ""}
+                      onChange={(event) =>
+                        updateNestedField(
+                          "labPharmacy",
+                          "labInterfaceStatus",
+                          event.target.value,
+                        )
+                      }
+                      options={labStatusOptions}
+                    />
+                  </Field>
+
+                  <Field label="Pharmacy Partner Name">
+                    <TextInput
+                      value={formData.labPharmacy?.pharmacyPartnerName ?? ""}
+                      onChange={(event) =>
+                        updateNestedField(
+                          "labPharmacy",
+                          "pharmacyPartnerName",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Lab Contact Name">
+                    <TextInput
+                      value={formData.labPharmacy?.labContactName ?? ""}
+                      onChange={(event) =>
+                        updateNestedField(
+                          "labPharmacy",
+                          "labContactName",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Lab Contact Email">
+                    <TextInput
+                      type="email"
+                      value={formData.labPharmacy?.labContactEmail ?? ""}
+                      onChange={(event) =>
+                        updateNestedField(
+                          "labPharmacy",
+                          "labContactEmail",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </Field>
+
+                  <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
+                    <Field label="Existing Lab Relationship in Place?">
+                      <BooleanRadioGroup
+                        name="existingLabRelationship"
+                        value={
+                          formData.labPharmacy?.existingLabRelationship ?? false
+                        }
+                        onChange={(value) =>
+                          updateNestedField(
+                            "labPharmacy",
+                            "existingLabRelationship",
+                            value,
+                          )
+                        }
+                      />
+                    </Field>
+
+                    <Field label="Is a pharmacy partner already involved?">
+                      <BooleanRadioGroup
+                        name="pharmacyPartnerInvolved"
+                        value={
+                          formData.labPharmacy?.pharmacyPartnerInvolved ?? false
+                        }
+                        onChange={(value) =>
+                          updateNestedField(
+                            "labPharmacy",
+                            "pharmacyPartnerInvolved",
+                            value,
+                          )
+                        }
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="lg:col-span-3">
+                    <Field label="Additional Vendor / Partner Notes">
+                      <TextArea
+                        value={formData.labPharmacy?.additionalNotes ?? ""}
+                        onChange={(event) =>
+                          updateNestedField(
+                            "labPharmacy",
+                            "additionalNotes",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
+                  </div>
                 </div>
-              </div>
-            </SectionCard>
+              </SectionCard>
+            ) : null}
 
             <SectionCard title="Compliance / Legal">
               <div className="grid gap-6">
@@ -4189,8 +6381,8 @@ export default function OnboardingFormV2() {
         {currentStep === 8 ? (
           <>
             <SectionCard
-              title="Document Checklist"
-              description="The current onboarding API accepts document metadata, so this section records required documents and tracking notes."
+              title="Additional Document Tracking"
+              description="Use this section to track any extra onboarding documents, request dates, received dates, file references, and notes that are not covered by the dedicated upload fields."
             >
               <RepeaterHeader
                 title="Documents"
@@ -4225,7 +6417,7 @@ export default function OnboardingFormV2() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      <Field label="Document Type">
+                      <Field label="Document Type" required>
                         <SelectInput
                           value={document.documentType ?? ""}
                           onChange={(event) =>
@@ -4288,24 +6480,17 @@ export default function OnboardingFormV2() {
                       </Field>
 
                       <Field label="Date Received">
-                        <div className="space-y-1">
-                          <TextInput
-                            type="date"
-                            value={document.dateReceived ?? ""}
-                            onChange={(event) =>
-                              updateDocument(
-                                index,
-                                "dateReceived",
-                                event.target.value,
-                              )
-                            }
-                          />
-                          {getDocumentDateError(document) ? (
-                            <p className="text-sm text-red-500">
-                              {getDocumentDateError(document)}
-                            </p>
-                          ) : null}
-                        </div>
+                        <TextInput
+                          type="date"
+                          value={document.dateReceived ?? ""}
+                          onChange={(event) =>
+                            updateDocument(
+                              index,
+                              "dateReceived",
+                              event.target.value,
+                            )
+                          }
+                        />
                       </Field>
 
                       <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
@@ -4340,7 +6525,7 @@ export default function OnboardingFormV2() {
             <SectionCard title="Final Review / Submission">
               <div className="grid gap-6">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Field label="Name of person submitting">
+                  <Field label="Name of person submitting" required>
                     <TextInput
                       value={formData.submittedByName ?? ""}
                       onChange={(event) =>
@@ -4349,7 +6534,7 @@ export default function OnboardingFormV2() {
                     />
                   </Field>
 
-                  <Field label="Title of person submitting">
+                  <Field label="Title of person submitting" required>
                     <TextInput
                       value={formData.submittedByTitle ?? ""}
                       onChange={(event) =>

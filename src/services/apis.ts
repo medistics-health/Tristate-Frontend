@@ -162,6 +162,8 @@ export const onboardingEndpoints = {
   EXTERNAL: BACKEND_URL + "/api/v1/onboarding/external",
   EXTERNAL_GET: (practiceId: string) =>
     BACKEND_URL + `/api/v1/onboarding/external/${practiceId}`,
+  UPLOAD_EXTERNAL_DOCUMENT:
+    BACKEND_URL + "/api/v1/onboarding/external/upload-document",
 };
 
 export const dealEndpoints = {

@@ -197,6 +197,109 @@ const priorityColors: Record<string, string> = {
 
 const columnHelper = createColumnHelper<OnboardingRow>();
 
+const practiceAdditionalFieldConfigs: Array<{
+  label: string;
+  key: keyof OnboardingPractice;
+}> = [
+  { label: "Medicaid ID Number", key: "medicaidIdNumber" },
+  { label: "Group Medicaid NPI", key: "groupMedicaidNpi" },
+  { label: "Group Medicare PTAN", key: "groupMedicarePtan" },
+  { label: "Group Taxonomy", key: "groupTaxonomy" },
+  { label: "IPA Affiliations", key: "ipaAffiliations" },
+  { label: "Practice Manager Name", key: "practiceManagerName" },
+  { label: "Practice Manager Email", key: "practiceManagerEmail" },
+  { label: "Practice Manager Phone", key: "practiceManagerPhone" },
+  { label: "Billing Address", key: "billingAddress" },
+  { label: "Mailing Address", key: "mailingAddress" },
+  { label: "Practice Work Start Date", key: "practiceWorkStartDate" },
+  { label: "Railroad Medicare (Group)", key: "railroadMedicareGroup" },
+];
+
+const providerAdditionalFieldConfigs: Array<{
+  label: string;
+  key: keyof OnboardingProvider;
+}> = [
+  { label: "Full Name", key: "fullName" },
+  { label: "Date of Birth", key: "dateOfBirth" },
+  { label: "Gender", key: "gender" },
+  { label: "CLIA Number", key: "cliaNumber" },
+  { label: "SSN (Full Digits)", key: "ssnFullDigits" },
+  { label: "License Number", key: "licenseNumber" },
+  { label: "License Expiry Date", key: "licenseExpiryDate" },
+  { label: "State of License", key: "stateOfLicense" },
+  { label: "License Type", key: "licenseType" },
+  { label: "Taxonomy", key: "taxonomy" },
+  { label: "Primary Specialty", key: "primarySpecialty" },
+  { label: "Secondary Specialty", key: "secondarySpecialty" },
+  { label: "Board Certifications", key: "boardCertifications" },
+  { label: "CAQH Username", key: "caqhUsername" },
+  { label: "CAQH Password", key: "caqhPassword" },
+  { label: "CAQH Last Attestation Date", key: "caqhLastAttestationDate" },
+  { label: "Languages Spoken", key: "languagesSpoken" },
+  { label: "Malpractice Carrier", key: "malpracticeCarrier" },
+  { label: "Malpractice Policy #", key: "malpracticePolicyNumber" },
+  { label: "Malpractice Effective Date", key: "malpracticeEffectiveDate" },
+  { label: "Malpractice Expiry Date", key: "malpracticeExpiryDate" },
+  { label: "Hospital Affiliations", key: "hospitalAffiliations" },
+  { label: "Personal Cell Number", key: "personalCellNumber" },
+  { label: "Personal Email", key: "personalEmail" },
+  { label: "Practice Email", key: "practiceEmail" },
+  { label: "Medicare PTAN (Individual)", key: "medicarePtanIndividual" },
+  { label: "Medicaid ID (Individual)", key: "medicaidIdIndividual" },
+  { label: "IPA Affiliations (Provider Level)", key: "ipaAffiliationsProviderLevel" },
+  { label: "NPPES Username", key: "nppesUsername" },
+  { label: "NPPES Password", key: "nppesPassword" },
+  { label: "Railroad Medicare (Individual)", key: "railroadMedicareIndividual" },
+  { label: "Provider Effective Date with the Group", key: "providerEffectiveDateWithGroup" },
+  { label: "Country of Birth", key: "countryOfBirth" },
+  { label: "State/Place of Birth", key: "statePlaceOfBirth" },
+  { label: "Home Address", key: "homeAddress" },
+];
+
+const providerDocumentFieldConfigs: Array<{
+  label: string;
+  key: keyof OnboardingProvider;
+}> = [
+  { label: "Copy of Board Certification", key: "copyOfBoardCertification" },
+  {
+    label: "Copy of Professional Liability Insurance (PLI)",
+    key: "copyOfProfessionalLiabilityInsurance",
+  },
+  { label: "Copy of Bachelor's Degree", key: "copyOfBachelorsDegree" },
+  { label: "Copy of Master's Degree", key: "copyOfMastersDegree" },
+  {
+    label: "Copy of Social Security Card",
+    key: "copyOfSocialSecurityCard",
+  },
+  { label: "Copy of Driver's License", key: "copyOfDriversLicense" },
+  { label: "Passport-sized Photo", key: "passportSizedPhoto" },
+  { label: "Resume", key: "resume" },
+];
+
+const billingDocumentFieldConfigs: Array<{
+  label: string;
+  key: "recentW9Form" | "voidCheck" | "formalLetterFromBank";
+}> = [
+  { label: "Recent W9 Form", key: "recentW9Form" },
+  { label: "Void Check", key: "voidCheck" },
+  {
+    label: "Formal Letter from Bank Stating the Client Holds an Account",
+    key: "formalLetterFromBank",
+  },
+];
+
+const credentialingDocumentFieldConfigs: Array<{
+  label: string;
+  key: "approvedInsurancesTracker" | "irsDocument147c";
+}> = [
+  {
+    label:
+      "Excel Spreadsheet or Tracker Listing Approved and In-Network Insurances",
+    key: "approvedInsurancesTracker",
+  },
+  { label: "IRS Document - Letter 147C", key: "irsDocument147c" },
+];
+
 function BoolBadge({
   value,
   label,
@@ -245,6 +348,47 @@ export default function AdminOnboardingReview() {
 
   const parseNumericInput = (value: string) =>
     value.trim() === "" ? undefined : Number(value);
+
+  const hasValue = (value: unknown) => {
+    if (Array.isArray(value)) return value.length > 0;
+    return value !== undefined && value !== null && value !== "";
+  };
+
+  const getUploadedFileName = (value: string) => {
+    const fileSegment = value.split("/").pop()?.split("?")[0] ?? value;
+    try {
+      return decodeURIComponent(fileSegment);
+    } catch {
+      return fileSegment;
+    }
+  };
+
+  const getFilledFieldEntries = <T extends Record<string, any>>(
+    source: T | undefined,
+    configs: Array<{ label: string; key: keyof T }>,
+  ) => {
+    if (!source) return [];
+    return configs
+      .map((config) => ({
+        label: config.label,
+        value: source[config.key],
+      }))
+      .filter((entry) => hasValue(entry.value));
+  };
+
+  const getUploadedDocumentEntries = <T extends Record<string, any>>(
+    source: T | undefined,
+    configs: Array<{ label: string; key: keyof T }>,
+  ) => {
+    if (!source) return [];
+    return configs
+      .map((config) => ({
+        label: config.label,
+        url: source[config.key],
+      }))
+      .filter((entry) => typeof entry.url === "string" && entry.url.trim() !== "")
+      .map((entry) => ({ ...entry, url: entry.url as string }));
+  };
 
   const loadData = async () => {
     setIsLoading(true);
@@ -1539,6 +1683,126 @@ export default function AdminOnboardingReview() {
                           ))}
                         </div>
                       </div>
+
+                      {getFilledFieldEntries(
+                        practice,
+                        practiceAdditionalFieldConfigs,
+                      ).length > 0 && (
+                        <div className="space-y-3 pt-4 border-t border-slate-100">
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Additional Practice Details
+                          </p>
+                          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                            {getFilledFieldEntries(
+                              practice,
+                              practiceAdditionalFieldConfigs,
+                            ).map((entry) => (
+                              <div
+                                key={entry.label}
+                                className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3"
+                              >
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                  {entry.label}
+                                </p>
+                                <p className="mt-1 text-[13px] text-slate-700 break-words">
+                                  {typeof entry.value === "boolean"
+                                    ? entry.value
+                                      ? "Yes"
+                                      : "No"
+                                    : String(entry.value)}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {practice.providers && practice.providers.length > 0 && (
+                        <div className="space-y-4 pt-4 border-t border-slate-100">
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Provider Details
+                          </p>
+                          <div className="grid gap-4">
+                            {practice.providers.map((provider, providerIndex) => {
+                              const filledProviderFields = getFilledFieldEntries(
+                                provider,
+                                providerAdditionalFieldConfigs,
+                              );
+                              const uploadedProviderDocs =
+                                getUploadedDocumentEntries(
+                                  provider,
+                                  providerDocumentFieldConfigs,
+                                );
+
+                              return (
+                                <div
+                                  key={provider.id || providerIndex}
+                                  className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4"
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <h5 className="text-[13px] font-bold text-slate-700">
+                                      {provider.fullName ||
+                                        `${provider.firstName || ""} ${provider.lastName || ""}`.trim() ||
+                                        `Provider ${providerIndex + 1}`}
+                                    </h5>
+                                    <span className="text-[11px] font-medium text-slate-400">
+                                      {provider.specialty || provider.primarySpecialty || "No specialty"}
+                                    </span>
+                                  </div>
+
+                                  {filledProviderFields.length > 0 && (
+                                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                      {filledProviderFields.map((entry) => (
+                                        <div
+                                          key={entry.label}
+                                          className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3"
+                                        >
+                                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                            {entry.label}
+                                          </p>
+                                          <p className="mt-1 text-[13px] text-slate-700 break-words">
+                                            {typeof entry.value === "boolean"
+                                              ? entry.value
+                                                ? "Yes"
+                                                : "No"
+                                              : String(entry.value)}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {uploadedProviderDocs.length > 0 && (
+                                    <div className="space-y-2">
+                                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                        Uploaded Documents
+                                      </p>
+                                      <div className="grid gap-3 md:grid-cols-2">
+                                        {uploadedProviderDocs.map((document) => (
+                                          <a
+                                            key={document.label}
+                                            href={document.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-[13px] text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50/60"
+                                          >
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                              {document.label}
+                                            </p>
+                                            <p className="mt-1 break-all text-indigo-600">
+                                              {getUploadedFileName(document.url)}
+                                            </p>
+                                          </a>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1966,11 +2230,48 @@ export default function AdminOnboardingReview() {
                       )}
                       {renderNestedField(
                         "billing",
+                        "Recent W9 Form",
+                        "recentW9Form",
+                      )}
+                      {renderNestedField("billing", "Void Check", "voidCheck")}
+                      {renderNestedField(
+                        "billing",
+                        "Formal Letter from Bank",
+                        "formalLetterFromBank",
+                      )}
+                      {renderNestedField(
+                        "billing",
                         "Additional Billing Notes",
                         "additionalNotes",
                         "textarea",
                       )}
                     </div>
+                    {getUploadedDocumentEntries(
+                      reviewingData.billing,
+                      billingDocumentFieldConfigs,
+                    ).length > 0 && (
+                      <div className="mt-6 grid gap-3 md:grid-cols-2">
+                        {getUploadedDocumentEntries(
+                          reviewingData.billing,
+                          billingDocumentFieldConfigs,
+                        ).map((document) => (
+                          <a
+                            key={document.label}
+                            href={document.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-[13px] text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50/60"
+                          >
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              {document.label}
+                            </p>
+                            <p className="mt-1 break-all text-indigo-600">
+                              {getUploadedFileName(document.url)}
+                            </p>
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </section>
                 )}
 
@@ -2029,11 +2330,69 @@ export default function AdminOnboardingReview() {
                       )}
                       {renderNestedField(
                         "credentialing",
+                        "Approved Insurances Tracker",
+                        "approvedInsurancesTracker",
+                      )}
+                      {renderNestedField(
+                        "credentialing",
+                        "Designated Portal Contact Name",
+                        "designatedPortalContactName",
+                      )}
+                      {renderNestedField(
+                        "credentialing",
+                        "Designated Portal Contact Email",
+                        "designatedPortalContactEmail",
+                        "email",
+                      )}
+                      {renderNestedField(
+                        "credentialing",
+                        "Designated Portal Contact Phone",
+                        "designatedPortalContactPhone",
+                      )}
+                      {renderNestedField(
+                        "credentialing",
+                        "IRS Document - Letter 147C",
+                        "irsDocument147c",
+                      )}
+                      {renderNestedField(
+                        "credentialing",
+                        "Desired Insurance Plans",
+                        "desiredInsurancePlans",
+                        "textarea",
+                      )}
+                      {renderNestedField(
+                        "credentialing",
                         "Additional Credentialing Notes",
                         "additionalNotes",
                         "textarea",
                       )}
                     </div>
+                    {getUploadedDocumentEntries(
+                      reviewingData.credentialing,
+                      credentialingDocumentFieldConfigs,
+                    ).length > 0 && (
+                      <div className="mt-6 grid gap-3 md:grid-cols-2">
+                        {getUploadedDocumentEntries(
+                          reviewingData.credentialing,
+                          credentialingDocumentFieldConfigs,
+                        ).map((document) => (
+                          <a
+                            key={document.label}
+                            href={document.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-[13px] text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50/60"
+                          >
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              {document.label}
+                            </p>
+                            <p className="mt-1 break-all text-indigo-600">
+                              {getUploadedFileName(document.url)}
+                            </p>
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </section>
                 )}
 
@@ -2356,6 +2715,28 @@ export default function AdminOnboardingReview() {
     );
   };
 
+  const renderDetailLinkField = (
+    label: string,
+    value: string | undefined | null,
+  ) => {
+    if (!value) return null;
+    return (
+      <div className="flex items-start gap-2">
+        <span className="w-28 shrink-0 text-[12px] text-slate-400">
+          {label}:
+        </span>
+        <a
+          href={value}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[13px] text-indigo-600 hover:text-indigo-700 hover:underline break-all"
+        >
+          {getUploadedFileName(value)}
+        </a>
+      </div>
+    );
+  };
+
   const renderDetailArray = (label: string, values: string[] | undefined) => {
     if (!values || values.length === 0) return null;
     return (
@@ -2566,6 +2947,17 @@ export default function AdminOnboardingReview() {
                 "Commercial Volume %",
                 p.approximateCommercialPatientVolume,
               )}
+              {getFilledFieldEntries(p, practiceAdditionalFieldConfigs).map(
+                (entry) =>
+                  renderDetailField(
+                    entry.label,
+                    typeof entry.value === "boolean"
+                      ? entry.value
+                        ? "Yes"
+                        : "No"
+                      : (entry.value as string | number | undefined | null),
+                  ),
+              )}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               <BoolBadge
@@ -2651,12 +3043,47 @@ export default function AdminOnboardingReview() {
                         <span>DEA: {pr.deaNumber}</span>
                         <span>Status: {pr.employmentStatus}</span>
                       </div>
+                      <div className="mt-2 space-y-1.5 text-[12px]">
+                        {getFilledFieldEntries(
+                          pr,
+                          providerAdditionalFieldConfigs,
+                        ).map((entry) =>
+                          renderDetailField(
+                            entry.label,
+                            typeof entry.value === "boolean"
+                              ? entry.value
+                                ? "Yes"
+                                : "No"
+                              : (entry.value as
+                                  | string
+                                  | number
+                                  | undefined
+                                  | null),
+                          ),
+                        )}
+                      </div>
                       <div className="mt-1">
                         <BoolBadge
                           value={pr.boardCertified}
                           label="Board Certified"
                         />
                       </div>
+                      {getUploadedDocumentEntries(
+                        pr,
+                        providerDocumentFieldConfigs,
+                      ).length > 0 && (
+                        <div className="mt-2 border-t border-[#e8e4dc] pt-2 space-y-1.5">
+                          <p className="text-[11px] font-medium text-slate-500">
+                            Uploaded Documents
+                          </p>
+                          {getUploadedDocumentEntries(
+                            pr,
+                            providerDocumentFieldConfigs,
+                          ).map((entry) =>
+                            renderDetailLinkField(entry.label, entry.url),
+                          )}
+                        </div>
+                      )}
                       {renderDetailField("Notes", pr.notes)}
                     </div>
                   ))}
@@ -2689,6 +3116,9 @@ export default function AdminOnboardingReview() {
         {renderDetailField("Reporting Cadence", b.preferredReportingCadence)}
         {renderDetailArray("Billed Services", b.currentlyBilledServices)}
         {renderDetailArray("Pain Points", b.billingPainPoints)}
+        {getUploadedDocumentEntries(b, billingDocumentFieldConfigs).map((entry) =>
+          renderDetailLinkField(entry.label, entry.url),
+        )}
         {renderDetailField("Notes", b.additionalNotes)}
       </div>
     );
@@ -2714,6 +3144,23 @@ export default function AdminOnboardingReview() {
         {renderDetailArray("Current Issues", c.currentCredentialingIssues)}
         {renderDetailField("Medicare PTAN", c.medicarePtanAvailable)}
         {renderDetailField("Medicaid Enrollment", c.medicaidEnrollmentActive)}
+        {renderDetailField(
+          "Designated Portal Contact Name",
+          c.designatedPortalContactName,
+        )}
+        {renderDetailField(
+          "Designated Portal Contact Email",
+          c.designatedPortalContactEmail,
+        )}
+        {renderDetailField(
+          "Designated Portal Contact Phone",
+          c.designatedPortalContactPhone,
+        )}
+        {renderDetailField("Desired Insurance Plans", c.desiredInsurancePlans)}
+        {getUploadedDocumentEntries(
+          c,
+          credentialingDocumentFieldConfigs,
+        ).map((entry) => renderDetailLinkField(entry.label, entry.url))}
         {renderDetailField("Notes", c.additionalNotes)}
       </div>
     );
