@@ -1184,7 +1184,7 @@ function DocumentUploadField({
   onSelect,
   onClear,
   isUploading = false,
-  accept = ".pdf,.png,.jpg,.jpeg,.doc,.docx",
+  accept = ".pdf,.png,.jpg,.jpeg,.doc,.docx,.csv,.xlsx",
 }: {
   value?: string;
   onSelect: (file: File) => void;
@@ -4366,38 +4366,47 @@ export default function OnboardingFormV4() {
                                   <p className="text-sm font-medium text-slate-800">
                                     Uploaded Documents
                                   </p>
-                                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                    {providerDocumentFieldOptions.map(
-                                      (documentOption) => {
-                                        const documentValue =
-                                          provider[documentOption.value] ?? "";
+                                  {providerDocumentFieldOptions.filter(
+                                    (documentOption) =>
+                                      Boolean(provider[documentOption.value]),
+                                  ).length > 0 ? (
+                                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                      {providerDocumentFieldOptions
+                                        .filter((documentOption) =>
+                                          Boolean(provider[documentOption.value]),
+                                        )
+                                        .map((documentOption) => {
+                                          const documentValue =
+                                            provider[documentOption.value] ?? "";
 
-                                        return (
-                                          <div
-                                            key={documentOption.value}
-                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2"
-                                          >
-                                            <p className="text-xs font-medium text-slate-600">
-                                              {documentOption.label}
-                                            </p>
-                                            <p className="mt-1 break-all text-xs text-slate-500">
-                                              {documentValue
-                                                ? (documentValue
-                                                    .split("/")
-                                                    .pop()
-                                                    ?.split("?")[0] ??
-                                                  documentValue)
-                                                : "Not uploaded"}
-                                            </p>
-                                          </div>
-                                        );
-                                      },
-                                    )}
-                                  </div>
+                                          return (
+                                            <div
+                                              key={documentOption.value}
+                                              className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                                            >
+                                              <p className="text-xs font-medium text-slate-600">
+                                                {documentOption.label}
+                                              </p>
+                                              <p className="mt-1 break-all text-xs text-slate-500">
+                                                {documentValue
+                                                  .split("/")
+                                                  .pop()
+                                                  ?.split("?")[0] ??
+                                                  documentValue}
+                                              </p>
+                                            </div>
+                                          );
+                                        })}
+                                    </div>
+                                  ) : (
+                                    <p className="mt-3 text-xs text-slate-500">
+                                      No documents uploaded yet.
+                                    </p>
+                                  )}
                                 </div>
                               </div>
 
-                              <div className="hidden lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                              <div className="lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 <Field label="Malpractice Carrier">
                                   <TextInput
                                     value={provider.malpracticeCarrier ?? ""}
@@ -4986,7 +4995,7 @@ export default function OnboardingFormV4() {
                   />
                 </Field>
 
-                <Field label="Practice Management System">
+                <Field label="Practice Management System/Billing Software Name">
                   <TextInput
                     value={formData.technology?.practiceManagementSystem ?? ""}
                     onChange={(event) =>
@@ -5588,7 +5597,7 @@ export default function OnboardingFormV4() {
                   </Field>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Field label="Designated contact person for all insurance portal setup, access, and maintenance matters (include name, email, and phone number)">
+                    <Field label="Designated contact person for all insurance portal setup, access, and maintenance matters">
                       <TextInput
                         value={
                           formData.credentialing?.designatedPortalContactName ??
