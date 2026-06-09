@@ -64,6 +64,7 @@ import type {
 import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import ConfirmModal from "../shared/ConfirmModal";
+import { hasAdminAccess, readStoredUser } from "../../utils/auth";
 
 type TaxIdFormState = {
   taxIdNumber: string;
@@ -261,6 +262,7 @@ function buildErrorMessage(error: unknown) {
 
 function CreateLeadPage() {
   const navigate = useNavigate();
+  const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
   const [form, setForm] = useState<LeadFormState>(initialFormState);
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -287,6 +289,7 @@ function CreateLeadPage() {
     let createdContactId: string | undefined;
     let createdDealId: string | undefined;
     let createdAgreementId: string | undefined;
+    let agreementSendWarning: string | null = null;
 
     try {
       let companyId = form.selectedCompanyId;
@@ -508,14 +511,32 @@ function CreateLeadPage() {
           //   });
           // }
 
-          await activatePracticeWithAgreementEmail(practiceId, {
-            status: "ACTIVE",
-          });
+          if (isAdmin) {
+            try {
+              await activatePracticeWithAgreementEmail(practiceId, {
+                status: "ACTIVE",
+              });
+            } catch (error) {
+              agreementSendWarning =
+                error instanceof Error
+                  ? error.message
+                  : "Agreement was created, but signature request could not be sent.";
+            }
+          }
         } else if (form.agreement.action === "link") {
           agreementId = form.agreement.existingAgreementId;
-          await activatePracticeWithAgreementEmail(practiceId, {
-            status: "ACTIVE",
-          });
+          if (isAdmin) {
+            try {
+              await activatePracticeWithAgreementEmail(practiceId, {
+                status: "ACTIVE",
+              });
+            } catch (error) {
+              agreementSendWarning =
+                error instanceof Error
+                  ? error.message
+                  : "Lead was created, but linked agreement could not be sent.";
+            }
+          }
 
           // Potentially update dealId on existing agreement if needed
           // await createAgreementApi({
@@ -542,11 +563,20 @@ function CreateLeadPage() {
       });
 
       resetForm();
-      toast.success(
-        agreementId
-          ? "Lead and Agreement created successfully."
-          : "Lead created successfully.",
-      );
+      if (agreementSendWarning) {
+        toast.success(
+          agreementId
+            ? "Lead and Agreement created successfully."
+            : "Lead created successfully.",
+        );
+        toast.error(agreementSendWarning);
+      } else {
+        toast.success(
+          agreementId
+            ? "Lead and Agreement created successfully."
+            : "Lead created successfully.",
+        );
+      }
     } catch (error) {
       console.error(error);
       const cleanupTasks: Array<Promise<unknown>> = [];
@@ -860,10 +890,10 @@ function CreateLeadPage() {
       }
       if (
         form.companyEmail.trim() &&
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.companyEmail.trim())
+        !/^[^\s@]+@[^\s@]+\.com$/i.test(form.companyEmail.trim())
       ) {
         toast.error(
-          "Company email must include @ and a domain (e.g. user@example.com).",
+          "Company email must include @ and end with .com.",
         );
         return;
       }
@@ -901,10 +931,10 @@ function CreateLeadPage() {
       }
       if (
         form.primaryContactEmail.trim() &&
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.primaryContactEmail.trim())
+        !/^[^\s@]+@[^\s@]+\.com$/i.test(form.primaryContactEmail.trim())
       ) {
         toast.error(
-          "Contact email must include @ and a domain (e.g. user@example.com).",
+          "Contact email must include @ and end with .com.",
         );
         return;
       }
@@ -938,6 +968,12 @@ function CreateLeadPage() {
     // Validate Group NPI format
     if (form.practiceRelation === "new") {
       for (const entry of form.practiceGroupNpis) {
+        if (!entry.groupNpiNumber.trim() || !entry.groupName.trim()) {
+          toast.error(
+            "Each added Group NPI must include both Group NPI Number and Group Name.",
+          );
+          return;
+        }
         if (
           entry.groupNpiNumber.trim() &&
           !/^\d{10}$/.test(entry.groupNpiNumber.trim())

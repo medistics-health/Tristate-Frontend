@@ -2083,7 +2083,10 @@ export default function AllPracticePage() {
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Group NPIs
+                    Group NPIs{" "}
+                    {groupNpiEntries.length > 0 && (
+                      <span className="text-red-500">*</span>
+                    )}
                   </label>
                   <div className="space-y-2">
                     {groupNpiEntries.map((entry, index) => (
@@ -2202,7 +2205,8 @@ export default function AllPracticePage() {
         <div className="space-y-4">
           <p className="text-[14px] text-slate-500 leading-relaxed">
             This practice will be set to <strong>ACTIVE</strong> and an
-            agreement will be sent to the following admin person:
+            agreement will be sent to the following admin person after Internal
+            Signing Process is completed by Authorized Signer:
           </p>
           {activationPerson && (
             <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4 space-y-3">
