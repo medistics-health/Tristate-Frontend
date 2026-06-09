@@ -532,17 +532,6 @@ export default function AddPricingTermWizard({
       }
     }
 
-    const clientAmount = getPricingAmount(model, cfg);
-    const vendorAmount = getPricingAmount(model, vendorCfg);
-    if (
-      clientAmount !== null &&
-      vendorAmount !== null &&
-      clientAmount === vendorAmount
-    ) {
-      errors.vendorAmount =
-        "Client and vendor totals cannot be exactly equal. 0% margin is not allowed";
-    }
-
     return { valid: Object.keys(errors).length === 0, errors };
   };
 
@@ -877,10 +866,10 @@ export default function AddPricingTermWizard({
 
     if (step === 5 && preview.requiresApproval && approvalNotes.trim() === "") {
       setFieldErrors({
-        approvalNotes: "Approval notes are required when margin is below 20%",
+        approvalNotes: "Justification / Approval notes are required when margin is below 20%",
       });
       setStepError(
-        "Approval Notes / Justification are required before continuing",
+        "Justification / Approval Notes are required before continuing",
       );
       return;
     }
@@ -912,9 +901,9 @@ export default function AddPricingTermWizard({
     }
 
     if (preview.requiresApproval && approvalNotes.trim() === "") {
-      setFieldErrors({ approvalNotes: "Approval notes are required" });
+      setFieldErrors({ approvalNotes: "Justification / Approval notes are required" });
       setStepError(
-        "Approval Notes / Justification are required when approval is triggered",
+        "Justification / Approval Notes are required when approval is triggered",
       );
       setStep(5);
       return;
@@ -1541,7 +1530,7 @@ export default function AddPricingTermWizard({
                     <p className="text-[12px] mt-0.5">
                       {approvalBasis.label} margin{" "}
                       {toFixedDisplay(approvalPreview.marginPct)}% is below the
-                      20% threshold. Proceed to step 6 to add approval notes.
+                      20% threshold. Proceed to step 6 to add justification / approval notes.
                     </p>
                   </div>
                 </div>
@@ -1563,7 +1552,7 @@ export default function AddPricingTermWizard({
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1 block font-medium text-slate-700">Approval Notes / Justification</label>
+                    <label className="mb-1 block font-medium text-slate-700">Justification / Approval Notes</label>
                     <textarea rows={4} value={approvalNotes} onChange={(e) => setApprovalNotes(e.target.value)}
                       placeholder="Describe the business justification for this margin exception…"
                       className="app-control w-full rounded-md px-3 py-2 text-[13px] resize-none" />
@@ -1660,15 +1649,14 @@ export default function AddPricingTermWizard({
                   Emails from the related people are auto-filled. Use
                   comma-separated emails for multiple signers.
                 </p>
-              </div>
-
-              {approvalPreview.requiresApproval && (
+                {approvalPreview.requiresApproval && (
                 <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                   Approval required based on {approvalBasis.label.toLowerCase()}{" "}
-                  margin — ensure internal manager/admin sign-off before activating this term
+                  margin — ensure internal manager/admin sign-off to activate this term
                 </div>
               )}
+              </div>
             </div>
           )}
         </div>
