@@ -22,6 +22,7 @@ import {
   createOnboardingFromForm,
 } from "../../services/operations/createOnboardingForm";
 import {
+  deleteExternalOnboardingDocument,
   getExternalOnboardingByPracticeId,
   uploadExternalOnboardingDocument,
 } from "../../services/operations/onboarding";
@@ -281,27 +282,27 @@ const providerDocumentFieldOptions: Array<
   Option & { value: ProviderDocumentField }
 > = [
   {
-    label: "Copy of Board Certification",
+    label: "Board Certification",
     value: "copyOfBoardCertification",
   },
   {
-    label: "Copy of Professional Liability Insurance (PLI)",
+    label: "Professional Liability Insurance (PLI)",
     value: "copyOfProfessionalLiabilityInsurance",
   },
   {
-    label: "Copy of Bachelor's Degree",
+    label: "Bachelor's Degree",
     value: "copyOfBachelorsDegree",
   },
   {
-    label: "Copy of Master's Degree",
+    label: "Master's Degree",
     value: "copyOfMastersDegree",
   },
   {
-    label: "Copy of Social Security Card (required for credentialing)",
+    label: "Social Security Card (required for credentialing)",
     value: "copyOfSocialSecurityCard",
   },
   {
-    label: "Copy of Driver's License",
+    label: "Driver's License",
     value: "copyOfDriversLicense",
   },
   {
@@ -1195,6 +1196,12 @@ function DocumentUploadField({
   const displayValue = value
     ? (value.split("/").pop()?.split("?")[0] ?? value)
     : "";
+  const acceptedFormats = accept
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => entry.replace(".", "").toUpperCase())
+    .join(", ");
 
   return (
     <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
@@ -1210,6 +1217,9 @@ function DocumentUploadField({
           <p className="mt-1 break-all text-xs text-slate-500">
             {displayValue ||
               "Choose a file to upload this document one at a time."}
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            Allowed formats: {acceptedFormats}
           </p>
         </div>
 
@@ -1743,29 +1753,6 @@ export default function OnboardingFormV4() {
     }));
   }
 
-  function fileToBase64(file: File) {
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = () => {
-        const result = reader.result;
-        if (typeof result !== "string") {
-          reject(new Error("Unable to read file."));
-          return;
-        }
-
-        const [, base64 = ""] = result.split(",");
-        resolve(base64);
-      };
-
-      reader.onerror = () => {
-        reject(new Error("Unable to read file."));
-      };
-
-      reader.readAsDataURL(file);
-    });
-  }
-
   function getUploadPracticeName() {
     return (
       formData.practices?.[0]?.practiceName?.trim() ||
@@ -1795,14 +1782,11 @@ export default function OnboardingFormV4() {
     setUploadingFieldKey(fieldKey);
 
     try {
-      const base64 = await fileToBase64(file);
       const upload = await uploadExternalOnboardingDocument({
         practiceId: id,
         practiceName,
         field: `${section}.${String(field)}`,
-        fileName: file.name,
-        contentType: file.type || "application/octet-stream",
-        base64,
+        file,
       });
 
       updateNestedField(
@@ -1818,6 +1802,50 @@ export default function OnboardingFormV4() {
     } finally {
       setUploadingFieldKey(null);
     }
+  }
+
+  async function removeUploadedDocument(
+    fileUrl: string,
+    clearField: () => void,
+    fieldKey: string,
+  ) {
+    if (!fileUrl) {
+      clearField();
+      return;
+    }
+
+    setUploadingFieldKey(fieldKey);
+
+    try {
+      await deleteExternalOnboardingDocument({ fileUrl });
+      clearField();
+      toast.success("Document removed successfully.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to remove document.";
+      toast.error(message);
+    } finally {
+      setUploadingFieldKey(null);
+    }
+  }
+
+  async function removeNestedDocument<
+    K extends "billing" | "credentialing",
+    F extends keyof NonNullable<OnboardingBody[K]>,
+  >(section: K, field: F) {
+    const currentValue = formData[section]?.[field];
+    const fileUrl = typeof currentValue === "string" ? currentValue : "";
+
+    await removeUploadedDocument(
+      fileUrl,
+      () =>
+        updateNestedField(
+          section,
+          field,
+          "" as NonNullable<OnboardingBody[K]>[F],
+        ),
+      `${section}-${String(field)}`,
+    );
   }
 
   async function uploadProviderDocument(
@@ -1843,14 +1871,11 @@ export default function OnboardingFormV4() {
     setUploadingFieldKey(fieldKey);
 
     try {
-      const base64 = await fileToBase64(file);
       const upload = await uploadExternalOnboardingDocument({
         practiceId: id,
         practiceName,
         field: String(field),
-        fileName: file.name,
-        contentType: file.type || "application/octet-stream",
-        base64,
+        file,
       });
 
       updateProvider(
@@ -1867,6 +1892,22 @@ export default function OnboardingFormV4() {
     } finally {
       setUploadingFieldKey(null);
     }
+  }
+
+  async function removeProviderDocument(
+    practiceIndex: number,
+    providerIndex: number,
+    field: keyof OnboardingProvider,
+  ) {
+    const currentValue =
+      formData.practices?.[practiceIndex]?.providers?.[providerIndex]?.[field];
+    const fileUrl = typeof currentValue === "string" ? currentValue : "";
+
+    await removeUploadedDocument(
+      fileUrl,
+      () => updateProvider(practiceIndex, providerIndex, field, ""),
+      `${practiceIndex}-${providerIndex}-${String(field)}`,
+    );
   }
 
   function toggleContactArrayValue<K extends keyof OnboardingContact>(
@@ -4327,7 +4368,7 @@ export default function OnboardingFormV4() {
                                           providerIndex,
                                         ) === "passportSizedPhoto"
                                           ? ".png,.jpg,.jpeg"
-                                          : ".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                                          : ".pdf,.png,.jpg,.jpeg,.doc,.docx,.csv,.xlsx"
                                       }
                                       isUploading={
                                         uploadingFieldKey ===
@@ -4348,14 +4389,13 @@ export default function OnboardingFormV4() {
                                         )
                                       }
                                       onClear={() =>
-                                        updateProvider(
+                                        void removeProviderDocument(
                                           practiceIndex,
                                           providerIndex,
                                           getSelectedProviderUploadField(
                                             practiceIndex,
                                             providerIndex,
                                           ),
-                                          "",
                                         )
                                       }
                                     />
@@ -4373,11 +4413,14 @@ export default function OnboardingFormV4() {
                                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                                       {providerDocumentFieldOptions
                                         .filter((documentOption) =>
-                                          Boolean(provider[documentOption.value]),
+                                          Boolean(
+                                            provider[documentOption.value],
+                                          ),
                                         )
                                         .map((documentOption) => {
                                           const documentValue =
-                                            provider[documentOption.value] ?? "";
+                                            provider[documentOption.value] ??
+                                            "";
 
                                           return (
                                             <div
@@ -4596,7 +4639,7 @@ export default function OnboardingFormV4() {
                               </div>
 
                               <div className="hidden lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                <Field label="Copy of Board Certification">
+                                <Field label="Board Certification">
                                   <DocumentUploadField
                                     value={
                                       provider.copyOfBoardCertification ?? ""
@@ -4614,17 +4657,16 @@ export default function OnboardingFormV4() {
                                       )
                                     }
                                     onClear={() =>
-                                      updateProvider(
+                                      void removeProviderDocument(
                                         practiceIndex,
                                         providerIndex,
                                         "copyOfBoardCertification",
-                                        "",
                                       )
                                     }
                                   />
                                 </Field>
 
-                                <Field label="Copy of Professional Liability Insurance (PLI)">
+                                <Field label="Professional Liability Insurance (PLI)">
                                   <DocumentUploadField
                                     value={
                                       provider.copyOfProfessionalLiabilityInsurance ??
@@ -4643,17 +4685,16 @@ export default function OnboardingFormV4() {
                                       )
                                     }
                                     onClear={() =>
-                                      updateProvider(
+                                      void removeProviderDocument(
                                         practiceIndex,
                                         providerIndex,
                                         "copyOfProfessionalLiabilityInsurance",
-                                        "",
                                       )
                                     }
                                   />
                                 </Field>
 
-                                <Field label="Copy of Bachelor’s Degree">
+                                <Field label="Bachelor’s Degree">
                                   <DocumentUploadField
                                     value={provider.copyOfBachelorsDegree ?? ""}
                                     isUploading={
@@ -4669,17 +4710,16 @@ export default function OnboardingFormV4() {
                                       )
                                     }
                                     onClear={() =>
-                                      updateProvider(
+                                      void removeProviderDocument(
                                         practiceIndex,
                                         providerIndex,
                                         "copyOfBachelorsDegree",
-                                        "",
                                       )
                                     }
                                   />
                                 </Field>
 
-                                <Field label="Copy of Master’s Degree">
+                                <Field label="Master’s Degree">
                                   <DocumentUploadField
                                     value={provider.copyOfMastersDegree ?? ""}
                                     isUploading={
@@ -4695,17 +4735,16 @@ export default function OnboardingFormV4() {
                                       )
                                     }
                                     onClear={() =>
-                                      updateProvider(
+                                      void removeProviderDocument(
                                         practiceIndex,
                                         providerIndex,
                                         "copyOfMastersDegree",
-                                        "",
                                       )
                                     }
                                   />
                                 </Field>
 
-                                <Field label="Copy of Social Security Card (required for credentialing)">
+                                <Field label="Social Security Card (required for credentialing)">
                                   <DocumentUploadField
                                     value={
                                       provider.copyOfSocialSecurityCard ?? ""
@@ -4723,17 +4762,16 @@ export default function OnboardingFormV4() {
                                       )
                                     }
                                     onClear={() =>
-                                      updateProvider(
+                                      void removeProviderDocument(
                                         practiceIndex,
                                         providerIndex,
                                         "copyOfSocialSecurityCard",
-                                        "",
                                       )
                                     }
                                   />
                                 </Field>
 
-                                <Field label="Copy of Driver’s License">
+                                <Field label="Driver’s License">
                                   <DocumentUploadField
                                     value={provider.copyOfDriversLicense ?? ""}
                                     isUploading={
@@ -4749,11 +4787,10 @@ export default function OnboardingFormV4() {
                                       )
                                     }
                                     onClear={() =>
-                                      updateProvider(
+                                      void removeProviderDocument(
                                         practiceIndex,
                                         providerIndex,
                                         "copyOfDriversLicense",
-                                        "",
                                       )
                                     }
                                   />
@@ -4776,11 +4813,10 @@ export default function OnboardingFormV4() {
                                       )
                                     }
                                     onClear={() =>
-                                      updateProvider(
+                                      void removeProviderDocument(
                                         practiceIndex,
                                         providerIndex,
                                         "passportSizedPhoto",
-                                        "",
                                       )
                                     }
                                   />
@@ -4802,11 +4838,10 @@ export default function OnboardingFormV4() {
                                       )
                                     }
                                     onClear={() =>
-                                      updateProvider(
+                                      void removeProviderDocument(
                                         practiceIndex,
                                         providerIndex,
                                         "resume",
-                                        "",
                                       )
                                     }
                                   />
@@ -5396,7 +5431,7 @@ export default function OnboardingFormV4() {
                           )
                         }
                         onClear={() =>
-                          updateNestedField("billing", "recentW9Form", "")
+                          void removeNestedDocument("billing", "recentW9Form")
                         }
                       />
                     </Field>
@@ -5413,7 +5448,7 @@ export default function OnboardingFormV4() {
                           )
                         }
                         onClear={() =>
-                          updateNestedField("billing", "voidCheck", "")
+                          void removeNestedDocument("billing", "voidCheck")
                         }
                       />
                     </Field>
@@ -5432,10 +5467,9 @@ export default function OnboardingFormV4() {
                           )
                         }
                         onClear={() =>
-                          updateNestedField(
+                          void removeNestedDocument(
                             "billing",
                             "formalLetterFromBank",
-                            "",
                           )
                         }
                       />
@@ -5587,10 +5621,9 @@ export default function OnboardingFormV4() {
                         )
                       }
                       onClear={() =>
-                        updateNestedField(
+                        void removeNestedDocument(
                           "credentialing",
                           "approvedInsurancesTracker",
-                          "",
                         )
                       }
                     />
@@ -5661,10 +5694,9 @@ export default function OnboardingFormV4() {
                           )
                         }
                         onClear={() =>
-                          updateNestedField(
+                          void removeNestedDocument(
                             "credentialing",
                             "irsDocument147c",
-                            "",
                           )
                         }
                       />
