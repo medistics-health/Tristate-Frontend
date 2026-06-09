@@ -93,6 +93,8 @@ export type PricingConfigShape = {
   approvalNotes?: string;
   clientApprovalStatus?: "PENDING" | "APPROVED" | "REJECTED";
   internalApprovalStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  clientApprovalNote?: string | null;
+  internalApprovalNote?: string | null;
   // effective dates (all models)
   effectiveStartDate?: string;
   effectiveEndDate?: string;

@@ -13,6 +13,7 @@ import {
   Clock,
   UserCheck,
   XCircle,
+  RefreshCw,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
@@ -607,6 +608,15 @@ export default function PricingEnginePage() {
               <div className="ml-auto flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={loadTerms}
+                  disabled={isLoading}
+                  title="Refresh Pricing Terms"
+                  className="inline-flex items-center justify-center rounded-md border border-[#ece8e1] bg-white p-1.5 text-slate-600 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+                </button>
+                <button
+                  type="button"
                   onClick={() => {
                     setEditingTerm(null);
                     setShowWizard(true);
@@ -969,9 +979,11 @@ function TermDetailPanel({
   function ApprovalStatusBadge({
     status,
     label,
+    note,
   }: {
     status: ApprovalStatus;
     label: string;
+    note?: string | null;
   }) {
     const config = {
       PENDING: { bg: "bg-amber-100", text: "text-amber-700", icon: Clock },
@@ -990,12 +1002,19 @@ function TermDetailPanel({
         <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
           {label}
         </span>
-        <span
-          className={`inline-flex items-center gap-1 self-start rounded-full ${bg} px-2 py-0.5 text-xs font-medium ${text}`}
-        >
-          <Icon className="h-3 w-3" />
-          {status.charAt(0) + status.slice(1).toLowerCase()}
-        </span>
+        <div className="flex flex-col gap-1.5">
+          <span
+            className={`inline-flex items-center gap-1 self-start rounded-full ${bg} px-2 py-0.5 text-xs font-medium ${text}`}
+          >
+            <Icon className="h-3 w-3" />
+            {status.charAt(0) + status.slice(1).toLowerCase()}
+          </span>
+          {note && (
+            <p className="text-[12px] text-slate-500 mt-1 leading-relaxed break-words whitespace-pre-wrap">
+              {note}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -1078,10 +1097,12 @@ function TermDetailPanel({
           <ApprovalStatusBadge
             status={clientApprovalStatus}
             label="Client Approval Status"
+            note={cfg.clientApprovalNote}
           />
           <ApprovalStatusBadge
             status={internalApprovalStatus}
             label="Internal Approval Status"
+            note={cfg.internalApprovalNote}
           />
 
           <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
@@ -1141,7 +1162,7 @@ function TermDetailPanel({
           {cfg.approvalNotes && (
             <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
               <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-                Approval Notes
+                Justification / Approval Notes
               </span>
               <span className="text-[13px] font-medium text-slate-700 break-words whitespace-pre-wrap leading-relaxed">
                 {cfg.approvalNotes}
