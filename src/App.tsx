@@ -53,6 +53,7 @@ import ClientPortalDashboard from "./components/portal/ClientPortalDashboard";
 import SettingsPage from "./components/settings/Settings";
 import CreateLeadPage from "./components/leads/CreateLead";
 import type { ReactNode } from "react";
+import OnboardingFormV4 from "./components/onboarding/OnboardingFormV4";
 
 function App() {
   function UUIDProtectedRoute({ children }: { children: ReactNode }) {
@@ -99,7 +100,7 @@ function App() {
         element={
           <UUIDProtectedRoute>
             {/*<OnboardingForm />*/}
-            <OnboardingFormV3 />
+            <OnboardingFormV4 />
           </UUIDProtectedRoute>
         }
       />

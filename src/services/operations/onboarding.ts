@@ -2,7 +2,16 @@ import axios from "axios";
 import { onboardingEndpoints } from "../apis";
 import { apiConnector } from "../apiConnector";
 
-const { EXTERNAL, EXTERNAL_GET, LIST, GET, CREATE, UPDATE, DELETE } =
+const {
+  EXTERNAL,
+  EXTERNAL_GET,
+  LIST,
+  GET,
+  CREATE,
+  UPDATE,
+  DELETE,
+  UPLOAD_EXTERNAL_DOCUMENT,
+} =
   onboardingEndpoints;
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
@@ -56,11 +65,55 @@ export type OnboardingProvider = {
   id?: string;
   firstName?: string;
   lastName?: string;
+  fullName?: string;
+  dateOfBirth?: string;
+  gender?: string;
   credentials?: string;
   providerType?: string;
   specialty?: string;
+  cliaNumber?: string;
   npi?: string;
   caqhId?: string;
+  ssnFullDigits?: string;
+  licenseNumber?: string;
+  licenseExpiryDate?: string;
+  stateOfLicense?: string;
+  licenseType?: string;
+  taxonomy?: string;
+  primarySpecialty?: string;
+  secondarySpecialty?: string;
+  boardCertifications?: string;
+  caqhUsername?: string;
+  caqhPassword?: string;
+  caqhLastAttestationDate?: string;
+  languagesSpoken?: string;
+  telehealthAvailable?: boolean;
+  malpracticeCarrier?: string;
+  malpracticePolicyNumber?: string;
+  malpracticeEffectiveDate?: string;
+  malpracticeExpiryDate?: string;
+  hospitalAffiliations?: string;
+  personalCellNumber?: string;
+  personalEmail?: string;
+  practiceEmail?: string;
+  medicarePtanIndividual?: string;
+  medicaidIdIndividual?: string;
+  ipaAffiliationsProviderLevel?: string;
+  nppesUsername?: string;
+  nppesPassword?: string;
+  railroadMedicareIndividual?: string;
+  copyOfBoardCertification?: string;
+  copyOfProfessionalLiabilityInsurance?: string;
+  copyOfBachelorsDegree?: string;
+  copyOfMastersDegree?: string;
+  copyOfSocialSecurityCard?: string;
+  copyOfDriversLicense?: string;
+  passportSizedPhoto?: string;
+  resume?: string;
+  providerEffectiveDateWithGroup?: string;
+  countryOfBirth?: string;
+  statePlaceOfBirth?: string;
+  homeAddress?: string;
   stateLicenseNumber?: string;
   deaNumber?: string;
   boardCertified?: boolean;
@@ -80,6 +133,18 @@ export type OnboardingPractice = {
   additionalSpecialtyAreas?: string[];
   groupNpi?: string;
   taxIdEin?: string;
+  medicaidIdNumber?: string;
+  groupMedicaidNpi?: string;
+  groupMedicarePtan?: string;
+  groupTaxonomy?: string;
+  ipaAffiliations?: string;
+  practiceManagerName?: string;
+  practiceManagerEmail?: string;
+  practiceManagerPhone?: string;
+  billingAddress?: string;
+  mailingAddress?: string;
+  practiceWorkStartDate?: string;
+  railroadMedicareGroup?: string;
   approximateNumberOfProviders?: number;
   approximateNumberOfLocations?: number;
   approximateMonthlyPatientVolume?: number;
@@ -112,6 +177,9 @@ export type OnboardingBilling = {
   mainBillingContactName?: string;
   mainBillingContactEmail?: string;
   mainBillingContactPhone?: string;
+  recentW9Form?: string;
+  voidCheck?: string;
+  formalLetterFromBank?: string;
   currentlyBilledServices?: string[];
   activePayers?: string;
   eftEraSetup?: string;
@@ -126,6 +194,12 @@ export type OnboardingCredentialing = {
   credentialingNeeded?: boolean;
   credentialingFor?: string[];
   payersToEnroll?: string;
+  approvedInsurancesTracker?: string;
+  designatedPortalContactName?: string;
+  designatedPortalContactEmail?: string;
+  designatedPortalContactPhone?: string;
+  irsDocument147c?: string;
+  desiredInsurancePlans?: string;
   caqhMaintained?: boolean;
   currentCredentialingIssues?: string[];
   medicarePtanAvailable?: string;
@@ -381,6 +455,28 @@ export async function getExternalOnboardingByPracticeId(
   } catch (error) {
     throw new Error(
       getErrorMessage(error, "Unable to fetch onboarding.")
+    );
+  }
+}
+
+export async function uploadExternalOnboardingDocument(params: {
+  practiceId: string;
+  practiceName: string;
+  field: string;
+  fileName: string;
+  contentType: string;
+  base64: string;
+}): Promise<{ fileUrl: string; fileName: string; field: string }> {
+  try {
+    const response = await axios.post(UPLOAD_EXTERNAL_DOCUMENT, params);
+    return response.data as {
+      fileUrl: string;
+      fileName: string;
+      field: string;
+    };
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to upload onboarding document.")
     );
   }
 }
