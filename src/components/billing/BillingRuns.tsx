@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import type { Practice } from "../practices/types";
 import type { Service } from "../services/types";
@@ -164,6 +165,9 @@ function mapSnapshotsForApi(rows: SnapshotFormRow[]): BillingSnapshotInput[] {
 }
 
 function BillingRunsPage() {
+  const [searchParams] = useSearchParams();
+  const profilePracticeId = searchParams.get("practiceId") || "";
+  const profileAction = searchParams.get("action") || "";
   const [rows, setRows] = useState<BillingRunRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -188,6 +192,7 @@ function BillingRunsPage() {
     totalPages: 0,
   });
   const [filters, setFilters] = useState({ practiceId: "", status: "" });
+  const [profileCreateHandled, setProfileCreateHandled] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([
     { id: "createdAt", desc: true },
   ]);
@@ -282,7 +287,7 @@ function BillingRunsPage() {
         const data = await getBillingRunsView({
           page: pagination.page,
           limit: pagination.limit,
-          practiceId: filters.practiceId || undefined,
+          practiceId: filters.practiceId || profilePracticeId || undefined,
           status: filters.status || undefined,
         });
         setRows(data.rows);
@@ -298,7 +303,13 @@ function BillingRunsPage() {
     }
 
     loadRuns();
-  }, [pagination.page, pagination.limit, filters.practiceId, filters.status]);
+  }, [
+    pagination.page,
+    pagination.limit,
+    filters.practiceId,
+    filters.status,
+    profilePracticeId,
+  ]);
 
   useEffect(() => {
     if (
@@ -319,11 +330,54 @@ function BillingRunsPage() {
     }
   }, [showCreateForm, showPaymentForm, showDetailPanel, practices.length]);
 
+  useEffect(() => {
+    const practiceId = profilePracticeId;
+    const action = profileAction;
+
+    if (!practiceId) return;
+
+    setFilters((current) =>
+      current.practiceId === practiceId
+        ? current
+        : { ...current, practiceId },
+    );
+
+    if (profileCreateHandled || action !== "create") return;
+
+    setProfileCreateHandled(true);
+    setShowCreateForm(true);
+    setShowDetailPanel(false);
+    setShowPaymentForm(false);
+    setSelectedRowId(null);
+    setSelectedRun(null);
+    setCreateForm({
+      ...initialCreateRunForm,
+      practiceId,
+    });
+    setReadiness(null);
+
+    if (practices.length === 0) {
+      Promise.all([getAllPractices(), getAllInvoices(), getAllServices()])
+        .then(([practiceList, invoiceList, serviceList]) => {
+          setPractices(practiceList);
+          setInvoices(invoiceList);
+          setServices(serviceList);
+        })
+        .catch((err) => {
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Failed to load billing options";
+          toast.error(message);
+        });
+    }
+  }, [practices.length, profileAction, profileCreateHandled, profilePracticeId]);
+
   async function refreshRows(targetPage = pagination.page) {
     const data = await getBillingRunsView({
       page: targetPage,
       limit: pagination.limit,
-      practiceId: filters.practiceId || undefined,
+      practiceId: filters.practiceId || profilePracticeId || undefined,
       status: filters.status || undefined,
     });
     setRows(data.rows);
@@ -361,12 +415,17 @@ function BillingRunsPage() {
   }
 
   function openCreateForm() {
+    const preselectedPracticeId =
+      filters.practiceId || profilePracticeId || "";
     setShowCreateForm(true);
     setShowDetailPanel(false);
     setShowPaymentForm(false);
     setSelectedRowId(null);
     setSelectedRun(null);
-    setCreateForm(initialCreateRunForm);
+    setCreateForm({
+      ...initialCreateRunForm,
+      practiceId: preselectedPracticeId,
+    });
     setReadiness(null);
   }
 

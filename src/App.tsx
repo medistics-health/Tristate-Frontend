@@ -32,6 +32,7 @@ import PipelineBoardPage from "./components/practices/PipelineBoard";
 import AllPracticePage from "./components/practices/AllPractice";
 import ActivePracticesPage from "./components/practices/ActivePractices";
 import ProspectsPage from "./components/practices/Prospects";
+import PracticeProfilePage from "./components/practices/PracticeProfile";
 import ReminderDuePage from "./components/practices/RemindersDue";
 import OverdueInvoicePage from "./components/invoices/OverdueInvoices";
 import BillingRunsPage from "./components/billing/BillingRuns";
@@ -444,6 +445,17 @@ function App() {
         element={
           <ProtectedRoute>
             <AllPracticePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/practice/:id/profile"
+        element={
+          <ProtectedRoute>
+            <UUIDProtectedRoute>
+              <PracticeProfilePage />
+            </UUIDProtectedRoute>
           </ProtectedRoute>
         }
       />

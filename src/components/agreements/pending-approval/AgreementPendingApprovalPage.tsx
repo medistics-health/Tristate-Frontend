@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../../layout/AppLayout";
@@ -52,6 +53,8 @@ function toApprovalAgreementStatus(agreement: Agreement) {
 }
 
 function AgreementPendingApprovalPage() {
+  const [searchParams] = useSearchParams();
+  const requestedAgreementId = searchParams.get("agreementId") || undefined;
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(
     null,
@@ -223,8 +226,8 @@ function AgreementPendingApprovalPage() {
   }
 
   useEffect(() => {
-    void loadPendingApprovals();
-  }, [loadPendingApprovals]);
+    void loadPendingApprovals(requestedAgreementId);
+  }, [loadPendingApprovals, requestedAgreementId]);
 
   useEffect(() => {
     async function loadTemplates() {
