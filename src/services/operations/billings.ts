@@ -128,11 +128,21 @@ export type BillingRunItem = {
     rate?: string | null;
     amount: string;
   }>;
+  invoiceLineItems?: Array<{
+    id: string;
+    invoice: {
+      id: string;
+      invoiceNumber?: string | null;
+      totalAmount: string;
+      status: string;
+    } | null;
+  }>;
 };
 
 export type BillingRunDetail = BillingRunListItem & {
   inputSnapshots?: Array<{
     id: string;
+    serviceId?: string | null;
     metricKey: string;
     metricValue?: string | null;
     metricTextValue?: string | null;

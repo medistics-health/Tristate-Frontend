@@ -262,7 +262,7 @@ function BillingStatusBoardPage() {
                                 {card.values.period}
                               </p>
                               <p className="mt-1 text-[11px] text-slate-400">
-                                {card.values.itemCount} items · {card.values.snapshotCount} snapshots
+                                {card.values.itemCount} items
                               </p>
                             </div>
                           </button>
@@ -369,8 +369,7 @@ function BillingStatusBoardPage() {
                     <div className="text-slate-400">Practice</div>
                     <div className="text-slate-700">{selectedRun.practice?.name || "-"}</div>
 
-                    <div className="text-slate-400">Snapshots</div>
-                    <div className="text-slate-700">{selectedRun.inputSnapshots?.length || 0}</div>
+
 
                     <div className="text-slate-400">Items</div>
                     <div className="text-slate-700">{selectedRun.items?.length || 0}</div>
@@ -386,6 +385,39 @@ function BillingStatusBoardPage() {
                     <div className="mb-3 flex items-center justify-between">
                       <p className="text-[13px] font-medium text-slate-700">Calculated Amounts</p>
                     </div>
+                    {(() => {
+                      if (!selectedRun.items || selectedRun.items.length === 0) return null;
+                      let invoiceTotal = 0;
+                      let vendorPayable = 0;
+                      let margin = 0;
+                      for (const item of selectedRun.items) {
+                        invoiceTotal += Number(item.clientAmount || 0);
+                        vendorPayable += Number(item.vendorAmount || 0);
+                        margin += Number(item.marginAmount || 0);
+                      }
+                      return (
+                        <div className="mb-4 rounded-xl border border-[#ece8e1] bg-slate-50/50 p-3 text-[12px] space-y-2 shadow-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 font-medium">Invoice Total</span>
+                            <span className="font-bold text-slate-800">
+                              {formatMoney(invoiceTotal)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 font-medium">Vendor Payable</span>
+                            <span className="font-bold text-slate-700">
+                              {formatMoney(vendorPayable)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between border-t border-slate-200/60 pt-1.5">
+                            <span className="text-slate-500 font-medium">Total Margin</span>
+                            <span className={`font-bold ${margin < 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                              {formatMoney(margin)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className="space-y-2">
                       {(selectedRun.items || []).length === 0 ? (
                         <div className="rounded-xl border border-dashed border-[#ece8e1] bg-white p-3 text-[13px] text-slate-500">
