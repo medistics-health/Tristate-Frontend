@@ -1284,6 +1284,10 @@ function RepeaterHeader({
   );
 }
 
+function isSubmittedOnboardingStatus(status?: string) {
+  return status === "IN_PROGRESS" || status === "COMPLETED";
+}
+
 export default function OnboardingFormV4() {
   const { id } = useParams();
   const [formData, setFormData] = useState<OnboardingBody>(initialFormData);
@@ -1323,8 +1327,11 @@ export default function OnboardingFormV4() {
         }
 
         setFormData(normalizeLoadedOnboarding(onboarding));
-        setIsAlreadySubmitted(true);
-        setIsSubmitted(true);
+        const isSubmittedRecord = isSubmittedOnboardingStatus(
+          onboarding.status,
+        );
+        setIsAlreadySubmitted(isSubmittedRecord);
+        setIsSubmitted(isSubmittedRecord);
       } catch (error) {
         if (!active) return;
         const message =
@@ -2390,7 +2397,7 @@ export default function OnboardingFormV4() {
 
       toast.success("Onboarding submitted successfully!", { id: loadingToast });
       setIsSubmitted(true);
-      setIsAlreadySubmitted(true);
+      setIsAlreadySubmitted(false);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to submit onboarding.";
@@ -2427,7 +2434,7 @@ export default function OnboardingFormV4() {
               ? "This onboarding form has already been submitted and can no longer be edited."
               : "Your onboarding request has been submitted successfully. Our team will review your information and follow up shortly."}
           </p>
-          {!isAlreadySubmitted ? (
+          {/*{!isAlreadySubmitted ? (
             <button
               type="button"
               onClick={() => {
@@ -2440,7 +2447,7 @@ export default function OnboardingFormV4() {
             >
               Submit Another Request
             </button>
-          ) : null}
+          ) : null}*/}
         </div>
       </Shell>
     );
