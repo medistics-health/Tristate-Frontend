@@ -7,33 +7,31 @@ import {
   DollarSign,
   FileSignature,
   FileText,
-  Mail,
   RefreshCw,
-  Send,
   Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import {
-  createDocusealSubmissionApi,
   getAgreementApprovalStatus,
-  getAgreementDocusealId,
   getAgreementVersions,
   getAgreementsByPractice,
   getSubmissionApprovalStatus,
-  sendAgreementEmailApi,
   type Agreement,
   type AgreementServiceTerm,
   type AgreementVersion,
 } from "../../services/operations/agreements";
 import {
+  getBillingRun,
   getBillingRunsView,
+  type BillingRunDetail,
   type BillingRunRow,
 } from "../../services/operations/billings";
 import {
   getExternalOnboardingByPracticeId,
   type Onboarding,
 } from "../../services/operations/onboarding";
+import { getCompany, type Company } from "../../services/operations/companies";
 import {
   getPractice,
   type Practice,
@@ -74,6 +72,91 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+function getSigningSummary(agreement: Agreement) {
+  const submissions = agreement.docusealSubmissions || [];
+  if (!submissions.length) return "No signing request";
+
+  const completed = submissions.filter(
+    (submission) => submission.status === "completed",
+  ).length;
+
+  if (completed === submissions.length) {
+    return `Signed (${completed}/${submissions.length})`;
+  }
+
+  return `Pending signature (${completed}/${submissions.length})`;
+}
+
+function getSignedDocumentUrls(submission: {
+  signedDocUrl?: string | null;
+  signedDocUrls?: string | null;
+}) {
+  const rawValue = submission.signedDocUrl || submission.signedDocUrls;
+  if (!rawValue) return [];
+
+  const trimmed = rawValue.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (url): url is string => typeof url === "string" && Boolean(url),
+      );
+    }
+  } catch {
+    // Some backend responses store signed URLs as a plain string.
+  }
+
+  return trimmed
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function getDocumentLabel(url: string, fallback: string) {
+  try {
+    const pathname = new URL(url).pathname;
+    const filename = decodeURIComponent(pathname.split("/").pop() || "");
+    return filename.replace(/\.pdf$/i, "") || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function getAgreementSignedDocuments(agreement: Agreement) {
+  return (agreement.docusealSubmissions || [])
+    .filter(
+      (submission) =>
+        submission.status === "completed" || submission.status === "signed",
+    )
+    .flatMap((submission) => {
+      const signedUrls = getSignedDocumentUrls(submission).map(
+        (url, index) => ({
+          id: `${submission.id}-signed-${index}`,
+          url,
+          label: getDocumentLabel(url, `Signed document ${index + 1}`),
+          kind: "Signed PDF",
+          updatedAt: submission.updatedAt,
+        }),
+      );
+
+      const auditUrl = submission.auditLogUrl
+        ? [
+            {
+              id: `${submission.id}-audit`,
+              url: submission.auditLogUrl,
+              label: "Audit log",
+              kind: "Audit Log",
+              updatedAt: submission.updatedAt,
+            },
+          ]
+        : [];
+
+      return [...signedUrls, ...auditUrl];
+    });
+}
+
 function getStatusClass(status?: string | null) {
   const normalized = status || "";
   if (
@@ -99,6 +182,31 @@ function getStatusClass(status?: string | null) {
     return "bg-red-100 text-red-700";
   }
   return "bg-slate-100 text-slate-600";
+}
+
+function getBillingRunTotal(run?: BillingRunDetail) {
+  if (!run?.items?.length) return 0;
+  return run.items.reduce(
+    (total, item) => total + Number(item.clientAmount || 0),
+    0,
+  );
+}
+
+function formatCompanyAddress(company: Company) {
+  const parts = [
+    company.street,
+    company.city,
+    company.state,
+    company.zip,
+    company.country,
+  ].filter(Boolean);
+  return parts.length ? parts.join(", ") : "-";
+}
+
+function formatCompanyTaxIds(company: Company) {
+  return company.taxIds?.length
+    ? company.taxIds.map((taxId) => taxId.taxIdNumber).join(", ")
+    : "-";
 }
 
 function Card({
@@ -168,15 +276,16 @@ export default function PracticeProfilePage() {
   const [practice, setPractice] = useState<Practice | null>(null);
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [onboarding, setOnboarding] = useState<Onboarding | null>(null);
+  const [associatedCompanies, setAssociatedCompanies] = useState<Company[]>([]);
   const [billingRuns, setBillingRuns] = useState<BillingRunRow[]>([]);
+  const [billingRunDetails, setBillingRunDetails] = useState<
+    Record<string, BillingRunDetail>
+  >({});
   const [versions, setVersions] = useState<AgreementVersion[]>([]);
   const [terms, setTerms] = useState<AgreementServiceTerm[]>([]);
   const [selectedAgreementId, setSelectedAgreementId] = useState("");
   const [selectedVersionId, setSelectedVersionId] = useState("");
-  const [selectedSendAgreementId, setSelectedSendAgreementId] = useState("");
-  const [selectedSignerId, setSelectedSignerId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isSendingAgreement, setIsSendingAgreement] = useState(false);
 
   const practiceId = id ?? "";
 
@@ -207,6 +316,18 @@ export default function PracticeProfilePage() {
     [agreements],
   );
 
+  const activeAgreements = useMemo(
+    () =>
+      agreements.filter((agreement) =>
+        ["ACTIVE", "SIGNED"].includes(agreement.status),
+      ),
+    [agreements],
+  );
+
+  const isPracticeActive = practice?.status === "ACTIVE";
+  const hasActiveAgreement = activeAgreements.length > 0;
+  const canUsePricingAndBilling = isPracticeActive && hasActiveAgreement;
+
   const pricingEngineUrl = useMemo(() => {
     const params = new URLSearchParams({
       practiceId,
@@ -235,23 +356,39 @@ export default function PracticeProfilePage() {
       setPractice(practiceData);
       setAgreements(agreementData);
       setOnboarding(onboardingData);
+      const companyIds = Array.from(
+        new Set(
+          [practiceData.companyId, practiceData.company?.id].filter(
+            (companyId): companyId is string => Boolean(companyId),
+          ),
+        ),
+      );
+      const companies = await Promise.all(
+        companyIds.map((companyId) => getCompany(companyId).catch(() => null)),
+      );
+      setAssociatedCompanies(
+        companies.filter((company): company is Company => Boolean(company)),
+      );
       setBillingRuns(billingData.rows);
+      const billingDetails = await Promise.all(
+        billingData.rows.map((run) => getBillingRun(run.id).catch(() => null)),
+      );
+      setBillingRunDetails(
+        Object.fromEntries(
+          billingDetails
+            .filter((run): run is BillingRunDetail => Boolean(run))
+            .map((run) => [run.id, run]),
+        ),
+      );
 
-      const firstAgreement = agreementData[0];
+      const firstAgreement =
+        agreementData.find((agreement) =>
+          ["ACTIVE", "SIGNED"].includes(agreement.status),
+        ) ?? agreementData[0];
       setSelectedAgreementId((current) =>
         current && agreementData.some((agreement) => agreement.id === current)
           ? current
           : (firstAgreement?.id ?? ""),
-      );
-      setSelectedSendAgreementId((current) =>
-        current && agreementData.some((agreement) => agreement.id === current)
-          ? current
-          : (firstAgreement?.id ?? ""),
-      );
-      setSelectedSignerId((current) =>
-        current && practiceData.persons?.some((person) => person.id === current)
-          ? current
-          : (practiceData.persons?.find((person) => person.email)?.id ?? ""),
       );
     } catch (error) {
       toast.error(
@@ -330,51 +467,6 @@ export default function PracticeProfilePage() {
     loadPricingTerms(selectedAgreementId, selectedVersionId);
   }, [selectedAgreementId, selectedVersionId]);
 
-  async function handleSendAgreement(event: React.FormEvent) {
-    event.preventDefault();
-    if (!selectedSendAgreementId || !selectedSignerId) {
-      toast.error("Select an agreement and signer");
-      return;
-    }
-
-    const agreement = agreements.find(
-      (item) => item.id === selectedSendAgreementId,
-    );
-    if (!agreement) {
-      toast.error("Agreement not found");
-      return;
-    }
-
-    const docusealTemplateIds = getAgreementDocusealId(agreement);
-    if (!docusealTemplateIds?.length) {
-      toast.error(
-        "This agreement has no template. Open the Agreements module to add templates first.",
-      );
-      return;
-    }
-
-    setIsSendingAgreement(true);
-    try {
-      await createDocusealSubmissionApi({
-        agreementId: selectedSendAgreementId,
-        personId: selectedSignerId,
-        templateId: docusealTemplateIds,
-      });
-      await sendAgreementEmailApi({
-        agreementId: selectedSendAgreementId,
-        personId: selectedSignerId,
-      });
-      toast.success("Agreement email sent");
-      await loadProfile();
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Unable to send agreement",
-      );
-    } finally {
-      setIsSendingAgreement(false);
-    }
-  }
-
   if (isLoading) {
     return (
       <AppLayout title="Practice Profile" activeModule="Practices">
@@ -434,8 +526,8 @@ export default function PracticeProfilePage() {
                 </span>
               </div>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-                Centralized practice workspace for agreements,
-                onboarding,pricing terms, <br></br> and billing runs.
+                Centralized practice workspace for agreements, onboarding,
+                associated people, companies, pricing terms, and billing runs.
               </p>
               {/*<div className="mt-5 flex flex-wrap gap-2">
                 <Link
@@ -486,25 +578,29 @@ export default function PracticeProfilePage() {
             icon={<FileSignature className="h-5 w-5" />}
           />
           <StatCard
-            label="Contacts"
+            label="Associated Persons"
             value={practice.persons?.length ?? 0}
             icon={<Users className="h-5 w-5" />}
           />
-          <StatCard
-            label="Pricing Terms"
-            value={terms.length}
-            icon={<DollarSign className="h-5 w-5" />}
-          />
-          <StatCard
-            label="Billing Runs"
-            value={billingRuns.length}
-            icon={<CalendarClock className="h-5 w-5" />}
-          />
+          {canUsePricingAndBilling ? (
+            <>
+              <StatCard
+                label="Pricing Terms"
+                value={terms.length}
+                icon={<DollarSign className="h-5 w-5" />}
+              />
+              <StatCard
+                label="Billing Runs"
+                value={billingRuns.length}
+                icon={<CalendarClock className="h-5 w-5" />}
+              />
+            </>
+          ) : null}
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
           <Card
-            title="Practice Details"
+            title="Practice Summary"
             description="Core practice identifiers and ownership details."
           >
             <div className="grid gap-3 md:grid-cols-2">
@@ -532,7 +628,7 @@ export default function PracticeProfilePage() {
           </Card>
 
           <Card
-            title="Contacts"
+            title="Associated Persons"
             description="People connected to this practice."
           >
             <div className="space-y-3">
@@ -557,17 +653,91 @@ export default function PracticeProfilePage() {
                 ))
               ) : (
                 <p className="rounded-2xl bg-[#fbfaf8] p-4 text-sm text-slate-500">
-                  No contacts linked to this practice.
+                  No people linked to this practice.
                 </p>
               )}
             </div>
           </Card>
         </div>
 
+        <Card
+          title="Associated Companies"
+          description="Companies linked to this practice."
+          action={
+            <Link
+              to="/company/all-companies?action=create"
+              className="text-sm font-semibold text-slate-600 hover:text-slate-950"
+            >
+              Add Company
+            </Link>
+          }
+        >
+          {associatedCompanies.length ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {associatedCompanies.map((company) => (
+                <div
+                  key={company.id}
+                  className="rounded-2xl border border-[#ece8e1] bg-white p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold text-slate-900">
+                        {company.name}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {formatCompanyAddress(company)}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                        company.status,
+                      )}`}
+                    >
+                      {formatLabel(company.status)}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <InfoRow label="Industry" value={company.industry} />
+                    <InfoRow label="Tax IDs" value={formatCompanyTaxIds(company)} />
+                    <InfoRow label="Phone" value={company.phone} />
+                    <InfoRow label="Email" value={company.email} />
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Link
+                      to={`/company/all-companies?companyId=${company.id}`}
+                      className="inline-flex items-center gap-2 rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                    >
+                      View Company Details
+                    </Link>
+                    <Link
+                      to={`/company/all-companies?companyId=${company.id}&action=edit`}
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
+                    >
+                      Edit Company
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-5">
+              <p className="text-sm font-semibold text-slate-900">
+                No company linked to this practice.
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Add or edit company details from the Companies module.
+              </p>
+            </div>
+          )}
+        </Card>
+
         <div className="grid gap-4 xl:grid-cols-2">
           <Card
             title="Agreements"
-            description="Review practice agreements and send prepared agreements for signature."
+            description="Review all agreements connected to this practice, including versions and signing status."
             action={
               <Link
                 to={`/agreements/all-agreements?practiceId=${practice.id}`}
@@ -600,6 +770,148 @@ export default function PracticeProfilePage() {
                         {formatLabel(agreement.status)}
                       </span>
                     </div>
+                    <p className="mt-4 text-sm text-slate-500">
+                      Created Date: {formatDate(agreement.createdAt)}
+                    </p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-3">
+                        <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                          Versions
+                        </p>
+                        {agreement.versions?.length ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {agreement.versions.map((version) => (
+                              <span
+                                key={version.id}
+                                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                  version.isCurrent
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-white text-slate-600"
+                                }`}
+                              >
+                                v{version.versionNumber}
+                                {version.isCurrent ? " Current" : ""}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm text-slate-500">
+                            No version history available.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-3">
+                        <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                          Current Version
+                        </p>
+                        {agreement.versions?.find(
+                          (version) => version.isCurrent,
+                        ) ? (
+                          <p className="mt-2 text-sm font-semibold text-slate-800">
+                            Version{" "}
+                            {
+                              agreement.versions.find(
+                                (version) => version.isCurrent,
+                              )?.versionNumber
+                            }
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-sm text-slate-500">
+                            {agreement.versions?.length
+                              ? "No current version marked"
+                              : "-"}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                          agreement.docusealSubmissions?.length
+                            ? getSigningSummary(agreement).startsWith("Signed")
+                              ? "COMPLETED"
+                              : "PENDING_SIGNATURE"
+                            : "DRAFT",
+                        )}`}
+                      >
+                        {getSigningSummary(agreement)}
+                      </span>
+                      <Link
+                        to={`/agreements/all-agreements?practiceId=${practice.id}&agreementId=${agreement.id}`}
+                        className="inline-flex items-center gap-2 rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                      >
+                        View Agreement Details
+                      </Link>
+                      <Link
+                        to={`/agreements/all-agreements?practiceId=${practice.id}&agreementId=${agreement.id}&tab=versions`}
+                        className="inline-flex items-center gap-2 rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                      >
+                        View Agreement Version History
+                      </Link>
+                      <Link
+                        to={`/agreements/pending-signatures?agreementId=${agreement.id}`}
+                        className="inline-flex items-center gap-2 rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                      >
+                        View Signing Status
+                      </Link>
+                    </div>
+
+                    {(() => {
+                      const signedDocuments =
+                        getAgreementSignedDocuments(agreement);
+
+                      return (
+                        <div className="mt-4 rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                              Signed Documents
+                            </p>
+                            <span className="text-xs font-semibold text-slate-400">
+                              {signedDocuments.length} file
+                              {signedDocuments.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
+
+                          {signedDocuments.length ? (
+                            <div className="mt-3 space-y-2">
+                              {signedDocuments.map((document) => (
+                                <a
+                                  key={document.id}
+                                  href={document.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center justify-between gap-3 rounded-xl border border-[#ece8e1] bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:shadow-sm"
+                                >
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-500">
+                                      <FileText className="h-4 w-4" />
+                                    </span>
+                                    <span className="min-w-0">
+                                      <span className="block truncate">
+                                        {document.label}
+                                      </span>
+                                      <span className="text-xs text-slate-400">
+                                        {document.kind} | Updated{" "}
+                                        {formatDate(document.updatedAt)}
+                                      </span>
+                                    </span>
+                                  </span>
+                                  <span className="shrink-0 text-xs font-semibold text-blue-600">
+                                    View
+                                  </span>
+                                </a>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-3 rounded-xl border border-dashed border-[#ded8cf] bg-white px-3 py-2 text-sm text-slate-500">
+                              No signed documents available yet.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))
               ) : (
@@ -695,6 +1007,7 @@ export default function PracticeProfilePage() {
               </div>
             </div>
 
+            {/*
             <form
               onSubmit={handleSendAgreement}
               className="mt-4 rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4"
@@ -748,6 +1061,7 @@ export default function PracticeProfilePage() {
                 </button>
               </div>
             </form>
+            */}
           </Card>
 
           <Card
@@ -792,11 +1106,72 @@ export default function PracticeProfilePage() {
                 </div>
               </div>
             </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <InfoRow
+                label="Submitted By"
+                value={
+                  onboarding?.submittedByName ||
+                  onboarding?.contacts?.[0]?.fullName ||
+                  "-"
+                }
+              />
+              <InfoRow
+                label="Requested Services"
+                value={
+                  onboarding?.requestedServices?.length
+                    ? onboarding.requestedServices.join(", ")
+                    : "-"
+                }
+              />
+              <InfoRow
+                label="Providers"
+                value={
+                  onboarding?.practices?.reduce(
+                    (total, item) => total + (item.providers?.length || 0),
+                    0,
+                  ) || 0
+                }
+              />
+              <InfoRow
+                label="Locations"
+                value={
+                  onboarding?.practices?.reduce(
+                    (total, item) => total + (item.locations?.length || 0),
+                    0,
+                  ) ||
+                  onboarding?.numberOfLocations ||
+                  0
+                }
+              />
+              <InfoRow
+                label="Contacts"
+                value={onboarding?.contacts?.length || 0}
+              />
+              <InfoRow
+                label="Documents"
+                value={onboarding?.documents?.length || 0}
+              />
+            </div>
+
+            {!onboarding ? (
+              <div className="mt-5 rounded-3xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-6">
+                <p className="text-sm font-semibold text-slate-900">
+                  Onboarding has not been submitted yet
+                </p>
+                <p className="mt-2 text-sm text-slate-500">
+                  Once the client submits the onboarding form, this area will
+                  show the record summary, uploaded documents, and submitted
+                  PDF.
+                </p>
+              </div>
+            ) : null}
+
             {onboarding?.documents?.length ? (
               <div className="mt-5">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-sm font-semibold text-slate-900">
-                    Submitted documents
+                    Generated PDF
                   </p>
                   <p className="text-xs text-slate-400">
                     {onboarding.documents.length} file
@@ -838,23 +1213,32 @@ export default function PracticeProfilePage() {
           </Card>
         </div>
 
+        {canUsePricingAndBilling ? (
+          <>
         <Card
           title="Pricing Terms"
-          description="Create or review rate terms for the selected agreement version."
+          description="Available once the practice and agreement are active."
           action={
             <span id="pricing" className="sr-only">
               Pricing
             </span>
           }
         >
+          {!canUsePricingAndBilling ? (
+            <div className="rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-5 text-sm text-slate-500">
+              Pricing terms become available once the practice status is Active
+              and at least one agreement is Active.
+            </div>
+          ) : (
+            <>
           <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
             <select
               value={selectedAgreementId}
               onChange={(event) => setSelectedAgreementId(event.target.value)}
               className="rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm"
             >
-              <option value="">Select agreement</option>
-              {agreements.map((agreement) => (
+              <option value="">Select active agreement</option>
+              {activeAgreements.map((agreement) => (
                 <option key={agreement.id} value={agreement.id}>
                   {agreement.type} • {formatLabel(agreement.status)}
                 </option>
@@ -877,7 +1261,7 @@ export default function PracticeProfilePage() {
               to={pricingEngineUrl}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
             >
-              Create in Pricing Engine
+              Create Pricing Term
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -922,34 +1306,42 @@ export default function PracticeProfilePage() {
               </p>
             )}
           </div>
+            </>
+          )}
         </Card>
 
         <Card
           title="Billing Runs"
-          description="Review recent billing runs and start a new billing run in the validated billing workflow."
+          description="Available once the practice and agreement are active."
           action={
             <span id="billing" className="sr-only">
               Billing
             </span>
           }
         >
+          {!canUsePricingAndBilling ? (
+            <div className="rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-5 text-sm text-slate-500">
+              Billing runs become available once the practice status is Active
+              and at least one agreement is Active.
+            </div>
+          ) : (
+            <>
           <div className="rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  Create a billing run
+                  Generate a billing run
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Use the Billing Runs module so practice readiness, billing
-                  period, snapshots, calculation, approval, and posting stay in
-                  the dedicated workflow.
+                  Use the Billing Runs module so billing period, calculation,
+                  approval, and posting stay in the dedicated workflow.
                 </p>
               </div>
               <Link
                 to={`/billing/runs?practiceId=${practice.id}&action=create`}
                 className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
               >
-                Create in Billing Runs
+                Generate Billing Run
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
@@ -984,7 +1376,7 @@ export default function PracticeProfilePage() {
                 {billingRuns.map((run) => (
                   <div
                     key={run.id}
-                    className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_140px_140px]"
+                    className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_140px_140px_140px_auto]"
                   >
                     <div>
                       <p className="font-semibold text-slate-900">
@@ -1003,6 +1395,20 @@ export default function PracticeProfilePage() {
                       {run.values.itemCount} items • {run.values.snapshotCount}{" "}
                       snapshots
                     </p>
+                    <div className="text-sm">
+                      <p className="text-slate-400">Total Amount</p>
+                      <p className="font-semibold text-slate-900">
+                        {formatMoney(
+                          getBillingRunTotal(billingRunDetails[run.id]),
+                        )}
+                      </p>
+                    </div>
+                    <Link
+                      to={`/billing/runs?practiceId=${practice.id}&runId=${run.id}`}
+                      className="inline-flex items-center justify-center rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                    >
+                      Details
+                    </Link>
                   </div>
                 ))}
               </div>
@@ -1012,7 +1418,11 @@ export default function PracticeProfilePage() {
               </p>
             )}
           </div>
+            </>
+          )}
         </Card>
+          </>
+        ) : null}
       </div>
     </AppLayout>
   );
