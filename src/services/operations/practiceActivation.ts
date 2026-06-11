@@ -5,6 +5,7 @@ import {
   getAgreementsByPractice,
   sendAgreementEmailApi,
 } from "./agreements";
+import { updateCompanyApi } from "./companies";
 import { getPractice, updatePracticeApi } from "./practices";
 
 type PracticePersonLike = {
@@ -50,6 +51,7 @@ export async function validatePracticeActivation(practiceId: string) {
   return {
     agreement: agreements[0],
     eligiblePerson,
+    practice: fullPractice,
   };
 }
 
@@ -57,7 +59,7 @@ export async function activatePracticeWithAgreementEmail(
   practiceId: string,
   practiceData: Partial<PracticeBody> = { status: "ACTIVE" },
 ): Promise<void> {
-  const { agreement, eligiblePerson } =
+  const { agreement, eligiblePerson, practice } =
     await validatePracticeActivation(practiceId);
 
   const documentApprovalStatus = agreement.docusealSubmissions?.find(
@@ -95,4 +97,10 @@ export async function activatePracticeWithAgreementEmail(
     ...practiceData,
     status: "ACTIVE",
   });
+
+  if (practice.companyId) {
+    await updateCompanyApi(practice.companyId, {
+      status: "CUSTOMER",
+    });
+  }
 }
