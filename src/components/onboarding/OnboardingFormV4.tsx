@@ -2082,7 +2082,9 @@ export default function OnboardingFormV4() {
         formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" &&
         (Number(formData.numberOfPractices ?? 0) || 0) < 1
       ) {
-        errors.push("How many practices are being onboarded (must be 1 or more)");
+        errors.push(
+          "How many practices are being onboarded (must be 1 or more)",
+        );
       }
       if (!formData.isAuthorizedPerson && !formData.nonAuthorizedRole) {
         errors.push("Role in onboarding");
@@ -2556,7 +2558,10 @@ export default function OnboardingFormV4() {
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" ? (
-                    <Field label="How many practices are being onboarded?" required>
+                    <Field
+                      label="How many practices are being onboarded?"
+                      required
+                    >
                       <TextInput
                         type="number"
                         min={1}
