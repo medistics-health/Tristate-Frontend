@@ -39,6 +39,7 @@ import {
   type OnboardingLocation,
   type OnboardingProvider,
 } from "../../services/operations/onboarding";
+import { getPractice } from "../../services/operations/practices";
 
 type PaginationInfo = {
   page: number;
@@ -49,7 +50,7 @@ type PaginationInfo = {
 
 type OnboardingRow = {
   id: string;
-  companyName: string;
+  practiceName: string;
   submittedBy: string;
   type: string;
   status: string;
@@ -344,6 +345,9 @@ export default function AdminOnboardingReview() {
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewingData, setReviewingData] = useState<Onboarding | null>(null);
   const [reviewStep, setReviewStep] = useState(1);
+  const [practiceNamesById, setPracticeNamesById] = useState<
+    Record<string, string>
+  >({});
   const [showEmptyFields, setShowEmptyFields] = useState(true);
 
   const parseNumericInput = (value: string) =>
@@ -402,10 +406,51 @@ export default function AdminOnboardingReview() {
       if (filters.status) params.status = filters.status;
 
       const response = await getOnboardings(params);
-      const mappedRows: OnboardingRow[] = (response.onboardings || []).map(
+      const onboardings = response.onboardings || [];
+      const practiceIds = Array.from(
+        new Set(
+          onboardings
+            .map((ob) => ob.practiceId)
+            .filter((practiceId): practiceId is string => !!practiceId),
+        ),
+      );
+
+      const missingPracticeIds = practiceIds.filter(
+        (practiceId) => !practiceNamesById[practiceId],
+      );
+
+      let nextPracticeNamesById = practiceNamesById;
+      if (missingPracticeIds.length > 0) {
+        const practiceResults = await Promise.allSettled(
+          missingPracticeIds.map(async (practiceId) => {
+            const practice = await getPractice(practiceId);
+            return [practiceId, practice.name] as const;
+          }),
+        );
+
+        nextPracticeNamesById = {
+          ...practiceNamesById,
+          ...Object.fromEntries(
+            practiceResults
+              .filter(
+                (
+                  result,
+                ): result is PromiseFulfilledResult<readonly [string, string]> =>
+                  result.status === "fulfilled",
+              )
+              .map((result) => result.value),
+          ),
+        };
+        setPracticeNamesById(nextPracticeNamesById);
+      }
+
+      const mappedRows: OnboardingRow[] = onboardings.map(
         (ob: Onboarding) => ({
           id: ob.id,
-          companyName: ob.legalCompanyName || ob.dbaName || "N/A",
+          practiceName:
+            (ob.practiceId && nextPracticeNamesById[ob.practiceId]) ||
+            ob.practices?.[0]?.practiceName ||
+            "N/A",
           submittedBy: ob.submittedByName || "Unknown",
           type: ob.onboardingType || "N/A",
           status: ob.status || "DRAFT",
@@ -449,11 +494,11 @@ export default function AdminOnboardingReview() {
 
   const columns = useMemo<ColumnDef<OnboardingRow>[]>(
     () => [
-      columnHelper.accessor("companyName", {
+      columnHelper.accessor("practiceName", {
         header: () => (
           <div className="flex items-center gap-2">
             <FileText className="h-3.5 w-3.5 text-slate-400" />
-            <span>Company</span>
+            <span>Practice</span>
           </div>
         ),
         cell: (info) => (
@@ -648,8 +693,10 @@ export default function AdminOnboardingReview() {
             ? {
                 ...r,
                 status: updated.status || r.status,
-                companyName:
-                  updated.legalCompanyName || updated.dbaName || r.companyName,
+                practiceName:
+                  (updated.practiceId && practiceNamesById[updated.practiceId]) ||
+                  updated.practices?.[0]?.practiceName ||
+                  r.practiceName,
                 original: updated,
               }
             : r,
@@ -3665,7 +3712,7 @@ export default function AdminOnboardingReview() {
               </button>
               <FileText className="h-4 w-4 text-slate-300" />
               <h2 className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
-                {detailData?.legalCompanyName || detailData?.dbaName || selectedRow.companyName}
+                {selectedRow.practiceName}
               </h2>
             </div>
 

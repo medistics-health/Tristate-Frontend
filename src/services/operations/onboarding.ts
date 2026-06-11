@@ -357,6 +357,7 @@ export type OnboardingBody = {
 
 export type Onboarding = {
   id: string;
+  practiceId?: string | null;
   onboardingType?: string;
   isAuthorizedPerson?: boolean;
   nonAuthorizedRole?: string;
