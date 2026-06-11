@@ -209,6 +209,23 @@ function formatCompanyTaxIds(company: Company) {
     : "-";
 }
 
+function isGeneratedOnboardingPdf(document: {
+  fileName?: string | null;
+  notes?: string | null;
+  fileUrl?: string | null;
+}) {
+  const fileName = document.fileName?.toLowerCase() || "";
+  const notes = document.notes?.toLowerCase() || "";
+  const fileUrl = document.fileUrl?.toLowerCase() || "";
+
+  return (
+    notes.includes("auto-generated onboarding submission pdf") ||
+    (fileName.startsWith("onboarding-submission-") &&
+      fileName.endsWith(".pdf")) ||
+    fileUrl.includes("/onboarding-submission/")
+  );
+}
+
 function Card({
   title,
   description,
@@ -327,6 +344,10 @@ export default function PracticeProfilePage() {
   const isPracticeActive = practice?.status === "ACTIVE";
   const hasActiveAgreement = activeAgreements.length > 0;
   const canUsePricingAndBilling = isPracticeActive && hasActiveAgreement;
+  const generatedOnboardingPdfs = useMemo(
+    () => onboarding?.documents?.filter(isGeneratedOnboardingPdf) || [],
+    [onboarding?.documents],
+  );
 
   const pricingEngineUrl = useMemo(() => {
     const params = new URLSearchParams({
@@ -699,7 +720,10 @@ export default function PracticeProfilePage() {
 
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     <InfoRow label="Industry" value={company.industry} />
-                    <InfoRow label="Tax IDs" value={formatCompanyTaxIds(company)} />
+                    <InfoRow
+                      label="Tax IDs"
+                      value={formatCompanyTaxIds(company)}
+                    />
                     <InfoRow label="Phone" value={company.phone} />
                     <InfoRow label="Email" value={company.email} />
                   </div>
@@ -1149,8 +1173,8 @@ export default function PracticeProfilePage() {
                 value={onboarding?.contacts?.length || 0}
               />
               <InfoRow
-                label="Documents"
-                value={onboarding?.documents?.length || 0}
+                label="Generated PDFs"
+                value={generatedOnboardingPdfs.length}
               />
             </div>
 
@@ -1161,25 +1185,24 @@ export default function PracticeProfilePage() {
                 </p>
                 <p className="mt-2 text-sm text-slate-500">
                   Once the client submits the onboarding form, this area will
-                  show the record summary, uploaded documents, and submitted
-                  PDF.
+                  show the record summary and generated PDF.
                 </p>
               </div>
             ) : null}
 
-            {onboarding?.documents?.length ? (
+            {generatedOnboardingPdfs.length ? (
               <div className="mt-5">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-sm font-semibold text-slate-900">
                     Generated PDF
                   </p>
                   <p className="text-xs text-slate-400">
-                    {onboarding.documents.length} file
-                    {onboarding.documents.length === 1 ? "" : "s"}
+                    {generatedOnboardingPdfs.length} file
+                    {generatedOnboardingPdfs.length === 1 ? "" : "s"}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  {onboarding.documents.map((document) => (
+                  {generatedOnboardingPdfs.map((document) => (
                     <a
                       key={document.id || document.fileUrl}
                       href={document.fileUrl}
@@ -1206,8 +1229,7 @@ export default function PracticeProfilePage() {
               </div>
             ) : onboarding ? (
               <p className="mt-5 rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-4 text-sm text-slate-500">
-                No submitted PDF or uploaded documents found for this onboarding
-                record.
+                No generated onboarding PDF found for this onboarding record.
               </p>
             ) : null}
           </Card>
@@ -1215,139 +1237,144 @@ export default function PracticeProfilePage() {
 
         {canUsePricingAndBilling ? (
           <>
-        <Card
-          title="Pricing Terms"
-          description="Available once the practice and agreement are active."
-          action={
-            <span id="pricing" className="sr-only">
-              Pricing
-            </span>
-          }
-        >
-          {!canUsePricingAndBilling ? (
-            <div className="rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-5 text-sm text-slate-500">
-              Pricing terms become available once the practice status is Active
-              and at least one agreement is Active.
-            </div>
-          ) : (
-            <>
-          <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
-            <select
-              value={selectedAgreementId}
-              onChange={(event) => setSelectedAgreementId(event.target.value)}
-              className="rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm"
+            <Card
+              title="Pricing Terms"
+              description="Available once the practice and agreement are active."
+              action={
+                <span id="pricing" className="sr-only">
+                  Pricing
+                </span>
+              }
             >
-              <option value="">Select active agreement</option>
-              {activeAgreements.map((agreement) => (
-                <option key={agreement.id} value={agreement.id}>
-                  {agreement.type} • {formatLabel(agreement.status)}
-                </option>
-              ))}
-            </select>
-            <select
-              value={selectedVersionId}
-              onChange={(event) => setSelectedVersionId(event.target.value)}
-              className="rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm"
-            >
-              <option value="">Select version</option>
-              {versions.map((version) => (
-                <option key={version.id} value={version.id}>
-                  Version {version.versionNumber}
-                  {version.isCurrent ? " • Current" : ""}
-                </option>
-              ))}
-            </select>
-            <Link
-              to={pricingEngineUrl}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
-            >
-              Create Pricing Term
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
+              {!canUsePricingAndBilling ? (
+                <div className="rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-5 text-sm text-slate-500">
+                  Pricing terms become available once the practice status is
+                  Active and at least one agreement is Active.
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
+                    <select
+                      value={selectedAgreementId}
+                      onChange={(event) =>
+                        setSelectedAgreementId(event.target.value)
+                      }
+                      className="rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">Select active agreement</option>
+                      {activeAgreements.map((agreement) => (
+                        <option key={agreement.id} value={agreement.id}>
+                          {agreement.type} • {formatLabel(agreement.status)}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={selectedVersionId}
+                      onChange={(event) =>
+                        setSelectedVersionId(event.target.value)
+                      }
+                      className="rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">Select version</option>
+                      {versions.map((version) => (
+                        <option key={version.id} value={version.id}>
+                          Version {version.versionNumber}
+                          {version.isCurrent ? " • Current" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <Link
+                      to={pricingEngineUrl}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Create Pricing Term
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </div>
 
-          <div className="mt-4 overflow-hidden rounded-2xl border border-[#ece8e1]">
-            {terms.length ? (
-              <div className="divide-y divide-[#ece8e1]">
-                {terms.map((term) => (
-                  <div
-                    key={term.id}
-                    className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_160px_160px]"
-                  >
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        {term.service?.name || "Service"}
+                  <div className="mt-4 overflow-hidden rounded-2xl border border-[#ece8e1]">
+                    {terms.length ? (
+                      <div className="divide-y divide-[#ece8e1]">
+                        {terms.map((term) => (
+                          <div
+                            key={term.id}
+                            className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_160px_160px]"
+                          >
+                            <div>
+                              <p className="font-semibold text-slate-900">
+                                {term.service?.name || "Service"}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                {formatLabel(term.pricingModel)} •{" "}
+                                {term.vendor?.name || "No vendor"}
+                              </p>
+                            </div>
+                            <div className="text-sm">
+                              <p className="text-slate-400">Effective</p>
+                              <p className="font-medium text-slate-700">
+                                {formatDate(term.effectiveDate)}
+                              </p>
+                            </div>
+                            <div className="text-sm">
+                              <p className="text-slate-400">Status</p>
+                              <p className="font-medium text-slate-700">
+                                {term.isActive ? "Active" : "Inactive"}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
+                        {selectedAgreement
+                          ? "No pricing terms yet for this agreement version."
+                          : "Select an agreement to manage pricing terms."}
                       </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {formatLabel(term.pricingModel)} •{" "}
-                        {term.vendor?.name || "No vendor"}
-                      </p>
-                    </div>
-                    <div className="text-sm">
-                      <p className="text-slate-400">Effective</p>
-                      <p className="font-medium text-slate-700">
-                        {formatDate(term.effectiveDate)}
-                      </p>
-                    </div>
-                    <div className="text-sm">
-                      <p className="text-slate-400">Status</p>
-                      <p className="font-medium text-slate-700">
-                        {term.isActive ? "Active" : "Inactive"}
-                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </Card>
+
+            <Card
+              title="Billing Runs"
+              description="Available once the practice and agreement are active."
+              action={
+                <span id="billing" className="sr-only">
+                  Billing
+                </span>
+              }
+            >
+              {!canUsePricingAndBilling ? (
+                <div className="rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-5 text-sm text-slate-500">
+                  Billing runs become available once the practice status is
+                  Active and at least one agreement is Active.
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          Generate a billing run
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Use the Billing Runs module so billing period,
+                          calculation, approval, and posting stay in the
+                          dedicated workflow.
+                        </p>
+                      </div>
+                      <Link
+                        to={`/billing/runs?practiceId=${practice.id}&action=create`}
+                        className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+                      >
+                        Generate Billing Run
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
-                {selectedAgreement
-                  ? "No pricing terms yet for this agreement version."
-                  : "Select an agreement to manage pricing terms."}
-              </p>
-            )}
-          </div>
-            </>
-          )}
-        </Card>
 
-        <Card
-          title="Billing Runs"
-          description="Available once the practice and agreement are active."
-          action={
-            <span id="billing" className="sr-only">
-              Billing
-            </span>
-          }
-        >
-          {!canUsePricingAndBilling ? (
-            <div className="rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-5 text-sm text-slate-500">
-              Billing runs become available once the practice status is Active
-              and at least one agreement is Active.
-            </div>
-          ) : (
-            <>
-          <div className="rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">
-                  Generate a billing run
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  Use the Billing Runs module so billing period, calculation,
-                  approval, and posting stay in the dedicated workflow.
-                </p>
-              </div>
-              <Link
-                to={`/billing/runs?practiceId=${practice.id}&action=create`}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Generate Billing Run
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-
-          {/*{false ? (
+                  {/*{false ? (
             <div>
               <p>
                 Active service terms: {0} • Billable terms: {0}
@@ -1370,57 +1397,57 @@ export default function PracticeProfilePage() {
             </div>
           ) : null}*/}
 
-          <div className="mt-5 overflow-hidden rounded-2xl border border-[#ece8e1]">
-            {billingRuns.length ? (
-              <div className="divide-y divide-[#ece8e1]">
-                {billingRuns.map((run) => (
-                  <div
-                    key={run.id}
-                    className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_140px_140px_140px_auto]"
-                  >
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        {run.values.period}
+                  <div className="mt-5 overflow-hidden rounded-2xl border border-[#ece8e1]">
+                    {billingRuns.length ? (
+                      <div className="divide-y divide-[#ece8e1]">
+                        {billingRuns.map((run) => (
+                          <div
+                            key={run.id}
+                            className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_140px_140px_140px_auto]"
+                          >
+                            <div>
+                              <p className="font-semibold text-slate-900">
+                                {run.values.period}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                Created {run.values.createdAt}
+                              </p>
+                            </div>
+                            <span
+                              className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(run.values.status)}`}
+                            >
+                              {formatLabel(run.values.status)}
+                            </span>
+                            <p className="text-sm text-slate-500">
+                              {run.values.itemCount} items •{" "}
+                              {run.values.snapshotCount} snapshots
+                            </p>
+                            <div className="text-sm">
+                              <p className="text-slate-400">Total Amount</p>
+                              <p className="font-semibold text-slate-900">
+                                {formatMoney(
+                                  getBillingRunTotal(billingRunDetails[run.id]),
+                                )}
+                              </p>
+                            </div>
+                            <Link
+                              to={`/billing/runs?practiceId=${practice.id}&runId=${run.id}`}
+                              className="inline-flex items-center justify-center rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                            >
+                              Details
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
+                        No billing runs generated for this practice yet.
                       </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Created {run.values.createdAt}
-                      </p>
-                    </div>
-                    <span
-                      className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(run.values.status)}`}
-                    >
-                      {formatLabel(run.values.status)}
-                    </span>
-                    <p className="text-sm text-slate-500">
-                      {run.values.itemCount} items • {run.values.snapshotCount}{" "}
-                      snapshots
-                    </p>
-                    <div className="text-sm">
-                      <p className="text-slate-400">Total Amount</p>
-                      <p className="font-semibold text-slate-900">
-                        {formatMoney(
-                          getBillingRunTotal(billingRunDetails[run.id]),
-                        )}
-                      </p>
-                    </div>
-                    <Link
-                      to={`/billing/runs?practiceId=${practice.id}&runId=${run.id}`}
-                      className="inline-flex items-center justify-center rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
-                    >
-                      Details
-                    </Link>
+                    )}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
-                No billing runs generated for this practice yet.
-              </p>
-            )}
-          </div>
-            </>
-          )}
-        </Card>
+                </>
+              )}
+            </Card>
           </>
         ) : null}
       </div>
