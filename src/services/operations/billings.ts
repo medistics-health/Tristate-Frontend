@@ -56,7 +56,7 @@ export type BillingReadinessResponse = {
   isReady: boolean;
   summary: {
     activeAgreementCount: number;
-    currentVersionCount: number;
+    currentVersionCount: number | string;
     activeServiceTermCount: number;
     billableServiceTermCount: number;
   };
@@ -84,6 +84,11 @@ export type BillingRunListItem = {
   updatedAt: string;
   notes?: string | null;
   practice?: { id: string; name: string } | null;
+  items?: Array<{
+    clientAmount: string;
+    vendorAmount?: string | null;
+    marginAmount?: string | null;
+  }>;
   _count?: {
     inputSnapshots: number;
     items: number;
@@ -164,7 +169,7 @@ export type CreateBillingRunBody = {
   practiceId: string;
   periodStart: string;
   periodEnd: string;
-  notes?: string;
+  notes?: string | null;
   autoCalculate?: boolean;
   snapshots?: BillingSnapshotInput[];
 };
@@ -197,6 +202,9 @@ export type BillingRunRow = {
     itemCount: number;
     approvedAt: string;
     createdAt: string;
+    invoiceTotal: number;
+    vendorPayable: number;
+    totalMargin: number;
   };
 };
 
@@ -218,6 +226,17 @@ function formatDate(value?: string | null, withTime = false) {
 }
 
 function toBillingRunRow(run: BillingRunListItem): BillingRunRow {
+  let invoiceTotal = 0;
+  let vendorPayable = 0;
+  let totalMargin = 0;
+  if (run.items) {
+    for (const item of run.items) {
+      invoiceTotal += Number(item.clientAmount || 0);
+      vendorPayable += Number(item.vendorAmount || 0);
+      totalMargin += Number(item.marginAmount || 0);
+    }
+  }
+
   return {
     id: run.id,
     values: {
@@ -228,6 +247,9 @@ function toBillingRunRow(run: BillingRunListItem): BillingRunRow {
       itemCount: run._count?.items || 0,
       approvedAt: formatDate(run.approvedAt, true),
       createdAt: formatDate(run.createdAt, true),
+      invoiceTotal,
+      vendorPayable,
+      totalMargin,
     },
   };
 }

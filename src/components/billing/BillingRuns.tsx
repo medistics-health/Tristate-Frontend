@@ -301,6 +301,27 @@ function BillingRunsPage() {
           cell: ({ row }: { row: { original: BillingRunRow } }) =>
             row.original.values.period,
         },
+        {
+          id: "invoiceTotal",
+          accessorFn: (row: BillingRunRow) => row.values.invoiceTotal,
+          header: () => "Invoice Total",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.invoiceTotal),
+        },
+        {
+          id: "vendorPayable",
+          accessorFn: (row: BillingRunRow) => row.values.vendorPayable,
+          header: () => "Vendor Payable Amount",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.vendorPayable),
+        },
+        {
+          id: "totalMargin",
+          accessorFn: (row: BillingRunRow) => row.values.totalMargin,
+          header: () => "Total Margin",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.totalMargin),
+        },
 
         {
           id: "itemCount",
@@ -412,16 +433,20 @@ function BillingRunsPage() {
     }
     setIsLoadingTerms(true);
     Promise.all(
-      ids.map((id) =>
-        getAgreementServiceTerms({ agreementId: id, limit: 200 }).then(
-          (res) => res.terms,
-        ),
-      ),
+      ids.map((id) => {
+        const agreement = practiceAgreements.find((a) => a.id === id);
+        const currentVersion = agreement?.versions?.find((v) => v.isCurrent);
+        return getAgreementServiceTerms({
+          agreementId: id,
+          agreementVersionId: currentVersion?.id,
+          limit: 200,
+        }).then((res) => res.terms);
+      }),
     )
       .then((results) => setLoadedTerms(results.flat()))
       .catch(() => setLoadedTerms([]))
       .finally(() => setIsLoadingTerms(false));
-  }, [agreementIdsKey]);
+  }, [agreementIdsKey, practiceAgreements]);
 
   async function refreshRows(targetPage = pagination.page) {
     const data = await getBillingRunsView({
@@ -1443,6 +1468,31 @@ function BillingRunsPage() {
                                 Vendor %:{" "}
                                 <span className="font-semibold text-slate-700">
                                   {config.vendorPercentOfClient}%
+                                </span>
+                              </span>
+                            )}
+                            {config.vendorPricing?.percentage !== undefined && config.vendorPricing?.percentage !== "" && (
+                              <span className="text-slate-500">
+                                Vendor %:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {config.vendorPricing.percentage}%
+                                </span>
+                              </span>
+                            )}
+                            {config.vendorPricing?.unitRate !== undefined && config.vendorPricing?.unitRate !== "" && (
+                              <span className="text-slate-500">
+                                Vendor Rate:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {formatMoney(parseFloat(config.vendorPricing.unitRate))}
+                                </span>
+                                /unit
+                              </span>
+                            )}
+                            {config.vendorPricing?.amount !== undefined && config.vendorPricing?.amount !== "" && (
+                              <span className="text-slate-500">
+                                Vendor flat:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {formatMoney(parseFloat(config.vendorPricing.amount))}
                                 </span>
                               </span>
                             )}

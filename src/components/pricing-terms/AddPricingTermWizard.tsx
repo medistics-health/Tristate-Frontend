@@ -1298,7 +1298,7 @@ export default function AddPricingTermWizard({
                     ) && (
                       <div>
                         <label className="mb-1 block font-medium text-slate-700">
-                          Vendor Amount (USD)
+                          Vendor Amount (USD) <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="number"
@@ -1327,7 +1327,7 @@ export default function AddPricingTermWizard({
                       <div className="grid grid-cols-3 gap-3">
                         <div>
                           <label className="mb-1 block font-medium text-slate-700">
-                            Vendor %
+                            Vendor % <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="number"
@@ -1386,7 +1386,7 @@ export default function AddPricingTermWizard({
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="mb-1 block font-medium text-slate-700">
-                            Vendor Rate per Unit
+                            Vendor Rate per Unit <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="number"

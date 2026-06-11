@@ -435,6 +435,9 @@ export default function CRMDashboardPage() {
   const [audits, setAudits] = useState<AuditItem[]>([]);
   const [deals, setDeals] = useState<DealItem[]>([]);
   const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
+  const [showBillingList, setShowBillingList] = useState(false);
+  const [showServicesList, setShowServicesList] = useState(false);
+  const [showAlertsList, setShowAlertsList] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -461,7 +464,7 @@ export default function CRMDashboardPage() {
         setSyncSummary(syncSummaryData);
 
         setInvoices(
-          invoicesData.slice(0, 10).map((inv: any) => ({
+          invoicesData.slice(0, 5).map((inv: any) => ({
             id: inv.id,
             client: inv.practice?.name || "Unknown",
             amount: parseFloat(inv.totalAmount) || 0,
@@ -476,7 +479,7 @@ export default function CRMDashboardPage() {
         );
 
         setPractices(
-          practicesData.slice(0, 10).map((prac: any) => ({
+          practicesData.slice(0, 5).map((prac: any) => ({
             id: prac.id,
             name: prac.name,
             status: prac.status || "Active",
@@ -487,7 +490,7 @@ export default function CRMDashboardPage() {
         );
 
         setAgreements(
-          agreementsData.slice(0, 10).map((agr: any) => ({
+          agreementsData.slice(0, 5).map((agr: any) => ({
             id: agr.id,
             name: agr.practice?.name || "Unknown",
             status:
@@ -502,7 +505,7 @@ export default function CRMDashboardPage() {
         );
 
         setServices(
-          (servicesData as any)?.rows?.slice(0, 10).map((srv: any) => ({
+          (servicesData as any)?.rows?.slice(0, 5).map((srv: any) => ({
             name: srv.values?.name || "Unknown",
             revenue: 0,
             clients: 0,
@@ -510,7 +513,7 @@ export default function CRMDashboardPage() {
         );
 
         setAudits(
-          (auditsData as any)?.rows?.slice(0, 10).map((aud: any) => ({
+          (auditsData as any)?.rows?.slice(0, 5).map((aud: any) => ({
             id: aud.id,
             client: aud.values?.practiceName || "Unknown",
             status: aud.values?.status || "Scheduled",
@@ -520,7 +523,7 @@ export default function CRMDashboardPage() {
         );
 
         setDeals(
-          dealsData.slice(0, 10).map((deal: any) => ({
+          dealsData.slice(0, 5).map((deal: any) => ({
             id: deal.id,
             name: deal.practice?.name || "Unknown",
             value: parseMoney(deal.value),
@@ -601,13 +604,13 @@ export default function CRMDashboardPage() {
   );
 
   const renderPipelineSection = () => (
-    <div className="space-y-2">
+    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
       {loading ? (
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       ) : deals.length > 0 ? (
-        deals.map((deal) => <DealRow key={deal.id} deal={deal} />)
+        deals.slice(0, 5).map((deal) => <DealRow key={deal.id} deal={deal} />)
       ) : (
         <p className="text-[13px] text-slate-400">No deals available</p>
       )}
@@ -615,13 +618,13 @@ export default function CRMDashboardPage() {
   );
 
   const renderContractsSection = () => (
-    <div className="space-y-2">
+    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
       {loading ? (
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       ) : agreements.length > 0 ? (
-        agreements.map((contract) => (
+        agreements.slice(0, 5).map((contract) => (
           <ContractRow key={contract.id} contract={contract} />
         ))
       ) : (
@@ -631,13 +634,13 @@ export default function CRMDashboardPage() {
   );
 
   const renderClientsSection = () => (
-    <div className="space-y-2">
+    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
       {loading ? (
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       ) : practices.length > 0 ? (
-        practices.map((client) => <ClientRow key={client.id} client={client} />)
+        practices.slice(0, 5).map((client) => <ClientRow key={client.id} client={client} />)
       ) : (
         <p className="text-[13px] text-slate-400">No clients available</p>
       )}
@@ -645,13 +648,13 @@ export default function CRMDashboardPage() {
   );
 
   const renderServicesSection = () => (
-    <div className="space-y-2">
+    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
       {loading ? (
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       ) : services.length > 0 ? (
-        services.map((service, idx) => (
+        services.slice(0, 5).map((service, idx) => (
           <ServiceRevenueRow key={idx} service={service} />
         ))
       ) : (
@@ -661,13 +664,13 @@ export default function CRMDashboardPage() {
   );
 
   const renderBillingSection = () => (
-    <div className="space-y-2">
+    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
       {loading ? (
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       ) : invoices.length > 0 ? (
-        invoices.map((invoice) => (
+        invoices.slice(0, 5).map((invoice) => (
           <InvoiceRow key={invoice.id} invoice={invoice} />
         ))
       ) : (
@@ -677,13 +680,13 @@ export default function CRMDashboardPage() {
   );
 
   const renderAuditsSection = () => (
-    <div className="space-y-2">
+    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
       {loading ? (
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       ) : audits.length > 0 ? (
-        audits.map((audit) => <AuditRow key={audit.id} audit={audit} />)
+        audits.slice(0, 5).map((audit) => <AuditRow key={audit.id} audit={audit} />)
       ) : (
         <p className="text-[13px] text-slate-400">No audits available</p>
       )}
@@ -691,7 +694,7 @@ export default function CRMDashboardPage() {
   );
 
   const renderPartnersSection = () => (
-    <div className="space-y-2">
+    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
       <p className="text-[13px] text-slate-400">No partners available</p>
     </div>
   );
@@ -734,8 +737,8 @@ export default function CRMDashboardPage() {
     }
 
     return (
-      <div className="space-y-2">
-        {alerts.map((alert, index) => (
+      <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+        {alerts.slice(0, 5).map((alert, index) => (
           <div
             key={index}
             className={`flex items-center gap-3 rounded-lg border p-3 ${alert.severity === "high"
@@ -1033,8 +1036,35 @@ export default function CRMDashboardPage() {
               <SectionCard
                 title="Billing & Invoices"
                 icon={<DollarSign className="h-4 w-4" />}
+                action={
+                  <button
+                    onClick={() => setShowBillingList(!showBillingList)}
+                    className="text-[12px] font-semibold text-[#4f63ea] hover:text-[#3a4dcc] transition-colors cursor-pointer"
+                  >
+                    {showBillingList ? "Show Summary" : "Show List"}
+                  </button>
+                }
               >
-                {renderBillingSection()}
+                {showBillingList ? (
+                  renderBillingSection()
+                ) : (
+                  <div className="flex flex-col justify-between h-full py-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-xl bg-slate-50/60 p-4 text-center border border-slate-100">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Due</p>
+                        <p className="text-[24px] font-black text-blue-600 mt-1">{stats.invoicesDue}</p>
+                      </div>
+                      <div className="rounded-xl bg-slate-50/60 p-4 text-center border border-slate-100">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Overdue</p>
+                        <p className="text-[24px] font-black text-red-600 mt-1">{stats.overdueInvoices}</p>
+                      </div>
+                    </div>
+                    <div className="mt-5 text-center bg-slate-50/40 rounded-xl p-4 border border-slate-100">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Outstanding A/R</p>
+                      <p className="text-[28px] font-black text-slate-700 mt-1">{formatCurrency(stats.totalInvoices)}</p>
+                    </div>
+                  </div>
+                )}
               </SectionCard>
 
               <SectionCard
@@ -1049,14 +1079,86 @@ export default function CRMDashboardPage() {
               <SectionCard
                 title="Revenue by Service"
                 icon={<TrendingUp className="h-4 w-4" />}
+                action={
+                  <button
+                    onClick={() => setShowServicesList(!showServicesList)}
+                    className="text-[12px] font-semibold text-[#4f63ea] hover:text-[#3a4dcc] transition-colors cursor-pointer"
+                  >
+                    {showServicesList ? "Show Summary" : "Show List"}
+                  </button>
+                }
               >
-                {renderServicesSection()}
+                {showServicesList ? (
+                  renderServicesSection()
+                ) : (
+                  <div className="flex flex-col justify-between h-full py-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-xl bg-slate-50/60 p-4 text-center border border-slate-100">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Services</p>
+                        <p className="text-[24px] font-black text-indigo-600 mt-1">{services.length}</p>
+                      </div>
+                      <div className="rounded-xl bg-slate-50/60 p-4 text-center border border-slate-100">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Monthly Revenue</p>
+                        <p className="text-[24px] font-black text-emerald-600 mt-1">{formatCurrency(stats.totalRevenue)}</p>
+                      </div>
+                    </div>
+                    <div className="mt-5 text-center bg-slate-50/40 rounded-xl p-4 border border-slate-100">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Average Service Value</p>
+                      <p className="text-[28px] font-black text-slate-700 mt-1">
+                        {services.length > 0 ? formatCurrency(stats.totalRevenue / services.length) : "$0"}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </SectionCard>
               <SectionCard
                 title="Financial Alerts"
                 icon={<AlertTriangle className="h-4 w-4" />}
+                action={
+                  <button
+                    onClick={() => setShowAlertsList(!showAlertsList)}
+                    className="text-[12px] font-semibold text-[#4f63ea] hover:text-[#3a4dcc] transition-colors cursor-pointer"
+                  >
+                    {showAlertsList ? "Show Summary" : "Show List"}
+                  </button>
+                }
               >
-                {renderAlertsSection()}
+                {showAlertsList ? (
+                  renderAlertsSection()
+                ) : (
+                  <div className="flex flex-col justify-between h-full py-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-xl bg-red-50/60 p-4 text-center border border-red-100">
+                        <p className="text-[11px] font-bold text-red-500 uppercase tracking-wider">High Priority</p>
+                        <p className="text-[24px] font-black text-red-600 mt-1">
+                          {invoices.filter((i) => i.status === "overdue").length + practices.filter((c) => c.status === "At Risk").length}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-amber-50/60 p-4 text-center border border-amber-100">
+                        <p className="text-[11px] font-bold text-amber-500 uppercase tracking-wider">Medium Priority</p>
+                        <p className="text-[24px] font-black text-amber-600 mt-1">
+                          {agreements.filter((c) => c.status === "sent").length}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-5 text-center bg-slate-50/40 rounded-xl p-4 border border-slate-100">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Overall Risk Status</p>
+                      <p className={`text-[18px] font-black mt-1 ${
+                        (invoices.filter((i) => i.status === "overdue").length + practices.filter((c) => c.status === "At Risk").length) > 0
+                          ? "text-red-600"
+                          : agreements.filter((c) => c.status === "sent").length > 0
+                            ? "text-amber-600"
+                            : "text-emerald-600"
+                      }`}>
+                        {(invoices.filter((i) => i.status === "overdue").length + practices.filter((c) => c.status === "At Risk").length) > 0
+                          ? "Action Required"
+                          : agreements.filter((c) => c.status === "sent").length > 0
+                            ? "Pending Review"
+                            : "Healthy (No Risks)"}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </SectionCard>
             </div>
           </>
