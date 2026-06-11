@@ -30,6 +30,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import AppLayout from "../../layout/AppLayout";
 import {
@@ -235,6 +236,7 @@ type AgreementRow = {
 
 function AllAgreementsPage() {
   const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
+  const [searchParams] = useSearchParams();
 
   const [rows, setRows] = useState<AgreementRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -275,6 +277,7 @@ function AllAgreementsPage() {
   const [isSending, setIsSending] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const [profileCreateHandled, setProfileCreateHandled] = useState(false);
   const templateDropdownRef = useRef<HTMLDivElement>(null);
   const createFormAutoFilledValuesRef = useRef<
     Record<string, Record<string, string>>
@@ -445,6 +448,7 @@ function AllAgreementsPage() {
             search: filters.search || undefined,
             status: filters.status || undefined,
             type: filters.type || undefined,
+            practiceId: searchParams.get("practiceId") || undefined,
           };
           if (sorting[0]?.id) {
             params.sortBy = sorting[0].id;
@@ -470,7 +474,7 @@ function AllAgreementsPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [pagination.page, pagination.limit, sorting, filters]);
+  }, [pagination.page, pagination.limit, sorting, filters, searchParams]);
 
   useEffect(() => {
     if ((showCreateForm || showDetailPanel) && practices.length === 0) {
@@ -483,6 +487,43 @@ function AllAgreementsPage() {
         .finally(() => setOptionsLoading(false));
     }
   }, [showCreateForm, showDetailPanel, practices.length]);
+
+  useEffect(() => {
+    const practiceId = searchParams.get("practiceId");
+    const action = searchParams.get("action");
+
+    if (profileCreateHandled || action !== "create" || !practiceId) return;
+
+    setProfileCreateHandled(true);
+    setShowCreateForm(true);
+    setShowDetailPanel(false);
+    setSelectedRowId(null);
+    setCreateForm((prev) => ({
+      ...initialFormState,
+      type: prev.type || initialFormState.type,
+      status: initialFormState.status,
+      practiceId,
+    }));
+
+    if (practices.length === 0) {
+      setOptionsLoading(true);
+      getAllPractices()
+        .then((practiceList) => {
+          setPractices(practiceList);
+        })
+        .catch((err) => console.error("Failed to load practices:", err))
+        .finally(() => setOptionsLoading(false));
+    }
+
+    if (docusealTemplates.length === 0) {
+      loadDocusealTemplates();
+    }
+  }, [
+    docusealTemplates.length,
+    practices.length,
+    profileCreateHandled,
+    searchParams,
+  ]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

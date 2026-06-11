@@ -23,7 +23,7 @@ import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import { LOGOUT_ACTION, type NavbarAction } from "../layout/Navbar";
 import type { CompanyBody, Company } from "../companies/types";
-import type { PersonBody } from "../contact/types";
+import type { PersonBody, PersonRole } from "../contact/types";
 import type { DealApiError, DealBody } from "../../services/operations/deals";
 import {
   createCompanyApi,
@@ -65,6 +65,16 @@ import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import ConfirmModal from "../shared/ConfirmModal";
 import { hasAdminAccess, readStoredUser } from "../../utils/auth";
+import {
+  buildTemplateFieldValues,
+  getDocusealFieldInputType,
+  getDocusealFieldLabel,
+  getDocusealFieldValue,
+  getMissingRequiredDocusealFields,
+  getTemplateSubmitterGroups,
+  isEditableDocusealField,
+  type DocusealField,
+} from "../../utils/docuseal";
 
 type TaxIdFormState = {
   taxIdNumber: string;
@@ -81,6 +91,7 @@ type IntegratedAgreementState = {
   effectiveDate: string;
   renewalDate: string;
   templateIds: string[];
+  docusealFieldValues: Record<string, Record<string, string>>;
 };
 
 type LeadFormState = {
@@ -116,6 +127,7 @@ type LeadFormState = {
   primaryContactEmail: string;
   primaryContactPhone: string;
   primaryContactDesignation: string;
+  primaryContactRole: PersonRole;
   contactPracticeIds: { id: string; name: string }[];
   contactCompanyIds: { id: string; name: string }[];
 
@@ -190,6 +202,7 @@ const initialFormState: LeadFormState = {
   primaryContactEmail: "",
   primaryContactPhone: "",
   primaryContactDesignation: "",
+  primaryContactRole: "ADMIN",
   contactPracticeIds: [],
   contactCompanyIds: [],
   practiceGroupNpis: [],
@@ -210,6 +223,7 @@ const initialFormState: LeadFormState = {
     effectiveDate: new Date().toISOString().split("T")[0],
     renewalDate: "",
     templateIds: [],
+    docusealFieldValues: {},
   },
 };
 const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
@@ -220,6 +234,20 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   "Credentialing Exhibit",
   "Exhibit P",
 ];
+
+const personRoleOptions: PersonRole[] = [
+  "OWNER",
+  "ADMIN",
+  "FINANCE",
+  "OPERATIONS",
+  "CLINICAL",
+  "PROCUREMENT",
+  "OTHER",
+];
+
+function isClientNameField(field: DocusealField) {
+  return /client\s*name/i.test(field.name || "");
+}
 
 const practiceSourceOptions: Array<{ value: PracticeSource; label: string }> = [
   { value: "DIRECT", label: "Direct" },
@@ -258,6 +286,54 @@ function buildErrorMessage(error: unknown) {
     ?.missingRequirements;
   if (!missingRequirements?.length) return message;
   return `${message} Missing: ${missingRequirements.join(", ")}.`;
+}
+
+function buildLeadAgreementDocusealPrefillValues(
+  template: DocusealTemplate | undefined,
+  form: LeadFormState,
+) {
+  const values: Record<string, string> = {};
+  if (!template) return values;
+
+  const practiceName = form.practiceName.trim();
+  const practiceNpi = form.practiceNpi.trim();
+  const companyName = form.companyName.trim();
+  const contactName = form.primaryContactName.trim();
+  const contactEmail = form.primaryContactEmail.trim();
+  const effectiveDate = form.agreement.effectiveDate || "";
+
+  for (const field of template.fields || []) {
+    if (!isEditableDocusealField(field)) continue;
+
+    const fieldName = (field.name || "").toLowerCase();
+    let value = "";
+
+    if (
+      fieldName.includes("client") ||
+      fieldName.includes("practice") ||
+      fieldName.includes("clinic")
+    ) {
+      value = practiceName || companyName;
+    } else if (fieldName.includes("company")) {
+      value = companyName;
+    } else if (fieldName.includes("npi")) {
+      value = practiceNpi;
+    } else if (fieldName.includes("contact") || fieldName.includes("name")) {
+      value = contactName;
+    } else if (fieldName.includes("email")) {
+      value = contactEmail;
+    } else if (fieldName.includes("effective")) {
+      value = effectiveDate;
+    } else if (field.type === "date" && fieldName.includes("date")) {
+      value = effectiveDate;
+    }
+
+    if (value) {
+      values[field.uuid] = value;
+    }
+  }
+
+  return values;
 }
 
 function CreateLeadPage() {
@@ -382,7 +458,7 @@ function CreateLeadPage() {
         const personPayload: PersonBody = {
           firstName: parsedContact.firstName,
           lastName: parsedContact.lastName,
-          role: "ADMIN",
+          role: form.primaryContactRole,
           influence: "HIGH",
           email: form.primaryContactEmail.trim(),
           phone: form.primaryContactPhone.trim() || undefined,
@@ -393,7 +469,7 @@ function CreateLeadPage() {
         const personRow = await createPersonApi(personPayload);
         contactId = personRow.id;
         createdContactId = personRow.id;
-      } else if (form.practiceRelation === "new" && contactId) {
+      } else if (contactId) {
         const existingPerson = await getPerson(contactId);
         const nextPracticeIds = [
           ...new Set([
@@ -470,6 +546,11 @@ function CreateLeadPage() {
               templateId: Number(id),
               url: template?.documents?.[0]?.url || undefined,
               slug: template?.slug,
+              fieldValues: {
+                ...buildTemplateFieldValues(template),
+                ...buildLeadAgreementDocusealPrefillValues(template, form),
+                ...(form.agreement.docusealFieldValues[id] || {}),
+              },
               submitters: template?.submitters?.map((init: any) => ({
                 role: init.name,
                 uuid: init.uuid,
@@ -477,12 +558,15 @@ function CreateLeadPage() {
             };
           });
 
+          const agreementApprovalStatus = isAdmin
+            ? "APPROVED"
+            : "PENDING_APPROVAL";
           const agreementPayload = {
             practiceId: practiceId,
             dealId: dealRow.id,
             type: form.agreement.type,
-            // status: "PENDING_SIGNATURE",
-            status: "ACTIVE",
+            status: "DRAFT",
+            approvalStatus: agreementApprovalStatus,
             effectiveDate: form.agreement.effectiveDate
               ? new Date(form.agreement.effectiveDate).toISOString()
               : undefined,
@@ -520,7 +604,7 @@ function CreateLeadPage() {
               agreementSendWarning =
                 error instanceof Error
                   ? error.message
-                  : "Agreement was created, but signature request could not be sent.";
+                  : "Agreement was created, but practice activation or company status update could not be completed.";
             }
           }
         } else if (form.agreement.action === "link") {
@@ -534,7 +618,7 @@ function CreateLeadPage() {
               agreementSendWarning =
                 error instanceof Error
                   ? error.message
-                  : "Lead was created, but linked agreement could not be sent.";
+                  : "Lead was created, but practice activation or company status update could not be completed.";
             }
           }
 
@@ -566,14 +650,18 @@ function CreateLeadPage() {
       if (agreementSendWarning) {
         toast.success(
           agreementId
-            ? "Lead and Agreement created successfully."
+            ? isAdmin
+              ? "Lead and agreement created successfully."
+              : "Lead created and agreement sent for approval."
             : "Lead created successfully.",
         );
         toast.error(agreementSendWarning);
       } else {
         toast.success(
           agreementId
-            ? "Lead and Agreement created successfully."
+            ? isAdmin
+              ? "Lead and agreement created successfully."
+              : "Lead created and agreement sent for approval."
             : "Lead created successfully.",
         );
       }
@@ -641,6 +729,38 @@ function CreateLeadPage() {
     loadInitialData();
   }, []);
 
+  useEffect(() => {
+    if (
+      form.agreement.action !== "create" ||
+      form.agreement.type !== "MSA" ||
+      templates.length === 0
+    ) {
+      return;
+    }
+
+    const autoSelectIds = templates
+      .filter((template) =>
+        AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+          template.name.toLowerCase().includes(name.toLowerCase()),
+        ),
+      )
+      .map((template) => String(template.id));
+
+    if (
+      autoSelectIds.length === 0 ||
+      autoSelectIds.every((id) => form.agreement.templateIds.includes(id))
+    ) {
+      return;
+    }
+
+    setAgreementTemplateIds([...form.agreement.templateIds, ...autoSelectIds]);
+  }, [
+    form.agreement.action,
+    form.agreement.templateIds,
+    form.agreement.type,
+    templates,
+  ]);
+
   // Fetch existing agreements when practice changes
   useEffect(() => {
     if (form.selectedPracticeId) {
@@ -656,6 +776,15 @@ function CreateLeadPage() {
                 existingAgreementId: res[0].id,
               },
             }));
+          } else {
+            setForm((prev) => ({
+              ...prev,
+              agreement: {
+                ...prev.agreement,
+                action: "create",
+                existingAgreementId: "",
+              },
+            }));
           }
         })
         .catch((err) => console.error("Error fetching agreements:", err));
@@ -663,7 +792,11 @@ function CreateLeadPage() {
       setExistingAgreements([]);
       setForm((prev) => ({
         ...prev,
-        agreement: { ...prev.agreement, action: "create" },
+        agreement: {
+          ...prev.agreement,
+          action: "create",
+          existingAgreementId: "",
+        },
       }));
     }
   }, [form.selectedPracticeId]);
@@ -675,6 +808,42 @@ function CreateLeadPage() {
     [],
   );
 
+  const setCompanyRelation = (relation: RelationType) => {
+    setForm((current) => ({
+      ...current,
+      companyRelation: relation,
+      selectedCompanyId: relation === "new" ? "" : current.selectedCompanyId,
+    }));
+  };
+
+  const setPracticeRelation = (relation: RelationType) => {
+    setForm((current) => ({
+      ...current,
+      practiceRelation: relation,
+      selectedPracticeId: relation === "new" ? "" : current.selectedPracticeId,
+      agreement:
+        relation === "new"
+          ? {
+              ...current.agreement,
+              action: "create",
+              existingAgreementId: "",
+            }
+          : current.agreement,
+    }));
+
+    if (relation === "new") {
+      setExistingAgreements([]);
+    }
+  };
+
+  const setContactRelation = (relation: RelationType) => {
+    setForm((current) => ({
+      ...current,
+      contactRelation: relation,
+      selectedContactId: relation === "new" ? "" : current.selectedContactId,
+    }));
+  };
+
   const updateAgreementField = <K extends keyof IntegratedAgreementState>(
     field: K,
     value: IntegratedAgreementState[K],
@@ -683,6 +852,103 @@ function CreateLeadPage() {
       ...prev,
       agreement: { ...prev.agreement, [field]: value },
     }));
+  };
+
+  const setAgreementTemplateIds = (templateIds: string[]) => {
+    setForm((prev) => {
+      const nextIds = [...new Set(templateIds)];
+      const nextFieldValues = { ...prev.agreement.docusealFieldValues };
+
+      for (const templateId of Object.keys(nextFieldValues)) {
+        if (!nextIds.includes(templateId)) {
+          delete nextFieldValues[templateId];
+        }
+      }
+
+      for (const templateId of nextIds) {
+        const template = templates.find((t) => String(t.id) === templateId);
+        nextFieldValues[templateId] = {
+          ...(nextFieldValues[templateId] || {}),
+          ...buildTemplateFieldValues(template),
+          ...buildLeadAgreementDocusealPrefillValues(template, prev),
+        };
+      }
+
+      return {
+        ...prev,
+        agreement: {
+          ...prev.agreement,
+          templateIds: nextIds,
+          docusealFieldValues: nextFieldValues,
+        },
+      };
+    });
+  };
+
+  const addAgreementTemplate = (templateId: string) => {
+    setAgreementTemplateIds([...form.agreement.templateIds, templateId]);
+  };
+
+  const removeAgreementTemplate = (templateId: string) => {
+    setAgreementTemplateIds(
+      form.agreement.templateIds.filter((id) => id !== templateId),
+    );
+  };
+
+  const updateAgreementTemplateFieldValue = (
+    templateId: string,
+    fieldUuid: string,
+    value: string,
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      agreement: {
+        ...prev.agreement,
+        docusealFieldValues: {
+          ...prev.agreement.docusealFieldValues,
+          [templateId]: {
+            ...(prev.agreement.docusealFieldValues[templateId] || {}),
+            [fieldUuid]: value,
+          },
+        },
+      },
+    }));
+  };
+
+  const validateAgreementTemplateFieldValues = () => {
+    for (const templateId of form.agreement.templateIds) {
+      const template = templates.find((t) => String(t.id) === templateId);
+      if (!template) continue;
+
+      const fieldValues = form.agreement.docusealFieldValues[templateId] || {};
+      const missingRequiredField = getMissingRequiredDocusealFields(
+        template,
+        fieldValues,
+      )[0];
+
+      if (missingRequiredField) {
+        return {
+          templateName: template.name,
+          fieldName: getDocusealFieldLabel(missingRequiredField, 0),
+        };
+      }
+
+      const clientNameField = (template.fields || []).find(
+        (field) => isEditableDocusealField(field) && isClientNameField(field),
+      );
+
+      if (
+        clientNameField &&
+        !getDocusealFieldValue(fieldValues, clientNameField).trim()
+      ) {
+        return {
+          templateName: template.name,
+          fieldName: getDocusealFieldLabel(clientNameField, 0),
+        };
+      }
+    }
+
+    return null;
   };
 
   const updateTaxId = (
@@ -843,6 +1109,8 @@ function CreateLeadPage() {
       if (fullPractice.companyId) {
         updateField("selectedCompanyId", fullPractice.companyId);
         updateField("companyRelation", "existing");
+      } else {
+        updateField("selectedCompanyId", "");
       }
     } catch (err) {
       console.error("Error syncing company from practice:", err);
@@ -892,9 +1160,7 @@ function CreateLeadPage() {
         form.companyEmail.trim() &&
         !/^[^\s@]+@[^\s@]+\.com$/i.test(form.companyEmail.trim())
       ) {
-        toast.error(
-          "Company email must include @ and end with .com.",
-        );
+        toast.error("Company email must include @ and end with .com.");
         return;
       }
     }
@@ -913,6 +1179,10 @@ function CreateLeadPage() {
         toast.error("Practice NPI must be exactly 10 digits.");
         return;
       }
+      if (!form.practiceRegion.trim()) {
+        toast.error("Practice region is required.");
+        return;
+      }
     } else {
       if (!form.selectedPracticeId) {
         toast.error("Please select an existing practice.");
@@ -929,13 +1199,15 @@ function CreateLeadPage() {
         toast.error("Contact email is required.");
         return;
       }
+      if (!form.primaryContactRole) {
+        toast.error("Contact role is required.");
+        return;
+      }
       if (
         form.primaryContactEmail.trim() &&
         !/^[^\s@]+@[^\s@]+\.com$/i.test(form.primaryContactEmail.trim())
       ) {
-        toast.error(
-          "Contact email must include @ and end with .com.",
-        );
+        toast.error("Contact email must include @ and end with .com.");
         return;
       }
     }
@@ -1004,17 +1276,29 @@ function CreateLeadPage() {
       return;
     }
 
+    const shouldValidateAgreement =
+      form.interestedServiceIds.length > 0 && form.agreement.action === "create";
+
     if (
-      form.agreement.action === "create" &&
-      form.interestedServiceIds.length > 0 &&
+      shouldValidateAgreement &&
       form.agreement.templateIds.length === 0
     ) {
       toast.error("Please select at least one agreement template.");
       return;
     }
 
+    if (shouldValidateAgreement && !form.agreement.effectiveDate) {
+      toast.error("Agreement effective date is required.");
+      return;
+    }
+
+    if (shouldValidateAgreement && !form.agreement.renewalDate) {
+      toast.error("Agreement renewal date is required.");
+      return;
+    }
+
     if (
-      form.agreement.action === "create" &&
+      shouldValidateAgreement &&
       form.agreement.effectiveDate &&
       form.agreement.renewalDate &&
       new Date(form.agreement.renewalDate) <=
@@ -1022,6 +1306,16 @@ function CreateLeadPage() {
     ) {
       toast.error("Renewal date must be greater than effective date");
       return;
+    }
+
+    if (shouldValidateAgreement) {
+      const missingField = validateAgreementTemplateFieldValues();
+      if (missingField) {
+        toast.error(
+          `${missingField.templateName}: ${missingField.fieldName} is required`,
+        );
+        return;
+      }
     }
 
     // If services are selected, show modal first
@@ -1083,7 +1377,7 @@ function CreateLeadPage() {
                   <div className="flex bg-slate-100 p-1 rounded-lg">
                     <button
                       type="button"
-                      onClick={() => updateField("companyRelation", "existing")}
+                      onClick={() => setCompanyRelation("existing")}
                       className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
                         form.companyRelation === "existing"
                           ? "bg-white text-[#4f63ea] shadow-sm"
@@ -1094,7 +1388,7 @@ function CreateLeadPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => updateField("companyRelation", "new")}
+                      onClick={() => setCompanyRelation("new")}
                       className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
                         form.companyRelation === "new"
                           ? "bg-white text-[#4f63ea] shadow-sm"
@@ -1385,7 +1679,7 @@ function CreateLeadPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        updateField("practiceRelation", "existing")
+                        setPracticeRelation("existing")
                       }
                       className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
                         form.practiceRelation === "existing"
@@ -1397,7 +1691,7 @@ function CreateLeadPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => updateField("practiceRelation", "new")}
+                      onClick={() => setPracticeRelation("new")}
                       className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
                         form.practiceRelation === "new"
                           ? "bg-white text-[#4f63ea] shadow-sm"
@@ -1464,7 +1758,7 @@ function CreateLeadPage() {
                     <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                          Region
+                          Region *
                         </span>
                         <input
                           type="text"
@@ -1595,7 +1889,7 @@ function CreateLeadPage() {
                   <div className="flex bg-slate-100 p-1 rounded-lg">
                     <button
                       type="button"
-                      onClick={() => updateField("contactRelation", "existing")}
+                      onClick={() => setContactRelation("existing")}
                       className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
                         form.contactRelation === "existing"
                           ? "bg-white text-[#4f63ea] shadow-sm"
@@ -1606,7 +1900,7 @@ function CreateLeadPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => updateField("contactRelation", "new")}
+                      onClick={() => setContactRelation("new")}
                       className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
                         form.contactRelation === "new"
                           ? "bg-white text-[#4f63ea] shadow-sm"
@@ -1686,6 +1980,27 @@ function CreateLeadPage() {
                         }
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Role *
+                      </span>
+                      <select
+                        value={form.primaryContactRole}
+                        onChange={(e) =>
+                          updateField(
+                            "primaryContactRole",
+                            e.target.value as PersonRole,
+                          )
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      >
+                        {personRoleOptions.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
@@ -2021,7 +2336,7 @@ function CreateLeadPage() {
                                     ),
                                   )
                                   .map((t) => String(t.id));
-                                updateAgreementField("templateIds", [
+                                setAgreementTemplateIds([
                                   ...new Set([
                                     ...form.agreement.templateIds,
                                     ...autoSelectIds,
@@ -2041,7 +2356,7 @@ function CreateLeadPage() {
 
                         <label className="block">
                           <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                            Effective Date
+                            Effective Date *
                           </span>
                           <input
                             type="date"
@@ -2058,7 +2373,7 @@ function CreateLeadPage() {
 
                         <label className="block">
                           <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                            Renewal Date
+                            Renewal Date *
                           </span>
                           <input
                             type="date"
@@ -2103,12 +2418,7 @@ function CreateLeadPage() {
                                       <button
                                         type="button"
                                         onClick={() =>
-                                          updateAgreementField(
-                                            "templateIds",
-                                            form.agreement.templateIds.filter(
-                                              (id: string) => id !== templateId,
-                                            ),
-                                          )
+                                          removeAgreementTemplate(templateId)
                                         }
                                         className="hover:text-red-500"
                                       >
@@ -2183,13 +2493,7 @@ function CreateLeadPage() {
                                           type="button"
                                           onClick={() => {
                                             if (isDisabled) return;
-                                            updateAgreementField(
-                                              "templateIds",
-                                              [
-                                                ...form.agreement.templateIds,
-                                                templateId,
-                                              ],
-                                            );
+                                            addAgreementTemplate(templateId);
                                             setTemplateSearch("");
                                           }}
                                           className={`w-full px-3 py-2 text-left text-[13px] hover:bg-[#faf9f7] ${
@@ -2221,20 +2525,174 @@ function CreateLeadPage() {
                         </div>
                       </div>
 
+                      {form.agreement.templateIds.length > 0 && (
+                        <div className="space-y-4 rounded-xl border border-dashed border-indigo-100 bg-indigo-50/30 p-4 md:col-span-2">
+                          <div>
+                            <h3 className="text-[13px] font-semibold text-slate-700">
+                              Template Fields
+                            </h3>
+                            <p className="mt-1 text-[12px] text-slate-500">
+                              Complete the template inputs now so the agreement
+                              can be pre-populated before sending.
+                            </p>
+                          </div>
+
+                          <div className="space-y-4">
+                            {form.agreement.templateIds.map(
+                              (templateId: string) => {
+                                const template = templates.find(
+                                  (t) => String(t.id) === templateId,
+                                );
+                                if (!template) return null;
+
+                                const editableFields = (
+                                  template.fields || []
+                                ).filter(isEditableDocusealField);
+                                const templateFieldValues =
+                                  form.agreement.docusealFieldValues[
+                                    templateId
+                                  ] || {};
+                                const submitterGroups =
+                                  getTemplateSubmitterGroups(
+                                    template,
+                                    templateFieldValues,
+                                  );
+
+                                return (
+                                  <div
+                                    key={templateId}
+                                    className="rounded-lg border border-indigo-100 bg-white p-3 shadow-sm"
+                                  >
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                      <div>
+                                        <div className="text-[13px] font-medium text-slate-700">
+                                          {template.name}
+                                        </div>
+                                        <div className="text-[11px] text-slate-400">
+                                          {editableFields.length} fillable field
+                                          {editableFields.length === 1
+                                            ? ""
+                                            : "s"}
+                                        </div>
+                                      </div>
+                                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-500">
+                                        DocuSeal
+                                      </span>
+                                    </div>
+
+                                    {editableFields.length === 0 ? (
+                                      <p className="rounded-md bg-slate-50 px-3 py-2 text-[12px] text-slate-500">
+                                        This template has no editable fields.
+                                      </p>
+                                    ) : (
+                                      <div className="space-y-4">
+                                        {submitterGroups.map((group) =>
+                                          group.fields.length > 0 ? (
+                                            <div key={group.submitterUuid}>
+                                              <div className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
+                                                {group.submitterName}
+                                              </div>
+                                              <div className="grid gap-3 md:grid-cols-2">
+                                                {group.fields.map(
+                                                  (field, fieldIndex) => {
+                                                    const inputType =
+                                                      getDocusealFieldInputType(
+                                                        field,
+                                                      );
+                                                    const value =
+                                                      templateFieldValues[
+                                                        field.uuid
+                                                      ] ||
+                                                      templateFieldValues[
+                                                        field.name
+                                                      ] ||
+                                                      "";
+
+                                                    return (
+                                                      <label
+                                                        key={field.uuid}
+                                                        className={`block ${
+                                                          group.fields.length %
+                                                            2 ===
+                                                            1 &&
+                                                          fieldIndex ===
+                                                            group.fields
+                                                              .length -
+                                                              1
+                                                            ? "md:col-span-2"
+                                                            : ""
+                                                        }`}
+                                                      >
+                                                        <span className="mb-1 block text-[12px] font-medium text-slate-700">
+                                                          {getDocusealFieldLabel(
+                                                            field,
+                                                            fieldIndex,
+                                                          )}
+                                                          {field.required && (
+                                                            <span className="ml-1 text-red-500">
+                                                              *
+                                                            </span>
+                                                          )}
+                                                        </span>
+                                                        <input
+                                                          type={inputType}
+                                                          value={value}
+                                                          required={
+                                                            field.required
+                                                          }
+                                                          onChange={(event) =>
+                                                            updateAgreementTemplateFieldValue(
+                                                              templateId,
+                                                              field.uuid,
+                                                              event.target
+                                                                .value,
+                                                            )
+                                                          }
+                                                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                                                          placeholder={`Enter ${getDocusealFieldLabel(
+                                                            field,
+                                                            fieldIndex,
+                                                          )}`}
+                                                        />
+                                                      </label>
+                                                    );
+                                                  },
+                                                )}
+                                              </div>
+                                            </div>
+                                          ) : null,
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              },
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex items-start gap-3 rounded-xl bg-blue-50 p-3 text-blue-700 md:col-span-2">
                         <Clock className="mt-0.5 h-4 w-4 shrink-0" />
                         <p className="text-[12px] leading-relaxed">
                           <strong>Signature Workflow:</strong> Saving this lead
-                          will automatically create the agreement and send
-                          signature request emails for{" "}
+                          will automatically create the agreement and{" "}
+                          {isAdmin
+                            ? "send signature request emails"
+                            : "send it for admin approval"}{" "}
+                          for{" "}
                           <strong>{form.agreement.templateIds.length}</strong>{" "}
-                          selected template(s) to{" "}
-                          <strong>
-                            {form.contactRelation === "new"
-                              ? form.primaryContactName || "the primary contact"
-                              : "the selected contact"}
-                          </strong>
-                          .
+                          selected template(s)
+                          {isAdmin ? " to " : "."}
+                          {isAdmin ? (
+                            <strong>
+                              {form.contactRelation === "new"
+                                ? form.primaryContactName ||
+                                  "the primary contact"
+                                : "the selected contact"}
+                            </strong>
+                          ) : null}
+                          {isAdmin ? "." : ""}
                         </p>
                       </div>
                     </div>
@@ -2431,7 +2889,7 @@ function CreateLeadPage() {
                   <div className="flex items-center justify-between text-[12px]">
                     <span className="text-green-600/70">Agreement</span>
                     <span className="font-semibold text-green-800">
-                      Sent for Sign
+                      {isAdmin ? "Sent for Sign" : "Pending Approval"}
                     </span>
                   </div>
                 )}
@@ -2457,7 +2915,9 @@ function CreateLeadPage() {
                 ...(form.agreement.action === "create"
                   ? [
                       "Generates new legal agreement",
-                      "Triggers signature request email",
+                      isAdmin
+                        ? "Triggers signature request email"
+                        : "Sends agreement for admin approval",
                     ]
                   : []),
               ].map((item, i) => (
@@ -2481,17 +2941,23 @@ function CreateLeadPage() {
         onSecondaryConfirm={handleConfirmLeadOnly}
         title={
           form.agreement.action === "create"
-            ? "Create Lead & Send Agreement?"
+            ? isAdmin
+              ? "Create Lead & Send Agreement?"
+              : "Create Lead & Send Agreement for Approval?"
             : "Create Lead & Link Agreement?"
         }
         message={
           form.agreement.action === "create"
-            ? `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and trigger the signature request now?`
+            ? isAdmin
+              ? `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and trigger the signature request now?`
+              : `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and send the agreement for admin approval?`
             : "Would you like to create the lead and link it to the existing agreement, or just create the lead?"
         }
         confirmLabel={
           form.agreement.action === "create"
-            ? "Create & Send Now"
+            ? isAdmin
+              ? "Create & Send Now"
+              : "Create & Send for Approval"
             : "Create & Link"
         }
         secondaryLabel="Create Lead Only"

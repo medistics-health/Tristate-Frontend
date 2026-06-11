@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -318,6 +319,12 @@ function SkeletonTableRows() {
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function PricingEnginePage() {
+  const [searchParams] = useSearchParams();
+  const profilePracticeId = searchParams.get("practiceId") || "";
+  const profileAgreementId = searchParams.get("agreementId") || "";
+  const profileVersionId = searchParams.get("versionId") || "";
+  const profileAction = searchParams.get("action") || "";
+
   const [practices, setPractices] = useState<Practice[]>([]);
   const [selectedPractice, setSelectedPractice] = useState<Practice | null>(
     null,
@@ -336,6 +343,7 @@ export default function PricingEnginePage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [showWizard, setShowWizard] = useState(false);
+  const [profileCreateHandled, setProfileCreateHandled] = useState(false);
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [editingTerm, setEditingTerm] = useState<AgreementServiceTerm | null>(
     null,
@@ -359,6 +367,11 @@ export default function PricingEnginePage() {
 
   const activeServices = services.filter((svc) => svc.isActive);
 
+  useEffect(() => {
+    if (!profilePracticeId) return;
+    setSelectedPracticeId(profilePracticeId);
+  }, [profilePracticeId]);
+
   // ✅ STEP 1: Load agreements when practice changes (FILTERED BY PRACTICE)
   useEffect(() => {
     if (!selectedPracticeId) {
@@ -379,10 +392,15 @@ export default function PricingEnginePage() {
           id: r.id,
           label: String(r.values.name || r.id),
         }));
+        const nextAgreementId =
+          profileAgreementId &&
+          practiceAgreements.some((agreement) => agreement.id === profileAgreementId)
+            ? profileAgreementId
+            : "";
         setAgreements(practiceAgreements);
         
         // Reset downstream selections
-        setSelectedAgreementId("");
+        setSelectedAgreementId(nextAgreementId);
         setVersions([]);
         setSelectedVersionId("");
         setTerms([]);
@@ -392,7 +410,7 @@ export default function PricingEnginePage() {
         toast.error("Failed to load agreements for this practice");
       })
       .finally(() => setIsLoading(false));
-  }, [selectedPracticeId]);
+  }, [selectedPracticeId, profileAgreementId]);
 
   // ✅ Load practice details
   useEffect(() => {
@@ -430,9 +448,13 @@ export default function PricingEnginePage() {
         setVersions(d.versions);
         
         // Auto-select current version or first version
+        const requestedVersion = d.versions.find(
+          (v) => v.id === profileVersionId,
+        );
         const current = d.versions.find((v) => v.isCurrent) ?? d.versions[0];
-        if (current) {
-          setSelectedVersionId(current.id);
+        const nextVersion = requestedVersion ?? current;
+        if (nextVersion) {
+          setSelectedVersionId(nextVersion.id);
         } else {
           setSelectedVersionId("");
           setTerms([]);
@@ -446,7 +468,24 @@ export default function PricingEnginePage() {
         setTerms([]);
       })
       .finally(() => setIsLoading(false));
-  }, [selectedAgreementId]);
+  }, [selectedAgreementId, profileVersionId]);
+
+  useEffect(() => {
+    if (profileCreateHandled || profileAction !== "create") return;
+    if (!selectedPracticeId || !selectedAgreementId || !selectedVersionId) {
+      return;
+    }
+
+    setEditingTerm(null);
+    setShowWizard(true);
+    setProfileCreateHandled(true);
+  }, [
+    profileAction,
+    profileCreateHandled,
+    selectedPracticeId,
+    selectedAgreementId,
+    selectedVersionId,
+  ]);
 
   // ✅ STEP 3: Load terms when version changes (FILTERED BY VERSION)
   useEffect(() => {
