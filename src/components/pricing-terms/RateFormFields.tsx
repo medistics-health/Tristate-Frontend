@@ -8,11 +8,13 @@ import Select from "../shared/Select";
 const HYBRID_TYPES = ["% Collections","Monthly Minimum","Per Encounter","Fixed Monthly","Per Patient"];
 
 // Field component defined at MODULE level — avoids focus loss on state update
-type FProps = { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; };
-export function Field({ label, value, onChange, type = "text", placeholder = "" }: FProps) {
+type FProps = { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; required?: boolean; };
+export function Field({ label, value, onChange, type = "text", placeholder = "", required = false }: FProps) {
   return (
     <div>
-      <label className="mb-1 block text-[13px] font-medium text-slate-700">{label}</label>
+      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
       <input
         type={type}
         min={type === "number" ? "0" : undefined}
@@ -35,11 +37,15 @@ export function RateFormFields({ model, cfg, upd }: Props) {
   const dates = (
     <div className="grid grid-cols-2 gap-3">
       <div>
-        <label className="mb-1 block text-[13px] font-medium text-slate-700">Effective Start Date</label>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Effective Start Date <span className="text-red-500">*</span>
+        </label>
         <DatePicker value={cfg.effectiveStartDate ?? ""} onChange={(v) => upd({ effectiveStartDate: v })} />
       </div>
       <div>
-        <label className="mb-1 block text-[13px] font-medium text-slate-700">Effective End Date</label>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Effective End Date <span className="text-red-500">*</span>
+        </label>
         <DatePicker value={cfg.effectiveEndDate ?? ""} onChange={(v) => upd({ effectiveEndDate: v })} minDate={today} />
       </div>
     </div>
@@ -50,7 +56,7 @@ export function RateFormFields({ model, cfg, upd }: Props) {
       <div className="space-y-4">
         <h3 className="text-[15px] font-semibold text-slate-700">{label}</h3>
         <Field label={model === "FIXED_ONE_TIME" ? "One-Time Amount (USD)" : "Monthly Amount (USD)"}
-          type="number" value={cfg.amount ?? ""} onChange={(v) => upd({ amount: v })} placeholder="0.00" />
+          type="number" value={cfg.amount ?? ""} onChange={(v) => upd({ amount: v })} placeholder="0.00" required />
         {dates}
       </div>
     );
@@ -61,12 +67,14 @@ export function RateFormFields({ model, cfg, upd }: Props) {
       <div className="space-y-4">
         <h3 className="text-[15px] font-semibold text-slate-700">{label}</h3>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Percentage (%)"    type="number" value={cfg.percentage ?? ""}  onChange={(v) => upd({ percentage: v })}  placeholder="e.g. 6" />
+          <Field label="Percentage (%)"    type="number" value={cfg.percentage ?? ""}  onChange={(v) => upd({ percentage: v })}  placeholder="e.g. 6" required />
           <Field label="Minimum Fee (USD)" type="number" value={cfg.minimumFee ?? ""}  onChange={(v) => upd({ minimumFee: v })}  placeholder="0.00" />
           <Field label="Maximum Fee (USD)" type="number" value={cfg.maximumFee ?? ""}  onChange={(v) => upd({ maximumFee: v })}  placeholder="0.00" />
         </div>
         <div>
-          <label className="mb-1 block text-[13px] font-medium text-slate-700">Collection Source</label>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">
+            Collection Source <span className="text-red-500">*</span>
+          </label>
           <Select
             value={cfg.collectionSource ?? "PM System"}
             onChange={(v) => upd({ collectionSource: v })}
@@ -83,7 +91,7 @@ export function RateFormFields({ model, cfg, upd }: Props) {
       <div className="space-y-4">
         <h3 className="text-[15px] font-semibold text-slate-700">{label}</h3>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Rate per Unit (USD)" type="number" value={cfg.unitRate ?? ""}    onChange={(v) => upd({ unitRate: v })}    placeholder="0.00" />
+          <Field label="Rate per Unit (USD)" type="number" value={cfg.unitRate ?? ""}    onChange={(v) => upd({ unitRate: v })}    placeholder="0.00" required />
           <Field label="Minimum Fee (USD)"   type="number" value={cfg.minimumFee ?? ""}  onChange={(v) => upd({ minimumFee: v })}  placeholder="0.00" />
         </div>
         {dates}
@@ -100,9 +108,9 @@ export function RateFormFields({ model, cfg, upd }: Props) {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-[#f0ece6] bg-[#faf9f7]">
-                <th className="px-3 py-2 text-left font-medium text-slate-500">CPT Code</th>
+                <th className="px-3 py-2 text-left font-medium text-slate-500">CPT Code <span className="text-red-500">*</span></th>
                 <th className="px-3 py-2 text-left font-medium text-slate-500">Description</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-500">Rate (USD)</th>
+                <th className="px-3 py-2 text-left font-medium text-slate-500">Rate (USD) <span className="text-red-500">*</span></th>
                 <th className="w-8" />
               </tr>
             </thead>
@@ -180,7 +188,7 @@ export function RateFormFields({ model, cfg, upd }: Props) {
     <div className="space-y-4">
       <h3 className="text-[15px] font-semibold text-slate-700">{label}</h3>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Rate / Amount (USD)" type="number" value={cfg.amount ?? ""}     onChange={(v) => upd({ amount: v })}     placeholder="0.00" />
+        <Field label="Rate / Amount (USD)" type="number" value={cfg.amount ?? ""}     onChange={(v) => upd({ amount: v })}     placeholder="0.00" required />
         <Field label="Minimum Fee (USD)"   type="number" value={cfg.minimumFee ?? ""} onChange={(v) => upd({ minimumFee: v })} placeholder="0.00" />
       </div>
       {dates}

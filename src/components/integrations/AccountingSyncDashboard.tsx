@@ -41,7 +41,6 @@ export default function AccountingSyncDashboard() {
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data === 'qb-connected') {
-        toast.success("QuickBooks connected successfully!");
         loadCompanies();
       }
     };

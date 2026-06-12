@@ -50,6 +50,7 @@ import PricingEnginePage from "./components/pricing-terms/PricingEngine";
 import AccountingSyncDashboard from "./components/integrations/AccountingSyncDashboard";
 import MercuryBankingDashboard from "./components/integrations/MercuryBankingDashboard";
 import VendorPayableDashboard from "./components/payables/VendorPayableDashboard";
+import PayVendorPayable from "./components/payables/PayVendorPayable";
 import ClientPortalDashboard from "./components/portal/ClientPortalDashboard";
 import SettingsPage from "./components/settings/Settings";
 import CreateLeadPage from "./components/leads/CreateLead";
@@ -218,6 +219,15 @@ function App() {
         element={
           <ProtectedRoute>
             <VendorPayableDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/vendors/payables/pay/:id"
+        element={
+          <ProtectedRoute>
+            <PayVendorPayable />
           </ProtectedRoute>
         }
       />

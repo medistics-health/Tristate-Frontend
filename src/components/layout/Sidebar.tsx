@@ -6,7 +6,6 @@ import {
   Link as LinkIcon,
   Shield,
   LayoutDashboard,
-  Monitor,
   Target,
   Users,
   ShoppingCart,
@@ -33,233 +32,166 @@ import { hasAdminAccess, readStoredUser } from "../../utils/auth";
 type SidebarSectionItem = {
   label: string;
   to?: string;
-  icon?: ReactNode;
   adminOnly?: boolean;
 };
 
-type SidebarMenu = {
+type SidebarItem = {
   label: string;
+  to?: string;
   items?: SidebarSectionItem[];
+  adminOnly?: boolean;
 };
 
-type SidebarSection = {
-  label?: string;
-  items: SidebarSectionItem[];
-  menus?: SidebarMenu[];
-};
-
-type SidebarProps = {
-  activeModule?: string;
-  activeSubItem?: string;
-};
-
-const sidebarSections: SidebarSection[] = [
+const sidebarSteps: SidebarItem[] = [
+  { label: "Dashboards", to: "/dashboard" },
+  { label: "Client Portal", to: "/portal" },
+  { label: "Lead", to: "/lead/create" },
+  { label: "Deal", to: "/deal/all-deals" },
+  { label: "Person", to: "/person/all-persons" },
+  { label: "Company", to: "/company/all-companies" },
   {
-    label: "Workspace",
-
+    label: "Practices",
     items: [
-      { label: "Dashboards", to: "/dashboard" },
-      { label: "Client Portal", to: "/portal" },
-      {
-        label: "Deal",
-        icon: <Backpack className="h-3 w-3" />,
-        to: "/deal/all-deals",
-      },
-      {
-        label: "Person",
-        icon: <User className="h-3 w-3" />,
-        to: "/person/all-persons",
-      },
-      {
-        label: "Company",
-        icon: <Building2 className="h-3 w-3" />,
-        to: "/company/all-companies",
-      },
-      {
-        label: "Lead",
-        icon: <Target className="h-3 w-3" />,
-        to: "/lead/create",
-      },
-      // { label: "Survey results" },
+      { label: "All Practice", to: "/practice/all-practices" },
+      { label: "Pipeline Board", to: "/practice/pipeline" },
+      { label: "Active Practices", to: "/practice/active-practice" },
+      { label: "Prospects", to: "/practice/prospects" },
+      { label: "Reminders Due", to: "/practice/reminder-dues" },
     ],
-    menus: [
+  },
+  {
+    label: "Agreements",
+    items: [
+      { label: "All Agreements", to: "/agreements/all-agreements" },
+      { label: "Agreement Pipeline", to: "/agreements/pipeline" },
       {
-        label: "Purchase Orders",
-        items: [
-          { label: "All Purchase Orders", to: "/purchase-orders/all" },
-          { label: "PO Status Board", to: "/purchase-orders/status-board" },
-          {
-            label: "Pending Approval",
-            to: "/purchase-orders/pending-approval",
-          },
-          { label: "Unpaid POs", to: "/purchase-orders/unpaid-pos" },
-        ],
+        label: "Pending Approval",
+        to: "/agreements/pending-approval",
+        adminOnly: true,
       },
       {
-        label: "Invoice Line Items",
-        items: [
-          {
-            label: "All Invoice Line Items",
-            to: "/invoice/all-invoice-line-items",
-          },
-          { label: "All Line Items", to: "/invoice/all-line-items" },
-        ],
+        label: "Pending Submission Changes",
+        to: "/agreements/pending-submission-changes",
+        adminOnly: true,
       },
+      { label: "Pending Signatures", to: "/agreements/pending-signatures" },
+    ],
+  },
+  {
+    label: "Onboarding",
+    items: [{ label: "Review Submissions", to: "/onboarding/review" }],
+  },
+  {
+    label: "Services",
+    items: [
+      { label: "All Services", to: "/service/all-services" },
+      { label: "Service Catalog", to: "/service/service-catalogs" },
+      { label: "Active Services", to: "/service/active-services" },
+    ],
+  },
+  {
+    label: "Pricing Engine",
+    items: [
       {
-        label: "Services",
-        items: [
-          { label: "All Services", to: "/service/all-services" },
-          { label: "Service Catalog", to: "/service/service-catalogs" },
-          { label: "Active Services", to: "/service/active-services" },
-        ],
-      },
-      {
-        label: "Channel Partners",
-        items: [
-          {
-            label: "All Channel Partners",
-            to: "/partner/all-channel-partners",
-          },
-          { label: "All Partners", to: "/partner/all-partners" },
-        ],
-      },
-      {
-        label: "Audits",
-        items: [
-          { label: "All Practice Audits", to: "/audit/all-practice-audits" },
-          { label: "All Audits", to: "/audit/all-audits" },
-          { label: "Audit Status Board", to: "/audit/status-board" },
-        ],
-      },
-      {
-        label: "Assessments",
-        items: [
-          { label: "All Assessments", to: "/assessment/all-assessments" },
-          { label: "Assessments Progress", to: "/assessment/progress" },
-        ],
-      },
-      {
-        label: "Pricing Engine",
-        items: [
-          {
-            label: "Rate Finalization",
-            to: "/pricing-engine/rate-finalization",
-          },
-        ],
-      },
-      {
-        label: "Billing",
-        items: [
-          { label: "Billing Runs", to: "/billing/runs" },
-          { label: "Billing Status Board", to: "/billing/status-board" },
-        ],
-      },
-      {
-        label: "Invoices",
-        items: [
-          { label: "All Invoices", to: "/invoice/all-invoices" },
-          { label: "Invoice Status Board", to: "/invoice/status-board" },
-          { label: "Overdue Invoices", to: "/invoice/overdue" },
-        ],
-      },
-      {
-        label: "Agreements",
-        items: [
-          { label: "All Agreements", to: "/agreements/all-agreements" },
-          { label: "Agreement Pipeline", to: "/agreements/pipeline" },
-          {
-            label: "Pending Approval",
-            to: "/agreements/pending-approval",
-            adminOnly: true,
-          },
-          {
-            label: "Pending Submission Changes",
-            to: "/agreements/pending-submission-changes",
-            adminOnly: true,
-          },
-          { label: "Pending Signatures", to: "/agreements/pending-signatures" },
-        ],
-      },
-      {
-        label: "Vendors",
-        items: [
-          { label: "All Vendors", to: "/vendors/all-vendors" },
-          { label: "Vendor Contracts", to: "/vendors/contracts" },
-          { label: "Vendor Payables", to: "/vendors/payables" },
-        ],
-      },
-      {
-        label: "Practices",
-        items: [
-          { label: "All Practice", to: "/practice/all-practices" },
-          { label: "Pipeline Board", to: "/practice/pipeline" },
-          { label: "Active Practices", to: "/practice/active-practice" },
-          { label: "Prospects", to: "/practice/prospects" },
-          { label: "Reminders Due", to: "/practice/reminder-dues" },
-        ],
-      },
-      {
-        label: "Monthly Reports",
-        items: [
-          { label: "Dashboard", to: "/monthly-reporting/dashboard" },
-          { label: "Submit Report", to: "/monthly-reporting/submit" },
-        ],
-      },
-      {
-        label: "Onboarding",
-        items: [{ label: "Review Submissions", to: "/onboarding/review" }],
-      },
-      {
-        label: "Integrations",
-        items: [
-          { label: "Accounting Sync", to: "/integrations/accounting-sync" },
-          { label: "Mercury Banking", to: "/integrations/mercury-banking" },
-        ],
-      },
-      {
-        label: "Settings",
-        items: [
-          { label: "General Settings", to: "/settings/general" },
-          { label: "API & Integrations", to: "/settings/integrations" },
-          { label: "Team Management", to: "/settings/team" },
-          { label: "Security & Access", to: "/settings/security" },
-        ],
+        label: "Rate Finalization",
+        to: "/pricing-engine/rate-finalization",
       },
     ],
   },
-  // {
-  //   items: [
-  //     {
-  //       label: "Deal",
-  //       icon: <Backpack className="h-3 w-3" />,
-  //       to: "/deal/all-deals",
-  //     },
-  //     {
-  //       label: "Person",
-  //       icon: <User className="h-3 w-3" />,
-  //       to: "/person/all-persons",
-  //     },
-  //     {
-  //       label: "Company",
-  //       icon: <Building2 className="h-3 w-3" />,
-  //       to: "/company/all-companies",
-  //     },
-  //   ],
-  // },
+  {
+    label: "Billing",
+    items: [
+      { label: "Billing Runs", to: "/billing/runs" },
+      { label: "Billing Status Board", to: "/billing/status-board" },
+    ],
+  },
+  {
+    label: "Invoices",
+    items: [
+      { label: "All Invoices", to: "/invoice/all-invoices" },
+      { label: "Invoice Status Board", to: "/invoice/status-board" },
+      { label: "Overdue Invoices", to: "/invoice/overdue" },
+    ],
+  },
+  {
+    label: "Invoice Line Items",
+    items: [
+      {
+        label: "All Invoice Line Items",
+        to: "/invoice/all-invoice-line-items",
+      },
+      { label: "All Line Items", to: "/invoice/all-line-items" },
+    ],
+  },
+  {
+    label: "Purchase Orders",
+    items: [
+      { label: "All Purchase Orders", to: "/purchase-orders/all" },
+      { label: "PO Status Board", to: "/purchase-orders/status-board" },
+      {
+        label: "Pending Approval",
+        to: "/purchase-orders/pending-approval",
+      },
+      { label: "Unpaid POs", to: "/purchase-orders/unpaid-pos" },
+    ],
+  },
+  {
+    label: "Vendors",
+    items: [
+      { label: "All Vendors", to: "/vendors/all-vendors" },
+      { label: "Vendor Contracts", to: "/vendors/contracts" },
+      { label: "Vendor Payables", to: "/vendors/payables" },
+    ],
+  },
+  {
+    label: "Integrations",
+    items: [
+      { label: "Accounting Sync", to: "/integrations/accounting-sync" },
+      { label: "Mercury Banking", to: "/integrations/mercury-banking" },
+    ],
+  },
+  {
+    label: "Channel Partners",
+    items: [
+      {
+        label: "All Channel Partners",
+        to: "/partner/all-channel-partners",
+      },
+      { label: "All Partners", to: "/partner/all-partners" },
+    ],
+  },
+  {
+    label: "Monthly Reports",
+    items: [
+      { label: "Dashboard", to: "/monthly-reporting/dashboard" },
+      { label: "Submit Report", to: "/monthly-reporting/submit" },
+    ],
+  },
+  {
+    label: "Assessments",
+    items: [
+      { label: "All Assessments", to: "/assessment/all-assessments" },
+      { label: "Assessments Progress", to: "/assessment/progress" },
+    ],
+  },
+  {
+    label: "Audits",
+    items: [
+      { label: "All Practice Audits", to: "/audit/all-practice-audits" },
+      { label: "All Audits", to: "/audit/all-audits" },
+      { label: "Audit Status Board", to: "/audit/status-board" },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      { label: "General Settings", to: "/settings/general" },
+      { label: "API & Integrations", to: "/settings/integrations" },
+      { label: "Team Management", to: "/settings/team" },
+      { label: "Security & Access", to: "/settings/security" },
+    ],
+  },
 ];
-
-const sortedSidebarSections = sidebarSections.map((section) => ({
-  ...section,
-  items: [...section.items].sort((a, b) => a.label.localeCompare(b.label)),
-  menus: section.menus
-    ? [...section.menus]
-        .map((menu) => ({
-          ...menu,
-          items: [...(menu.items ?? [])].sort((a, b) => a.label.localeCompare(b.label)),
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label))
-    : undefined,
-}));
 
 function SidebarIcon({ children }: { children: ReactNode }) {
   return (
@@ -324,7 +256,7 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
-function SidebarLeafItem({ item }: { item: SidebarSectionItem }) {
+function SidebarLeafItem({ item }: { item: SidebarItem }) {
   const baseClass =
     "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px]";
 
@@ -334,8 +266,10 @@ function SidebarLeafItem({ item }: { item: SidebarSectionItem }) {
       return <LayoutDashboard className="h-3.5 w-3.5 text-indigo-500" />;
     if (label.includes("portal"))
       return <Globe className="h-3.5 w-3.5 text-emerald-500" />;
-    if (label.includes("deal"))
+    if (label.includes("lead"))
       return <Target className="h-3.5 w-3.5 text-rose-500" />;
+    if (label.includes("deal"))
+      return <Backpack className="h-3.5 w-3.5 text-rose-500" />;
     if (label.includes("person"))
       return <Users className="h-3.5 w-3.5 text-blue-500" />;
     if (label.includes("company"))
@@ -369,12 +303,17 @@ function SidebarLeafItem({ item }: { item: SidebarSectionItem }) {
   );
 }
 
+type SidebarProps = {
+  activeModule?: string;
+  activeSubItem?: string;
+};
+
 function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
 
-  function canRenderItem(item: SidebarSectionItem) {
+  function canRenderItem(item: SidebarSectionItem | SidebarItem) {
     return !item.adminOnly || isAdmin;
   }
 
@@ -382,18 +321,17 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
     if (item.to) {
       return item.to === location.pathname;
     }
-
     return item.label === activeSubItem;
   }
 
   useEffect(() => {
     const nextOpenMenus = Object.fromEntries(
-      sidebarSections
-        .flatMap((section) => section.menus ?? [])
-        .map((menu) => [
-          menu.label,
-          menu.label === activeModule ||
-            (menu.items || []).filter(canRenderItem).some(isItemActive),
+      sidebarSteps
+        .filter((step) => step.items)
+        .map((step) => [
+          step.label,
+          step.label === activeModule ||
+            (step.items || []).filter(canRenderItem).some(isItemActive),
         ]),
     );
 
@@ -416,182 +354,138 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
         <span className="text-[15px] font-medium text-slate-800">
           Tristate MSO
         </span>
-        {/*<svg viewBox="0 0 20 20" className="ml-auto h-4 w-4 text-slate-400">
-          <path
-            d="M5 7.5L10 12.5L15 7.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>*/}
       </div>
 
-      {/*<div className="space-y-1 px-3">
-        {quickItems.map((item) => (
-          <SidebarLeafItem key={item.label} item={item} />
-        ))}
-      </div>*/}
+      <div className="mt-1 flex-1 overflow-y-auto px-3 pb-5 space-y-1">
+        {sidebarSteps.filter(canRenderItem).map((step) => {
+          if (step.to) {
+            // Render direct link
+            return <SidebarLeafItem key={step.label} item={step} />;
+          }
 
-      <div className="mt-1 flex-1 overflow-y-auto px-3 pb-5">
-        {sortedSidebarSections.map((section, sectionIndex) => (
-          <div
-            key={`${section.label ?? "section"}-${sectionIndex}`}
-            className="mt-2"
-          >
-            {section.label ? (
-              <p className="px-3 pb-2 text-[12px] font-semibold uppercase tracking-[0.04em] text-slate-400">
-                {section.label}
-              </p>
-            ) : null}
+          // Render collapsible menu
+          const visibleItems = step.items || [];
+          if (visibleItems.length === 0) return null;
+          const isOpen = openMenus[step.label] ?? false;
+          const isActiveMenu =
+            step.label === activeModule ||
+            visibleItems.some(isItemActive) ||
+            false;
 
-            <div className="space-y-1">
-              {/*{section.items.filter(canRenderItem).map((item) => (*/}
-              {section.items.map((item) => (
-                <SidebarLeafItem key={item.label} item={item} />
-              ))}
-            </div>
+          return (
+            <div
+              key={step.label}
+              className={`mt-1 rounded-xl ${isActiveMenu ? "bg-[#f1efeb]" : ""}`}
+            >
+              <button
+                type="button"
+                onClick={() => toggleMenu(step.label)}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] font-medium ${
+                  isActiveMenu
+                    ? "bg-[#efede8] text-slate-800"
+                    : "hover:bg-white/70"
+                }`}
+              >
+                <SidebarIcon>
+                  {(() => {
+                    const label = step.label.toLowerCase();
+                    if (label.includes("purchase"))
+                      return <ShoppingCart className="h-3.5 w-3.5" />;
+                    if (label.includes("invoice line"))
+                      return <ListOrdered className="h-3.5 w-3.5" />;
+                    if (label.includes("invoice"))
+                      return <Receipt className="h-3.5 w-3.5" />;
+                    if (label.includes("services"))
+                      return <Briefcase className="h-3.5 w-3.5" />;
+                    if (label.includes("partner"))
+                      return <Share2 className="h-3.5 w-3.5" />;
+                    if (label.includes("audit"))
+                      return <ClipboardCheck className="h-3.5 w-3.5" />;
+                    if (label.includes("assessment"))
+                      return <BarChart3 className="h-3.5 w-3.5" />;
+                    if (label.includes("pricing"))
+                      return <Calculator className="h-3.5 w-3.5" />;
+                    if (label.includes("billing"))
+                      return <CreditCard className="h-3.5 w-3.5" />;
+                    if (label.includes("agreement"))
+                      return <FileSignature className="h-3.5 w-3.5" />;
+                    if (label.includes("vendor"))
+                      return <Truck className="h-3.5 w-3.5" />;
+                    if (label.includes("practice"))
+                      return <Stethoscope className="h-3.5 w-3.5" />;
+                    if (label.includes("onboarding"))
+                      return <FileText className="h-3.5 w-3.5" />;
+                    if (label.includes("integration"))
+                      return <Zap className="h-3.5 w-3.5" />;
+                    if (label.includes("settings"))
+                      return <Settings2 className="h-3.5 w-3.5" />;
+                    return <ListDocumentIcon />;
+                  })()}
+                </SidebarIcon>
+                <span className="min-w-0 flex-1">{step.label}</span>
+                <ChevronIcon open={isOpen} />
+              </button>
 
-            {section.menus?.map((menu) => {
-              // const visibleItems = (menu.items || []).filter(canRenderItem);
-              const visibleItems = menu.items || [];
-              if (visibleItems.length === 0) return null;
-              const isOpen = openMenus[menu.label] ?? false;
-              const isActiveMenu =
-                menu.label === activeModule ||
-                visibleItems.some(isItemActive) ||
-                false;
+              {isOpen ? (
+                <div className="pl-4 pr-2 pb-2">
+                  {visibleItems.filter(canRenderItem).map((item) => {
+                    const isActive = isItemActive(item);
 
-              return (
-                <div
-                  key={menu.label}
-                  className={`mt-1 rounded-xl ${isActiveMenu ? "bg-[#f1efeb]" : ""}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggleMenu(menu.label)}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] font-medium ${
-                      isActiveMenu
-                        ? "bg-[#efede8] text-slate-800"
-                        : "hover:bg-white/70"
-                    }`}
-                  >
-                    <SidebarIcon>
-                      {(() => {
-                        const label = menu.label.toLowerCase();
-                        if (label.includes("purchase"))
-                          return <ShoppingCart className="h-3.5 w-3.5" />;
-                        if (label.includes("invoice"))
-                          return <Receipt className="h-3.5 w-3.5" />;
-                        if (label.includes("services"))
-                          return <Briefcase className="h-3.5 w-3.5" />;
-                        if (label.includes("partner"))
-                          return <Share2 className="h-3.5 w-3.5" />;
-                        if (label.includes("audit"))
-                          return <ClipboardCheck className="h-3.5 w-3.5" />;
-                        if (label.includes("assessment"))
-                          return <BarChart3 className="h-3.5 w-3.5" />;
-                        if (label.includes("pricing"))
-                          return <Calculator className="h-3.5 w-3.5" />;
-                        if (label.includes("billing"))
-                          return <CreditCard className="h-3.5 w-3.5" />;
-                        if (label.includes("agreement"))
-                          return <FileSignature className="h-3.5 w-3.5" />;
-                        if (label.includes("vendor"))
-                          return <Truck className="h-3.5 w-3.5" />;
-                        if (label.includes("practice"))
-                          return <Stethoscope className="h-3.5 w-3.5" />;
-                        if (label.includes("onboarding"))
-                          return <FileText className="h-3.5 w-3.5" />;
-                        if (label.includes("integration"))
-                          return <Zap className="h-3.5 w-3.5" />;
-                        if (label.includes("settings"))
-                          return <Settings2 className="h-3.5 w-3.5" />;
-                        return <ListDocumentIcon />;
-                      })()}
-                    </SidebarIcon>
-                    <span className="min-w-0 flex-1">{menu.label}</span>
-                    <ChevronIcon open={isOpen} />
-                  </button>
+                    // Selection of icon based on label
+                    let CustomIcon = <SubmenuIcon />;
+                    const label = item.label.toLowerCase();
+                    if (label.includes("general"))
+                      CustomIcon = <SettingsIcon className="h-3.5 w-3.5" />;
+                    if (label.includes("integrations"))
+                      CustomIcon = <LinkIcon className="h-3.5 w-3.5" />;
+                    if (label.includes("team"))
+                      CustomIcon = <User className="h-3.5 w-3.5" />;
+                    if (label.includes("security"))
+                      CustomIcon = <Shield className="h-3.5 w-3.5" />;
+                    if (label.includes("status board"))
+                      CustomIcon = (
+                        <LayoutDashboard className="h-3.5 w-3.5" />
+                      );
+                    if (
+                      label.includes("overdue") ||
+                      label.includes("pending")
+                    )
+                      CustomIcon = <BarChart3 className="h-3.5 w-3.5" />;
+                    if (
+                      label.includes("contracts") ||
+                      label.includes("agreements")
+                    )
+                      CustomIcon = (
+                        <FileSignature className="h-3.5 w-3.5" />
+                      );
+                    if (
+                      label.includes("payables") ||
+                      label.includes("billing")
+                    )
+                      CustomIcon = <CreditCard className="h-3.5 w-3.5" />;
+                    if (label.includes("sync"))
+                      CustomIcon = <Zap className="h-3.5 w-3.5" />;
 
-                  {isOpen ? (
-                    <div className="pl-4 pr-2 pb-2">
-                      {visibleItems.map((item) => {
-                        const isActive = isItemActive(item);
-
-                        // Selection of icon based on label
-                        let CustomIcon = <SubmenuIcon />;
-                        const label = item.label.toLowerCase();
-                        if (label.includes("general"))
-                          CustomIcon = <SettingsIcon className="h-3.5 w-3.5" />;
-                        if (label.includes("integrations"))
-                          CustomIcon = <LinkIcon className="h-3.5 w-3.5" />;
-                        if (label.includes("team"))
-                          CustomIcon = <User className="h-3.5 w-3.5" />;
-                        if (label.includes("security"))
-                          CustomIcon = <Shield className="h-3.5 w-3.5" />;
-                        if (label.includes("status board"))
-                          CustomIcon = (
-                            <LayoutDashboard className="h-3.5 w-3.5" />
-                          );
-                        if (
-                          label.includes("overdue") ||
-                          label.includes("pending")
-                        )
-                          CustomIcon = <BarChart3 className="h-3.5 w-3.5" />;
-                        if (
-                          label.includes("contracts") ||
-                          label.includes("agreements")
-                        )
-                          CustomIcon = (
-                            <FileSignature className="h-3.5 w-3.5" />
-                          );
-                        if (
-                          label.includes("payables") ||
-                          label.includes("billing")
-                        )
-                          CustomIcon = <CreditCard className="h-3.5 w-3.5" />;
-                        if (label.includes("sync"))
-                          CustomIcon = <Zap className="h-3.5 w-3.5" />;
-
-                        return item.to ? (
-                          <NavLink
-                            key={item.label}
-                            to={item.to}
-                            className={`mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] ${
-                              isActive
-                                ? "bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                                : "text-slate-600 hover:bg-white/80"
-                            }`}
-                          >
-                            <SidebarIcon>{CustomIcon}</SidebarIcon>
-                            {item.label}
-                          </NavLink>
-                        ) : (
-                          <button
-                            key={item.label}
-                            type="button"
-                            className={`mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] ${
-                              isActive
-                                ? "bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                                : "text-slate-600 hover:bg-white/80"
-                            }`}
-                          >
-                            <SidebarIcon>
-                              <SubmenuIcon />
-                            </SidebarIcon>
-                            {item.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
+                    return (
+                      <NavLink
+                        key={item.label}
+                        to={item.to}
+                        className={`mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] ${
+                          isActive
+                            ? "bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+                            : "text-slate-600 hover:bg-white/80"
+                        }`}
+                      >
+                        <SidebarIcon>{CustomIcon}</SidebarIcon>
+                        {item.label}
+                      </NavLink>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        ))}
+              ) : null}
+            </div>
+          );
+        })}
       </div>
     </aside>
   );

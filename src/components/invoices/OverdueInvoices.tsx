@@ -130,6 +130,15 @@ function OverdueInvoicePage() {
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedInvoice) return;
+    if (editForm.dueDate) {
+      const selectedDate = new Date(editForm.dueDate + "T00:00:00");
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        toast.error("Due date must be today or a future date");
+        return;
+      }
+    }
     setIsSaving(true);
     try {
       await updateInvoiceApi(selectedInvoice.id, {
@@ -495,7 +504,8 @@ function OverdueInvoicePage() {
                             status: e.target.value as InvoiceStatus,
                           }))
                         }
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        disabled
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px] bg-slate-50 cursor-not-allowed text-slate-500"
                       >
                         {invoiceStatusOptions.map((status) => (
                           <option key={status} value={status}>
@@ -519,7 +529,8 @@ function OverdueInvoicePage() {
                             totalAmount: e.target.value,
                           }))
                         }
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                        disabled
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px] bg-slate-50 cursor-not-allowed text-slate-500"
                         placeholder="0.00"
                       />
                     </div>
@@ -531,6 +542,7 @@ function OverdueInvoicePage() {
                       <input
                         type="date"
                         value={editForm.dueDate}
+                        min={new Date().toISOString().split("T")[0]}
                         onChange={(e) =>
                           setEditForm((prev) => ({
                             ...prev,

@@ -409,6 +409,15 @@ function AllInvoicePage() {
       toast.error("Enter a valid total amount");
       return;
     }
+    if (editForm.dueDate) {
+      const selectedDate = new Date(editForm.dueDate + "T00:00:00");
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        toast.error("Due date must be today or a future date");
+        return;
+      }
+    }
     setIsSaving(true);
     try {
       const updatedInvoice = await updateInvoiceApi(
@@ -618,7 +627,8 @@ function AllInvoicePage() {
                         agreementId: event.target.value,
                       }))
                     }
-                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    disabled
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px] bg-slate-50 cursor-not-allowed text-slate-500"
                   >
                     <option value="">No Agreement</option>
                     {filteredAgreementsForEdit.map((agreement) => (
@@ -644,7 +654,8 @@ function AllInvoicePage() {
                       status: event.target.value as InvoiceStatus,
                     }))
                   }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  disabled
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px] bg-slate-50 cursor-not-allowed text-slate-500"
                 >
                   {invoiceStatusOptions.map((status) => (
                     <option key={status} value={status}>
@@ -668,7 +679,8 @@ function AllInvoicePage() {
                       totalAmount: event.target.value,
                     }))
                   }
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  disabled
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px] bg-slate-50 cursor-not-allowed text-slate-500"
                   required
                 />
               </div>
@@ -680,6 +692,7 @@ function AllInvoicePage() {
                 <input
                   type="date"
                   value={editForm.dueDate}
+                  min={new Date().toISOString().split("T")[0]}
                   onChange={(event) =>
                     setEditForm((prev) => ({
                       ...prev,

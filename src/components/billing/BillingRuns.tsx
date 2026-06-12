@@ -25,9 +25,27 @@ import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import type { Practice } from "../practices/types";
 import type { Service } from "../services/types";
+import {
+  getAgreementsByPractice,
+  getAgreementServiceTerms,
+  type Agreement,
+  type AgreementServiceTerm,
+} from "../../services/operations/agreements";
+import {
+  computeTermPreview,
+  buildSnapshotsFromInputs,
+  modelNeedsInput,
+  getModelInputLabel,
+  getModelLabel,
+  roundMoneyClient,
+  type TermInputValues,
+} from "./billingPreview";
 import AppLayout from "../layout/AppLayout";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
-import { getAllInvoices, type Invoice } from "../../services/operations/invoices";
+import {
+  getAllInvoices,
+  type Invoice,
+} from "../../services/operations/invoices";
 import { getAllPractices } from "../../services/operations/practices";
 import { getAllServices } from "../../services/operations/services";
 import {
@@ -59,21 +77,14 @@ const statusStyles: Record<BillingRunStatus, string> = {
   CLOSED: "bg-zinc-100 text-zinc-600",
 };
 
-type SnapshotFormRow = {
-  metricKey: string;
-  metricValue: string;
-  serviceId: string;
-  sourceType: string;
-  sourceReference: string;
-};
-
 type CreateRunFormState = {
   practiceId: string;
   periodStart: string;
   periodEnd: string;
   notes: string;
   autoCalculate: boolean;
-  snapshots: SnapshotFormRow[];
+  agreementIds: string[];
+  termInputs: Record<string, TermInputValues>;
 };
 
 type PaymentAllocationRow = {
@@ -91,21 +102,14 @@ type PaymentFormState = {
   allocations: PaymentAllocationRow[];
 };
 
-const initialSnapshotRow = (): SnapshotFormRow => ({
-  metricKey: "",
-  metricValue: "",
-  serviceId: "",
-  sourceType: "manual",
-  sourceReference: "",
-});
-
 const initialCreateRunForm: CreateRunFormState = {
   practiceId: "",
   periodStart: "",
   periodEnd: "",
   notes: "",
   autoCalculate: false,
-  snapshots: [initialSnapshotRow()],
+  agreementIds: [],
+  termInputs: {},
 };
 
 const initialPaymentForm: PaymentFormState = {
@@ -152,18 +156,6 @@ function formatDateRange(start?: string | null, end?: string | null) {
   return `${formatDate(start)} - ${formatDate(end)}`;
 }
 
-function mapSnapshotsForApi(rows: SnapshotFormRow[]): BillingSnapshotInput[] {
-  return rows
-    .filter((row) => row.metricKey.trim() || row.metricValue.trim())
-    .map((row) => ({
-      metricKey: row.metricKey.trim(),
-      metricValue: row.metricValue.trim() ? Number(row.metricValue) : null,
-      serviceId: row.serviceId || undefined,
-      sourceType: row.sourceType || undefined,
-      sourceReference: row.sourceReference || undefined,
-    }));
-}
-
 function BillingRunsPage() {
   const [searchParams] = useSearchParams();
   const profilePracticeId = searchParams.get("practiceId") || "";
@@ -199,18 +191,91 @@ function BillingRunsPage() {
     { id: "createdAt", desc: true },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [readiness, setReadiness] = useState<BillingReadinessResponse | null>(null);
+  const [readiness, setReadiness] = useState<BillingReadinessResponse | null>(
+    null,
+  );
   const [isReadinessLoading, setIsReadinessLoading] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState<
     "calculate" | "approve" | "post" | null
   >(null);
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [practiceAgreements, setPracticeAgreements] = useState<Agreement[]>([]);
+  const [loadedTerms, setLoadedTerms] = useState<AgreementServiceTerm[]>([]);
+  const [isLoadingAgreements, setIsLoadingAgreements] = useState(false);
+  const [isLoadingTerms, setIsLoadingTerms] = useState(false);
+
+  const activePricingTerms = useMemo(() => {
+    if (
+      !createForm.periodStart ||
+      !createForm.periodEnd ||
+      createForm.agreementIds.length === 0
+    )
+      return [];
+    const periodStart = new Date(createForm.periodStart);
+    const periodEnd = new Date(createForm.periodEnd);
+    return loadedTerms.filter((term) => {
+      if (term.isActive === false) return false;
+      if (!createForm.agreementIds.includes(term.agreementId)) return false;
+      const termStart = term.effectiveDate
+        ? new Date(term.effectiveDate)
+        : new Date("1900-01-01");
+      const termEnd = term.endDate
+        ? new Date(term.endDate)
+        : new Date("9999-12-31");
+      return termStart <= periodEnd && termEnd >= periodStart;
+    });
+  }, [
+    loadedTerms,
+    createForm.agreementIds,
+    createForm.periodStart,
+    createForm.periodEnd,
+  ]);
+
+  const previewTotals = useMemo(() => {
+    let invoiceTotal = 0;
+    let vendorTotal = 0;
+    let marginTotal = 0;
+    for (const term of activePricingTerms) {
+      const preview = computeTermPreview(
+        term,
+        createForm.termInputs[term.id] || {},
+      );
+      invoiceTotal += preview.clientAmount;
+      if (preview.vendorAmount !== null) vendorTotal += preview.vendorAmount;
+      if (preview.marginAmount !== null) marginTotal += preview.marginAmount;
+    }
+    return {
+      invoiceTotal: roundMoneyClient(invoiceTotal),
+      vendorTotal: roundMoneyClient(vendorTotal),
+      marginTotal: roundMoneyClient(marginTotal),
+    };
+  }, [activePricingTerms, createForm.termInputs]);
+
+  const detailTotals = useMemo(() => {
+    if (!selectedRun || !selectedRun.items || selectedRun.items.length === 0) {
+      return null;
+    }
+    let invoiceTotal = 0;
+    let vendorPayable = 0;
+    let margin = 0;
+    for (const item of selectedRun.items) {
+      invoiceTotal += Number(item.clientAmount || 0);
+      vendorPayable += Number(item.vendorAmount || 0);
+      margin += Number(item.marginAmount || 0);
+    }
+    return {
+      invoiceTotal,
+      vendorPayable,
+      margin,
+    };
+  }, [selectedRun]);
 
   const filteredInvoices = useMemo(
     () =>
       invoices.filter(
         (invoice) =>
-          !paymentForm.practiceId || invoice.practiceId === paymentForm.practiceId,
+          !paymentForm.practiceId ||
+          invoice.practiceId === paymentForm.practiceId,
       ),
     [invoices, paymentForm.practiceId],
   );
@@ -248,12 +313,27 @@ function BillingRunsPage() {
             row.original.values.period,
         },
         {
-          id: "snapshotCount",
-          accessorFn: (row: BillingRunRow) => row.values.snapshotCount,
-          header: () => "Snapshots",
+          id: "invoiceTotal",
+          accessorFn: (row: BillingRunRow) => row.values.invoiceTotal,
+          header: () => "Invoice Total",
           cell: ({ row }: { row: { original: BillingRunRow } }) =>
-            String(row.original.values.snapshotCount),
+            formatMoney(row.original.values.invoiceTotal),
         },
+        {
+          id: "vendorPayable",
+          accessorFn: (row: BillingRunRow) => row.values.vendorPayable,
+          header: () => "Vendor Payable Amount",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.vendorPayable),
+        },
+        {
+          id: "totalMargin",
+          accessorFn: (row: BillingRunRow) => row.values.totalMargin,
+          header: () => "Total Margin",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.totalMargin),
+        },
+
         {
           id: "itemCount",
           accessorFn: (row: BillingRunRow) => row.values.itemCount,
@@ -326,12 +406,66 @@ function BillingRunsPage() {
         })
         .catch((err) => {
           const message =
-            err instanceof Error ? err.message : "Failed to load billing options";
+            err instanceof Error
+              ? err.message
+              : "Failed to load billing options";
           toast.error(message);
         });
     }
   }, [showCreateForm, showPaymentForm, showDetailPanel, practices.length]);
 
+  // Load agreements when practice changes in create form
+  useEffect(() => {
+    if (!showCreateForm || !createForm.practiceId) {
+      setPracticeAgreements([]);
+      setLoadedTerms([]);
+      return;
+    }
+    setIsLoadingAgreements(true);
+    getAgreementsByPractice(createForm.practiceId)
+      .then((agreements) => {
+        const active = agreements.filter((a) => a.status === "ACTIVE");
+        setPracticeAgreements(active);
+        setCreateForm((prev) => ({
+          ...prev,
+          agreementIds: active.map((a) => a.id),
+          termInputs: {},
+        }));
+      })
+      .catch(() => {
+        setPracticeAgreements([]);
+      })
+      .finally(() => setIsLoadingAgreements(false));
+  }, [showCreateForm, createForm.practiceId]);
+
+  // Load pricing terms when selected agreements change
+  const agreementIdsKey = createForm.agreementIds.join(",");
+  useEffect(() => {
+    if (!agreementIdsKey) {
+      setLoadedTerms([]);
+      return;
+    }
+    const ids = agreementIdsKey.split(",").filter(Boolean);
+    if (ids.length === 0) {
+      setLoadedTerms([]);
+      return;
+    }
+    setIsLoadingTerms(true);
+    Promise.all(
+      ids.map((id) => {
+        const agreement = practiceAgreements.find((a) => a.id === id);
+        const currentVersion = agreement?.versions?.find((v) => v.isCurrent);
+        return getAgreementServiceTerms({
+          agreementId: id,
+          agreementVersionId: currentVersion?.id,
+          limit: 200,
+        }).then((res) => res.terms);
+      }),
+    )
+      .then((results) => setLoadedTerms(results.flat()))
+      .catch(() => setLoadedTerms([]))
+      .finally(() => setIsLoadingTerms(false));
+  }, [agreementIdsKey, practiceAgreements]);
   useEffect(() => {
     const practiceId = profilePracticeId;
     const action = profileAction;
@@ -339,9 +473,7 @@ function BillingRunsPage() {
     if (!practiceId) return;
 
     setFilters((current) =>
-      current.practiceId === practiceId
-        ? current
-        : { ...current, practiceId },
+      current.practiceId === practiceId ? current : { ...current, practiceId },
     );
 
     if (profileCreateHandled || action !== "create") return;
@@ -373,7 +505,12 @@ function BillingRunsPage() {
           toast.error(message);
         });
     }
-  }, [practices.length, profileAction, profileCreateHandled, profilePracticeId]);
+  }, [
+    practices.length,
+    profileAction,
+    profileCreateHandled,
+    profilePracticeId,
+  ]);
 
   useEffect(() => {
     if (!profileRunId || profileRunHandled) return;
@@ -415,6 +552,8 @@ function BillingRunsPage() {
   function resetCreateForm() {
     setCreateForm(initialCreateRunForm);
     setReadiness(null);
+    setPracticeAgreements([]);
+    setLoadedTerms([]);
     setShowCreateForm(false);
   }
 
@@ -424,8 +563,7 @@ function BillingRunsPage() {
   }
 
   function openCreateForm() {
-    const preselectedPracticeId =
-      filters.practiceId || profilePracticeId || "";
+    const preselectedPracticeId = filters.practiceId || profilePracticeId || "";
     setShowCreateForm(true);
     setShowDetailPanel(false);
     setShowPaymentForm(false);
@@ -436,6 +574,8 @@ function BillingRunsPage() {
       practiceId: preselectedPracticeId,
     });
     setReadiness(null);
+    setPracticeAgreements([]);
+    setLoadedTerms([]);
   }
 
   function openPaymentForm() {
@@ -449,7 +589,11 @@ function BillingRunsPage() {
 
   async function handleCreateRun(event: React.FormEvent) {
     event.preventDefault();
-    if (!createForm.practiceId || !createForm.periodStart || !createForm.periodEnd) {
+    if (
+      !createForm.practiceId ||
+      !createForm.periodStart ||
+      !createForm.periodEnd
+    ) {
       toast.error("Practice and billing period are required");
       return;
     }
@@ -459,15 +603,24 @@ function BillingRunsPage() {
       return;
     }
 
+    if (createForm.agreementIds.length === 0) {
+      toast.error("At least one agreement must be selected");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      const snapshots = buildSnapshotsFromInputs(
+        activePricingTerms,
+        createForm.termInputs,
+      );
       const run = await createBillingRunApi({
         practiceId: createForm.practiceId,
         periodStart: createForm.periodStart,
         periodEnd: createForm.periodEnd,
         notes: createForm.notes || undefined,
         autoCalculate: createForm.autoCalculate,
-        snapshots: mapSnapshotsForApi(createForm.snapshots),
+        snapshots,
       });
       await refreshRows(1);
       setPagination((prev) => ({ ...prev, page: 1 }));
@@ -484,8 +637,14 @@ function BillingRunsPage() {
   }
 
   async function checkReadiness() {
-    if (!createForm.practiceId || !createForm.periodStart || !createForm.periodEnd) {
-      toast.error("Practice and billing period are required to check readiness");
+    if (
+      !createForm.practiceId ||
+      !createForm.periodStart ||
+      !createForm.periodEnd
+    ) {
+      toast.error(
+        "Practice and billing period are required to check readiness",
+      );
       return;
     }
 
@@ -517,7 +676,11 @@ function BillingRunsPage() {
       return;
     }
 
-    if (!createForm.practiceId || !createForm.periodStart || !createForm.periodEnd) {
+    if (
+      !createForm.practiceId ||
+      !createForm.periodStart ||
+      !createForm.periodEnd
+    ) {
       setReadiness(null);
       return;
     }
@@ -571,8 +734,13 @@ function BillingRunsPage() {
 
   async function handleDeleteRun() {
     if (!selectedRun) return;
-    if (!window.confirm("Are you sure you want to delete this billing run? All associated items and snapshots will be removed. This cannot be undone.")) return;
-    
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this billing run? All associated items and snapshots will be removed. This cannot be undone.",
+      )
+    )
+      return;
+
     setIsActionLoading("calculate"); // Reuse loading state
     try {
       await deleteBillingRunApi(selectedRun.id);
@@ -582,7 +750,8 @@ function BillingRunsPage() {
       setSelectedRun(null);
       await refreshRows();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to delete billing run";
+      const message =
+        err instanceof Error ? err.message : "Failed to delete billing run";
       toast.error(message);
     } finally {
       setIsActionLoading(null);
@@ -606,7 +775,9 @@ function BillingRunsPage() {
         paymentMethod: paymentForm.paymentMethod || undefined,
         externalReference: paymentForm.externalReference || undefined,
         allocations: paymentForm.allocations
-          .filter((allocation) => allocation.invoiceId && allocation.allocatedAmount)
+          .filter(
+            (allocation) => allocation.invoiceId && allocation.allocatedAmount,
+          )
           .map((allocation) => ({
             invoiceId: allocation.invoiceId,
             allocatedAmount: Number(allocation.allocatedAmount),
@@ -667,14 +838,19 @@ function BillingRunsPage() {
               type="button"
               disabled={
                 isActionLoading !== null ||
-                selectedRun.status === "POSTED" ||
-                selectedRun.status === "CLOSED"
+                ["APPROVED", "POSTED", "CLOSED", "RUNNING"].includes(
+                  selectedRun.status,
+                )
               }
               onClick={() => handleRunAction("calculate")}
               className="app-control inline-flex items-center gap-2 rounded-md px-3 py-2 text-[12px] font-medium disabled:opacity-50"
             >
               <Play className="h-3.5 w-3.5" />
-              {isActionLoading === "calculate" ? "Calculating..." : "Calculate"}
+              {isActionLoading === "calculate"
+                ? "Calculating..."
+                : ["CALCULATED", "REVIEW_REQUIRED"].includes(selectedRun.status)
+                  ? "Re-calculate"
+                  : "Calculate"}
             </button>
             <button
               type="button"
@@ -702,85 +878,111 @@ function BillingRunsPage() {
             <button
               type="button"
               disabled={
-                isActionLoading !== null || 
-                selectedRun.status === "POSTED" || 
-                selectedRun.status === "CLOSED"
+                isActionLoading !== null ||
+                ["APPROVED", "POSTED", "CLOSED", "RUNNING"].includes(
+                  selectedRun.status,
+                )
               }
               onClick={handleDeleteRun}
               className="inline-flex items-center gap-2 rounded-md bg-white border border-slate-200 px-3 py-2 text-[12px] font-medium text-red-600 hover:bg-red-50 hover:border-red-100 disabled:opacity-50"
               title="Delete Billing Run"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              {isActionLoading === "calculate" && selectedRun.status !== "PENDING" ? "Deleting..." : "Delete"}
+              {isActionLoading === "calculate" &&
+              selectedRun.status !== "PENDING"
+                ? "Deleting..."
+                : "Delete"}
             </button>
           </div>
 
           <div className="flex-1 overflow-auto p-4">
-              <DetailCard
-                title={selectedRun?.practice?.name || "Billing Run"}
-                badge={selectedRun?.status ? { label: formatStatusLabel(selectedRun.status), className: statusStyles[selectedRun.status] } : null}
-                infoRows={[
-                  { label: "Period", value: `${formatDateTime(selectedRun.periodStart).split(",")[0]} - ${formatDateTime(selectedRun.periodEnd).split(",")[0]}` },
-                  ...(selectedRun.approvedAt ? [{ label: "Approved At", value: formatDateTime(selectedRun.approvedAt) }] : []),
-                ]}
-                metric={{ label: "Snapshots", value: String(selectedRun.inputSnapshots?.length || 0) }}
-              />
+            <DetailCard
+              title={selectedRun?.practice?.name || "Billing Run"}
+              badge={
+                selectedRun?.status
+                  ? {
+                      label: formatStatusLabel(selectedRun.status),
+                      className: statusStyles[selectedRun.status],
+                    }
+                  : null
+              }
+              infoRows={[
+                {
+                  label: "Period",
+                  value: `${formatDateTime(selectedRun.periodStart).split(",")[0]} - ${formatDateTime(selectedRun.periodEnd).split(",")[0]}`,
+                },
+                ...(selectedRun.approvedAt
+                  ? [
+                      {
+                        label: "Approved At",
+                        value: formatDateTime(selectedRun.approvedAt),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+
+            {detailTotals && (
+              <div className="mb-5 rounded-2xl border border-[#eadfcd] bg-gradient-to-br from-[#f9f4ec] via-white to-[#f4f7fb] p-4 text-[13px] space-y-3 shadow-sm">
+                <h3 className="font-semibold text-slate-800 text-[14px] border-b border-[#eadfcd]/40 pb-2">
+                  Billing Run Summary
+                </h3>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">
+                    Invoice Total
+                  </span>
+                  <span className="font-bold text-slate-800 text-[15px]">
+                    {formatMoney(detailTotals.invoiceTotal)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">
+                    Vendor Payable Amount
+                  </span>
+                  <span className="font-bold text-slate-700">
+                    {formatMoney(detailTotals.vendorPayable)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-[#eadfcd]/40 pt-2.5">
+                  <span className="text-slate-500 font-medium">
+                    Total Margin
+                  </span>
+                  <span
+                    className={`font-extrabold text-[14px] ${detailTotals.margin < 0 ? "text-rose-600" : "text-emerald-600"}`}
+                  >
+                    {formatMoney(detailTotals.margin)}
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-5 text-[13px]">
               <div>
-                <h3 className="mb-2 font-medium text-slate-700">Input Snapshots</h3>
-                <div className="space-y-2">
-                  {(selectedRun.inputSnapshots || []).length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-slate-400">
-                      No snapshots captured.
-                    </div>
-                  ) : (
-                    selectedRun.inputSnapshots?.map((snapshot) => (
-                      <div
-                        key={snapshot.id}
-                        className="rounded-lg border border-[#f0ece6] px-3 py-2"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="font-medium text-slate-700">
-                            {snapshot.metricKey}
-                          </span>
-                          <span className="text-slate-500">
-                            {snapshot.metricValue || snapshot.metricTextValue || "-"}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-[12px] text-slate-400">
-                          {snapshot.service?.name || "Run level"} ·{" "}
-                          {snapshot.sourceType || "manual"}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="mb-2 font-medium text-slate-700">Calculated Items</h3>
+                <h3 className="mb-2 font-medium text-slate-700">
+                  Calculated Items
+                </h3>
                 <div className="space-y-2">
                   {(selectedRun.items || []).length === 0 ? (
                     <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-slate-400">
-                      No billing items yet. Run Calculate to apply pricing terms.
+                      No billing items yet. Run Calculate to apply pricing
+                      terms.
                     </div>
                   ) : (
-                    selectedRun.items?.map((item) => (
+                    selectedRun.items?.map((item: any) => (
                       <div
                         key={item.id}
                         className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-3.5 transition-all duration-200 hover:border-indigo-100 hover:shadow-[0_4px_16px_rgba(0,0,0,0.035)]"
                       >
                         {/* Premium left accent indicator on hover */}
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500/80 opacity-0 transition-opacity group-hover:opacity-100" />
-                        
+
                         {/* Top Row: Service details & Client charge */}
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <h4 className="font-semibold text-slate-800 text-[14px] leading-tight truncate">
                               {item.service?.name || item.serviceId}
                             </h4>
-                            
+
                             <div className="mt-1 flex items-center gap-1.5 text-[12px] text-slate-500">
                               <span className="text-slate-400">Vendor</span>
                               <span className="font-medium text-slate-700 truncate">
@@ -790,11 +992,16 @@ function BillingRunsPage() {
                             <div className="mt-1 text-[11px] text-slate-400">
                               Agreement dates{" "}
                               {formatDateRange(
-                                item.agreementServiceTerm?.agreementVersion?.effectiveDate ??
-                                  item.agreementServiceTerm?.agreement?.effectiveDate,
-                                item.agreementServiceTerm?.agreementVersion?.endDate ??
-                                  item.agreementServiceTerm?.agreement?.terminationDate ??
-                                  item.agreementServiceTerm?.agreement?.renewalDate,
+                                item.agreementServiceTerm?.agreementVersion
+                                  ?.effectiveDate ??
+                                  item.agreementServiceTerm?.agreement
+                                    ?.effectiveDate,
+                                item.agreementServiceTerm?.agreementVersion
+                                  ?.endDate ??
+                                  item.agreementServiceTerm?.agreement
+                                    ?.terminationDate ??
+                                  item.agreementServiceTerm?.agreement
+                                    ?.renewalDate,
                               )}
                             </div>
                             <div className="mt-0.5 text-[11px] text-slate-400">
@@ -813,47 +1020,118 @@ function BillingRunsPage() {
                           </div>
                         </div>
 
-                        {/* Mid Row: Agreement Connection & Formula Snapshots */}
+                        {/* Mid Row: Pricing details from formula */}
                         <div className="mt-2.5 space-y-2 border-t border-slate-50 pt-2.5">
                           <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                             {item.agreementServiceTermId && (
                               <span className="inline-flex items-center gap-1 rounded bg-indigo-50/80 px-2 py-0.5 font-medium text-indigo-700 border border-indigo-100/40">
                                 <span className="h-1 w-1 rounded-full bg-indigo-500 animate-pulse" />
                                 Rate linked
-                                <span className="opacity-60">· {item.agreementServiceTermId.slice(0, 8)}</span>
                               </span>
                             )}
 
-                            {/* Formula snapshot badge */}
-                            {(item as any).formulaSnapshot && (
-                              <>
-                                {typeof (item as any).formulaSnapshot === "object" ? (
-                                  Object.entries((item as any).formulaSnapshot as Record<string, unknown>)
-                                    .filter(([k, v]) => 
-                                      v !== null && 
-                                      v !== undefined && 
-                                      typeof v !== "object" && 
-                                      !["id", "createdAt", "updatedAt", "agreementVersionId", "agreementServiceTermId", "releasePolicy", "billingFrequency", "pricingConfig"].includes(k)
-                                    )
-                                    .slice(0, 2)
-                                    .map(([k, v]) => {
-                                      const humanKey = k.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase());
-                                      return (
-                                        <span key={k} className="inline-flex items-center rounded bg-slate-50 px-2 py-0.5 text-slate-600 border border-slate-100 font-mono text-[10px]">
-                                          <span className="text-slate-400 mr-1">{humanKey}:</span>
-                                          <span className="font-semibold text-slate-700">{String(v)}</span>
-                                        </span>
-                                      );
-                                    })
-                                ) : (
-                                  <span className="inline-flex items-center rounded bg-slate-50 px-2 py-0.5 text-slate-600 border border-slate-100 font-mono text-[10px]">
-                                    {String((item as any).formulaSnapshot)}
+                            {/* Minimum Fee */}
+                            {(item as any).formulaSnapshot &&
+                              typeof (item as any).formulaSnapshot ===
+                                "object" &&
+                              (item as any).formulaSnapshot.minimumFee !=
+                                null && (
+                                <span className="inline-flex items-center rounded bg-slate-50 px-2 py-0.5 text-slate-600 border border-slate-100">
+                                  <span className="text-slate-400 mr-1">
+                                    Minimum Fee:
                                   </span>
-                                )}
-                              </>
-                            )}
+                                  <span className="font-semibold text-slate-700">
+                                    {formatMoney(
+                                      (item as any).formulaSnapshot.minimumFee,
+                                    )}
+                                  </span>
+                                </span>
+                              )}
+
+                            {/* Maximum Fee */}
+                            {(item as any).formulaSnapshot &&
+                              typeof (item as any).formulaSnapshot ===
+                                "object" &&
+                              (item as any).formulaSnapshot.maximumFee !=
+                                null && (
+                                <span className="inline-flex items-center rounded bg-slate-50 px-2 py-0.5 text-slate-600 border border-slate-100">
+                                  <span className="text-slate-400 mr-1">
+                                    Maximum Fee:
+                                  </span>
+                                  <span className="font-semibold text-slate-700">
+                                    {formatMoney(
+                                      (item as any).formulaSnapshot.maximumFee,
+                                    )}
+                                  </span>
+                                </span>
+                              )}
+
+                            {/* Pricing Model */}
+                            {(item as any).formulaSnapshot &&
+                              typeof (item as any).formulaSnapshot ===
+                                "object" &&
+                              (item as any).formulaSnapshot.pricingModel && (
+                                <span className="inline-flex items-center rounded bg-violet-50 px-2 py-0.5 font-medium text-violet-700 border border-violet-100/50">
+                                  {String(
+                                    (item as any).formulaSnapshot.pricingModel,
+                                  ).replace(/_/g, " ")}
+                                </span>
+                              )}
                           </div>
                         </div>
+
+                        {/* Captured Inputs Section */}
+                        {(() => {
+                          const matchingSnapshots =
+                            selectedRun.inputSnapshots?.filter(
+                              (snap) => snap.serviceId === item.serviceId,
+                            ) || [];
+                          if (matchingSnapshots.length === 0) return null;
+                          return (
+                            <div className="mt-2.5 rounded-lg border border-slate-100 bg-slate-50/40 p-2.5 text-[11px] space-y-1.5">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                Captured Inputs
+                              </span>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                {matchingSnapshots.map((snap) => {
+                                  const isCollections = [
+                                    "collections",
+                                    "revenue",
+                                    "profit",
+                                    "total_collections",
+                                    "total_revenue",
+                                    "total_profit",
+                                  ].some((k) =>
+                                    String(snap.metricKey)
+                                      .toLowerCase()
+                                      .includes(k),
+                                  );
+                                  const rawVal = Number(snap.metricValue || 0);
+                                  const formattedVal = isCollections
+                                    ? formatMoney(rawVal)
+                                    : snap.metricValue;
+                                  return (
+                                    <div
+                                      key={snap.id}
+                                      className="flex justify-between items-center text-slate-600 font-medium"
+                                    >
+                                      <span className="capitalize text-slate-500">
+                                        {String(snap.metricKey).replace(
+                                          /_/g,
+                                          " ",
+                                        )}
+                                        :
+                                      </span>
+                                      <span className="font-semibold text-slate-800">
+                                        {formattedVal}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Bottom Row: Cost and Margin summary */}
                         <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-slate-50/50 p-2 border border-slate-100/40 text-[11px]">
@@ -863,18 +1141,20 @@ function BillingRunsPage() {
                               {formatMoney(item.vendorAmount)}
                             </span>
                           </div>
-                          
+
                           <div className="flex items-center gap-1.5">
                             <span className="text-slate-400">Margin</span>
                             {(() => {
                               const margin = Number(item.marginAmount || 0);
                               const isNegative = margin < 0;
                               return (
-                                <span className={`inline-flex items-center rounded px-1.5 py-0.5 font-bold text-[10.5px] ${
-                                  isNegative 
-                                    ? 'bg-rose-50 text-rose-700 border border-rose-100/50' 
-                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-100/50'
-                                }`}>
+                                <span
+                                  className={`inline-flex items-center rounded px-1.5 py-0.5 font-bold text-[10.5px] ${
+                                    isNegative
+                                      ? "bg-rose-50 text-rose-700 border border-rose-100/50"
+                                      : "bg-emerald-50 text-emerald-700 border border-emerald-100/50"
+                                  }`}
+                                >
                                   {formatMoney(item.marginAmount)}
                                 </span>
                               );
@@ -883,19 +1163,20 @@ function BillingRunsPage() {
                         </div>
 
                         {/* Exceptions list if any exist */}
-                        {item.exceptionFlags && item.exceptionFlags.length > 0 && (
-                          <div className="mt-2.5 flex flex-wrap gap-1">
-                            {item.exceptionFlags.map((flag) => (
-                              <span
-                                key={flag}
-                                className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-100/50"
-                              >
-                                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                                {flag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        {item.exceptionFlags &&
+                          item.exceptionFlags.length > 0 && (
+                            <div className="mt-2.5 flex flex-wrap gap-1">
+                              {item.exceptionFlags.map((flag: any) => (
+                                <span
+                                  key={flag}
+                                  className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-100/50"
+                                >
+                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                  {flag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                       </div>
                     ))
                   )}
@@ -903,7 +1184,54 @@ function BillingRunsPage() {
               </div>
 
               <div>
-                <h3 className="mb-2 font-medium text-slate-700">Vendor Payables</h3>
+                <h3 className="mb-2 font-medium text-slate-700">Invoices</h3>
+                <div className="space-y-2">
+                  {(() => {
+                    const linkedInvoices = Array.from(
+                      new Map(
+                        (selectedRun.items || [])
+                          .flatMap((item: any) => item.invoiceLineItems || [])
+                          .map((line) => line.invoice)
+                          .filter(
+                            (inv): inv is NonNullable<typeof inv> => !!inv,
+                          )
+                          .map((inv) => [inv.id, inv]),
+                      ).values(),
+                    );
+                    if (linkedInvoices.length === 0) {
+                      return (
+                        <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-slate-400">
+                          No invoices created yet.
+                        </div>
+                      );
+                    }
+                    return linkedInvoices.map((invoice) => (
+                      <div
+                        key={invoice.id}
+                        className="rounded-lg border border-[#f0ece6] px-3 py-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-slate-700">
+                            {invoice.invoiceNumber ||
+                              invoice.id.slice(0, 8).toUpperCase()}
+                          </span>
+                          <span className="text-slate-700">
+                            {formatMoney(invoice.totalAmount)}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-[12px] text-slate-400">
+                          {invoice.status}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-2 font-medium text-slate-700">
+                  Vendor Payables
+                </h3>
                 <div className="space-y-2">
                   {(selectedRun.vendorPayables || []).length === 0 ? (
                     <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-slate-400">
@@ -917,7 +1245,9 @@ function BillingRunsPage() {
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-slate-700">
-                            {payable.vendor?.name || payable.payableNumber || payable.id}
+                            {payable.vendor?.name ||
+                              payable.payableNumber ||
+                              payable.id}
                           </span>
                           <span className="text-slate-700">
                             {formatMoney(payable.totalAmount)}
@@ -939,7 +1269,7 @@ function BillingRunsPage() {
   );
 
   const createPanel = (
-    <aside className="app-panel flex w-[420px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+    <aside className="app-panel flex w-[480px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
         <h2 className="text-[15px] font-semibold text-slate-700">
           Create Billing Run
@@ -965,6 +1295,8 @@ function BillingRunsPage() {
                 setCreateForm((prev) => ({
                   ...prev,
                   practiceId: event.target.value,
+                  agreementIds: [],
+                  termInputs: {},
                 }))
               }
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
@@ -1055,7 +1387,8 @@ function BillingRunsPage() {
                   Billing Readiness
                 </h3>
                 <p className="mt-1 text-[12px] text-slate-400">
-                  Checks whether the agreement, version, and service terms are ready for billing.
+                  Checks whether the agreement, version, and service terms are
+                  ready for billing.
                 </p>
               </div>
               <button
@@ -1073,7 +1406,9 @@ function BillingRunsPage() {
               </button>
             </div>
 
-            {!createForm.practiceId || !createForm.periodStart || !createForm.periodEnd ? (
+            {!createForm.practiceId ||
+            !createForm.periodStart ||
+            !createForm.periodEnd ? (
               <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-[12px] text-slate-400">
                 Select a practice and billing period to run readiness checks.
               </div>
@@ -1135,124 +1470,477 @@ function BillingRunsPage() {
             )}
           </div>
 
-          <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-[13px] font-medium text-slate-700">
-                Snapshots
+          {/* Agreements Selection */}
+          {createForm.practiceId && (
+            <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
+              <h3 className="mb-2 text-[13px] font-medium text-slate-700">
+                Agreements
               </h3>
-              <button
-                type="button"
-                onClick={() =>
-                  setCreateForm((prev) => ({
-                    ...prev,
-                    snapshots: [...prev.snapshots, initialSnapshotRow()],
-                  }))
-                }
-                className="text-[12px] text-[#4f63ea]"
-              >
-                Add snapshot
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {createForm.snapshots.map((snapshot, index) => (
-                <div key={index} className="rounded-lg border border-[#ece7df] bg-white p-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      value={snapshot.metricKey}
-                      onChange={(event) =>
-                        setCreateForm((prev) => {
-                          const next = [...prev.snapshots];
-                          next[index] = { ...next[index], metricKey: event.target.value };
-                          return { ...prev, snapshots: next };
-                        })
-                      }
-                      placeholder="Metric key"
-                      className="app-control rounded-md px-3 py-2 text-[13px]"
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={snapshot.metricValue}
-                      onChange={(event) =>
-                        setCreateForm((prev) => {
-                          const next = [...prev.snapshots];
-                          next[index] = { ...next[index], metricValue: event.target.value };
-                          return { ...prev, snapshots: next };
-                        })
-                      }
-                      placeholder="Metric value"
-                      className="app-control rounded-md px-3 py-2 text-[13px]"
-                    />
-                    <select
-                      value={snapshot.serviceId}
-                      onChange={(event) =>
-                        setCreateForm((prev) => {
-                          const next = [...prev.snapshots];
-                          next[index] = { ...next[index], serviceId: event.target.value };
-                          return { ...prev, snapshots: next };
-                        })
-                      }
-                      className="app-control rounded-md px-3 py-2 text-[13px]"
+              {isLoadingAgreements ? (
+                <div className="flex items-center gap-2 py-3 text-[12px] text-slate-400">
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  Loading agreements...
+                </div>
+              ) : practiceAgreements.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-[12px] text-slate-400">
+                  No active agreements found for this practice.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {practiceAgreements.map((agreement) => (
+                    <label
+                      key={agreement.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece7df] bg-white px-3 py-2 text-[12px] transition-colors hover:border-indigo-200 hover:bg-indigo-50/30"
                     >
-                      <option value="">Run level</option>
-                      {services.map((service) => (
-                        <option key={service.id} value={service.id}>
-                          {service.name}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      value={snapshot.sourceType}
-                      onChange={(event) =>
-                        setCreateForm((prev) => {
-                          const next = [...prev.snapshots];
-                          next[index] = { ...next[index], sourceType: event.target.value };
-                          return { ...prev, snapshots: next };
-                        })
-                      }
-                      placeholder="Source type"
-                      className="app-control rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <input
-                      type="text"
-                      value={snapshot.sourceReference}
-                      onChange={(event) =>
-                        setCreateForm((prev) => {
-                          const next = [...prev.snapshots];
-                          next[index] = {
-                            ...next[index],
-                            sourceReference: event.target.value,
-                          };
-                          return { ...prev, snapshots: next };
-                        })
-                      }
-                      placeholder="Source reference"
-                      className="app-control min-w-0 flex-1 rounded-md px-3 py-2 text-[13px]"
-                    />
-                    {createForm.snapshots.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() =>
+                      <input
+                        type="checkbox"
+                        checked={createForm.agreementIds.includes(agreement.id)}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
                           setCreateForm((prev) => ({
                             ...prev,
-                            snapshots: prev.snapshots.filter((_, rowIndex) => rowIndex !== index),
-                          }))
-                        }
-                        className="text-[12px] text-red-500"
+                            agreementIds: checked
+                              ? [...prev.agreementIds, agreement.id]
+                              : prev.agreementIds.filter(
+                                  (id) => id !== agreement.id,
+                                ),
+                          }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-slate-300"
+                      />
+                      <span className="flex-1 font-medium text-slate-700">
+                        {agreement.type}
+                      </span>
+                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                        {agreement.status}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Pricing Terms */}
+          {createForm.agreementIds.length > 0 && (
+            <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-[13px] font-medium text-slate-700">
+                  Pricing Terms{" "}
+                  {activePricingTerms.length > 0 && (
+                    <span className="ml-1 inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
+                      {activePricingTerms.length}
+                    </span>
+                  )}
+                </h3>
+              </div>
+              {isLoadingTerms ? (
+                <div className="flex items-center gap-2 py-3 text-[12px] text-slate-400">
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  Loading pricing terms...
+                </div>
+              ) : activePricingTerms.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-[12px] text-slate-400">
+                  No active pricing terms for the selected agreements and
+                  period.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {activePricingTerms.map((term) => {
+                    const preview = computeTermPreview(
+                      term,
+                      createForm.termInputs[term.id] || {},
+                    );
+                    const needsInput = modelNeedsInput(term.pricingModel);
+                    const config = (term.pricingConfig || {}) as Record<
+                      string,
+                      any
+                    >;
+
+                    return (
+                      <div
+                        key={term.id}
+                        className="overflow-hidden rounded-lg border border-[#ece7df] bg-white"
                       >
-                        Remove
-                      </button>
-                    )}
+                        {/* Term Header */}
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-50 px-3 py-2.5">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-[12px] font-semibold text-slate-800">
+                                {term.service?.name || term.serviceId}
+                              </span>
+                              <span className="inline-flex shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                                {getModelLabel(term.pricingModel)}
+                              </span>
+                            </div>
+                            {term.vendor && (
+                              <div className="mt-0.5 text-[11px] text-slate-400">
+                                Vendor: {term.vendor.name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Rate Info */}
+                        <div className="border-b border-slate-50 px-3 py-2">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+                            {!needsInput && (
+                              <span className="text-slate-500">
+                                Fixed amount:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {formatMoney(
+                                    parseFloat(config.amount) ||
+                                      parseFloat(config.rate) ||
+                                      0,
+                                  )}
+                                </span>
+                              </span>
+                            )}
+                            {[
+                              "PER_UNIT",
+                              "PER_ENCOUNTER",
+                              "PER_PATIENT",
+                              "PER_PROVIDER",
+                              "PER_SITE",
+                            ].includes(term.pricingModel) && (
+                              <span className="text-slate-500">
+                                Rate:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {formatMoney(
+                                    parseFloat(config.rate) ||
+                                      parseFloat(config.unitRate) ||
+                                      0,
+                                  )}
+                                </span>
+                                /unit
+                              </span>
+                            )}
+                            {[
+                              "PERCENT_COLLECTIONS",
+                              "PERCENT_REVENUE",
+                              "PERCENT_PROFIT",
+                              "SUCCESS_FEE",
+                            ].includes(term.pricingModel) && (
+                              <span className="text-slate-500">
+                                Rate:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {parseFloat(config.percentage) ||
+                                    parseFloat(config.ratePercent) ||
+                                    parseFloat(config.rate) ||
+                                    0}
+                                  %
+                                </span>
+                              </span>
+                            )}
+                            {config.vendorRate && (
+                              <span className="text-slate-500">
+                                Vendor rate:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {formatMoney(parseFloat(config.vendorRate))}
+                                </span>
+                              </span>
+                            )}
+                            {config.vendorFlatAmount && (
+                              <span className="text-slate-500">
+                                Vendor flat:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {formatMoney(
+                                    parseFloat(config.vendorFlatAmount),
+                                  )}
+                                </span>
+                              </span>
+                            )}
+                            {config.vendorPercentOfClient && (
+                              <span className="text-slate-500">
+                                Vendor %:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {config.vendorPercentOfClient}%
+                                </span>
+                              </span>
+                            )}
+                            {config.vendorPricing?.percentage !== undefined &&
+                              config.vendorPricing?.percentage !== "" && (
+                                <span className="text-slate-500">
+                                  Vendor %:{" "}
+                                  <span className="font-semibold text-slate-700">
+                                    {config.vendorPricing.percentage}%
+                                  </span>
+                                </span>
+                              )}
+                            {config.vendorPricing?.unitRate !== undefined &&
+                              config.vendorPricing?.unitRate !== "" && (
+                                <span className="text-slate-500">
+                                  Vendor Rate:{" "}
+                                  <span className="font-semibold text-slate-700">
+                                    {formatMoney(
+                                      parseFloat(config.vendorPricing.unitRate),
+                                    )}
+                                  </span>
+                                  /unit
+                                </span>
+                              )}
+                            {config.vendorPricing?.amount !== undefined &&
+                              config.vendorPricing?.amount !== "" && (
+                                <span className="text-slate-500">
+                                  Vendor flat:{" "}
+                                  <span className="font-semibold text-slate-700">
+                                    {formatMoney(
+                                      parseFloat(config.vendorPricing.amount),
+                                    )}
+                                  </span>
+                                </span>
+                              )}
+                            {config.minimumFee && (
+                              <span className="text-slate-500">
+                                Min fee:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {formatMoney(Number(config.minimumFee))}
+                                </span>
+                              </span>
+                            )}
+                            {config.maximumFee && (
+                              <span className="text-slate-500">
+                                Max fee:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {formatMoney(Number(config.maximumFee))}
+                                </span>
+                              </span>
+                            )}
+                            {config.vendorPricing?.minimumFee && (
+                              <span className="text-slate-500">
+                                Vendor min fee:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {formatMoney(
+                                    Number(config.vendorPricing.minimumFee),
+                                  )}
+                                </span>
+                              </span>
+                            )}
+                            {config.vendorPricing?.maximumFee && (
+                              <span className="text-slate-500">
+                                Vendor max fee:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {formatMoney(
+                                    Number(config.vendorPricing.maximumFee),
+                                  )}
+                                </span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Dynamic Input */}
+                        {needsInput && (
+                          <div className="border-b border-slate-50 px-3 py-2.5">
+                            {term.pricingModel === "PER_CPT_CODE" ? (
+                              <div className="space-y-2">
+                                <span className="text-[11px] font-medium text-slate-500">
+                                  CPT Code Quantities
+                                </span>
+                                {(Array.isArray(config.cptCodes)
+                                  ? config.cptCodes
+                                  : []
+                                ).map((cpt: any) => {
+                                  const code = String(cpt?.code || "").trim();
+                                  if (!code) return null;
+                                  return (
+                                    <div
+                                      key={code}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <span className="min-w-0 flex-1 text-[11px] text-slate-600">
+                                        <span className="font-mono font-semibold">
+                                          {code}
+                                        </span>
+                                        {cpt.description && (
+                                          <span className="ml-1 text-slate-400">
+                                            {cpt.description}
+                                          </span>
+                                        )}
+                                        <span className="ml-1 text-slate-400">
+                                          @{" "}
+                                          {formatMoney(
+                                            parseFloat(cpt.rate || "0"),
+                                          )}
+                                        </span>
+                                      </span>
+                                      <input
+                                        type="number"
+                                        step="1"
+                                        min="0"
+                                        value={
+                                          createForm.termInputs[term.id]
+                                            ?.cptQuantities?.[code] || ""
+                                        }
+                                        onChange={(event) =>
+                                          setCreateForm((prev) => ({
+                                            ...prev,
+                                            termInputs: {
+                                              ...prev.termInputs,
+                                              [term.id]: {
+                                                ...prev.termInputs[term.id],
+                                                cptQuantities: {
+                                                  ...(prev.termInputs[term.id]
+                                                    ?.cptQuantities || {}),
+                                                  [code]: event.target.value,
+                                                },
+                                              },
+                                            },
+                                          }))
+                                        }
+                                        placeholder="Qty"
+                                        className="app-control w-20 rounded-md px-2 py-1.5 text-[12px] text-right"
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : [
+                                "PERCENT_COLLECTIONS",
+                                "PERCENT_REVENUE",
+                                "PERCENT_PROFIT",
+                                "SUCCESS_FEE",
+                              ].includes(term.pricingModel) ? (
+                              <div>
+                                <label className="mb-1 block text-[11px] font-medium text-slate-500">
+                                  {getModelInputLabel(term.pricingModel)}
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={
+                                    createForm.termInputs[term.id]
+                                      ?.baseAmount || ""
+                                  }
+                                  onChange={(event) =>
+                                    setCreateForm((prev) => ({
+                                      ...prev,
+                                      termInputs: {
+                                        ...prev.termInputs,
+                                        [term.id]: {
+                                          ...prev.termInputs[term.id],
+                                          baseAmount: event.target.value,
+                                        },
+                                      },
+                                    }))
+                                  }
+                                  placeholder="0.00"
+                                  className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                                />
+                              </div>
+                            ) : (
+                              <div>
+                                <label className="mb-1 block text-[11px] font-medium text-slate-500">
+                                  {getModelInputLabel(term.pricingModel)}
+                                </label>
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="0"
+                                  value={
+                                    createForm.termInputs[term.id]?.quantity ||
+                                    ""
+                                  }
+                                  onChange={(event) =>
+                                    setCreateForm((prev) => ({
+                                      ...prev,
+                                      termInputs: {
+                                        ...prev.termInputs,
+                                        [term.id]: {
+                                          ...prev.termInputs[term.id],
+                                          quantity: event.target.value,
+                                        },
+                                      },
+                                    }))
+                                  }
+                                  placeholder="0"
+                                  className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Preview Amounts */}
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 text-[11px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400">Client</span>
+                            <span className="font-bold text-slate-800">
+                              {formatMoney(preview.clientAmount)}
+                            </span>
+                          </div>
+                          {preview.vendorAmount !== null && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-400">Vendor</span>
+                              <span className="font-semibold text-slate-600">
+                                {formatMoney(preview.vendorAmount)}
+                              </span>
+                            </div>
+                          )}
+                          {preview.marginAmount !== null && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-400">Margin</span>
+                              <span
+                                className={`font-bold ${
+                                  preview.marginAmount >= 0
+                                    ? "text-emerald-600"
+                                    : "text-rose-600"
+                                }`}
+                              >
+                                {formatMoney(preview.marginAmount)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Run Summary - Invoice & Vendor Payable Totals */}
+          {activePricingTerms.length > 0 && (
+            <div className="rounded-xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50/40 to-violet-50/30 p-3">
+              <h3 className="mb-2.5 text-[13px] font-semibold text-indigo-900">
+                Run Summary
+              </h3>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                    Invoice Total
+                  </div>
+                  <div className="mt-1 text-[14px] font-bold text-slate-800">
+                    {formatMoney(previewTotals.invoiceTotal)}
                   </div>
                 </div>
-              ))}
+                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                    Vendor Payable
+                  </div>
+                  <div className="mt-1 text-[14px] font-bold text-slate-600">
+                    {formatMoney(previewTotals.vendorTotal)}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                    Total Margin
+                  </div>
+                  <div
+                    className={`mt-1 text-[14px] font-bold ${
+                      previewTotals.marginTotal >= 0
+                        ? "text-emerald-600"
+                        : "text-rose-600"
+                    }`}
+                  >
+                    {formatMoney(previewTotals.marginTotal)}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">
@@ -1265,7 +1953,11 @@ function BillingRunsPage() {
           </button>
           <button
             type="submit"
-            disabled={isSubmitting || isReadinessLoading || (readiness !== null && !readiness.isReady)}
+            disabled={
+              isSubmitting ||
+              isReadinessLoading ||
+              (readiness !== null && !readiness.isReady)
+            }
             className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
           >
             {isSubmitting ? "Creating..." : "Create Run"}
@@ -1323,7 +2015,10 @@ function BillingRunsPage() {
               step="0.01"
               value={paymentForm.amount}
               onChange={(event) =>
-                setPaymentForm((prev) => ({ ...prev, amount: event.target.value }))
+                setPaymentForm((prev) => ({
+                  ...prev,
+                  amount: event.target.value,
+                }))
               }
               placeholder="Amount"
               className="app-control rounded-md px-3 py-2 text-[13px]"
@@ -1333,7 +2028,10 @@ function BillingRunsPage() {
               type="text"
               value={paymentForm.currency}
               onChange={(event) =>
-                setPaymentForm((prev) => ({ ...prev, currency: event.target.value }))
+                setPaymentForm((prev) => ({
+                  ...prev,
+                  currency: event.target.value,
+                }))
               }
               className="app-control rounded-md px-3 py-2 text-[13px]"
             />
@@ -1408,7 +2106,10 @@ function BillingRunsPage() {
                     onChange={(event) =>
                       setPaymentForm((prev) => {
                         const next = [...prev.allocations];
-                        next[index] = { ...next[index], invoiceId: event.target.value };
+                        next[index] = {
+                          ...next[index],
+                          invoiceId: event.target.value,
+                        };
                         return { ...prev, allocations: next };
                       })
                     }
@@ -1417,7 +2118,8 @@ function BillingRunsPage() {
                     <option value="">Select Invoice</option>
                     {filteredInvoices.map((invoice) => (
                       <option key={invoice.id} value={invoice.id}>
-                        {(invoice.invoiceNumber || invoice.id.slice(0, 8).toUpperCase()) +
+                        {(invoice.invoiceNumber ||
+                          invoice.id.slice(0, 8).toUpperCase()) +
                           " · " +
                           formatMoney(invoice.totalAmount)}
                       </option>
@@ -1663,8 +2365,8 @@ function BillingRunsPage() {
             <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
               <span className="text-[13px] text-slate-500">
                 Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
-                {pagination.total}
+                {Math.min(pagination.page * pagination.limit, pagination.total)}{" "}
+                of {pagination.total}
               </span>
               <div className="flex items-center gap-1">
                 <button

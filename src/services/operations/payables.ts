@@ -145,3 +145,31 @@ export async function syncBillPaymentToQuickBooks(id: string): Promise<any> {
     throw new Error(getErrorMessage(error, "Unable to sync bill payment to QuickBooks."));
   }
 }
+
+export async function getVendorPayableById(id: string): Promise<VendorPayable> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: `${BASE}/${id}`,
+      credentials: true,
+    });
+    return (response.data as { payable: VendorPayable }).payable;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch vendor payable."));
+  }
+}
+
+export async function payVendorPayable(id: string, paymentMethod?: string): Promise<VendorPayable> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: `${BASE}/${id}/pay`,
+      body: { paymentMethod },
+      credentials: true,
+    });
+    return (response.data as { payable: VendorPayable }).payable;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to pay vendor payable."));
+  }
+}
+
