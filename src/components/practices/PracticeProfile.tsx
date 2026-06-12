@@ -450,7 +450,11 @@ export default function PracticeProfilePage() {
       setAgreements(agreementData);
       setDeals(dealData);
       setOnboarding(onboardingData);
-      setInvoices(invoiceData.rows);
+      setInvoices(
+        invoiceData.rows.filter(
+          (invoice) => invoice.values.practiceId === practiceId,
+        ),
+      );
       const companyIds = Array.from(
         new Set(
           [practiceData.companyId, practiceData.company?.id].filter(
@@ -657,7 +661,7 @@ export default function PracticeProfilePage() {
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">Company</p>
-                  <p className="mt-1 font-semibold">
+                  <p className="mt-1 font-semibold break-words">
                     {practice.company?.name || "-"}
                   </p>
                 </div>

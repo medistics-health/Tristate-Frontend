@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Check, Search, Loader2 } from "lucide-react";
+import { ChevronDown, Check, Search, Loader2, X } from "lucide-react";
 
 export type SearchSelectOption = {
   label: string;
@@ -16,6 +16,7 @@ type SearchSelectProps = {
   className?: string;
   disabled?: boolean;
   clearOnSelect?: boolean;
+  clearable?: boolean;
 };
 
 export default function SearchSelect({
@@ -26,6 +27,7 @@ export default function SearchSelect({
   className = "",
   disabled = false,
   clearOnSelect = false,
+  clearable = false,
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -37,6 +39,12 @@ export default function SearchSelect({
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
 
   const [selectedOption, setSelectedOption] = useState<SearchSelectOption | null>(null);
+
+  useEffect(() => {
+    if (!value) {
+      setSelectedOption(null);
+    }
+  }, [value]);
 
   // Initial search or search on query change
   useEffect(() => {
@@ -103,6 +111,7 @@ export default function SearchSelect({
     onChange(option.value, option);
     setIsOpen(false);
     if (clearOnSelect) {
+      setSelectedOption(null);
       setQuery("");
     }
   };
@@ -181,6 +190,20 @@ export default function SearchSelect({
         </span>
         <div className="flex items-center gap-1.5 ml-2">
             {isLoading && isOpen && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#4f63ea]" />}
+            {clearable && (value || selectedOption) ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSelectedOption(null);
+                  setQuery("");
+                  onChange("");
+                }}
+                className="rounded p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-red-500"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
             <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </div>
       </div>
