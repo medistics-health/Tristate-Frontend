@@ -657,7 +657,7 @@ export default function PracticeProfilePage() {
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">Company</p>
-                  <p className="mt-1 font-semibold">
+                  <p className="mt-1 font-semibold break-words">
                     {practice.company?.name || "-"}
                   </p>
                 </div>
