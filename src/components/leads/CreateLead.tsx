@@ -118,6 +118,7 @@ type LeadFormState = {
   practiceRegion: string;
   practiceSource: PracticeSource;
   practiceBucket: string;
+  practiceTaxIdKey: string;
 
   // Contact
   contactRelation: RelationType;
@@ -181,6 +182,7 @@ const initialFormState: LeadFormState = {
   practiceRegion: "",
   practiceSource: "DIRECT",
   practiceBucket: "",
+  practiceTaxIdKey: "",
 
   contactRelation: "new",
   selectedContactId: "",
@@ -327,6 +329,10 @@ function formatTaxIdLabel(taxId?: { taxIdNumber: string; legalEntityName: string
   return `${taxId.taxIdNumber} - ${taxId.legalEntityName}`;
 }
 
+function getNewCompanyTaxIdKey(index: number) {
+  return `new:${index}`;
+}
+
 function CreateLeadPage() {
   const navigate = useNavigate();
   const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
@@ -347,14 +353,26 @@ function CreateLeadPage() {
   // Agreement Redirect State
   const [showAgreementModal, setShowAgreementModal] = useState(false);
 
-  const visibleCompanyTaxIdLabel =
+  const companyTaxIdOptions =
     form.companyRelation === "existing"
-      ? formatTaxIdLabel(selectedCompany?.taxIds?.[0])
-      : formatTaxIdLabel(
-          form.taxIds.find(
-            (taxId) => taxId.taxIdNumber.trim() && taxId.legalEntityName.trim(),
-          ),
-        );
+      ? (selectedCompany?.taxIds ?? [])
+          .filter((taxId) => taxId.status !== "INACTIVE")
+          .map((taxId) => ({
+            key: taxId.id,
+            label: formatTaxIdLabel(taxId),
+          }))
+      : form.taxIds
+          .map((taxId, index) => ({
+            key: getNewCompanyTaxIdKey(index),
+            label: formatTaxIdLabel(taxId),
+          }))
+          .filter((option) => Boolean(option.label));
+
+  const selectedCompanyTaxIdLabel =
+    companyTaxIdOptions.find((option) => option.key === form.practiceTaxIdKey)
+      ?.label ||
+    companyTaxIdOptions[0]?.label ||
+    "";
 
   const performLeadCreation = async (withAgreement: boolean = false) => {
     setIsSaving(true);
@@ -404,9 +422,32 @@ function CreateLeadPage() {
         createdCompanyId = companyRow.id;
       }
 
-      const companyTaxIdId = companyId
-        ? (await getCompany(companyId).catch(() => null))?.taxIds?.[0]?.id
-        : undefined;
+      const savedCompany = companyId
+        ? await getCompany(companyId).catch(() => null)
+        : null;
+      const selectedNewCompanyTaxIdIndex = form.practiceTaxIdKey.startsWith(
+        "new:",
+      )
+        ? Number(form.practiceTaxIdKey.replace("new:", ""))
+        : -1;
+      const selectedNewCompanyTaxId =
+        selectedNewCompanyTaxIdIndex >= 0
+          ? form.taxIds[selectedNewCompanyTaxIdIndex]
+          : undefined;
+      const companyTaxIdId =
+        form.companyRelation === "existing"
+          ? savedCompany?.taxIds?.find(
+              (taxId) => taxId.id === form.practiceTaxIdKey,
+            )?.id || savedCompany?.taxIds?.[0]?.id
+          : savedCompany?.taxIds?.find(
+              (taxId) =>
+                taxId.taxIdNumber ===
+                  selectedNewCompanyTaxId?.taxIdNumber.trim() &&
+                taxId.legalEntityName ===
+                  selectedNewCompanyTaxId?.legalEntityName.trim(),
+            )?.id ||
+            savedCompany?.taxIds?.[selectedNewCompanyTaxIdIndex]?.id ||
+            savedCompany?.taxIds?.[0]?.id;
 
       // 2. Handle Practice
       if (form.practiceRelation === "new") {
@@ -798,6 +839,19 @@ function CreateLeadPage() {
       }));
     }
   }, [form.selectedPracticeId]);
+
+  useEffect(() => {
+    const selectedKeyStillExists = companyTaxIdOptions.some(
+      (option) => option.key === form.practiceTaxIdKey,
+    );
+    const nextKey = selectedKeyStillExists
+      ? form.practiceTaxIdKey
+      : (companyTaxIdOptions[0]?.key ?? "");
+
+    if (nextKey !== form.practiceTaxIdKey) {
+      setForm((current) => ({ ...current, practiceTaxIdKey: nextKey }));
+    }
+  }, [companyTaxIdOptions, form.practiceTaxIdKey]);
 
   const updateField = useCallback(
     <K extends keyof LeadFormState>(field: K, value: LeadFormState[K]) => {
@@ -1765,12 +1819,31 @@ function CreateLeadPage() {
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
                           Tax ID
                         </span>
-                        <input
-                          type="text"
-                          value={visibleCompanyTaxIdLabel || "No company Tax ID selected"}
-                          readOnly
-                          className="app-control w-full rounded-md bg-slate-100 px-3 py-2 text-[13px] text-slate-500"
-                        />
+                        {companyTaxIdOptions.length > 1 ? (
+                          <select
+                            value={form.practiceTaxIdKey}
+                            onChange={(e) =>
+                              updateField("practiceTaxIdKey", e.target.value)
+                            }
+                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                          >
+                            {companyTaxIdOptions.map((option) => (
+                              <option key={option.key} value={option.key}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={
+                              selectedCompanyTaxIdLabel ||
+                              "No company Tax ID selected"
+                            }
+                            readOnly
+                            className="app-control w-full rounded-md bg-slate-100 px-3 py-2 text-[13px] text-slate-500"
+                          />
+                        )}
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">

@@ -36,6 +36,10 @@ import {
   getPractice,
   type Practice,
 } from "../../services/operations/practices";
+import {
+  getDealsByPractice,
+  type Deal,
+} from "../../services/operations/deals";
 import { getPricingTerms } from "../../services/operations/pricingEngine";
 
 function formatDate(value?: string | null) {
@@ -304,6 +308,7 @@ export default function PracticeProfilePage() {
   const { id } = useParams();
   const [practice, setPractice] = useState<Practice | null>(null);
   const [agreements, setAgreements] = useState<Agreement[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
   const [onboarding, setOnboarding] = useState<Onboarding | null>(null);
   const [associatedCompanies, setAssociatedCompanies] = useState<Company[]>([]);
   const [billingRuns, setBillingRuns] = useState<BillingRunRow[]>([]);
@@ -353,6 +358,44 @@ export default function PracticeProfilePage() {
     [agreements],
   );
 
+  const selectedPracticeServices = useMemo(() => {
+    const serviceMap = new Map<string, string>();
+    const addService = (id: string | undefined, name: string | undefined) => {
+      const serviceName = name?.trim();
+      const serviceKey = id || serviceName;
+      if (!serviceKey || !serviceName) return;
+
+      serviceMap.set(serviceKey, serviceName);
+    };
+
+    const addTermService = (term: AgreementServiceTerm) => {
+      if (term.isActive === false) return;
+
+      addService(term.service?.id || term.serviceId, term.service?.name);
+    };
+
+    deals.forEach((deal) => {
+      deal.selectedServices?.forEach((selectedService) =>
+        addService(
+          selectedService.serviceId || selectedService.service?.id,
+          selectedService.service?.name,
+        ),
+      );
+      deal.selectedServiceNames?.forEach((serviceName, index) =>
+        addService(deal.selectedServiceIds?.[index], serviceName),
+      );
+    });
+    agreements.forEach((agreement) => {
+      agreement.serviceTerms?.forEach(addTermService);
+      agreement.versions?.forEach((version) =>
+        version.serviceTerms?.forEach(addTermService),
+      );
+    });
+    terms.forEach(addTermService);
+
+    return Array.from(serviceMap, ([id, name]) => ({ id, name }));
+  }, [agreements, deals, terms]);
+
   const isPracticeActive = practice?.status === "ACTIVE";
   const hasActiveAgreement = activeAgreements.length > 0;
   const canUsePricingAndBilling = isPracticeActive && hasActiveAgreement;
@@ -375,10 +418,17 @@ export default function PracticeProfilePage() {
     if (!practiceId) return;
     setIsLoading(true);
     try {
-      const [practiceData, agreementData, onboardingData, billingData] =
+      const [
+        practiceData,
+        agreementData,
+        dealData,
+        onboardingData,
+        billingData,
+      ] =
         await Promise.all([
           getPractice(practiceId),
           getAgreementsByPractice(practiceId).catch(() => [] as Agreement[]),
+          getDealsByPractice(practiceId).catch(() => [] as Deal[]),
           getExternalOnboardingByPracticeId(practiceId).catch(() => null),
           getBillingRunsView({ practiceId, limit: 5 }).catch(() => ({
             rows: [] as BillingRunRow[],
@@ -388,6 +438,7 @@ export default function PracticeProfilePage() {
 
       setPractice(practiceData);
       setAgreements(agreementData);
+      setDeals(dealData);
       setOnboarding(onboardingData);
       const companyIds = Array.from(
         new Set(
@@ -652,6 +703,25 @@ export default function PracticeProfilePage() {
                 label="Practice Group"
                 value={practice.practiceGroup?.name}
               />
+              <InfoRow
+                label="Selected Services"
+                value={
+                  selectedPracticeServices.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedPracticeServices.map((service) => (
+                        <span
+                          key={service.id}
+                          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                        >
+                          {service.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    "-"
+                  )
+                }
+              />
               <InfoRow label="Bucket" value={practice.bucket?.join(", ")} />
               <InfoRow
                 label="Created"
@@ -697,14 +767,14 @@ export default function PracticeProfilePage() {
           title="Associated Companies"
           description="Companies linked to this practice."
           scrollable
-          action={
-            <Link
-              to="/company/all-companies?action=create"
-              className="text-sm font-semibold text-slate-600 hover:text-slate-950"
-            >
-              Add Company
-            </Link>
-          }
+          // action={
+          //   <Link
+          //     to="/company/all-companies?action=create"
+          //     className="text-sm font-semibold text-slate-600 hover:text-slate-950"
+          //   >
+          //     Add Company
+          //   </Link>
+          // }
         >
           {associatedCompanies.length ? (
             <div className="grid gap-3 lg:grid-cols-2">
@@ -777,11 +847,18 @@ export default function PracticeProfilePage() {
             description="Review all agreements connected to this practice, including versions and signing status."
             scrollable
             action={
+              // <Link
+              //   to={`/agreements/all-agreements?practiceId=${practice.id}`}
+              //   className="text-sm font-semibold text-slate-600 hover:text-slate-950"
+              // >
+              //   Full module
+              // </Link>
               <Link
-                to={`/agreements/all-agreements?practiceId=${practice.id}`}
-                className="text-sm font-semibold text-slate-600 hover:text-slate-950"
+                to={`/agreements/all-agreements?practiceId=${practice.id}&action=create`}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
               >
-                Full module
+                Create New Agreements
+                <ArrowRight className="h-4 w-4" />
               </Link>
             }
           >
@@ -1035,13 +1112,13 @@ export default function PracticeProfilePage() {
                     place.
                   </p>
                 </div>
-                <Link
+                {/*<Link
                   to={`/agreements/all-agreements?practiceId=${practice.id}&action=create`}
                   className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
                 >
                   Create in Agreements
                   <ArrowRight className="h-4 w-4" />
-                </Link>
+                </Link>*/}
               </div>
             </div>
 
