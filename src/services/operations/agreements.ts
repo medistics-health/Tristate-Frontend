@@ -131,6 +131,9 @@ export type DocusealSubmission = {
   submissionApprovalStatus?: string | null;
   submissionApprovalNote?: string | null;
   url?: string | null;
+  signedDocUrl?: string | null;
+  signedDocUrls?: string | null;
+  auditLogUrl?: string | null;
   embedUrl?: string | null;
   slug?: string | null;
   submitterUuid?: string | null;

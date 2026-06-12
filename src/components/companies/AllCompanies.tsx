@@ -32,6 +32,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import AppLayout from "../layout/AppLayout";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
@@ -47,6 +48,7 @@ import {
   getCompaniesView,
   getCompany,
   updateCompanyApi,
+  type Company,
   type CompanyQueryParams,
 } from "../../services/operations/companies";
 import toast from "react-hot-toast";
@@ -122,7 +124,66 @@ const initialFormData: CompanyFormData = {
   taxIds: [{ taxIdNumber: "", legalEntityName: "", notes: "" }],
 };
 
+function companyToPanelRow(company: Company): CompanyRow {
+  return {
+    id: company.id,
+    values: {
+      id: company.id,
+      name: company.name,
+      domain: company.domain || "",
+      industry: company.industry || "",
+      size: company.size || 0,
+      revenue: company.revenue || 0,
+      phone: company.phone || "",
+      email: company.email || "",
+      website: company.website || "",
+      status: company.status,
+      street: company.street || "",
+      city: company.city || "",
+      state: company.state || "",
+      country: company.country || "",
+      zip: company.zip || "",
+      creationDate: new Date(company.createdAt).toLocaleString(),
+      lastUpdate: new Date(company.updatedAt).toLocaleString(),
+      practicesCount: company._count?.practices || 0,
+      practiceGroupsCount: company._count?.practiceGroups || 0,
+      taxIds: company.taxIds?.map((taxId) => taxId.taxIdNumber).join(", ") || "",
+    },
+  };
+}
+
+function companyToFormData(company: Company): CompanyFormData {
+  return {
+    name: company.name || "",
+    domain: company.domain || "",
+    industry: company.industry || "",
+    size: company.size ? String(company.size) : "",
+    revenue: company.revenue ? String(company.revenue) : "",
+    phone: company.phone || "",
+    email: company.email || "",
+    website: company.website || "",
+    status: company.status || "LEAD",
+    street: company.street || "",
+    city: company.city || "",
+    state: company.state || "",
+    zip: company.zip || "",
+    country: company.country || "",
+    taxIds:
+      company.taxIds && company.taxIds.length > 0
+        ? company.taxIds.map((taxId) => ({
+            id: taxId.id,
+            taxIdNumber: taxId.taxIdNumber,
+            legalEntityName: taxId.legalEntityName,
+            notes: taxId.notes || "",
+          }))
+        : [{ taxIdNumber: "", legalEntityName: "", notes: "" }],
+  };
+}
+
 export default function AllCompaniesPage() {
+  const [searchParams] = useSearchParams();
+  const profileCompanyId = searchParams.get("companyId") || "";
+  const profileAction = searchParams.get("action") || "";
   const [viewData, setViewData] = useState<CompanyViewData | null>(null);
   const [rows, setRows] = useState<CompanyRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -154,6 +215,7 @@ export default function AllCompaniesPage() {
     industry: "",
   });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [profileActionHandled, setProfileActionHandled] = useState(false);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
@@ -200,6 +262,21 @@ export default function AllCompaniesPage() {
       loadData();
     }
   }, [pagination.page, pagination.limit, sorting, filters]);
+
+  useEffect(() => {
+    if (profileActionHandled) return;
+
+    if (profileAction === "create") {
+      setProfileActionHandled(true);
+      openCreateForm();
+      return;
+    }
+
+    if (profileCompanyId) {
+      setProfileActionHandled(true);
+      void openCompanyPanel(profileCompanyId, profileAction);
+    }
+  }, [profileAction, profileActionHandled, profileCompanyId]);
 
   // useEffect(() => {
   //   setPagination((prev) => ({ ...prev, page: 1 }));
@@ -364,45 +441,29 @@ export default function AllCompaniesPage() {
     setFormData(initialFormData);
   }
 
-  async function handleRowClick(rowId: string) {
-    setSelectedRowId(rowId);
+  async function openCompanyPanel(companyId: string, mode?: string) {
+    setSelectedRowId(companyId);
     setShowDetailPanel(true);
     setShowCreateForm(false);
+    setIsEditing(mode === "edit");
 
-    const row = rows.find((r) => r.id === rowId);
-    if (row) {
-      try {
-        const fullCompany = await getCompany(rowId);
-        const values = row.values;
-        setFormData({
-          name: String(values.name || ""),
-          domain: String(values.domain || ""),
-          industry: String(values.industry || ""),
-          size: String(values.size || ""),
-          revenue: String(values.revenue || ""),
-          phone: String(values.phone || ""),
-          email: String(values.email || ""),
-          website: String(values.website || ""),
-          status: String(values.status || "LEAD"),
-          street: String(values.street || ""),
-          city: String(values.city || ""),
-          state: String(values.state || ""),
-          zip: String(values.zip || ""),
-          country: String(values.country || ""),
-          taxIds:
-            fullCompany.taxIds && fullCompany.taxIds.length > 0
-              ? fullCompany.taxIds.map((t) => ({
-                  id: t.id,
-                  taxIdNumber: t.taxIdNumber,
-                  legalEntityName: t.legalEntityName,
-                  notes: t.notes || "",
-                }))
-              : [{ taxIdNumber: "", legalEntityName: "", notes: "" }],
-        });
-      } catch (err) {
-        console.error("Failed to fetch company details:", err);
-      }
+    try {
+      const fullCompany = await getCompany(companyId);
+      const panelRow = companyToPanelRow(fullCompany);
+      setRows((current) =>
+        current.some((row) => row.id === companyId)
+          ? current.map((row) => (row.id === companyId ? panelRow : row))
+          : [panelRow, ...current],
+      );
+      setFormData(companyToFormData(fullCompany));
+    } catch (err) {
+      console.error("Failed to fetch company details:", err);
+      toast.error("Failed to fetch company details");
     }
+  }
+
+  async function handleRowClick(rowId: string) {
+    await openCompanyPanel(rowId);
   }
 
   function closeDetailPanel() {

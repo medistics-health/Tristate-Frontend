@@ -278,6 +278,8 @@ function AllAgreementsPage() {
   const [templateSearch, setTemplateSearch] = useState("");
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const [profileCreateHandled, setProfileCreateHandled] = useState(false);
+  const [profileAgreementOpenHandled, setProfileAgreementOpenHandled] =
+    useState(false);
   const templateDropdownRef = useRef<HTMLDivElement>(null);
   const createFormAutoFilledValuesRef = useRef<
     Record<string, Record<string, string>>
@@ -524,6 +526,29 @@ function AllAgreementsPage() {
     profileCreateHandled,
     searchParams,
   ]);
+
+  useEffect(() => {
+    const agreementId = searchParams.get("agreementId");
+    const tab = searchParams.get("tab");
+    const action = searchParams.get("action");
+
+    if (
+      profileAgreementOpenHandled ||
+      action === "create" ||
+      !agreementId
+    ) {
+      return;
+    }
+
+    setProfileAgreementOpenHandled(true);
+    void (async () => {
+      await handleRowClick(agreementId);
+      if (tab === "versions") {
+        setActiveTab("versions");
+        await loadVersions(agreementId);
+      }
+    })();
+  }, [profileAgreementOpenHandled, searchParams]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

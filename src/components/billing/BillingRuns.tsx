@@ -160,6 +160,7 @@ function BillingRunsPage() {
   const [searchParams] = useSearchParams();
   const profilePracticeId = searchParams.get("practiceId") || "";
   const profileAction = searchParams.get("action") || "";
+  const profileRunId = searchParams.get("runId") || "";
   const [rows, setRows] = useState<BillingRunRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -185,6 +186,7 @@ function BillingRunsPage() {
   });
   const [filters, setFilters] = useState({ practiceId: "", status: "" });
   const [profileCreateHandled, setProfileCreateHandled] = useState(false);
+  const [profileRunHandled, setProfileRunHandled] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([
     { id: "createdAt", desc: true },
   ]);
@@ -509,6 +511,13 @@ function BillingRunsPage() {
     profileCreateHandled,
     profilePracticeId,
   ]);
+
+  useEffect(() => {
+    if (!profileRunId || profileRunHandled) return;
+
+    setProfileRunHandled(true);
+    void handleRowClick(profileRunId);
+  }, [profileRunHandled, profileRunId]);
 
   async function refreshRows(targetPage = pagination.page) {
     const data = await getBillingRunsView({
