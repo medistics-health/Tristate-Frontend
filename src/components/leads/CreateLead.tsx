@@ -342,6 +342,7 @@ function CreateLeadPage() {
   const [templates, setTemplates] = useState<DocusealTemplate[]>([]);
   const [existingAgreements, setExistingAgreements] = useState<Agreement[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [selectedPracticeLabel, setSelectedPracticeLabel] = useState("");
   const [isLoadingServices, setIsLoadingServices] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -373,6 +374,51 @@ function CreateLeadPage() {
       ?.label ||
     companyTaxIdOptions[0]?.label ||
     "";
+
+  const primaryLinkedCompanyName =
+    form.companyRelation === "existing"
+      ? selectedCompany?.name || ""
+      : form.companyName.trim();
+  const primaryLinkedPracticeName =
+    form.practiceRelation === "existing"
+      ? selectedPracticeLabel
+      : form.practiceName.trim();
+  const linkedCompanyLabels = [
+    ...(primaryLinkedCompanyName
+      ? [
+          {
+            id: form.selectedCompanyId || "primary-company",
+            name: primaryLinkedCompanyName,
+            removable: false,
+          },
+        ]
+      : []),
+    ...form.contactCompanyIds
+      .filter((company) => company.id !== form.selectedCompanyId)
+      .map((company) => ({
+        id: company.id,
+        name: company.name,
+        removable: true,
+      })),
+  ];
+  const linkedPracticeLabels = [
+    ...(primaryLinkedPracticeName
+      ? [
+          {
+            id: form.selectedPracticeId || "primary-practice",
+            name: primaryLinkedPracticeName,
+            removable: false,
+          },
+        ]
+      : []),
+    ...form.contactPracticeIds
+      .filter((practice) => practice.id !== form.selectedPracticeId)
+      .map((practice) => ({
+        id: practice.id,
+        name: practice.name,
+        removable: true,
+      })),
+  ];
 
   const performLeadCreation = async (withAgreement: boolean = false) => {
     setIsSaving(true);
@@ -887,6 +933,7 @@ function CreateLeadPage() {
     }));
 
     if (relation === "new") {
+      setSelectedPracticeLabel("");
       setExistingAgreements([]);
     }
   };
@@ -1169,12 +1216,20 @@ function CreateLeadPage() {
     }));
   };
 
-  const handlePracticeSelect = async (practiceId: string) => {
+  const handlePracticeSelect = async (
+    practiceId: string,
+    option?: SearchSelectOption,
+  ) => {
     updateField("selectedPracticeId", practiceId);
-    if (!practiceId) return;
+    setSelectedPracticeLabel(option?.label || "");
+    if (!practiceId) {
+      setSelectedPracticeLabel("");
+      return;
+    }
 
     try {
       const fullPractice = await getPractice(practiceId);
+      setSelectedPracticeLabel(fullPractice.name || option?.label || "");
       if (fullPractice.companyId) {
         updateField("selectedCompanyId", fullPractice.companyId);
         updateField("companyRelation", "existing");
@@ -1770,7 +1825,7 @@ function CreateLeadPage() {
                       </span>
                       <SearchSelect
                         value={form.selectedPracticeId}
-                        onChange={(val) => handlePracticeSelect(val)}
+                        onChange={(val, opt) => handlePracticeSelect(val, opt)}
                         onSearch={handleSearchPractices}
                         placeholder={
                           form.selectedCompanyId
@@ -2001,6 +2056,102 @@ function CreateLeadPage() {
                   </div>
                 </div>
 
+                <div className="rounded-xl border border-[#f0ece6] bg-[#fafafa] p-4">
+                  <div className="mb-3 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <span className="mb-2 block text-[12px] font-medium text-slate-600">
+                        Link to Companies
+                      </span>
+                      <SearchSelect
+                        value=""
+                        onChange={(val, opt) => addContactCompanyId(val, opt)}
+                        onSearch={handleSearchCompanies}
+                        placeholder="Search and select companies..."
+                        clearOnSelect
+                      />
+                    </div>
+                    <div>
+                      <span className="mb-2 block text-[12px] font-medium text-slate-600">
+                        Link to Practices
+                      </span>
+                      <SearchSelect
+                        value=""
+                        onChange={(val, opt) => addContactPracticeId(val, opt)}
+                        onSearch={handleSearchAllPractices}
+                        placeholder="Search and select practices..."
+                        clearOnSelect
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Person will link to companies
+                      </span>
+                      {linkedCompanyLabels.length ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {linkedCompanyLabels.map((company) => (
+                            <span
+                              key={company.id}
+                              className="inline-flex items-center gap-1 rounded-md bg-[#e8f5e9] px-2 py-1 text-[12px] text-[#2e7d32]"
+                            >
+                              {company.name}
+                              {company.removable ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    removeContactCompanyId(company.id)
+                                  }
+                                  className="hover:text-red-500"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              ) : null}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-[12px] text-slate-500">
+                          Select or create a company.
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Person will link to practices
+                      </span>
+                      {linkedPracticeLabels.length ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {linkedPracticeLabels.map((practice) => (
+                            <span
+                              key={practice.id}
+                              className="inline-flex items-center gap-1 rounded-md bg-[#e8e5f9] px-2 py-1 text-[12px] text-[#4f63ea]"
+                            >
+                              {practice.name}
+                              {practice.removable ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    removeContactPracticeId(practice.id)
+                                  }
+                                  className="hover:text-red-500"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              ) : null}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-[12px] text-slate-500">
+                          Select or create a practice.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {form.contactRelation === "existing" ? (
                   <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="block">
@@ -2107,70 +2258,6 @@ function CreateLeadPage() {
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </label>
-                    <div className="md:col-span-2 border-t border-[#e8e4dc] pt-3">
-                      <span className="mb-2 block text-[12px] font-medium text-slate-600">
-                        Link to Companies
-                      </span>
-                      <SearchSelect
-                        value=""
-                        onChange={(val, opt) => addContactCompanyId(val, opt)}
-                        onSearch={handleSearchCompanies}
-                        placeholder="Search and select companies..."
-                        clearOnSelect
-                      />
-                      {form.contactCompanyIds.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {form.contactCompanyIds.map((entry) => (
-                            <span
-                              key={entry.id}
-                              className="inline-flex items-center gap-1 rounded-md bg-[#e8f5e9] px-2 py-1 text-[12px] text-[#2e7d32]"
-                            >
-                              {entry.name}
-                              <button
-                                type="button"
-                                onClick={() => removeContactCompanyId(entry.id)}
-                                className="hover:text-red-500"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="md:col-span-2 border-t border-[#e8e4dc] pt-3">
-                      <span className="mb-2 block text-[12px] font-medium text-slate-600">
-                        Link to Practices
-                      </span>
-                      <SearchSelect
-                        value=""
-                        onChange={(val, opt) => addContactPracticeId(val, opt)}
-                        onSearch={handleSearchAllPractices}
-                        placeholder="Search and select practices..."
-                        clearOnSelect
-                      />
-                      {form.contactPracticeIds.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {form.contactPracticeIds.map((entry) => (
-                            <span
-                              key={entry.id}
-                              className="inline-flex items-center gap-1 rounded-md bg-[#e8e5f9] px-2 py-1 text-[12px] text-[#4f63ea]"
-                            >
-                              {entry.name}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  removeContactPracticeId(entry.id)
-                                }
-                                className="hover:text-red-500"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   </div>
                 )}
               </div>

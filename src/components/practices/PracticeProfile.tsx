@@ -36,10 +36,7 @@ import {
   getPractice,
   type Practice,
 } from "../../services/operations/practices";
-import {
-  getDealsByPractice,
-  type Deal,
-} from "../../services/operations/deals";
+import { getDealsByPractice, type Deal } from "../../services/operations/deals";
 import { getPricingTerms } from "../../services/operations/pricingEngine";
 
 function formatDate(value?: string | null) {
@@ -145,19 +142,20 @@ function getAgreementSignedDocuments(agreement: Agreement) {
         }),
       );
 
-      const auditUrl = submission.auditLogUrl
-        ? [
-            {
-              id: `${submission.id}-audit`,
-              url: submission.auditLogUrl,
-              label: "Audit log",
-              kind: "Audit Log",
-              updatedAt: submission.updatedAt,
-            },
-          ]
-        : [];
+      // const auditUrl = submission.auditLogUrl
+      //   ? [
+      //       {
+      //         id: `${submission.id}-audit`,
+      //         url: submission.auditLogUrl,
+      //         label: "Audit log",
+      //         kind: "Audit Log",
+      //         updatedAt: submission.updatedAt,
+      //       },
+      //     ]
+      //   : [];
 
-      return [...signedUrls, ...auditUrl];
+      // return [...signedUrls, ...auditUrl];
+      return [...signedUrls];
     });
 }
 
@@ -424,17 +422,16 @@ export default function PracticeProfilePage() {
         dealData,
         onboardingData,
         billingData,
-      ] =
-        await Promise.all([
-          getPractice(practiceId),
-          getAgreementsByPractice(practiceId).catch(() => [] as Agreement[]),
-          getDealsByPractice(practiceId).catch(() => [] as Deal[]),
-          getExternalOnboardingByPracticeId(practiceId).catch(() => null),
-          getBillingRunsView({ practiceId, limit: 5 }).catch(() => ({
-            rows: [] as BillingRunRow[],
-            pagination: { page: 1, limit: 5, total: 0, totalPages: 0 },
-          })),
-        ]);
+      ] = await Promise.all([
+        getPractice(practiceId),
+        getAgreementsByPractice(practiceId).catch(() => [] as Agreement[]),
+        getDealsByPractice(practiceId).catch(() => [] as Deal[]),
+        getExternalOnboardingByPracticeId(practiceId).catch(() => null),
+        getBillingRunsView({ practiceId, limit: 5 }).catch(() => ({
+          rows: [] as BillingRunRow[],
+          pagination: { page: 1, limit: 5, total: 0, totalPages: 0 },
+        })),
+      ]);
 
       setPractice(practiceData);
       setAgreements(agreementData);
