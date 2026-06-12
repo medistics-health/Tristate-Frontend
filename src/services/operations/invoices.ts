@@ -79,6 +79,7 @@ export type InvoiceRow = {
   id: string;
   values: {
     id: string;
+    practiceId: string;
     practiceName: string;
     agreementLabel: string;
     agreementId: string;
@@ -179,6 +180,7 @@ function invoiceToRow(invoice: Invoice): InvoiceRow {
     id: invoice.id,
     values: {
       id: invoice.id,
+      practiceId: invoice.practiceId,
       practiceName: invoice.practice?.name || "-",
       agreementLabel,
       agreementId: invoice.agreementId || "",

@@ -3053,7 +3053,9 @@ function CreateLeadPage() {
                 ? "Create Lead & Send Agreement?"
                 : "Create Lead & Send Agreement for Approval?"
               : form.agreement.action === "link"
-                ? "Create Lead & Link Agreement?"
+                ? isAdmin
+                  ? "Create Lead & Send Agreement?"
+                  : "Create Lead & Send Agreement for Approval?"
                 : "Create Lead?"
         }
         message={
@@ -3064,7 +3066,9 @@ function CreateLeadPage() {
                 ? `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and trigger the signature request now?`
                 : `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and send the agreement for admin approval?`
               : form.agreement.action === "link"
-                ? "Would you like to create the lead and link it to the selected existing agreement?"
+                ? isAdmin
+                  ? "You have selected an existing agreement. This will create the lead and send the agreement directly to the client."
+                  : "You have selected an existing agreement. This will create the lead and send the agreement for admin approval before it goes to the client."
                 : "Would you like to create the lead without creating or linking an agreement?"
         }
         confirmLabel={
@@ -3075,7 +3079,7 @@ function CreateLeadPage() {
                 ? "Create & Send Now"
                 : "Create & Send for Approval"
               : form.agreement.action === "link"
-                ? "Create & Link"
+                ? "Create & Send"
                 : "Create Lead"
         }
         cancelLabel="Cancel"

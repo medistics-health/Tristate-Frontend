@@ -450,7 +450,11 @@ export default function PracticeProfilePage() {
       setAgreements(agreementData);
       setDeals(dealData);
       setOnboarding(onboardingData);
-      setInvoices(invoiceData.rows);
+      setInvoices(
+        invoiceData.rows.filter(
+          (invoice) => invoice.values.practiceId === practiceId,
+        ),
+      );
       const companyIds = Array.from(
         new Set(
           [practiceData.companyId, practiceData.company?.id].filter(
