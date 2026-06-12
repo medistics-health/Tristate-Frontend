@@ -29,6 +29,7 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
@@ -1862,44 +1863,43 @@ export default function AllPracticePage() {
                 };
                 const status = String(selectedRow.values.status || "");
                 return (
-                  <DetailCard
-                    title={String(selectedRow.values.name || "Practice")}
-                    badge={
-                      status
-                        ? {
-                            label: status,
-                            className:
-                              stColors[status] || "bg-gray-100 text-gray-700",
-                          }
-                        : null
-                    }
-                    infoRows={[
-                      ...(selectedRow.values.npi
-                        ? [
-                            {
-                              label: "NPI",
-                              value: String(selectedRow.values.npi),
-                            },
-                          ]
-                        : []),
-                      ...(selectedRow.values.region
-                        ? [
-                            {
-                              label: "Region",
-                              value: String(selectedRow.values.region),
-                            },
-                          ]
-                        : []),
-                    ]}
-                    metric={
-                      selectedRow.values.dealCount
-                        ? {
-                            label: "Deal count",
-                            value: String(selectedRow.values.dealCount),
-                          }
-                        : null
-                    }
-                  />
+                  <div className="mb-5 rounded-2xl border border-[#eadfcd] bg-gradient-to-br from-[#f9f4ec] via-white to-[#f4f7fb] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-[18px] font-semibold text-slate-800">
+                          {String(selectedRow.values.name || "Practice")}
+                        </h3>
+                        <div className="mt-3 space-y-2 text-[13px] text-slate-700">
+                          {selectedRow.values.npi ? (
+                            <p>NPI: {String(selectedRow.values.npi)}</p>
+                          ) : null}
+                          {selectedRow.values.region ? (
+                            <p>Region: {String(selectedRow.values.region)}</p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-col items-end gap-8">
+                        {status ? (
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                              stColors[status] || "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {status}
+                          </span>
+                        ) : null}
+
+                        <Link
+                          to={`/practice/${selectedRow.id}/profile`}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-white/80 bg-white/80 px-3 py-1.5 text-[12px] font-semibold text-slate-700 transition hover:border-slate-200 hover:bg-white hover:text-slate-950"
+                        >
+                          View Profile
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 );
               })()}
               {/*{isEditing ? renderDetailEditForm() : renderDetailView()}*/}

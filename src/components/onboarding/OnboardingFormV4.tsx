@@ -1361,7 +1361,7 @@ export default function OnboardingFormV4() {
     }
 
     const practiceCount = Math.max(
-      0,
+      1,
       Number(formData.numberOfPractices ?? 0) || 0,
     );
 
@@ -1424,7 +1424,7 @@ export default function OnboardingFormV4() {
   const hasFixedPracticeCount =
     formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION";
   const requiredPracticeCount = Math.max(
-    0,
+    hasFixedPracticeCount ? 1 : 0,
     Number(formData.numberOfPractices ?? 0) || 0,
   );
   const visibleSteps = steps.filter(
@@ -2078,6 +2078,14 @@ export default function OnboardingFormV4() {
 
     if (currentStep === 1) {
       if (!formData.onboardingType) errors.push("Onboarding type");
+      if (
+        formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" &&
+        (Number(formData.numberOfPractices ?? 0) || 0) < 1
+      ) {
+        errors.push(
+          "How many practices are being onboarded (must be 1 or more)",
+        );
+      }
       if (!formData.isAuthorizedPerson && !formData.nonAuthorizedRole) {
         errors.push("Role in onboarding");
       }
@@ -2550,15 +2558,19 @@ export default function OnboardingFormV4() {
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" ? (
-                    <Field label="How many practices are being onboarded?">
+                    <Field
+                      label="How many practices are being onboarded?"
+                      required
+                    >
                       <TextInput
                         type="number"
-                        min={0}
-                        value={formData.numberOfPractices ?? 0}
+                        min={1}
+                        step={1}
+                        value={formData.numberOfPractices ?? 1}
                         onChange={(event) =>
                           updateField(
                             "numberOfPractices",
-                            parseNumber(event.target.value),
+                            Math.max(1, parseNumber(event.target.value)),
                           )
                         }
                       />
