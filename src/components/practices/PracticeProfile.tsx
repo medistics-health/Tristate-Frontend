@@ -231,15 +231,21 @@ function Card({
   description,
   children,
   action,
+  scrollable = false,
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
   action?: React.ReactNode;
+  scrollable?: boolean;
 }) {
   return (
-    <section className="rounded-3xl border border-[#e8e2d8] bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-3">
+    <section
+      className={`rounded-3xl border border-[#e8e2d8] bg-white p-5 shadow-sm ${
+        scrollable ? "flex max-h-[640px] flex-col overflow-hidden" : ""
+      }`}
+    >
+      <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
         <div>
           <h2 className="text-[17px] font-semibold text-slate-900">{title}</h2>
           {description ? (
@@ -248,7 +254,13 @@ function Card({
         </div>
         {action}
       </div>
-      {children}
+      <div
+        className={
+          scrollable ? "min-h-0 flex-1 overflow-y-auto pr-1" : undefined
+        }
+      >
+        {children}
+      </div>
     </section>
   );
 }
@@ -684,6 +696,7 @@ export default function PracticeProfilePage() {
         <Card
           title="Associated Companies"
           description="Companies linked to this practice."
+          scrollable
           action={
             <Link
               to="/company/all-companies?action=create"
@@ -762,6 +775,7 @@ export default function PracticeProfilePage() {
           <Card
             title="Agreements"
             description="Review all agreements connected to this practice, including versions and signing status."
+            scrollable
             action={
               <Link
                 to={`/agreements/all-agreements?practiceId=${practice.id}`}
@@ -1091,6 +1105,7 @@ export default function PracticeProfilePage() {
           <Card
             title="Onboarding"
             description="Existing onboarding record, submitted PDF, and uploaded documents."
+            scrollable
           >
             <div className="rounded-3xl border border-[#ece8e1] bg-gradient-to-br from-[#fbfaf8] via-white to-[#f6f8fb] p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1240,6 +1255,7 @@ export default function PracticeProfilePage() {
             <Card
               title="Pricing Terms"
               description="Available once the practice and agreement are active."
+              scrollable
               action={
                 <span id="pricing" className="sr-only">
                   Pricing
@@ -1339,6 +1355,7 @@ export default function PracticeProfilePage() {
             <Card
               title="Billing Runs"
               description="Available once the practice and agreement are active."
+              scrollable
               action={
                 <span id="billing" className="sr-only">
                   Billing
