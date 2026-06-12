@@ -8,6 +8,9 @@ export type TermInputValues = {
   quantity?: string;
   cptQuantities?: Record<string, string>;
   baseAmount?: string;
+  collectionsBase?: string;
+  encountersQty?: string;
+  patientsQty?: string;
 };
 
 export type TermPreview = {
@@ -171,6 +174,35 @@ export function computePricingFromModelClient(
     case "MONTHLY_MINIMUM": {
       clientAmount =
         parseFloat(config.minimumAmount) || parseFloat(config.amount) || 0;
+      break;
+    }
+    case "HYBRID":
+    case "MULTI_COMPONENT": {
+      const components = Array.isArray(config.components) ? config.components : [];
+      let monthlyMinimumVal = 0;
+      let totalVariableCharges = 0;
+
+      for (const comp of components) {
+        const type = comp.type;
+        const val = parseFloat(comp.value) || 0;
+
+        if (type === "% Collections") {
+          const collectionsBase = parseFloat(inputs.collectionsBase || "0");
+          totalVariableCharges += collectionsBase * normalizePercentClient(val);
+        } else if (type === "Per Encounter") {
+          const encountersQty = parseFloat(inputs.encountersQty || "0");
+          totalVariableCharges += encountersQty * val;
+        } else if (type === "Per Patient") {
+          const patientsQty = parseFloat(inputs.patientsQty || "0");
+          totalVariableCharges += patientsQty * val;
+        } else if (type === "Fixed Monthly") {
+          totalVariableCharges += val;
+        } else if (type === "Monthly Minimum") {
+          monthlyMinimumVal = val;
+        }
+      }
+
+      clientAmount = Math.max(monthlyMinimumVal, totalVariableCharges);
       break;
     }
     default:
@@ -341,6 +373,35 @@ export function buildSnapshotsFromInputs(
           snapshots.push({
             metricKey: keys[0] || "units",
             metricValue: Number(termInput.quantity),
+            serviceId: term.serviceId,
+            sourceType: "billing_run_input",
+          });
+        }
+        break;
+      }
+
+      case "HYBRID":
+      case "MULTI_COMPONENT": {
+        if (termInput.collectionsBase && parseFloat(termInput.collectionsBase) > 0) {
+          snapshots.push({
+            metricKey: "collections",
+            metricValue: Number(termInput.collectionsBase),
+            serviceId: term.serviceId,
+            sourceType: "billing_run_input",
+          });
+        }
+        if (termInput.encountersQty && parseFloat(termInput.encountersQty) > 0) {
+          snapshots.push({
+            metricKey: "encounters",
+            metricValue: Number(termInput.encountersQty),
+            serviceId: term.serviceId,
+            sourceType: "billing_run_input",
+          });
+        }
+        if (termInput.patientsQty && parseFloat(termInput.patientsQty) > 0) {
+          snapshots.push({
+            metricKey: "patients",
+            metricValue: Number(termInput.patientsQty),
             serviceId: term.serviceId,
             sourceType: "billing_run_input",
           });

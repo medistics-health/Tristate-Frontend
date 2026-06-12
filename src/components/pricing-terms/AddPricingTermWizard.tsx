@@ -432,6 +432,16 @@ export default function AddPricingTermWizard({
           errors.components =
             "Each hybrid component must have a non-negative value";
         }
+        const types = comps.map(c => c.type);
+        const hasMonthlyMin = types.includes("Monthly Minimum");
+        const hasFixedMonthly = types.includes("Fixed Monthly");
+        if (hasMonthlyMin && hasFixedMonthly) {
+          errors.components = "Cannot have both Monthly Minimum and Fixed Monthly components";
+        }
+        const hasDuplicates = types.some((t, idx) => types.indexOf(t) !== idx);
+        if (hasDuplicates) {
+          errors.components = "Duplicate component types are not allowed";
+        }
       }
     }
 
@@ -529,6 +539,16 @@ export default function AddPricingTermWizard({
           errors.vendorComponents =
             "Each vendor component must have a non-negative value";
         }
+        const types = vendorComponents.map(c => c.type);
+        const hasMonthlyMin = types.includes("Monthly Minimum");
+        const hasFixedMonthly = types.includes("Fixed Monthly");
+        if (hasMonthlyMin && hasFixedMonthly) {
+          errors.vendorComponents = "Cannot have both Monthly Minimum and Fixed Monthly components";
+        }
+        const hasDuplicates = types.some((t, idx) => types.indexOf(t) !== idx);
+        if (hasDuplicates) {
+          errors.vendorComponents = "Duplicate component types are not allowed";
+        }
       }
     }
 
@@ -570,7 +590,19 @@ export default function AddPricingTermWizard({
     String(vendorAmount ?? 0),
   );
 
-  // ✅ NEW: Track if model is percentage-based
+  if (model === "HYBRID") {
+    const comps = cfg.components ?? [];
+    const vendorComps = vendorCfg.components ?? [];
+    preview.requiresApproval = comps.some((c, idx) => {
+      const clientVal = parseAmount(c.value) ?? 0;
+      const vendorVal = hasVendor ? (parseAmount(vendorComps[idx]?.value) ?? 0) : 0;
+      const marginVal = clientVal - vendorVal;
+      const marginPct = clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
+      return clientVal > 0 && marginPct < 20;
+    });
+  }
+
+  // ✅ Track if model is percentage-based
   const isPercentageBased = isPercentageBasedModel(model);
 
   const buildPreviewDetailCards = (): PreviewDetailCard[] => {
@@ -773,9 +805,19 @@ export default function AddPricingTermWizard({
             0,
           )
         : 0;
+      const p = calcMarginPreview(String(client), String(vendor));
+      const comps = cfg.components ?? [];
+      const vendorComps = vendorCfg.components ?? [];
+      p.requiresApproval = comps.some((c, idx) => {
+        const clientVal = parseAmount(c.value) ?? 0;
+        const vendorVal = hasVendor ? (parseAmount(vendorComps[idx]?.value) ?? 0) : 0;
+        const marginVal = clientVal - vendorVal;
+        const marginPct = clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
+        return clientVal > 0 && marginPct < 20;
+      });
       return {
         label: "Hybrid Components",
-        preview: calcMarginPreview(String(client), String(vendor)),
+        preview: p,
       };
     }
 
@@ -1528,9 +1570,9 @@ export default function AddPricingTermWizard({
                       Low Margin — Approval Required
                     </p>
                     <p className="text-[12px] mt-0.5">
-                      {approvalBasis.label} margin{" "}
-                      {toFixedDisplay(approvalPreview.marginPct)}% is below the
-                      20% threshold. Proceed to step 6 to add justification / approval notes.
+                      {model === "HYBRID"
+                        ? "One or more hybrid components has a margin below the 20% threshold. Proceed to step 6 to add justification / approval notes."
+                        : `${approvalBasis.label} margin ${toFixedDisplay(approvalPreview.marginPct)}% is below the 20% threshold. Proceed to step 6 to add justification / approval notes.`}
                     </p>
                   </div>
                 </div>
@@ -1548,7 +1590,11 @@ export default function AddPricingTermWizard({
                     <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold">⚠ Approval Required</p>
-                      <p className="text-[12px] mt-0.5">{approvalBasis.label} margin is {toFixedDisplay(approvalPreview.marginPct)}%, below the minimum 20% threshold. Please request manager approval before finalizing.</p>
+                      <p className="text-[12px] mt-0.5">
+                        {model === "HYBRID"
+                          ? "One or more hybrid components has a margin below the minimum 20% threshold. Please request manager approval before finalizing."
+                          : `${approvalBasis.label} margin is ${toFixedDisplay(approvalPreview.marginPct)}%, below the minimum 20% threshold. Please request manager approval before finalizing.`}
+                      </p>
                     </div>
                   </div>
                   <div>
@@ -1563,7 +1609,11 @@ export default function AddPricingTermWizard({
                   <CheckCircle2 className="h-6 w-6 shrink-0" />
                   <div>
                     <p className="font-semibold">No Approval Needed</p>
-                    <p className="text-[12px] mt-0.5">{approvalBasis.label} margin of {toFixedDisplay(approvalPreview.marginPct)}% meets the minimum threshold. You can proceed to finalize.</p>
+                    <p className="text-[12px] mt-0.5">
+                      {model === "HYBRID"
+                        ? "All hybrid components margins meet the minimum threshold. You can proceed to finalize."
+                        : `${approvalBasis.label} margin of ${toFixedDisplay(approvalPreview.marginPct)}% meets the minimum threshold. You can proceed to finalize.`}
+                    </p>
                   </div>
                 </div>
               )}
@@ -1577,48 +1627,107 @@ export default function AddPricingTermWizard({
                 Finalize Rate Packet
               </h3>
 
-              {/* ✅ UPDATED: Summary with percentage-aware formatting */}
-              <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4 space-y-2.5">
+              {/* Summary with percentage-aware formatting */}
+              <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4 space-y-2.5 text-[13px]">
                 <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
                   Included Services
                 </p>
-                {[
-                  ["Service", svcName],
-                  ["Pricing Model", modelLabel],
-                  [
-                    "Client Rate",
-                    formatModelValue(model, preview.clientRevenue),
-                  ],
-                  ...(hasVendor
-                    ? [
-                        [
-                          "Vendor",
-                          vendors.find((v) => v.id === vendorId)?.name ?? "-",
-                        ],
-                        [
-                          "Vendor Total",
-                          formatModelValue(model, preview.vendorCost),
-                        ],
-                      ]
-                    : []),
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between">
-                    <span className="text-slate-400">{k}</span>
-                    <span className="font-medium text-slate-700">{v}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between border-t border-[#f0ece6] pt-2.5">
-                  <span className="font-semibold text-slate-700">
-                    Pricing Summary — Gross Margin
-                  </span>
-                  <span
-                    className={`font-bold text-[15px] ${preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"}`}
-                  >
-                    {/* ✅ UPDATED: Show margin in percentage format for percentage-based models */}
-                    {formatModelValue(model, preview.grossMargin)} (
-                    {toFixedDisplay(preview.marginPct)}%)
-                  </span>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Service</span>
+                  <span className="font-medium text-slate-700">{svcName}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Pricing Model</span>
+                  <span className="font-medium text-slate-700">{modelLabel}</span>
+                </div>
+
+                {model === "HYBRID" ? (
+                  <div className="border-t border-[#f0ece6] pt-2.5 space-y-3">
+                    <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400">
+                      Component Details
+                    </p>
+                    {(cfg.components ?? []).map((component, index) => {
+                      const clientValue = parseAmount(component.value) ?? 0;
+                      const vendorValue = hasVendor
+                        ? (parseAmount(vendorCfg.components?.[index]?.value) ?? 0)
+                        : 0;
+                      const marginValue = clientValue - vendorValue;
+                      const marginPct =
+                        clientValue > 0
+                          ? Number(((marginValue / clientValue) * 100).toFixed(2))
+                          : 0;
+                      
+                      const isPercent = component.type === "% Collections";
+                      const formatCompVal = (val: number) => {
+                        if (isPercent) return `${val.toFixed(2)}%`;
+                        return `$${val.toFixed(2)}`;
+                      };
+
+                      return (
+                        <div key={index} className="rounded-lg border border-[#ece8e1] bg-white p-3 space-y-1.5 text-[13px]">
+                          <div className="flex justify-between font-semibold text-slate-700">
+                            <span>{component.type || `Component ${index + 1}`}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-500 pl-2">
+                            <span>Client Rate</span>
+                            <span>{formatCompVal(clientValue)}</span>
+                          </div>
+                          {hasVendor && (
+                            <>
+                              <div className="flex justify-between text-slate-500 pl-2">
+                                <span>Vendor Rate</span>
+                                <span>{formatCompVal(vendorValue)}</span>
+                              </div>
+                              <div className="flex justify-between font-medium border-t border-dashed border-[#ece8e1] pt-1 pl-2">
+                                <span className="text-slate-600">Gross Margin</span>
+                                <span className={marginPct < 20 ? "text-amber-600" : "text-emerald-600"}>
+                                  {formatCompVal(marginValue)} ({marginPct.toFixed(2)}%)
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <>
+                    {[
+                      [
+                        "Client Rate",
+                        formatModelValue(model, preview.clientRevenue),
+                      ],
+                      ...(hasVendor
+                        ? [
+                            [
+                              "Vendor",
+                              vendors.find((v) => v.id === vendorId)?.name ?? "-",
+                            ],
+                            [
+                              "Vendor Total",
+                              formatModelValue(model, preview.vendorCost),
+                            ],
+                          ]
+                        : []),
+                    ].map(([k, v]) => (
+                      <div key={k} className="flex justify-between">
+                        <span className="text-slate-400">{k}</span>
+                        <span className="font-medium text-slate-700">{v}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between border-t border-[#f0ece6] pt-2.5">
+                      <span className="font-semibold text-slate-700">
+                        Pricing Summary — Gross Margin
+                      </span>
+                      <span
+                        className={`font-bold text-[15px] ${preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"}`}
+                      >
+                        {formatModelValue(model, preview.grossMargin)} (
+                        {toFixedDisplay(preview.marginPct)}%)
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Signer email */}
@@ -1650,12 +1759,12 @@ export default function AddPricingTermWizard({
                   comma-separated emails for multiple signers.
                 </p>
                 {approvalPreview.requiresApproval && (
-                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  Approval required based on {approvalBasis.label.toLowerCase()}{" "}
-                  margin — ensure internal manager/admin sign-off to activate this term
-                </div>
-              )}
+                  <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    Approval required based on {model === "HYBRID" ? "individual component" : approvalBasis.label.toLowerCase()}{" "}
+                    margin — ensure internal manager/admin sign-off to activate this term
+                  </div>
+                )}
               </div>
             </div>
           )}
