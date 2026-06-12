@@ -11,7 +11,6 @@ import {
   Users,
   Search,
   Plus,
-  ArrowRight,
   CheckCircle2,
   X,
   FileText,
@@ -151,19 +150,6 @@ type LeadFormState = {
 
   // Integrated Agreement
   agreement: IntegratedAgreementState;
-};
-
-type SavedLeadSummary = {
-  practiceId: string;
-  companyId: string;
-  contactId: string;
-  dealId: string;
-  agreementId?: string;
-  practiceName: string;
-  companyName: string;
-  contactName: string;
-  dealStage: string;
-  savedAt: string;
 };
 
 const initialTaxId: TaxIdFormState = {
@@ -336,6 +322,11 @@ function buildLeadAgreementDocusealPrefillValues(
   return values;
 }
 
+function formatTaxIdLabel(taxId?: { taxIdNumber: string; legalEntityName: string }) {
+  if (!taxId) return "";
+  return `${taxId.taxIdNumber} - ${taxId.legalEntityName}`;
+}
+
 function CreateLeadPage() {
   const navigate = useNavigate();
   const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
@@ -344,11 +335,9 @@ function CreateLeadPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [templates, setTemplates] = useState<DocusealTemplate[]>([]);
   const [existingAgreements, setExistingAgreements] = useState<Agreement[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isLoadingServices, setIsLoadingServices] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSavedLead, setLastSavedLead] = useState<SavedLeadSummary | null>(
-    null,
-  );
 
   // Template search state
   const [templateSearch, setTemplateSearch] = useState("");
@@ -357,6 +346,15 @@ function CreateLeadPage() {
 
   // Agreement Redirect State
   const [showAgreementModal, setShowAgreementModal] = useState(false);
+
+  const visibleCompanyTaxIdLabel =
+    form.companyRelation === "existing"
+      ? formatTaxIdLabel(selectedCompany?.taxIds?.[0])
+      : formatTaxIdLabel(
+          form.taxIds.find(
+            (taxId) => taxId.taxIdNumber.trim() && taxId.legalEntityName.trim(),
+          ),
+        );
 
   const performLeadCreation = async (withAgreement: boolean = false) => {
     setIsSaving(true);
@@ -406,6 +404,10 @@ function CreateLeadPage() {
         createdCompanyId = companyRow.id;
       }
 
+      const companyTaxIdId = companyId
+        ? (await getCompany(companyId).catch(() => null))?.taxIds?.[0]?.id
+        : undefined;
+
       // 2. Handle Practice
       if (form.practiceRelation === "new") {
         const validGroupNpis = form.practiceGroupNpis.filter(
@@ -428,9 +430,10 @@ function CreateLeadPage() {
               groupName: g.groupName.trim(),
               status: g.status || "ACTIVE",
               notes: g.notes || "",
-              taxId: form.taxIds.find((t) => t.taxIdNumber)?.taxIdNumber || "",
+              taxId: companyTaxIdId || "",
             })),
           }),
+          taxIdId: companyTaxIdId,
         };
         const practiceRow = await createPracticeApi(practicePayload);
         practiceId = practiceRow.id;
@@ -470,26 +473,37 @@ function CreateLeadPage() {
         contactId = personRow.id;
         createdContactId = personRow.id;
       } else if (contactId) {
-        const existingPerson = await getPerson(contactId);
-        const nextPracticeIds = [
-          ...new Set([
-            ...(existingPerson.practices?.map((p) => p.id) ?? []),
-            practiceId,
-            ...form.contactPracticeIds.map((p) => p.id),
-          ]),
-        ];
-        const nextCompanyIds = [
-          ...new Set([
-            ...(existingPerson.companies?.map((c) => c.id) ?? []),
-            ...(companyId ? [companyId] : []),
-            ...form.contactCompanyIds.map((c) => c.id),
-          ]),
-        ];
+        try {
+          const existingPerson = await getPerson(contactId);
+          const nextPracticeIds = [
+            ...new Set(
+              [
+                practiceId,
+                ...form.contactPracticeIds.map((p) => p.id),
+                ...(existingPerson.practices?.map((p) => p.practice.id) ?? []),
+              ].filter(Boolean),
+            ),
+          ];
+          const nextCompanyIds = [
+            ...new Set(
+              [
+                ...(companyId ? [companyId] : []),
+                ...form.contactCompanyIds.map((c) => c.id),
+                ...(existingPerson.companies?.map((c) => c.company.id) ?? []),
+              ].filter(Boolean),
+            ),
+          ];
 
-        await updatePersonApi(contactId, {
-          practiceIds: nextPracticeIds,
-          companyIds: nextCompanyIds,
-        });
+          await updatePersonApi(contactId, {
+            practiceIds: nextPracticeIds,
+            companyIds: nextCompanyIds,
+          });
+        } catch (error) {
+          agreementSendWarning =
+            error instanceof Error
+              ? `Lead was created, but selected contact could not be linked: ${error.message}`
+              : "Lead was created, but selected contact could not be linked.";
+        }
       }
 
       // 4. Handle Deal
@@ -629,22 +643,6 @@ function CreateLeadPage() {
           // } as any);
         }
       }
-
-      setLastSavedLead({
-        practiceId,
-        companyId,
-        contactId,
-        dealId: dealRow.id,
-        agreementId,
-        practiceName: pName,
-        companyName:
-          form.companyRelation === "new"
-            ? form.companyName
-            : "Selected Company",
-        contactName: contactName,
-        dealStage: "PROSPECTING",
-        savedAt: activityTimestamp,
-      });
 
       resetForm();
       if (agreementSendWarning) {
@@ -814,6 +812,9 @@ function CreateLeadPage() {
       companyRelation: relation,
       selectedCompanyId: relation === "new" ? "" : current.selectedCompanyId,
     }));
+    if (relation === "new") {
+      setSelectedCompany(null);
+    }
   };
 
   const setPracticeRelation = (relation: RelationType) => {
@@ -1069,6 +1070,20 @@ function CreateLeadPage() {
     }));
   };
 
+  const handleCompanySelect = async (companyId: string) => {
+    updateField("selectedCompanyId", companyId);
+    if (!companyId) {
+      setSelectedCompany(null);
+      return;
+    }
+
+    try {
+      setSelectedCompany(await getCompany(companyId));
+    } catch {
+      setSelectedCompany(null);
+    }
+  };
+
   const handleSearchPractices = async (
     query: string,
   ): Promise<SearchSelectOption[]> => {
@@ -1109,8 +1124,10 @@ function CreateLeadPage() {
       if (fullPractice.companyId) {
         updateField("selectedCompanyId", fullPractice.companyId);
         updateField("companyRelation", "existing");
+        setSelectedCompany(await getCompany(fullPractice.companyId));
       } else {
         updateField("selectedCompanyId", "");
+        setSelectedCompany(null);
       }
     } catch (err) {
       console.error("Error syncing company from practice:", err);
@@ -1318,21 +1335,11 @@ function CreateLeadPage() {
       }
     }
 
-    // If services are selected, show modal first
-    if (form.interestedServiceIds.length > 0) {
-      setShowAgreementModal(true);
-    } else {
-      // No services, just create immediately
-      performLeadCreation(false);
-    }
+    setShowAgreementModal(true);
   }
 
   const handleConfirmWithAgreements = () => {
-    performLeadCreation(true);
-  };
-
-  const handleConfirmLeadOnly = () => {
-    performLeadCreation(false);
+    performLeadCreation(form.interestedServiceIds.length > 0);
   };
 
   const selectedServices = services.filter((service) =>
@@ -1408,9 +1415,7 @@ function CreateLeadPage() {
                       </span>
                       <SearchSelect
                         value={form.selectedCompanyId}
-                        onChange={(val) =>
-                          updateField("selectedCompanyId", val)
-                        }
+                        onChange={(val) => handleCompanySelect(val)}
                         onSearch={handleSearchCompanies}
                         placeholder="Search by company name, city, or industry..."
                       />
@@ -1756,6 +1761,17 @@ function CreateLeadPage() {
                       />
                     </label>
                     <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
+                      <label className="block">
+                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                          Tax ID
+                        </span>
+                        <input
+                          type="text"
+                          value={visibleCompanyTaxIdLabel || "No company Tax ID selected"}
+                          readOnly
+                          className="app-control w-full rounded-md bg-slate-100 px-3 py-2 text-[13px] text-slate-500"
+                        />
+                      </label>
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
                           Region *
@@ -2285,6 +2301,12 @@ function CreateLeadPage() {
                       </button>
                     </div>
                   </div>
+
+                  {existingAgreements.length === 0 && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-800">
+                      No agreements found for selected/new practice.
+                    </div>
+                  )}
 
                   {form.agreement.action === "link" &&
                     existingAgreements.length > 0 && (
@@ -2858,79 +2880,6 @@ function CreateLeadPage() {
               )}
             </div>
           </section>
-
-          {lastSavedLead && (
-            <div className="app-panel rounded-2xl border border-green-100 bg-green-50/50 p-5 shadow-sm animate-in zoom-in-95 duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-[14px] font-bold text-green-800">
-                  Recently Created
-                </h2>
-                <button
-                  onClick={() => setLastSavedLead(null)}
-                  className="text-green-600 hover:text-green-800"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-[12px]">
-                  <span className="text-green-600/70">Practice</span>
-                  <span className="font-semibold text-green-800">
-                    {lastSavedLead.practiceName}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[12px]">
-                  <span className="text-green-600/70">Deal Stage</span>
-                  <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold">
-                    {lastSavedLead.dealStage}
-                  </span>
-                </div>
-                {lastSavedLead.agreementId && (
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-green-600/70">Agreement</span>
-                    <span className="font-semibold text-green-800">
-                      {isAdmin ? "Sent for Sign" : "Pending Approval"}
-                    </span>
-                  </div>
-                )}
-                <button className="w-full mt-2 py-2 rounded-lg bg-green-600 text-white text-[12px] font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
-                  View Deal <ArrowRight className="h-3 w-3" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          <section className="app-panel rounded-2xl border border-[#f0ece6] bg-slate-50 p-5 shadow-sm">
-            <h2 className="text-[14px] font-bold text-slate-800 mb-3">
-              System Behavior
-            </h2>
-            <ul className="space-y-3">
-              {[
-                "Creates or links Company/Client record",
-                "Creates or links Practice profile",
-                "Establishes primary contact relationship",
-                "Generates CRM Deal in Prospecting stage",
-                "Logs initial discovery activity",
-                "Sets up follow-up task for owner",
-                ...(form.agreement.action === "create"
-                  ? [
-                      "Generates new legal agreement",
-                      isAdmin
-                        ? "Triggers signature request email"
-                        : "Sends agreement for admin approval",
-                    ]
-                  : []),
-              ].map((item, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-2 text-[12px] text-slate-500"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </section>
         </aside>
       </div>
 
@@ -2938,29 +2887,39 @@ function CreateLeadPage() {
         isOpen={showAgreementModal}
         onClose={() => setShowAgreementModal(false)}
         onConfirm={handleConfirmWithAgreements}
-        onSecondaryConfirm={handleConfirmLeadOnly}
         title={
-          form.agreement.action === "create"
+          form.interestedServiceIds.length === 0
+            ? "Create Lead?"
+            : form.agreement.action === "create"
             ? isAdmin
               ? "Create Lead & Send Agreement?"
               : "Create Lead & Send Agreement for Approval?"
-            : "Create Lead & Link Agreement?"
+            : form.agreement.action === "link"
+              ? "Create Lead & Link Agreement?"
+              : "Create Lead?"
         }
         message={
-          form.agreement.action === "create"
+          form.interestedServiceIds.length === 0
+            ? "No interested services were selected. Would you like to create this lead without an agreement?"
+            : form.agreement.action === "create"
             ? isAdmin
               ? `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and trigger the signature request now?`
               : `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and send the agreement for admin approval?`
-            : "Would you like to create the lead and link it to the existing agreement, or just create the lead?"
+            : form.agreement.action === "link"
+              ? "Would you like to create the lead and link it to the selected existing agreement?"
+              : "Would you like to create the lead without creating or linking an agreement?"
         }
         confirmLabel={
-          form.agreement.action === "create"
+          form.interestedServiceIds.length === 0
+            ? "Create Lead"
+            : form.agreement.action === "create"
             ? isAdmin
               ? "Create & Send Now"
               : "Create & Send for Approval"
-            : "Create & Link"
+            : form.agreement.action === "link"
+              ? "Create & Link"
+              : "Create Lead"
         }
-        secondaryLabel="Create Lead Only"
         cancelLabel="Cancel"
         type="primary"
       />
