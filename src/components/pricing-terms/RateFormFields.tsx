@@ -163,7 +163,13 @@ export function RateFormFields({ model, cfg, upd }: Props) {
                 <Select
                   value={c.type}
                   onChange={(v) => { const n=[...comps]; n[i]={...n[i],type:v}; upd({components:n}); }}
-                  options={HYBRID_TYPES.map(t => ({ label: t, value: t }))}
+                  options={HYBRID_TYPES.filter(t => {
+                    const selectedByOther = comps.some((comp, idx) => idx !== i && comp.type === t);
+                    if (selectedByOther) return false;
+                    if (t === "Fixed Monthly" && comps.some((comp, idx) => idx !== i && comp.type === "Monthly Minimum")) return false;
+                    if (t === "Monthly Minimum" && comps.some((comp, idx) => idx !== i && comp.type === "Fixed Monthly")) return false;
+                    return true;
+                  }).map(t => ({ label: t, value: t }))}
                 />
               </div>
               <input type="number" value={c.value} placeholder="Value"
@@ -174,10 +180,31 @@ export function RateFormFields({ model, cfg, upd }: Props) {
               </button>
             </div>
           ))}
-          <button type="button" onClick={() => upd({components:[...comps,{type:HYBRID_TYPES[0],value:""}]})}
-            className="inline-flex items-center gap-1 text-[12px] text-[#4f63ea] hover:underline">
-            <Plus className="h-3.5 w-3.5" /> Add Component
-          </button>
+          {comps.length < 4 && (
+            <button type="button" onClick={() => {
+              const selectedTypes = comps.map(c => c.type);
+              const firstAvailable = HYBRID_TYPES.find(t => {
+                if (selectedTypes.includes(t)) return false;
+                if (t === "Fixed Monthly" && selectedTypes.includes("Monthly Minimum")) return false;
+                if (t === "Monthly Minimum" && selectedTypes.includes("Fixed Monthly")) return false;
+                return true;
+              }) || HYBRID_TYPES[0];
+              upd({components:[...comps,{type:firstAvailable,value:""}]});
+            }}
+              className="inline-flex items-center gap-1 text-[12px] text-[#4f63ea] hover:underline">
+              <Plus className="h-3.5 w-3.5" /> Add Component
+            </button>
+          )}
+        </div>
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">
+            Collection Source <span className="text-red-500">*</span>
+          </label>
+          <Select
+            value={cfg.collectionSource ?? "PM System"}
+            onChange={(v) => upd({ collectionSource: v })}
+            options={["PM System","Manual Upload","EHR Export"].map(s => ({ label: s, value: s }))}
+          />
         </div>
         {dates}
       </div>

@@ -809,15 +809,15 @@ export default function PricingEnginePage() {
                           </span>
                         </td>
                         <td className="px-4 py-2.5 text-right text-slate-700">
-                          {fmtModelValue(cl, term.pricingModel)}
+                          {term.pricingModel === "HYBRID" ? "- " : fmtModelValue(cl, term.pricingModel)}
                         </td>
                         <td className="px-4 py-2.5 text-right text-slate-500">
-                          {term.vendorId
+                          {term.pricingModel === "HYBRID" ? "-" : (term.vendorId
                             ? fmtModelValue(vn, term.pricingModel)
-                            : "-"}
+                            : "-")}
                         </td>
                         <td className="px-4 py-2.5 text-right">
-                          {cl > 0 ? (
+                          {term.pricingModel === "HYBRID" ? "- " : (cl > 0 ? (
                             <span
                               className={
                                 mp < 20
@@ -829,7 +829,7 @@ export default function PricingEnginePage() {
                             </span>
                           ) : (
                             "-"
-                          )}
+                          ))}
                         </td>
                         <td className="px-4 py-2.5 text-slate-500">
                           {term.vendor?.name ?? "-"}
@@ -997,6 +997,17 @@ function TermDetailPanel({
   const client = extractClientRate(term);
   const vendor = extractVendorRate(term);
   const preview = calcMarginPreview(String(client), String(vendor));
+  if (term.pricingModel === "HYBRID") {
+    const comps = cfg.components ?? [];
+    const vendorComps = cfg.vendorPricing?.components ?? [];
+    preview.requiresApproval = comps.some((c, idx) => {
+      const clientVal = parseFloat(c.value) || 0;
+      const vendorVal = term.vendorId ? (parseFloat(vendorComps[idx]?.value) || 0) : 0;
+      const marginVal = clientVal - vendorVal;
+      const marginPct = clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
+      return clientVal > 0 && marginPct < 20;
+    });
+  }
   const { clientApprovalStatus, internalApprovalStatus } =
     getApprovalStatuses(term);
   const isPercentageBased = isPercentageBasedModel(term.pricingModel);
@@ -1169,46 +1180,6 @@ function TermDetailPanel({
                 : undefined
             }
           />
-        </div>
-
-        {/* Rate Configuration */}
-        <div className="space-y-2">
-          <h4 className="text-[13px] font-semibold text-slate-700 mb-3">
-            Rate Configuration
-          </h4>
-
-          {/* ✅ UPDATED: Use model-aware formatting */}
-          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-              {isPercentageBased ? "Client Rate" : "Client Amount"}
-            </span>
-            <span className="text-[15px] font-semibold text-[#4f63ea] break-words">
-              {fmtModelValue(client, term.pricingModel)}
-            </span>
-          </div>
-
-          {signerEmailsText && (
-            <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-                Signer Emails
-              </span>
-              <span className="text-[13px] font-medium text-slate-700 break-words whitespace-pre-wrap leading-relaxed">
-                {signerEmailsText}
-              </span>
-            </div>
-          )}
-
-          {cfg.approvalNotes && (
-            <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-                Justification / Approval Notes
-              </span>
-              <span className="text-[13px] font-medium text-slate-700 break-words whitespace-pre-wrap leading-relaxed">
-                {cfg.approvalNotes}
-              </span>
-            </div>
-          )}
-
           {(cfg.collectionSource || cfg.vendorPricing?.collectionSource) && (
             <InfoRow
               label="Collection Source"
@@ -1219,8 +1190,51 @@ function TermDetailPanel({
           )}
         </div>
 
+        {/* Rate Configuration */}
+        {term.pricingModel !== "HYBRID" && (
+          <div className="space-y-2">
+            <h4 className="text-[13px] font-semibold text-slate-700 mb-3">
+              Rate Configuration
+            </h4>
+
+            {/* ✅ UPDATED: Use model-aware formatting */}
+            <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                {isPercentageBased ? "Client Rate" : "Client Amount"}
+              </span>
+              <span className="text-[15px] font-semibold text-[#4f63ea] break-words">
+                {fmtModelValue(client, term.pricingModel)}
+              </span>
+            </div>
+
+            {signerEmailsText && (
+              <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                  Signer Emails
+                </span>
+                <span className="text-[13px] font-medium text-slate-700 break-words whitespace-pre-wrap leading-relaxed">
+                  {signerEmailsText}
+                </span>
+              </div>
+            )}
+
+            {cfg.approvalNotes && (
+              <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                  Justification / Approval Notes
+                </span>
+                <span className="text-[13px] font-medium text-slate-700 break-words whitespace-pre-wrap leading-relaxed">
+                  {cfg.approvalNotes}
+                </span>
+              </div>
+            )}
+
+
+          </div>
+        )}
+
         {/* Vendor Pricing */}
-        {cfg?.vendorPricing && (
+        {term.pricingModel !== "HYBRID" && cfg?.vendorPricing && (
           <div className="space-y-2">
             <h4 className="text-[13px] font-semibold text-slate-700 mb-3">
               Vendor Pricing
@@ -1284,50 +1298,96 @@ function TermDetailPanel({
             Margin Preview
           </h4>
 
-          {/* ✅ UPDATED: Use model-aware labels and formatting */}
-          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-              {isPercentageBased ? "Est. Client Rate" : "Est. Client Revenue"}
-            </span>
-            <span className="text-[15px] font-semibold text-[#4f63ea] break-words">
-              {fmtModelValue(preview.clientRevenue, term.pricingModel)}
-            </span>
-          </div>
+          {term.pricingModel === "HYBRID" ? (
+            <div className="space-y-3">
+              {(cfg.components ?? []).map((component, idx) => {
+                const clientVal = parseFloat(component.value) || 0;
+                const vendorComp = cfg.vendorPricing?.components?.[idx];
+                const vendorVal = vendorComp ? (parseFloat(vendorComp.value) || 0) : 0;
+                const marginVal = clientVal - vendorVal;
+                const marginPct = clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
+                const isPercent = component.type === "% Collections";
+                
+                const formatVal = (val: number) => {
+                  if (isPercent) return `${val.toFixed(2)}%`;
+                  return `$${val.toFixed(2)}`;
+                };
 
-          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-              {isPercentageBased ? "Est. Vendor Rate" : "Est. Vendor Cost"}
-            </span>
-            <span className="text-[15px] font-semibold text-red-600 break-words">
-              {fmtModelValue(preview.vendorCost, term.pricingModel)}
-            </span>
-          </div>
+                return (
+                  <div key={idx} className="rounded-lg border border-[#f0ece6] bg-[#faf9f7] p-3 space-y-1.5 text-[13px]">
+                    <div className="font-semibold text-slate-700">{component.type || `Component ${idx + 1}`}</div>
+                    <div className="flex justify-between text-slate-500 pl-2">
+                      <span>Client Rate</span>
+                      <span className="font-semibold text-[#4f63ea]">{formatVal(clientVal)}</span>
+                    </div>
+                    {term.vendorId && (
+                      <>
+                        <div className="flex justify-between text-slate-500 pl-2">
+                          <span>Vendor Rate</span>
+                          <span className="font-semibold text-red-500">{formatVal(vendorVal)}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-dashed border-[#ece8e1] pt-1 pl-2 font-medium">
+                          <span className="text-slate-600">Gross Margin</span>
+                          <span className={marginPct < 20 ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold"}>
+                            {formatVal(marginVal)} ({marginPct.toFixed(2)}%)
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              {/* ✅ UPDATED: Use model-aware labels and formatting */}
+              <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                  {isPercentageBased ? "Est. Client Rate" : "Est. Client Revenue"}
+                </span>
+                <span className="text-[15px] font-semibold text-[#4f63ea] break-words">
+                  {fmtModelValue(preview.clientRevenue, term.pricingModel)}
+                </span>
+              </div>
 
-          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-              Est. Gross Margin
-            </span>
-            <span className="text-[15px] font-semibold text-emerald-600 break-words">
-              {fmtModelValue(preview.grossMargin, term.pricingModel)}
-            </span>
-          </div>
+              <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                  {isPercentageBased ? "Est. Vendor Rate" : "Est. Vendor Cost"}
+                </span>
+                <span className="text-[15px] font-semibold text-red-600 break-words">
+                  {fmtModelValue(preview.vendorCost, term.pricingModel)}
+                </span>
+              </div>
 
-          <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-              Margin %
-            </span>
-            <span
-              className={`text-[15px] font-semibold ${preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"}`}
-            >
-              {fmtPercent(preview.marginPct)}
-            </span>
-          </div>
+              <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                  Est. Gross Margin
+                </span>
+                <span className="text-[15px] font-semibold text-emerald-600 break-words">
+                  {fmtModelValue(preview.grossMargin, term.pricingModel)}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                  Margin %
+                </span>
+                <span
+                  className={`text-[15px] font-semibold ${preview.marginPct < 20 ? "text-amber-600" : "text-emerald-600"}`}
+                >
+                  {fmtPercent(preview.marginPct)}
+                </span>
+              </div>
+            </>
+          )}
 
           {preview.requiresApproval && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-700">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <span className="break-words">
-                Margin below threshold ({preview.marginPct.toFixed(2)}%)
+                {term.pricingModel === "HYBRID"
+                  ? "One or more hybrid components has a margin below the 20% threshold"
+                  : `Margin below threshold (${preview.marginPct.toFixed(2)}%)`}
               </span>
             </div>
           )}

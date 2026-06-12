@@ -1078,6 +1078,42 @@ function BillingRunsPage() {
                                 </span>
                               )}
                           </div>
+
+                          {/* Hybrid Components details for saved run items */}
+                          {(item as any).formulaSnapshot &&
+                            (item as any).formulaSnapshot.pricingModel === "HYBRID" && (
+                              <div className="w-full mt-1.5 space-y-1 bg-slate-50 p-2 rounded border border-slate-100/60 text-[10.5px]">
+                                <div className="font-semibold text-slate-500 text-[9.5px] uppercase tracking-wider">
+                                  Hybrid Components
+                                </div>
+                                {(Array.isArray((item as any).formulaSnapshot.components) 
+                                  ? (item as any).formulaSnapshot.components 
+                                  : []
+                                ).map((comp: any, cIdx: number) => {
+                                  const isPercent = comp.type === "% Collections";
+                                  const clientVal = parseFloat(comp.value) || 0;
+                                  const vendorComp = (item as any).formulaSnapshot.vendorPricing?.components?.[cIdx];
+                                  const vendorVal = vendorComp ? (parseFloat(vendorComp.value) || 0) : 0;
+                                  
+                                  const formatCompVal = (val: number) => {
+                                    if (isPercent) return `${val.toFixed(2)}%`;
+                                    return `$${val.toFixed(2)}`;
+                                  };
+                                  
+                                  return (
+                                    <div key={cIdx} className="flex justify-between items-center text-slate-500">
+                                      <span>{comp.type}</span>
+                                      <span className="font-medium text-slate-700">
+                                        Client: {formatCompVal(clientVal)}
+                                        {(item as any).formulaSnapshot.vendorPricing && (
+                                          <> | Vendor: {formatCompVal(vendorVal)}</>
+                                        )}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                         </div>
 
                         {/* Captured Inputs Section */}
@@ -1727,12 +1763,140 @@ function BillingRunsPage() {
                               </span>
                             )}
                           </div>
+
+                          {term.pricingModel === "HYBRID" && (
+                            <div className="w-full mt-1.5 space-y-1 bg-slate-50 p-2 rounded border border-slate-100/60 text-[10.5px]">
+                              <div className="font-semibold text-slate-500 text-[9.5px] uppercase tracking-wider">
+                                Hybrid Components
+                              </div>
+                              {(Array.isArray(config.components) ? config.components : []).map((comp: any, cIdx: number) => {
+                                const isPercent = comp.type === "% Collections";
+                                const clientVal = parseFloat(comp.value) || 0;
+                                const vendorComp = config.vendorPricing?.components?.[cIdx];
+                                const vendorVal = vendorComp ? (parseFloat(vendorComp.value) || 0) : 0;
+                                
+                                const formatCompVal = (val: number) => {
+                                  if (isPercent) return `${val.toFixed(2)}%`;
+                                  return `$${val.toFixed(2)}`;
+                                };
+                                
+                                return (
+                                  <div key={cIdx} className="flex justify-between items-center text-slate-500">
+                                    <span>{comp.type}</span>
+                                    <span className="font-medium text-slate-700">
+                                      Client: {formatCompVal(clientVal)}
+                                      {config.vendorPricing && (
+                                        <> | Vendor: {formatCompVal(vendorVal)}</>
+                                      )}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
 
                         {/* Dynamic Input */}
                         {needsInput && (
                           <div className="border-b border-slate-50 px-3 py-2.5">
-                            {term.pricingModel === "PER_CPT_CODE" ? (
+                            {term.pricingModel === "HYBRID" ? (
+                              <div className="space-y-3">
+                                <span className="text-[11px] font-medium text-slate-500 block mb-1">
+                                  Hybrid Component Metrics
+                                </span>
+                                {(Array.isArray(config.components) ? config.components : []).map((comp: any, idx: number) => {
+                                  const type = comp.type;
+                                  if (type === "% Collections") {
+                                    return (
+                                      <div key={idx} className="space-y-1">
+                                        <label className="block text-[11px] font-medium text-slate-500">
+                                          Total Collections ($) for % Collections
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          value={createForm.termInputs[term.id]?.collectionsBase || ""}
+                                          onChange={(event) =>
+                                            setCreateForm((prev) => ({
+                                              ...prev,
+                                              termInputs: {
+                                                ...prev.termInputs,
+                                                [term.id]: {
+                                                  ...prev.termInputs[term.id],
+                                                  collectionsBase: event.target.value,
+                                                },
+                                              },
+                                            }))
+                                          }
+                                          placeholder="0.00"
+                                          className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                                        />
+                                      </div>
+                                    );
+                                  }
+                                  if (type === "Per Encounter") {
+                                    return (
+                                      <div key={idx} className="space-y-1">
+                                        <label className="block text-[11px] font-medium text-slate-500">
+                                          Encounters for Per Encounter
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="1"
+                                          min="0"
+                                          value={createForm.termInputs[term.id]?.encountersQty || ""}
+                                          onChange={(event) =>
+                                            setCreateForm((prev) => ({
+                                              ...prev,
+                                              termInputs: {
+                                                ...prev.termInputs,
+                                                [term.id]: {
+                                                  ...prev.termInputs[term.id],
+                                                  encountersQty: event.target.value,
+                                                },
+                                              },
+                                            }))
+                                          }
+                                          placeholder="0"
+                                          className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                                        />
+                                      </div>
+                                    );
+                                  }
+                                  if (type === "Per Patient") {
+                                    return (
+                                      <div key={idx} className="space-y-1">
+                                        <label className="block text-[11px] font-medium text-slate-500">
+                                          Patients for Per Patient
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="1"
+                                          min="0"
+                                          value={createForm.termInputs[term.id]?.patientsQty || ""}
+                                          onChange={(event) =>
+                                            setCreateForm((prev) => ({
+                                              ...prev,
+                                              termInputs: {
+                                                ...prev.termInputs,
+                                                [term.id]: {
+                                                  ...prev.termInputs[term.id],
+                                                  patientsQty: event.target.value,
+                                                },
+                                              },
+                                            }))
+                                          }
+                                          placeholder="0"
+                                          className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                                        />
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })}
+                              </div>
+                            ) : term.pricingModel === "PER_CPT_CODE" ? (
                               <div className="space-y-2">
                                 <span className="text-[11px] font-medium text-slate-500">
                                   CPT Code Quantities
