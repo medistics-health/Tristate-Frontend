@@ -111,6 +111,7 @@ export type InvoiceQueryParams = {
   limit?: number;
   search?: string;
   status?: string;
+  practiceId?: string;
 };
 
 function formatCurrency(amount: string | number) {
@@ -202,6 +203,7 @@ export async function getInvoicesView(
     if (params?.limit) queryString.set("limit", String(params.limit));
     if (params?.search) queryString.set("search", params.search);
     if (params?.status) queryString.set("status", params.status);
+    if (params?.practiceId) queryString.set("practiceId", params.practiceId);
 
     const url = queryString.toString()
       ? `${LIST}?${queryString.toString()}`

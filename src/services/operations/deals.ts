@@ -349,6 +349,27 @@ export async function getAllDeals(): Promise<Deal[]> {
   }
 }
 
+export async function getDealsByPractice(practiceId: string): Promise<Deal[]> {
+  try {
+    const queryString = new URLSearchParams({
+      practiceId,
+      page: "1",
+      limit: "1000",
+    });
+    const response = await apiConnector({
+      method: "GET",
+      url: `${LIST}?${queryString.toString()}`,
+      credentials: true,
+    });
+    const { deals } = response.data as { deals: Deal[] };
+    return deals;
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to fetch deals for practice."),
+    );
+  }
+}
+
 export async function getDeal(id: string): Promise<Deal> {
   try {
     const response = await apiConnector({
