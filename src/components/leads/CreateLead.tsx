@@ -1230,13 +1230,14 @@ function CreateLeadPage() {
     try {
       const fullPractice = await getPractice(practiceId);
       setSelectedPracticeLabel(fullPractice.name || option?.label || "");
-      if (fullPractice.companyId) {
-        updateField("selectedCompanyId", fullPractice.companyId);
-        updateField("companyRelation", "existing");
-        setSelectedCompany(await getCompany(fullPractice.companyId));
-      } else {
-        updateField("selectedCompanyId", "");
-        setSelectedCompany(null);
+      if (form.companyRelation === "existing") {
+        if (fullPractice.companyId) {
+          updateField("selectedCompanyId", fullPractice.companyId);
+          setSelectedCompany(await getCompany(fullPractice.companyId));
+        } else {
+          updateField("selectedCompanyId", "");
+          setSelectedCompany(null);
+        }
       }
     } catch (err) {
       console.error("Error syncing company from practice:", err);

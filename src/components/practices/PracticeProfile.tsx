@@ -28,6 +28,10 @@ import {
   type BillingRunRow,
 } from "../../services/operations/billings";
 import {
+  getInvoicesView,
+  type InvoiceRow,
+} from "../../services/operations/invoices";
+import {
   getExternalOnboardingByPracticeId,
   type Onboarding,
 } from "../../services/operations/onboarding";
@@ -85,7 +89,7 @@ function getSigningSummary(agreement: Agreement) {
     return `Signed (${completed}/${submissions.length})`;
   }
 
-  return `Pending signature (${completed}/${submissions.length})`;
+  return `Pending signature (${submissions.length - completed}/${submissions.length})`;
 }
 
 function getSignedDocumentUrls(submission: {
@@ -310,6 +314,7 @@ export default function PracticeProfilePage() {
   const [onboarding, setOnboarding] = useState<Onboarding | null>(null);
   const [associatedCompanies, setAssociatedCompanies] = useState<Company[]>([]);
   const [billingRuns, setBillingRuns] = useState<BillingRunRow[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [billingRunDetails, setBillingRunDetails] = useState<
     Record<string, BillingRunDetail>
   >({});
@@ -422,6 +427,7 @@ export default function PracticeProfilePage() {
         dealData,
         onboardingData,
         billingData,
+        invoiceData,
       ] = await Promise.all([
         getPractice(practiceId),
         getAgreementsByPractice(practiceId).catch(() => [] as Agreement[]),
@@ -431,12 +437,20 @@ export default function PracticeProfilePage() {
           rows: [] as BillingRunRow[],
           pagination: { page: 1, limit: 5, total: 0, totalPages: 0 },
         })),
+        getInvoicesView({ practiceId, limit: 10 }).catch(() => ({
+          viewId: "practice-invoices",
+          title: "Practice Invoices",
+          totalCount: 0,
+          rows: [] as InvoiceRow[],
+          pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
+        })),
       ]);
 
       setPractice(practiceData);
       setAgreements(agreementData);
       setDeals(dealData);
       setOnboarding(onboardingData);
+      setInvoices(invoiceData.rows);
       const companyIds = Array.from(
         new Set(
           [practiceData.companyId, practiceData.company?.id].filter(
@@ -590,10 +604,10 @@ export default function PracticeProfilePage() {
       ]}
     >
       <div className="space-y-4">
-        <section className="overflow-hidden rounded-[28px] border border-[#e8e2d8] bg-slate-950 text-white shadow-sm">
+        <section className="overflow-hidden rounded-[28px] rounded-2xl border border-[#eadfcd] bg-gradient-to-br from-[#f9f4ec] via-white to-[#f4f7fb] text-slate-900 shadow-sm">
           <div className="grid gap-6 p-6 lg:grid-cols-[1fr_360px]">
             <div>
-              <p className="text-[12px] uppercase tracking-[0.24em] text-slate-400">
+              <p className="text-[12px] uppercase tracking-[0.24em] text-[#4f63ea]">
                 Practice Command Center
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -606,7 +620,7 @@ export default function PracticeProfilePage() {
                   {formatLabel(practice.status)}
                 </span>
               </div>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
                 Centralized practice workspace for agreements, onboarding,
                 associated people, companies, pricing terms, and billing runs.
               </p>
@@ -625,7 +639,7 @@ export default function PracticeProfilePage() {
                 </a>
               </div>*/}
             </div>
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="rounded-3xl border border-[#ece8e1] bg-white/70 p-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-slate-400">NPI</p>
@@ -1323,6 +1337,62 @@ export default function PracticeProfilePage() {
             ) : null}
           </Card>
         </div>
+
+        <Card
+          title="Practice Invoices"
+          description="Invoices associated with this practice."
+          scrollable
+        >
+          <div className="overflow-hidden rounded-2xl border border-[#ece8e1]">
+            {invoices.length ? (
+              <div className="divide-y divide-[#ece8e1]">
+                {invoices.map((invoice) => (
+                  <div
+                    key={invoice.id}
+                    className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_150px_130px_130px]"
+                  >
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {invoice.values.invoiceNumber}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {invoice.values.agreementLabel}
+                      </p>
+                    </div>
+                    <div className="text-sm">
+                      <p className="text-slate-400">Amount</p>
+                      <p className="font-semibold text-slate-900">
+                        {invoice.values.totalAmount}
+                      </p>
+                    </div>
+                    <div className="text-sm">
+                      <p className="text-slate-400">Due Date</p>
+                      <p className="font-medium text-slate-700">
+                        {invoice.values.dueDate}
+                      </p>
+                    </div>
+                    <div className="text-sm">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                          invoice.values.status,
+                        )}`}
+                      >
+                        {formatLabel(invoice.values.status)}
+                      </span>
+                      <p className="mt-2 text-xs text-slate-400">
+                        Created {invoice.values.creationDate}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
+                No invoices found for this practice.
+              </p>
+            )}
+          </div>
+        </Card>
 
         {canUsePricingAndBilling ? (
           <>

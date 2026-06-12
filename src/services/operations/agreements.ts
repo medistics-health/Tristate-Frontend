@@ -87,7 +87,9 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
   const totalSubmissions = submissions.length;
   const signingStatus =
     totalSubmissions > 0
-      ? `${completedSubmissions}/${totalSubmissions} signed`
+      ? completedSubmissions === totalSubmissions
+        ? `${completedSubmissions}/${totalSubmissions} signed`
+        : `${totalSubmissions - completedSubmissions}/${totalSubmissions} pending`
       : "";
 
   return {
