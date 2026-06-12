@@ -331,13 +331,16 @@ function BillingStatusBoardPage() {
                     type="button"
                     disabled={
                       isActionLoading !== null ||
-                      selectedRun.status === "POSTED" ||
-                      selectedRun.status === "CLOSED"
+                      ["APPROVED", "POSTED", "CLOSED", "RUNNING"].includes(selectedRun.status)
                     }
                     onClick={() => handleRunAction("calculate")}
                     className="app-control inline-flex items-center gap-2 rounded-md px-3 py-2 text-[12px] font-medium disabled:opacity-50"
                   >
-                    {isActionLoading === "calculate" ? "Calculating..." : "Calculate"}
+                    {isActionLoading === "calculate"
+                      ? "Calculating..."
+                      : ["CALCULATED", "REVIEW_REQUIRED"].includes(selectedRun.status)
+                      ? "Re-calculate"
+                      : "Calculate"}
                   </button>
                   <button
                     type="button"

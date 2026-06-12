@@ -988,7 +988,7 @@ export default function AddPricingTermWizard({
   const svcName = services.find((s) => s.id === serviceId)?.name ?? "-";
   const modelLabel =
     PRICING_MODEL_OPTIONS.find((o) => o.value === model)?.label ?? model;
-  const vendorFieldsReadOnly = !!editingTerm;
+  const vendorFieldsReadOnly = false;
 
   const updateVendorCfg = (patch: Partial<VendorPricingShape>) => {
     setVendorCfg((prev) => ({ ...prev, ...patch }));

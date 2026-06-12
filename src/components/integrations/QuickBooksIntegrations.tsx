@@ -27,7 +27,7 @@ export default function QuickBooksIntegrations() {
 
   useEffect(() => {
     loadData();
-    setupMessageListener();
+    return setupMessageListener();
   }, []);
 
   useEffect(() => {
@@ -41,7 +41,6 @@ export default function QuickBooksIntegrations() {
   function setupMessageListener() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data === "qb-connected") {
-        toast.success("QuickBooks connected successfully!");
         refreshAllStatuses();
       }
     };

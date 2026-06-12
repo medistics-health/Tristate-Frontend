@@ -93,16 +93,6 @@ export default function SettingsPage() {
     if (activeTab === "general") {
       loadSettings();
     }
-
-    // Listen for QuickBooks connection success from popup
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data === "qb-connected") {
-        toast.success("QuickBooks connected successfully!");
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
   }, [activeTab]); // Run when activeTab changes
 
   useEffect(() => {
