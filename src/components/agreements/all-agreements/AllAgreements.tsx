@@ -411,7 +411,7 @@ function AllAgreementsPage() {
         cell: ({ row }: { row: { original: AgreementRow } }) => {
           const status = String(row.original.values.signingStatus || "");
           if (!status) return null;
-          const isComplete = status.includes("/") && !status.includes("0/");
+          const isComplete = status.includes(" signed");
           return (
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${

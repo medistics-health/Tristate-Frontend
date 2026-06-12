@@ -21,10 +21,8 @@ export function readStoredUser(): StoredUser | null {
 }
 
 export function hasAdminAccess(role?: string | null) {
-  const normalizedRole = String(role || "").trim().toUpperCase();
-  return (
-    normalizedRole === "ADMIN" ||
-    normalizedRole === "SUPER_ADMIN" ||
-    normalizedRole === "INTERNAL"
-  );
+  const normalizedRole = String(role || "")
+    .trim()
+    .toUpperCase();
+  return normalizedRole === "ADMIN" || normalizedRole === "INTERNAL";
 }

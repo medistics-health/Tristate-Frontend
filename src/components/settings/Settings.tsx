@@ -714,7 +714,8 @@ export default function SettingsPage() {
                   <option value="OPERATIONS">Operations</option>
                   <option value="FINANCE">Finance</option>
                   <option value="VIEWER">Viewer</option>
-                  <option value="INTERNAL">Internal Admin</option>
+                  <option value="INTERNAL">Internal</option>
+                  <option value="ADMIN">Admin</option>
                 </select>
               </div>
               <div className="flex gap-3 pt-4">
@@ -841,7 +842,8 @@ export default function SettingsPage() {
                   <option value="OPERATIONS">Operations</option>
                   <option value="FINANCE">Finance</option>
                   <option value="VIEWER">Viewer</option>
-                  <option value="INTERNAL">Internal Admin</option>
+                  <option value="INTERNAL">Internal</option>
+                  <option value="ADMIN">Admin</option>
                 </select>
               </div>
               <div className="flex gap-3 pt-4">

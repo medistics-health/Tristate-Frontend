@@ -28,6 +28,10 @@ import {
   type BillingRunRow,
 } from "../../services/operations/billings";
 import {
+  getInvoicesView,
+  type InvoiceRow,
+} from "../../services/operations/invoices";
+import {
   getExternalOnboardingByPracticeId,
   type Onboarding,
 } from "../../services/operations/onboarding";
@@ -36,6 +40,7 @@ import {
   getPractice,
   type Practice,
 } from "../../services/operations/practices";
+import { getDealsByPractice, type Deal } from "../../services/operations/deals";
 import { getPricingTerms } from "../../services/operations/pricingEngine";
 
 function formatDate(value?: string | null) {
@@ -84,7 +89,7 @@ function getSigningSummary(agreement: Agreement) {
     return `Signed (${completed}/${submissions.length})`;
   }
 
-  return `Pending signature (${completed}/${submissions.length})`;
+  return `Pending signature (${submissions.length - completed}/${submissions.length})`;
 }
 
 function getSignedDocumentUrls(submission: {
@@ -141,19 +146,20 @@ function getAgreementSignedDocuments(agreement: Agreement) {
         }),
       );
 
-      const auditUrl = submission.auditLogUrl
-        ? [
-            {
-              id: `${submission.id}-audit`,
-              url: submission.auditLogUrl,
-              label: "Audit log",
-              kind: "Audit Log",
-              updatedAt: submission.updatedAt,
-            },
-          ]
-        : [];
+      // const auditUrl = submission.auditLogUrl
+      //   ? [
+      //       {
+      //         id: `${submission.id}-audit`,
+      //         url: submission.auditLogUrl,
+      //         label: "Audit log",
+      //         kind: "Audit Log",
+      //         updatedAt: submission.updatedAt,
+      //       },
+      //     ]
+      //   : [];
 
-      return [...signedUrls, ...auditUrl];
+      // return [...signedUrls, ...auditUrl];
+      return [...signedUrls];
     });
 }
 
@@ -304,9 +310,11 @@ export default function PracticeProfilePage() {
   const { id } = useParams();
   const [practice, setPractice] = useState<Practice | null>(null);
   const [agreements, setAgreements] = useState<Agreement[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
   const [onboarding, setOnboarding] = useState<Onboarding | null>(null);
   const [associatedCompanies, setAssociatedCompanies] = useState<Company[]>([]);
   const [billingRuns, setBillingRuns] = useState<BillingRunRow[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [billingRunDetails, setBillingRunDetails] = useState<
     Record<string, BillingRunDetail>
   >({});
@@ -353,6 +361,44 @@ export default function PracticeProfilePage() {
     [agreements],
   );
 
+  const selectedPracticeServices = useMemo(() => {
+    const serviceMap = new Map<string, string>();
+    const addService = (id: string | undefined, name: string | undefined) => {
+      const serviceName = name?.trim();
+      const serviceKey = id || serviceName;
+      if (!serviceKey || !serviceName) return;
+
+      serviceMap.set(serviceKey, serviceName);
+    };
+
+    const addTermService = (term: AgreementServiceTerm) => {
+      if (term.isActive === false) return;
+
+      addService(term.service?.id || term.serviceId, term.service?.name);
+    };
+
+    deals.forEach((deal) => {
+      deal.selectedServices?.forEach((selectedService) =>
+        addService(
+          selectedService.serviceId || selectedService.service?.id,
+          selectedService.service?.name,
+        ),
+      );
+      deal.selectedServiceNames?.forEach((serviceName, index) =>
+        addService(deal.selectedServiceIds?.[index], serviceName),
+      );
+    });
+    agreements.forEach((agreement) => {
+      agreement.serviceTerms?.forEach(addTermService);
+      agreement.versions?.forEach((version) =>
+        version.serviceTerms?.forEach(addTermService),
+      );
+    });
+    terms.forEach(addTermService);
+
+    return Array.from(serviceMap, ([id, name]) => ({ id, name }));
+  }, [agreements, deals, terms]);
+
   const isPracticeActive = practice?.status === "ACTIVE";
   const hasActiveAgreement = activeAgreements.length > 0;
   const canUsePricingAndBilling = isPracticeActive && hasActiveAgreement;
@@ -375,20 +421,36 @@ export default function PracticeProfilePage() {
     if (!practiceId) return;
     setIsLoading(true);
     try {
-      const [practiceData, agreementData, onboardingData, billingData] =
-        await Promise.all([
-          getPractice(practiceId),
-          getAgreementsByPractice(practiceId).catch(() => [] as Agreement[]),
-          getExternalOnboardingByPracticeId(practiceId).catch(() => null),
-          getBillingRunsView({ practiceId, limit: 5 }).catch(() => ({
-            rows: [] as BillingRunRow[],
-            pagination: { page: 1, limit: 5, total: 0, totalPages: 0 },
-          })),
-        ]);
+      const [
+        practiceData,
+        agreementData,
+        dealData,
+        onboardingData,
+        billingData,
+        invoiceData,
+      ] = await Promise.all([
+        getPractice(practiceId),
+        getAgreementsByPractice(practiceId).catch(() => [] as Agreement[]),
+        getDealsByPractice(practiceId).catch(() => [] as Deal[]),
+        getExternalOnboardingByPracticeId(practiceId).catch(() => null),
+        getBillingRunsView({ practiceId, limit: 5 }).catch(() => ({
+          rows: [] as BillingRunRow[],
+          pagination: { page: 1, limit: 5, total: 0, totalPages: 0 },
+        })),
+        getInvoicesView({ practiceId, limit: 10 }).catch(() => ({
+          viewId: "practice-invoices",
+          title: "Practice Invoices",
+          totalCount: 0,
+          rows: [] as InvoiceRow[],
+          pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
+        })),
+      ]);
 
       setPractice(practiceData);
       setAgreements(agreementData);
+      setDeals(dealData);
       setOnboarding(onboardingData);
+      setInvoices(invoiceData.rows);
       const companyIds = Array.from(
         new Set(
           [practiceData.companyId, practiceData.company?.id].filter(
@@ -542,10 +604,10 @@ export default function PracticeProfilePage() {
       ]}
     >
       <div className="space-y-4">
-        <section className="overflow-hidden rounded-[28px] border border-[#e8e2d8] bg-slate-950 text-white shadow-sm">
+        <section className="overflow-hidden rounded-[28px] rounded-2xl border border-[#eadfcd] bg-gradient-to-br from-[#f9f4ec] via-white to-[#f4f7fb] text-slate-900 shadow-sm">
           <div className="grid gap-6 p-6 lg:grid-cols-[1fr_360px]">
             <div>
-              <p className="text-[12px] uppercase tracking-[0.24em] text-slate-400">
+              <p className="text-[12px] uppercase tracking-[0.24em] text-[#4f63ea]">
                 Practice Command Center
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -558,7 +620,7 @@ export default function PracticeProfilePage() {
                   {formatLabel(practice.status)}
                 </span>
               </div>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
                 Centralized practice workspace for agreements, onboarding,
                 associated people, companies, pricing terms, and billing runs.
               </p>
@@ -577,7 +639,7 @@ export default function PracticeProfilePage() {
                 </a>
               </div>*/}
             </div>
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="rounded-3xl border border-[#ece8e1] bg-white/70 p-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-slate-400">NPI</p>
@@ -652,6 +714,25 @@ export default function PracticeProfilePage() {
                 label="Practice Group"
                 value={practice.practiceGroup?.name}
               />
+              <InfoRow
+                label="Selected Services"
+                value={
+                  selectedPracticeServices.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedPracticeServices.map((service) => (
+                        <span
+                          key={service.id}
+                          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                        >
+                          {service.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    "-"
+                  )
+                }
+              />
               <InfoRow label="Bucket" value={practice.bucket?.join(", ")} />
               <InfoRow
                 label="Created"
@@ -697,14 +778,14 @@ export default function PracticeProfilePage() {
           title="Associated Companies"
           description="Companies linked to this practice."
           scrollable
-          action={
-            <Link
-              to="/company/all-companies?action=create"
-              className="text-sm font-semibold text-slate-600 hover:text-slate-950"
-            >
-              Add Company
-            </Link>
-          }
+          // action={
+          //   <Link
+          //     to="/company/all-companies?action=create"
+          //     className="text-sm font-semibold text-slate-600 hover:text-slate-950"
+          //   >
+          //     Add Company
+          //   </Link>
+          // }
         >
           {associatedCompanies.length ? (
             <div className="grid gap-3 lg:grid-cols-2">
@@ -777,11 +858,18 @@ export default function PracticeProfilePage() {
             description="Review all agreements connected to this practice, including versions and signing status."
             scrollable
             action={
+              // <Link
+              //   to={`/agreements/all-agreements?practiceId=${practice.id}`}
+              //   className="text-sm font-semibold text-slate-600 hover:text-slate-950"
+              // >
+              //   Full module
+              // </Link>
               <Link
-                to={`/agreements/all-agreements?practiceId=${practice.id}`}
-                className="text-sm font-semibold text-slate-600 hover:text-slate-950"
+                to={`/agreements/all-agreements?practiceId=${practice.id}&action=create`}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
               >
-                Full module
+                Create New Agreements
+                <ArrowRight className="h-4 w-4" />
               </Link>
             }
           >
@@ -1035,13 +1123,13 @@ export default function PracticeProfilePage() {
                     place.
                   </p>
                 </div>
-                <Link
+                {/*<Link
                   to={`/agreements/all-agreements?practiceId=${practice.id}&action=create`}
                   className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
                 >
                   Create in Agreements
                   <ArrowRight className="h-4 w-4" />
-                </Link>
+                </Link>*/}
               </div>
             </div>
 
@@ -1249,6 +1337,62 @@ export default function PracticeProfilePage() {
             ) : null}
           </Card>
         </div>
+
+        <Card
+          title="Practice Invoices"
+          description="Invoices associated with this practice."
+          scrollable
+        >
+          <div className="overflow-hidden rounded-2xl border border-[#ece8e1]">
+            {invoices.length ? (
+              <div className="divide-y divide-[#ece8e1]">
+                {invoices.map((invoice) => (
+                  <div
+                    key={invoice.id}
+                    className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_150px_130px_130px]"
+                  >
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {invoice.values.invoiceNumber}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {invoice.values.agreementLabel}
+                      </p>
+                    </div>
+                    <div className="text-sm">
+                      <p className="text-slate-400">Amount</p>
+                      <p className="font-semibold text-slate-900">
+                        {invoice.values.totalAmount}
+                      </p>
+                    </div>
+                    <div className="text-sm">
+                      <p className="text-slate-400">Due Date</p>
+                      <p className="font-medium text-slate-700">
+                        {invoice.values.dueDate}
+                      </p>
+                    </div>
+                    <div className="text-sm">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                          invoice.values.status,
+                        )}`}
+                      >
+                        {formatLabel(invoice.values.status)}
+                      </span>
+                      <p className="mt-2 text-xs text-slate-400">
+                        Created {invoice.values.creationDate}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
+                No invoices found for this practice.
+              </p>
+            )}
+          </div>
+        </Card>
 
         {canUsePricingAndBilling ? (
           <>
