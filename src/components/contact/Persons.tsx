@@ -36,11 +36,11 @@ import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import type { PersonCellValue, PersonRow, PersonViewData } from "./types";
 import {
   createPersonApi,
-  deletePersonApi,
   getPersonsView,
   getPerson,
   updatePersonApi,
   type PersonQueryParams,
+  deletePersonApi,
 } from "../../services/operations/persons";
 import { getAllPractices } from "../../services/operations/practices";
 import { getAllCompanies } from "../../services/operations/companies";
@@ -75,6 +75,7 @@ type PersonFormData = {
   practiceIds: string[];
   companyIds: string[];
   designation: string;
+  status: string;
 };
 
 const initialFormData: PersonFormData = {
@@ -87,6 +88,7 @@ const initialFormData: PersonFormData = {
   practiceIds: [],
   companyIds: [],
   designation: "",
+  status: "ACTIVE",
 };
 
 const roleOptions = [
@@ -99,6 +101,7 @@ const roleOptions = [
   "OTHER",
 ];
 const influenceOptions = ["LOW", "MEDIUM", "HIGH", "DECISION_MAKER"];
+const statusOptions = ["ACTIVE", "INACTIVE"];
 
 export default function PersonsPage() {
   const [viewData, setViewData] = useState<PersonViewData | null>(null);
@@ -218,6 +221,7 @@ export default function PersonsPage() {
         practiceIds: practiceIdsArray,
         companyIds: companyIdsArray,
         designation: String(values.designation || ""),
+        status: String(values.status || "ACTIVE"),
       });
       setIsEditing(false);
     }
@@ -271,6 +275,7 @@ export default function PersonsPage() {
           influence: <Star className="h-3.5 w-3.5 text-slate-400" />,
           email: <Mail className="h-3.5 w-3.5 text-slate-400" />,
           phone: <Phone className="h-3.5 w-3.5 text-slate-400" />,
+          status: <Circle className="h-3.5 w-3.5 text-slate-400" />,
           designation: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           practiceNames: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
           companyNames: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
@@ -309,6 +314,23 @@ export default function PersonsPage() {
                   className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${roleColors[String(value)] || ""}`}
                 >
                   {String(value)}
+                </span>
+              );
+            }
+            if (field.id === "status") {
+              const normalizedStatus = String(value || "ACTIVE").toUpperCase();
+              const statusColors: Record<string, string> = {
+                ACTIVE: "bg-green-100 text-green-700",
+                INACTIVE: "bg-red-100 text-red-700",
+              };
+              return (
+                <span
+                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                    statusColors[normalizedStatus] ||
+                    "bg-gray-100 text-gray-700"
+                  }`}
+                >
+                  {normalizedStatus}
                 </span>
               );
             }
@@ -554,6 +576,7 @@ export default function PersonsPage() {
         practiceIds: formData.practiceIds,
         companyIds: formData.companyIds,
         designation: formData.designation.trim() || undefined,
+        status: formData.status,
       };
 
       await createPersonApi(personData);
@@ -605,6 +628,7 @@ export default function PersonsPage() {
         designation: formData.designation.trim() || undefined,
         practiceIds: formData.practiceIds,
         companyIds: formData.companyIds,
+        status: formData.status,
       };
 
       await updatePersonApi(selectedRow.id, personData);
@@ -629,7 +653,12 @@ export default function PersonsPage() {
   async function handleDeletePerson() {
     if (!selectedRow) return;
 
-    if (!window.confirm("Are you sure you want to delete this person?")) {
+    if (formData.status === "INACTIVE") {
+      toast.error("Person is Already Inactive");
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to Inactivate this person?")) {
       return;
     }
 
@@ -644,10 +673,10 @@ export default function PersonsPage() {
       setRows(data.rows);
       setPagination(data.pagination);
       closeDetailPanel();
-      toast.success("Person deleted successfully");
+      toast.success("Person Inactivated successfully");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to delete person";
+        err instanceof Error ? err.message : "Failed to inactivate person";
       toast.error(message);
     } finally {
       setIsDeleting(false);
@@ -835,20 +864,37 @@ export default function PersonsPage() {
           </div>
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Influence
+              Status
             </label>
             <select
-              value={formData.influence}
-              onChange={(e) => handleFormChange("influence", e.target.value)}
+              value={formData.status}
+              onChange={(e) => handleFormChange("status", e.target.value)}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             >
-              {influenceOptions.map((influence) => (
-                <option key={influence} value={influence}>
-                  {influence.replace("_", " ")}
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status}
                 </option>
               ))}
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            Influence
+          </label>
+          <select
+            value={formData.influence}
+            onChange={(e) => handleFormChange("influence", e.target.value)}
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+          >
+            {influenceOptions.map((influence) => (
+              <option key={influence} value={influence}>
+                {influence.replace("_", " ")}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -1009,7 +1055,7 @@ export default function PersonsPage() {
             className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
           >
             <Trash2 className="h-4 w-4" />
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isDeleting ? "Inactivating..." : "Inactive"}
           </button>
           <button
             type="submit"
@@ -1501,22 +1547,41 @@ export default function PersonsPage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Influence
+                      Status
                     </label>
                     <select
-                      value={formData.influence}
+                      value={formData.status}
                       onChange={(e) =>
-                        handleFormChange("influence", e.target.value)
+                        handleFormChange("status", e.target.value)
                       }
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     >
-                      {influenceOptions.map((influence) => (
-                        <option key={influence} value={influence}>
-                          {influence.replace("_", " ")}
+                      {statusOptions.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
                         </option>
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                    Influence
+                  </label>
+                  <select
+                    value={formData.influence}
+                    onChange={(e) =>
+                      handleFormChange("influence", e.target.value)
+                    }
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  >
+                    {influenceOptions.map((influence) => (
+                      <option key={influence} value={influence}>
+                        {influence.replace("_", " ")}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

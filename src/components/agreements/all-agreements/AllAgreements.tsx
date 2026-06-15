@@ -86,6 +86,8 @@ const statusStyles: Record<string, string> = {
   PENDING_SIGNATURE: "bg-amber-100 text-amber-700",
   SIGNED: "bg-blue-100 text-blue-700",
   EXPIRED: "bg-red-100 text-red-700",
+  TERMINATED: "bg-red-100 text-red-700",
+  INACTIVE: "bg-red-100 text-red-700",
   ARCHIVED: "bg-zinc-100 text-zinc-600",
 };
 
@@ -96,6 +98,7 @@ const agreementStatusOptions = [
   "EXPIRED",
   "TERMINATED",
   "SIGNED",
+  "INACTIVE",
 ];
 
 const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
@@ -532,11 +535,7 @@ function AllAgreementsPage() {
     const tab = searchParams.get("tab");
     const action = searchParams.get("action");
 
-    if (
-      profileAgreementOpenHandled ||
-      action === "create" ||
-      !agreementId
-    ) {
+    if (profileAgreementOpenHandled || action === "create" || !agreementId) {
       return;
     }
 
@@ -894,7 +893,11 @@ function AllAgreementsPage() {
 
   async function handleDeleteAgreement() {
     if (!selectedRowId) return;
-    if (!window.confirm("Are you sure you want to delete this agreement?")) {
+    if (editForm.status === "INACTIVE") {
+      toast.error("Agreement is Already Inactive");
+      return;
+    }
+    if (!window.confirm("Are you sure you want to Inactive this agreement?")) {
       return;
     }
 
@@ -908,7 +911,7 @@ function AllAgreementsPage() {
       setRows(data.rows);
       setPagination(data.pagination);
       closeDetailPanel();
-      toast.success("Agreement deleted successfully");
+      toast.success("Agreement Inactivated successfully");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to delete agreement";
@@ -1139,6 +1142,8 @@ function AllAgreementsPage() {
                     PENDING_SIGNATURE: "bg-amber-100 text-amber-700",
                     SIGNED: "bg-blue-100 text-blue-700",
                     EXPIRED: "bg-red-100 text-red-700",
+                    TERMINATED: "bg-red-100 text-red-700",
+                    INACTIVE: "bg-red-100 text-red-700",
                     ARCHIVED: "bg-zinc-100 text-zinc-600",
                   };
                   const agStatus = selectedAgreement?.status || "";
@@ -1225,7 +1230,13 @@ function AllAgreementsPage() {
                       required
                     >
                       {agreementStatusOptions.map((status) => (
-                        <option key={status} value={status} disabled={true}>
+                        <option
+                          key={status}
+                          value={status}
+                          disabled={
+                            status !== "TERMINATED" && status !== "INACTIVE"
+                          }
+                        >
                           {formatStatusLabel(status)}
                         </option>
                       ))}
@@ -1343,7 +1354,7 @@ function AllAgreementsPage() {
                   className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
                 >
                   <Trash2 className="h-4 w-4" />
-                  {isDeleting ? "Deleting..." : "Delete"}
+                  {isDeleting ? "Inactivating..." : "Inactive"}
                 </button>
                 <button
                   type="submit"
@@ -1636,7 +1647,6 @@ function AllAgreementsPage() {
               </div>
             </div>
           )}
-
         </>
       )}
     </aside>
