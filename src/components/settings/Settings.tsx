@@ -71,6 +71,8 @@ export default function SettingsPage() {
     supportEmail: "",
     authorizedSigner: "",
     notifyTo: [] as string[],
+    invoiceDueDays: 15,
+    invoiceReminderDays: 5,
   });
   const [notifyToInput, setNotifyToInput] = useState("");
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
@@ -136,6 +138,8 @@ export default function SettingsPage() {
         supportEmail: data.supportEmail || "",
         authorizedSigner: data.authorizedSigner || "",
         notifyTo: Array.isArray(data.notifyTo) ? data.notifyTo : [],
+        invoiceDueDays: data.invoiceDueDays ?? 15,
+        invoiceReminderDays: data.invoiceReminderDays ?? 5,
       });
       setNotifyToInput(
         Array.isArray(data.notifyTo) ? data.notifyTo.join(", ") : "",
@@ -408,6 +412,40 @@ export default function SettingsPage() {
                           setOrgSettings({
                             ...orgSettings,
                             address: e.target.value,
+                          })
+                        }
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        Invoice Due Period (Days)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={orgSettings.invoiceDueDays}
+                        onChange={(e) =>
+                          setOrgSettings({
+                            ...orgSettings,
+                            invoiceDueDays: parseInt(e.target.value, 10) || 15,
+                          })
+                        }
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        Invoice Reminder Period (Days)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={orgSettings.invoiceReminderDays}
+                        onChange={(e) =>
+                          setOrgSettings({
+                            ...orgSettings,
+                            invoiceReminderDays: parseInt(e.target.value, 10) || 5,
                           })
                         }
                         className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"

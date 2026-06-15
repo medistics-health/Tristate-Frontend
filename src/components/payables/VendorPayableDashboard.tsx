@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { DollarSign, RefreshCw, FileText, CheckCircle, Clock, Check, X, Trash2, Link2, ExternalLink } from "lucide-react";
+import { DollarSign, RefreshCw, FileText, CheckCircle, Clock, Check, X, Trash2, Link2, ExternalLink, Download } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import {
@@ -12,6 +12,7 @@ import {
   createVendorPayable,
   deletePayable,
   payVendorPayable,
+  downloadQuickBooksBillPdf,
   type VendorPayable,
 } from "../../services/operations/payables";
 import { getAllVendors, type Vendor } from "../../services/operations/vendors";
@@ -177,6 +178,18 @@ export default function VendorPayableDashboard() {
       toast.error(error instanceof Error ? error.message : "Failed to mark payable as paid.");
     } finally {
       setActionState(id, "pay", false);
+    }
+  }
+
+  async function handleDownloadBill(id: string) {
+    try {
+      setActionState(id, "download", true);
+      await downloadQuickBooksBillPdf(id, `bill-${id}.pdf`);
+      toast.success("Bill PDF downloaded successfully.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to download bill PDF.");
+    } finally {
+      setActionState(id, "download", false);
     }
   }
 
@@ -418,6 +431,26 @@ export default function VendorPayableDashboard() {
                                 <div className="flex flex-col items-start leading-none gap-0 text-left">
                                   <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Sync</span>
                                   <span className="text-[12px] font-extrabold uppercase">Pmt</span>
+                                </div>
+                              </button>
+                            )}
+
+                            {/* Download Bill PDF from QB */}
+                            {payable.status === "PAID" && !!payable.quickbooksBillId && (
+                              <button
+                                onClick={() => handleDownloadBill(payable.id)}
+                                disabled={isAnyActionLoading(payable.id)}
+                                className="bg-emerald-50 border-emerald-100 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-200 inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-[12px] font-bold transition-all shadow-sm"
+                                title="Download Bill PDF"
+                              >
+                                {isActionLoading(payable.id, "download") ? (
+                                  <RefreshCw className="h-4 w-4 animate-spin text-emerald-500" />
+                                ) : (
+                                  <Download className="h-4 w-4 text-emerald-600" />
+                                )}
+                                <div className="flex flex-col items-start leading-none gap-0 text-left">
+                                  <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-tighter">QuickBooks</span>
+                                  <span className="text-[12px] font-extrabold uppercase text-emerald-700">Download</span>
                                 </div>
                               </button>
                             )}
