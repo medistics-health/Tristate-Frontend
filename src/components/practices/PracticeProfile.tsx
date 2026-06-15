@@ -1207,7 +1207,13 @@ export default function PracticeProfilePage() {
                       : "Not Started"}
                   </span>
                   <Link
-                    to="/onboarding/review"
+                    to={
+                      onboarding?.id
+                        ? `/onboarding/review?onboardingId=${encodeURIComponent(
+                            onboarding.id,
+                          )}&review=true`
+                        : "/onboarding/review"
+                    }
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-[#ded8cf] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
                   >
                     Admin Review

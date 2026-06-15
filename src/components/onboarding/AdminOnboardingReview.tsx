@@ -8,6 +8,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
   ArrowRight,
@@ -321,6 +322,9 @@ function BoolBadge({
 }
 
 export default function AdminOnboardingReview() {
+  const [searchParams] = useSearchParams();
+  const targetOnboardingId = searchParams.get("onboardingId") || "";
+  const shouldStartTargetReview = searchParams.get("review") === "true";
   const [rows, setRows] = useState<OnboardingRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -349,6 +353,8 @@ export default function AdminOnboardingReview() {
     Record<string, string>
   >({});
   const [showEmptyFields, setShowEmptyFields] = useState(true);
+  const [openedTargetOnboardingId, setOpenedTargetOnboardingId] =
+    useState("");
 
   const parseNumericInput = (value: string) =>
     value.trim() === "" ? undefined : Number(value);
@@ -636,6 +642,93 @@ export default function AdminOnboardingReview() {
       setIsSelectedLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!targetOnboardingId || openedTargetOnboardingId === targetOnboardingId) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function openTargetOnboarding() {
+      setOpenedTargetOnboardingId(targetOnboardingId);
+      setSelectedRowId(targetOnboardingId);
+      setShowDetailPanel(true);
+      setActiveTab("overview");
+      setSelectedOnboarding(null);
+      setIsSelectedLoading(true);
+
+      try {
+        const onboarding = await getOnboarding(targetOnboardingId);
+        if (isCancelled) return;
+
+        setSelectedOnboarding(onboarding);
+        setRows((current) =>
+          current.some((row) => row.id === onboarding.id)
+            ? current.map((row) =>
+                row.id === onboarding.id
+                  ? {
+                      ...row,
+                      original: onboarding,
+                      status: onboarding.status || row.status,
+                    }
+                  : row,
+              )
+            : [
+                {
+                  id: onboarding.id,
+                  practiceName:
+                    (onboarding.practiceId &&
+                      practiceNamesById[onboarding.practiceId]) ||
+                    onboarding.practices?.[0]?.practiceName ||
+                    "N/A",
+                  submittedBy: onboarding.submittedByName || "Unknown",
+                  type: onboarding.onboardingType || "N/A",
+                  status: onboarding.status || "DRAFT",
+                  priority: onboarding.priorityLevel || "MEDIUM",
+                  services: onboarding.requestedServices || [],
+                  submissionDate: onboarding.submissionDate
+                    ? new Date(onboarding.submissionDate).toLocaleDateString()
+                    : "N/A",
+                  contacts: onboarding.contacts?.length || 0,
+                  practices: onboarding.practices?.length || 0,
+                  original: onboarding,
+                },
+                ...current,
+              ],
+        );
+
+        if (shouldStartTargetReview) {
+          setReviewingData(onboarding);
+          setIsReviewing(true);
+          setReviewStep(1);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unable to load onboarding.";
+          toast.error(message);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsSelectedLoading(false);
+        }
+      }
+    }
+
+    void openTargetOnboarding();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    openedTargetOnboardingId,
+    practiceNamesById,
+    shouldStartTargetReview,
+    targetOnboardingId,
+  ]);
 
   const closeDetailPanel = () => {
     setShowDetailPanel(false);
