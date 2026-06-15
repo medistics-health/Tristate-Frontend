@@ -173,3 +173,26 @@ export async function payVendorPayable(id: string, paymentMethod?: string): Prom
   }
 }
 
+export async function downloadQuickBooksBillPdf(id: string, fileName = "bill.pdf"): Promise<void> {
+  try {
+    const response = await axios({
+      url: `${BASE}/${id}/download-bill`,
+      method: "GET",
+      responseType: "blob",
+      withCredentials: true,
+    });
+    
+    // Create link to download
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode?.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to download bill PDF."));
+  }
+}
+
