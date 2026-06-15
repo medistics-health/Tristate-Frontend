@@ -1115,28 +1115,6 @@ export default function PracticeProfilePage() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    Create a new agreement
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Use the Agreements module so template selection, required
-                    DocuSeal fields, dates, and approvals are validated in one
-                    place.
-                  </p>
-                </div>
-                {/*<Link
-                  to={`/agreements/all-agreements?practiceId=${practice.id}&action=create`}
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
-                >
-                  Create in Agreements
-                  <ArrowRight className="h-4 w-4" />
-                </Link>*/}
-              </div>
-            </div>
-
             {/*
             <form
               onSubmit={handleSendAgreement}
@@ -1229,7 +1207,13 @@ export default function PracticeProfilePage() {
                       : "Not Started"}
                   </span>
                   <Link
-                    to="/onboarding/review"
+                    to={
+                      onboarding?.id
+                        ? `/onboarding/review?onboardingId=${encodeURIComponent(
+                            onboarding.id,
+                          )}&review=true`
+                        : "/onboarding/review"
+                    }
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-[#ded8cf] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
                   >
                     Admin Review
@@ -1342,61 +1326,63 @@ export default function PracticeProfilePage() {
           </Card>
         </div>
 
-        <Card
-          title="Practice Invoices"
-          description="Invoices associated with this practice."
-          scrollable
-        >
-          <div className="overflow-hidden rounded-2xl border border-[#ece8e1]">
-            {invoices.length ? (
-              <div className="divide-y divide-[#ece8e1]">
-                {invoices.map((invoice) => (
-                  <div
-                    key={invoice.id}
-                    className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_150px_130px_130px]"
-                  >
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        {invoice.values.invoiceNumber}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {invoice.values.agreementLabel}
-                      </p>
+        {hasActiveAgreement ? (
+          <Card
+            title="Practice Invoices"
+            description="Invoices associated with this practice."
+            scrollable
+          >
+            <div className="overflow-hidden rounded-2xl border border-[#ece8e1]">
+              {invoices.length ? (
+                <div className="divide-y divide-[#ece8e1]">
+                  {invoices.map((invoice) => (
+                    <div
+                      key={invoice.id}
+                      className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_150px_130px_130px]"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {invoice.values.invoiceNumber}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {invoice.values.agreementLabel}
+                        </p>
+                      </div>
+                      <div className="text-sm">
+                        <p className="text-slate-400">Amount</p>
+                        <p className="font-semibold text-slate-900">
+                          {invoice.values.totalAmount}
+                        </p>
+                      </div>
+                      <div className="text-sm">
+                        <p className="text-slate-400">Due Date</p>
+                        <p className="font-medium text-slate-700">
+                          {invoice.values.dueDate}
+                        </p>
+                      </div>
+                      <div className="text-sm">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                            invoice.values.status,
+                          )}`}
+                        >
+                          {formatLabel(invoice.values.status)}
+                        </span>
+                        <p className="mt-2 text-xs text-slate-400">
+                          Created {invoice.values.creationDate}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-sm">
-                      <p className="text-slate-400">Amount</p>
-                      <p className="font-semibold text-slate-900">
-                        {invoice.values.totalAmount}
-                      </p>
-                    </div>
-                    <div className="text-sm">
-                      <p className="text-slate-400">Due Date</p>
-                      <p className="font-medium text-slate-700">
-                        {invoice.values.dueDate}
-                      </p>
-                    </div>
-                    <div className="text-sm">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
-                          invoice.values.status,
-                        )}`}
-                      >
-                        {formatLabel(invoice.values.status)}
-                      </span>
-                      <p className="mt-2 text-xs text-slate-400">
-                        Created {invoice.values.creationDate}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
-                No invoices found for this practice.
-              </p>
-            )}
-          </div>
-        </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
+                  No invoices found for this practice.
+                </p>
+              )}
+            </div>
+          </Card>
+        ) : null}
 
         {canUsePricingAndBilling ? (
           <>

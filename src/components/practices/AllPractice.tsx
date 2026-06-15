@@ -44,9 +44,9 @@ import type {
 } from "./types";
 import {
   createPracticeApi,
-  deletePracticeApi,
   getPracticesView,
   getPractice,
+  deletePracticeApi,
   updatePracticeApi,
   type PracticeQueryParams,
 } from "../../services/operations/practices";
@@ -915,6 +915,7 @@ export default function AllPracticePage() {
       setPagination(data.pagination);
       setIsEditing(false);
       toast.success("Practice updated successfully");
+      setShowDetailPanel(false);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to update practice";
@@ -927,7 +928,14 @@ export default function AllPracticePage() {
   async function handleDeletePractice() {
     if (!selectedRow) return;
 
-    if (!window.confirm("Are you sure you want to delete this practice?")) {
+    if (formData.status === "INACTIVE") {
+      toast.error("Practice is Already Inactive");
+      return;
+    }
+
+    if (
+      !window.confirm("Are you sure you want to mark this practice inactive?")
+    ) {
       return;
     }
 
@@ -942,10 +950,10 @@ export default function AllPracticePage() {
       setRows(data.rows);
       setPagination(data.pagination);
       closeDetailPanel();
-      toast.success("Practice deleted successfully");
+      toast.success("Practice marked inactive successfully");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to delete practice";
+        err instanceof Error ? err.message : "Failed to mark practice inactive";
       toast.error(message);
     } finally {
       setIsDeleting(false);
@@ -1393,7 +1401,7 @@ export default function AllPracticePage() {
             className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
           >
             <Trash2 className="h-4 w-4" />
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isDeleting ? "Inactivating..." : "Inactive"}
           </button>
           <button
             type="submit"

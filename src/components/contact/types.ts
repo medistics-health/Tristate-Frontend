@@ -34,6 +34,7 @@ export type PersonBody = {
   email?: string;
   phone?: string;
   designation?: string;
+  status?: string;
 };
 
 export type PersonPractice = { id: string; name: string };
@@ -48,6 +49,7 @@ export type Person = {
   email?: string;
   phone?: string;
   designation?: string;
+  status?: string;
   createdAt: string;
   updatedAt: string;
   practices?: PersonPractice[];
