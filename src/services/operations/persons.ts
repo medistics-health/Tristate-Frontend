@@ -1,7 +1,12 @@
 import axios from "axios";
 import { apiConnector } from "../apiConnector";
 import { personEndpoints } from "../apis";
-import type { Person, PersonBody, PersonRow, PersonViewData } from "../../components/contact/types";
+import type {
+  Person,
+  PersonBody,
+  PersonRow,
+  PersonViewData,
+} from "../../components/contact/types";
 
 const { LIST, CREATE, GET, UPDATE, DELETE } = personEndpoints;
 
@@ -54,6 +59,7 @@ function personToRow(person: PersonWithPractices): PersonRow {
       influence: person.influence,
       email: person.email || "",
       phone: person.phone || "",
+      status: person.status || "",
       practiceIds: practicesList.map((p) => p.id),
       practiceNames: practiceNames,
       companyIds: companiesList.map((c) => c.id),
@@ -67,14 +73,40 @@ function personToRow(person: PersonWithPractices): PersonRow {
 const fields = [
   { id: "fullName", label: "Name", type: "text" as const, visible: true },
   { id: "role", label: "Role", type: "text" as const, visible: true },
-  { id: "designation", label: "Designation", type: "text" as const, visible: true },
+  { id: "status", label: "Status", type: "text" as const, visible: true },
+  {
+    id: "designation",
+    label: "Designation",
+    type: "text" as const,
+    visible: true,
+  },
   { id: "influence", label: "Influence", type: "text" as const, visible: true },
   { id: "email", label: "Email", type: "text" as const, visible: true },
   { id: "phone", label: "Phone", type: "text" as const, visible: false },
-  { id: "practiceNames", label: "Practices", type: "text" as const, visible: true },
-  { id: "companyNames", label: "Companies", type: "text" as const, visible: true },
-  { id: "creationDate", label: "Creation date", type: "text" as const, visible: true },
-  { id: "lastUpdate", label: "Last update", type: "text" as const, visible: false },
+  {
+    id: "practiceNames",
+    label: "Practices",
+    type: "text" as const,
+    visible: true,
+  },
+  {
+    id: "companyNames",
+    label: "Companies",
+    type: "text" as const,
+    visible: true,
+  },
+  {
+    id: "creationDate",
+    label: "Creation date",
+    type: "text" as const,
+    visible: true,
+  },
+  {
+    id: "lastUpdate",
+    label: "Last update",
+    type: "text" as const,
+    visible: false,
+  },
 ];
 
 export type PersonQueryParams = {
@@ -88,7 +120,9 @@ export type PersonQueryParams = {
   sortOrder?: "asc" | "desc";
 };
 
-export async function getPersonsView(params?: PersonQueryParams): Promise<PersonViewData> {
+export async function getPersonsView(
+  params?: PersonQueryParams,
+): Promise<PersonViewData> {
   try {
     const queryString = new URLSearchParams();
     if (params?.page) queryString.set("page", String(params.page));
@@ -100,7 +134,9 @@ export async function getPersonsView(params?: PersonQueryParams): Promise<Person
     if (params?.sortBy) queryString.set("sortBy", params.sortBy);
     if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 
-    const url = queryString.toString() ? `${LIST}?${queryString.toString()}` : LIST;
+    const url = queryString.toString()
+      ? `${LIST}?${queryString.toString()}`
+      : LIST;
 
     const response = await apiConnector({
       method: "GET",
@@ -109,7 +145,12 @@ export async function getPersonsView(params?: PersonQueryParams): Promise<Person
     });
     const { persons, pagination } = response.data as {
       persons: PersonWithPractices[];
-      pagination: { totalRecords: number; totalPages: number; currentPage: number; limit: number };
+      pagination: {
+        totalRecords: number;
+        totalPages: number;
+        currentPage: number;
+        limit: number;
+      };
     };
     return {
       viewId: "person-view-001",
@@ -157,7 +198,10 @@ export async function createPersonApi(data: PersonBody): Promise<PersonRow> {
   }
 }
 
-export async function updatePersonApi(id: string, data: Partial<PersonBody>): Promise<PersonRow> {
+export async function updatePersonApi(
+  id: string,
+  data: Partial<PersonBody>,
+): Promise<PersonRow> {
   try {
     const response = await apiConnector({
       method: "PATCH",

@@ -123,7 +123,8 @@ type LeadFormState = {
   // Contact
   contactRelation: RelationType;
   selectedContactId: string;
-  primaryContactName: string;
+  primaryContactFirstName: string;
+  primaryContactLastName: string;
   primaryContactEmail: string;
   primaryContactPhone: string;
   primaryContactDesignation: string;
@@ -186,7 +187,8 @@ const initialFormState: LeadFormState = {
 
   contactRelation: "new",
   selectedContactId: "",
-  primaryContactName: "",
+  primaryContactFirstName: "",
+  primaryContactLastName: "",
   primaryContactEmail: "",
   primaryContactPhone: "",
   primaryContactDesignation: "",
@@ -257,14 +259,11 @@ function defaultFollowUpTitle(contactName: string, practiceName: string) {
   return `Follow up on ${practiceName}`;
 }
 
-function parseContactName(fullName: string) {
-  const normalized = fullName.trim().replace(/\s+/g, " ");
-  const [firstName = "", ...rest] = normalized.split(" ");
-  return {
-    firstName,
-    lastName: rest.join(" ") || "Contact",
-    fullName: normalized,
-  };
+function getPrimaryContactName(form: LeadFormState) {
+  return [form.primaryContactFirstName, form.primaryContactLastName]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
 }
 
 function buildErrorMessage(error: unknown) {
@@ -286,7 +285,7 @@ function buildLeadAgreementDocusealPrefillValues(
   const practiceName = form.practiceName.trim();
   const practiceNpi = form.practiceNpi.trim();
   const companyName = form.companyName.trim();
-  const contactName = form.primaryContactName.trim();
+  const contactName = getPrimaryContactName(form);
   const contactEmail = form.primaryContactEmail.trim();
   const effectiveDate = form.agreement.effectiveDate || "";
 
@@ -530,7 +529,6 @@ function CreateLeadPage() {
 
       // 3. Handle Contact
       if (form.contactRelation === "new") {
-        const parsedContact = parseContactName(form.primaryContactName);
         const mergedPracticeIds = [
           ...new Set(
             [practiceId, ...form.contactPracticeIds.map((p) => p.id)].filter(
@@ -547,8 +545,8 @@ function CreateLeadPage() {
           ),
         ];
         const personPayload: PersonBody = {
-          firstName: parsedContact.firstName,
-          lastName: parsedContact.lastName,
+          firstName: form.primaryContactFirstName.trim(),
+          lastName: form.primaryContactLastName.trim(),
           role: form.primaryContactRole,
           influence: "HIGH",
           email: form.primaryContactEmail.trim(),
@@ -598,7 +596,7 @@ function CreateLeadPage() {
       const activityTimestamp = new Date().toISOString();
       const contactName =
         form.contactRelation === "new"
-          ? form.primaryContactName
+          ? getPrimaryContactName(form)
           : "Selected Contact";
       const pName =
         form.practiceRelation === "new"
@@ -1317,8 +1315,12 @@ function CreateLeadPage() {
     }
 
     if (form.contactRelation === "new") {
-      if (!form.primaryContactName.trim()) {
-        toast.error("Contact name is required.");
+      if (!form.primaryContactFirstName.trim()) {
+        toast.error("Contact first name is required.");
+        return;
+      }
+      if (!form.primaryContactLastName.trim()) {
+        toast.error("Contact last name is required.");
         return;
       }
       if (!form.primaryContactEmail.trim()) {
@@ -2079,13 +2081,29 @@ function CreateLeadPage() {
                   <div className="grid gap-4 md:grid-cols-2 p-4 rounded-xl border border-[#f0ece6] bg-[#fafafa] animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="block">
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Contact Name *
+                        Contact First Name *
                       </span>
                       <input
                         type="text"
-                        value={form.primaryContactName}
+                        value={form.primaryContactFirstName}
                         onChange={(e) =>
-                          updateField("primaryContactName", e.target.value)
+                          updateField(
+                            "primaryContactFirstName",
+                            e.target.value,
+                          )
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Contact Last Name *
+                      </span>
+                      <input
+                        type="text"
+                        value={form.primaryContactLastName}
+                        onChange={(e) =>
+                          updateField("primaryContactLastName", e.target.value)
                         }
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
@@ -2867,7 +2885,7 @@ function CreateLeadPage() {
                           {isAdmin ? (
                             <strong>
                               {form.contactRelation === "new"
-                                ? form.primaryContactName ||
+                                ? getPrimaryContactName(form) ||
                                   "the primary contact"
                                 : "the selected contact"}
                             </strong>
@@ -3002,7 +3020,7 @@ function CreateLeadPage() {
                       ? form.selectedContactId
                         ? "Link to existing"
                         : "Select a contact"
-                      : form.primaryContactName || "Create new contact"}
+                      : getPrimaryContactName(form) || "Create new contact"}
                   </div>
                 </div>
               </div>

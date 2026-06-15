@@ -44,8 +44,8 @@ import type {
 } from "./types";
 import {
   createCompanyApi,
-  deleteCompanyApi,
   getCompaniesView,
+  deleteCompanyApi,
   getCompany,
   updateCompanyApi,
   type Company,
@@ -147,7 +147,8 @@ function companyToPanelRow(company: Company): CompanyRow {
       lastUpdate: new Date(company.updatedAt).toLocaleString(),
       practicesCount: company._count?.practices || 0,
       practiceGroupsCount: company._count?.practiceGroups || 0,
-      taxIds: company.taxIds?.map((taxId) => taxId.taxIdNumber).join(", ") || "",
+      taxIds:
+        company.taxIds?.map((taxId) => taxId.taxIdNumber).join(", ") || "",
     },
   };
 }
@@ -656,8 +657,14 @@ export default function AllCompaniesPage() {
 
   async function handleDeleteCompany() {
     if (!selectedRow) return;
+    if (formData.status === "INACTIVE") {
+      toast.error("Company is Already Inactive");
+      return;
+    }
 
-    if (!window.confirm("Are you sure you want to delete this company?")) {
+    if (
+      !window.confirm("Are you sure you want to mark this company inactive?")
+    ) {
       return;
     }
 
@@ -672,10 +679,10 @@ export default function AllCompaniesPage() {
       setRows(data.rows);
       setPagination(data.pagination);
       closeDetailPanel();
-      toast.success("Company deleted successfully");
+      toast.success("Company marked inactive successfully");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to delete company";
+        err instanceof Error ? err.message : "Failed to mark company inactive";
       toast.error(message);
     } finally {
       setIsDeleting(false);
@@ -1153,7 +1160,7 @@ export default function AllCompaniesPage() {
             className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
           >
             <Trash2 className="h-4 w-4" />
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isDeleting ? "Inacticating..." : "Inactive"}
           </button>
           <button
             type="submit"
