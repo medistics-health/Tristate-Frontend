@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Building2,
   CalendarClock,
+  ChevronDown,
   DollarSign,
   FileSignature,
   FileText,
@@ -322,6 +323,9 @@ export default function PracticeProfilePage() {
   const [terms, setTerms] = useState<AgreementServiceTerm[]>([]);
   const [selectedAgreementId, setSelectedAgreementId] = useState("");
   const [selectedVersionId, setSelectedVersionId] = useState("");
+  const [drawerAgreementId, setDrawerAgreementId] = useState<string | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   const practiceId = id ?? "";
@@ -416,6 +420,12 @@ export default function PracticeProfilePage() {
     if (selectedVersionId) params.set("versionId", selectedVersionId);
     return `/pricing-engine/rate-finalization?${params.toString()}`;
   }, [practiceId, selectedAgreementId, selectedVersionId]);
+
+  function toggleAgreementDetails(agreementId: string) {
+    setDrawerAgreementId((current) =>
+      current === agreementId ? null : agreementId,
+    );
+  }
 
   async function loadProfile() {
     if (!practiceId) return;
@@ -882,7 +892,16 @@ export default function PracticeProfilePage() {
                 agreements.map((agreement) => (
                   <div
                     key={agreement.id}
-                    className="rounded-2xl border border-[#ece8e1] p-4"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleAgreementDetails(agreement.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        toggleAgreementDetails(agreement.id);
+                      }
+                    }}
+                    className="cursor-pointer rounded-2xl border border-[#ece8e1] p-4 transition hover:border-slate-300 hover:shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -894,154 +913,186 @@ export default function PracticeProfilePage() {
                           {formatMoney(agreement.value)}
                         </p>
                       </div>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(agreement.status)}`}
-                      >
-                        {formatLabel(agreement.status)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(agreement.status)}`}
+                        >
+                          {formatLabel(agreement.status)}
+                        </span>
+                        <span
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#ded8cf] bg-white text-slate-500"
+                          aria-hidden="true"
+                        >
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform duration-300 ${
+                              drawerAgreementId === agreement.id
+                                ? "rotate-180"
+                                : ""
+                            }`}
+                          />
+                        </span>
+                      </div>
                     </div>
                     <p className="mt-4 text-sm text-slate-500">
                       Created Date: {formatDate(agreement.createdAt)}
                     </p>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <div className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-3">
-                        <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                          Versions
-                        </p>
-                        {agreement.versions?.length ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {agreement.versions.map((version) => (
-                              <span
-                                key={version.id}
-                                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                  version.isCurrent
-                                    ? "bg-emerald-100 text-emerald-700"
-                                    : "bg-white text-slate-600"
-                                }`}
-                              >
-                                v{version.versionNumber}
-                                {version.isCurrent ? " Current" : ""}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="mt-2 text-sm text-slate-500">
-                            No version history available.
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-3">
-                        <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                          Current Version
-                        </p>
-                        {agreement.versions?.find(
-                          (version) => version.isCurrent,
-                        ) ? (
-                          <p className="mt-2 text-sm font-semibold text-slate-800">
-                            Version{" "}
-                            {
-                              agreement.versions.find(
-                                (version) => version.isCurrent,
-                              )?.versionNumber
-                            }
-                          </p>
-                        ) : (
-                          <p className="mt-2 text-sm text-slate-500">
-                            {agreement.versions?.length
-                              ? "No current version marked"
-                              : "-"}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
-                          agreement.docusealSubmissions?.length
-                            ? getSigningSummary(agreement).startsWith("Signed")
-                              ? "COMPLETED"
-                              : "PENDING_SIGNATURE"
-                            : "DRAFT",
-                        )}`}
-                      >
-                        {getSigningSummary(agreement)}
-                      </span>
-                      <Link
-                        to={`/agreements/all-agreements?practiceId=${practice.id}&agreementId=${agreement.id}`}
-                        className="inline-flex items-center gap-2 rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
-                      >
-                        View Agreement Details
-                      </Link>
-                      <Link
-                        to={`/agreements/all-agreements?practiceId=${practice.id}&agreementId=${agreement.id}&tab=versions`}
-                        className="inline-flex items-center gap-2 rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
-                      >
-                        View Agreement Version History
-                      </Link>
-                      <Link
-                        to={`/agreements/pending-signatures?agreementId=${agreement.id}`}
-                        className="inline-flex items-center gap-2 rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
-                      >
-                        View Signing Status
-                      </Link>
-                    </div>
-
-                    {(() => {
-                      const signedDocuments =
-                        getAgreementSignedDocuments(agreement);
-
-                      return (
-                        <div className="mt-4 rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-3">
-                          <div className="flex items-center justify-between gap-3">
+                    <div
+                      className={`grid transition-all duration-300 ease-in-out ${
+                        drawerAgreementId === agreement.id
+                          ? "grid-rows-[1fr] opacity-100"
+                          : "grid-rows-[0fr] opacity-0"
+                      }`}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          <div className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-3">
                             <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                              Signed Documents
+                              Versions
                             </p>
-                            <span className="text-xs font-semibold text-slate-400">
-                              {signedDocuments.length} file
-                              {signedDocuments.length === 1 ? "" : "s"}
-                            </span>
+                            {agreement.versions?.length ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {agreement.versions.map((version) => (
+                                  <span
+                                    key={version.id}
+                                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                      version.isCurrent
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-white text-slate-600"
+                                    }`}
+                                  >
+                                    v{version.versionNumber}
+                                    {version.isCurrent ? " Current" : ""}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="mt-2 text-sm text-slate-500">
+                                No version history available.
+                              </p>
+                            )}
                           </div>
 
-                          {signedDocuments.length ? (
-                            <div className="mt-3 space-y-2">
-                              {signedDocuments.map((document) => (
-                                <a
-                                  key={document.id}
-                                  href={document.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="flex items-center justify-between gap-3 rounded-xl border border-[#ece8e1] bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:shadow-sm"
-                                >
-                                  <span className="flex min-w-0 items-center gap-2">
-                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-500">
-                                      <FileText className="h-4 w-4" />
-                                    </span>
-                                    <span className="min-w-0">
-                                      <span className="block truncate">
-                                        {document.label}
-                                      </span>
-                                      <span className="text-xs text-slate-400">
-                                        {document.kind} | Updated{" "}
-                                        {formatDate(document.updatedAt)}
-                                      </span>
-                                    </span>
-                                  </span>
-                                  <span className="shrink-0 text-xs font-semibold text-blue-600">
-                                    View
-                                  </span>
-                                </a>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="mt-3 rounded-xl border border-dashed border-[#ded8cf] bg-white px-3 py-2 text-sm text-slate-500">
-                              No signed documents available yet.
+                          <div className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-3">
+                            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                              Current Version
                             </p>
-                          )}
+                            {agreement.versions?.find(
+                              (version) => version.isCurrent,
+                            ) ? (
+                              <p className="mt-2 text-sm font-semibold text-slate-800">
+                                Version{" "}
+                                {
+                                  agreement.versions.find(
+                                    (version) => version.isCurrent,
+                                  )?.versionNumber
+                                }
+                              </p>
+                            ) : (
+                              <p className="mt-2 text-sm text-slate-500">
+                                {agreement.versions?.length
+                                  ? "No current version marked"
+                                  : "-"}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      );
-                    })()}
+
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                              agreement.docusealSubmissions?.length
+                                ? getSigningSummary(agreement).startsWith(
+                                    "Signed",
+                                  )
+                                  ? "COMPLETED"
+                                  : "PENDING_SIGNATURE"
+                                : "DRAFT",
+                            )}`}
+                          >
+                            {getSigningSummary(agreement)}
+                          </span>
+                          <Link
+                            to={`/agreements/all-agreements?practiceId=${practice.id}&agreementId=${agreement.id}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="inline-flex items-center gap-2 rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                          >
+                            View Agreement Details
+                          </Link>
+                          <Link
+                            to={`/agreements/all-agreements?practiceId=${practice.id}&agreementId=${agreement.id}&tab=versions`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="inline-flex items-center gap-2 rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                          >
+                            View Agreement Version History
+                          </Link>
+                          <Link
+                            to={`/agreements/pending-signatures?agreementId=${agreement.id}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="inline-flex items-center gap-2 rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                          >
+                            View Signing Status
+                          </Link>
+                        </div>
+
+                        {(() => {
+                          const signedDocuments =
+                            getAgreementSignedDocuments(agreement);
+
+                          return (
+                            <div className="mt-4 rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                  Signed Documents
+                                </p>
+                                <span className="text-xs font-semibold text-slate-400">
+                                  {signedDocuments.length} file
+                                  {signedDocuments.length === 1 ? "" : "s"}
+                                </span>
+                              </div>
+
+                              {signedDocuments.length ? (
+                                <div className="mt-3 space-y-2">
+                                  {signedDocuments.map((document) => (
+                                    <a
+                                      key={document.id}
+                                      href={document.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={(event) =>
+                                        event.stopPropagation()
+                                      }
+                                      className="flex items-center justify-between gap-3 rounded-xl border border-[#ece8e1] bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:shadow-sm"
+                                    >
+                                      <span className="flex min-w-0 items-center gap-2">
+                                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-500">
+                                          <FileText className="h-4 w-4" />
+                                        </span>
+                                        <span className="min-w-0">
+                                          <span className="block truncate">
+                                            {document.label}
+                                          </span>
+                                          <span className="text-xs text-slate-400">
+                                            {document.kind} | Updated{" "}
+                                            {formatDate(document.updatedAt)}
+                                          </span>
+                                        </span>
+                                      </span>
+                                      <span className="shrink-0 text-xs font-semibold text-blue-600">
+                                        View
+                                      </span>
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-3 rounded-xl border border-dashed border-[#ded8cf] bg-white px-3 py-2 text-sm text-slate-500">
+                                  No signed documents available yet.
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
                   </div>
                 ))
               ) : (

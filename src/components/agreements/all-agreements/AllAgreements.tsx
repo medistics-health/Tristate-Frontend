@@ -594,7 +594,25 @@ function AllAgreementsPage() {
         // page: 1,
         // limit: 50,
       );
-      setVersions(data);
+      const loadedVersions = data as AgreementVersion[];
+      if (loadedVersions.length > 0 && !loadedVersions.some((version) => version.isCurrent)) {
+        const nextCurrentVersion = [...loadedVersions].sort(
+          (a, b) => b.versionNumber - a.versionNumber,
+        )[0];
+        const updatedVersion = await updateAgreementVersionApi(
+          nextCurrentVersion.id,
+          { isCurrent: true },
+        );
+        setVersions(
+          loadedVersions.map((version) =>
+            version.id === updatedVersion.id
+              ? { ...version, isCurrent: true }
+              : version,
+          ),
+        );
+        return;
+      }
+      setVersions(loadedVersions);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load versions";
@@ -1400,12 +1418,28 @@ function AllAgreementsPage() {
                   onSubmit={async (e) => {
                     e.preventDefault();
                     if (!selectedRowId) return;
+                    const isOnlyCurrentVersion =
+                      editingVersionId &&
+                      versions.find((version) => version.id === editingVersionId)
+                        ?.isCurrent &&
+                      versions.filter((version) => version.isCurrent).length === 1;
+
+                    if (isOnlyCurrentVersion && !versionForm.isCurrent) {
+                      toast.error(
+                        "At least one agreement version must remain current.",
+                      );
+                      return;
+                    }
+
+                    const nextIsCurrent =
+                      versions.length === 0 || versionForm.isCurrent;
+
                     setIsSavingVersion(true);
                     try {
                       if (editingVersionId) {
                         await updateAgreementVersionApi(editingVersionId, {
                           versionNumber: versionForm.versionNumber,
-                          isCurrent: versionForm.isCurrent,
+                          isCurrent: nextIsCurrent,
                           effectiveDate: versionForm.effectiveDate
                             ? new Date(versionForm.effectiveDate).toISOString()
                             : undefined,
@@ -1419,7 +1453,7 @@ function AllAgreementsPage() {
                         await createAgreementVersionApi({
                           agreementId: selectedRowId,
                           versionNumber: versionForm.versionNumber,
-                          isCurrent: versionForm.isCurrent,
+                          isCurrent: nextIsCurrent,
                           effectiveDate: versionForm.effectiveDate
                             ? new Date(versionForm.effectiveDate).toISOString()
                             : undefined,
@@ -1466,13 +1500,23 @@ function AllAgreementsPage() {
                     <input
                       type="checkbox"
                       checked={versionForm.isCurrent}
+                      disabled={
+                        Boolean(editingVersionId) &&
+                        Boolean(
+                          versions.find(
+                            (version) => version.id === editingVersionId,
+                          )?.isCurrent,
+                        ) &&
+                        versions.filter((version) => version.isCurrent)
+                          .length === 1
+                      }
                       onChange={(e) =>
                         setVersionForm((prev) => ({
                           ...prev,
                           isCurrent: e.target.checked,
                         }))
                       }
-                      className="h-4 w-4 rounded border-slate-300 text-[#4f63ea]"
+                      className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] disabled:opacity-50"
                     />
                     <label className="text-[12px] text-slate-700">
                       Set as current version
@@ -1624,6 +1668,18 @@ function AllAgreementsPage() {
                               if (!window.confirm("Delete this version?"))
                                 return;
                               try {
+                                if (version.isCurrent && versions.length > 1) {
+                                  const nextCurrentVersion = versions
+                                    .filter((item) => item.id !== version.id)
+                                    .sort(
+                                      (a, b) =>
+                                        b.versionNumber - a.versionNumber,
+                                    )[0];
+                                  await updateAgreementVersionApi(
+                                    nextCurrentVersion.id,
+                                    { isCurrent: true },
+                                  );
+                                }
                                 await deleteAgreementVersionApi(version.id);
                                 toast.success("Version deleted");
                                 if (selectedRowId) loadVersions(selectedRowId);
