@@ -191,6 +191,86 @@ const complianceConcernOptions = [
   { label: "Other", value: "OTHER" },
 ];
 
+const responsibilityOptions = [
+  { label: "Operations", value: "OPERATIONS" },
+  { label: "Billing", value: "BILLING" },
+  { label: "Credentialing", value: "CREDENTIALING" },
+  { label: "IT", value: "IT" },
+  { label: "Clinical Oversight", value: "CLINICAL_OVERSIGHT" },
+  { label: "Compliance", value: "COMPLIANCE" },
+  { label: "Marketing", value: "MARKETING" },
+  { label: "Contracts", value: "CONTRACTS" },
+  { label: "Finance", value: "FINANCE" },
+];
+
+const preferredContactOptions = [
+  { label: "Email", value: "EMAIL" },
+  { label: "Phone", value: "PHONE" },
+  { label: "Text", value: "TEXT" },
+];
+
+const bestTimeOptions = [
+  { label: "Morning", value: "MORNING" },
+  { label: "Afternoon", value: "AFTERNOON" },
+  { label: "Evening", value: "EVENING" },
+  { label: "Anytime", value: "ANYTIME" },
+];
+
+const currentServiceOptions = [
+  { label: "APCM", value: "APCM" },
+  { label: "CCM", value: "CCM" },
+  { label: "RPM", value: "RPM" },
+  { label: "PCM", value: "PCM" },
+  { label: "RTM", value: "RTM" },
+  { label: "BHI", value: "BHI" },
+  { label: "TCM", value: "TCM" },
+  { label: "None", value: "NONE" },
+  { label: "Other", value: "OTHER" },
+];
+
+const billingPainPointOptions = [
+  { label: "Denials", value: "DENIALS" },
+  { label: "Slow Payments", value: "SLOW_PAYMENTS" },
+  { label: "Coding Issues", value: "CODING_ISSUES" },
+  { label: "Credentialing Issues", value: "CREDENTIALING_ISSUES" },
+  { label: "Eligibility Issues", value: "ELIGIBILITY_ISSUES" },
+  { label: "Poor Reporting", value: "POOR_REPORTING" },
+  { label: "Staff Shortage", value: "STAFF_SHORTAGE" },
+  { label: "A/R Follow-Up", value: "AR_FOLLOW_UP" },
+  { label: "Other", value: "OTHER" },
+];
+
+const credentialingIssueOptions = [
+  {
+    label: "Incorrect Specialty Enrollment",
+    value: "INCORRECT_SPECIALTY_ENROLLMENT",
+  },
+  { label: "Missing Payer Enrollment", value: "MISSING_PAYER_ENROLLMENT" },
+  { label: "Expired Enrollment", value: "EXPIRED_ENROLLMENT" },
+  { label: "Recredentialing Needed", value: "RECREDENTIALING_NEEDED" },
+  { label: "CAQH Not Updated", value: "CAQH_NOT_UPDATED" },
+  { label: "EFT / ERA Not Set Up", value: "EFT_ERA_NOT_SET_UP" },
+  { label: "Unknown Status", value: "UNKNOWN_STATUS" },
+  { label: "Other", value: "OTHER" },
+];
+
+const outreachChannelOptions = [
+  { label: "Phone", value: "PHONE" },
+  { label: "SMS", value: "SMS" },
+  { label: "Email", value: "EMAIL" },
+  { label: "Patient Portal", value: "PATIENT_PORTAL" },
+];
+
+const languageOptions = [
+  { label: "English", value: "ENGLISH" },
+  { label: "Spanish", value: "SPANISH" },
+  { label: "Hindi", value: "HINDI" },
+  { label: "Gujarati", value: "GUJARATI" },
+  { label: "Portuguese", value: "PORTUGUESE" },
+  { label: "Arabic", value: "ARABIC" },
+  { label: "Other", value: "OTHER" },
+];
+
 const priorityColors: Record<string, string> = {
   HIGH: "bg-red-100 text-red-700",
   MEDIUM: "bg-yellow-100 text-yellow-700",
@@ -1714,6 +1794,158 @@ export default function AdminOnboardingReview() {
                             ))}
                           </select>
                         </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Job Title
+                          </label>
+                          <input
+                            className="app-control w-full rounded-xl px-4 py-2 text-[13px] bg-white border-transparent focus:border-indigo-500"
+                            value={contact.jobTitle || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.contacts || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                jobTitle: e.target.value,
+                              };
+                              handleUpdateReviewField("contacts", next);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Phone
+                          </label>
+                          <input
+                            className="app-control w-full rounded-xl px-4 py-2 text-[13px] bg-white border-transparent focus:border-indigo-500"
+                            value={contact.phone || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.contacts || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                phone: e.target.value,
+                              };
+                              handleUpdateReviewField("contacts", next);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Extension
+                          </label>
+                          <input
+                            className="app-control w-full rounded-xl px-4 py-2 text-[13px] bg-white border-transparent focus:border-indigo-500"
+                            value={contact.extension || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.contacts || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                extension: e.target.value,
+                              };
+                              handleUpdateReviewField("contacts", next);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Preferred Contact
+                          </label>
+                          <select
+                            className="app-control w-full rounded-xl px-4 py-2 text-[13px] bg-white border-transparent focus:border-indigo-500"
+                            value={contact.preferredContactMethod || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.contacts || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                preferredContactMethod: e.target.value,
+                              };
+                              handleUpdateReviewField("contacts", next);
+                            }}
+                          >
+                            <option value="">Select...</option>
+                            {preferredContactOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Best Time To Reach
+                          </label>
+                          <select
+                            className="app-control w-full rounded-xl px-4 py-2 text-[13px] bg-white border-transparent focus:border-indigo-500"
+                            value={contact.bestTimeToReach || ""}
+                            onChange={(e) => {
+                              const next = [...(reviewingData.contacts || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                bestTimeToReach: e.target.value,
+                              };
+                              handleUpdateReviewField("contacts", next);
+                            }}
+                          >
+                            <option value="">Select...</option>
+                            {bestTimeOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="mt-6 space-y-3">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          Additional Responsibilities
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                          {responsibilityOptions.map((opt) => {
+                            const values =
+                              contact.additionalResponsibilities || [];
+                            const selected = values.includes(opt.value);
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => {
+                                  const next = [
+                                    ...(reviewingData.contacts || []),
+                                  ];
+                                  const current =
+                                    next[idx].additionalResponsibilities || [];
+                                  next[idx] = {
+                                    ...next[idx],
+                                    additionalResponsibilities:
+                                      current.includes(opt.value)
+                                        ? current.filter(
+                                            (value) => value !== opt.value,
+                                          )
+                                        : [...current, opt.value],
+                                  };
+                                  handleUpdateReviewField("contacts", next);
+                                }}
+                                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-[12px] font-medium transition-all ${
+                                  selected
+                                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                                    : "border-slate-100 bg-white text-slate-500 hover:border-slate-200"
+                                }`}
+                              >
+                                <div
+                                  className={`flex h-3.5 w-3.5 items-center justify-center rounded border ${
+                                    selected
+                                      ? "border-indigo-600 bg-indigo-600"
+                                      : "border-slate-200 bg-white"
+                                  }`}
+                                >
+                                  {selected && (
+                                    <CheckCircle className="h-2.5 w-2.5 text-white" />
+                                  )}
+                                </div>
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1851,6 +2083,55 @@ export default function AdminOnboardingReview() {
                         </div>
                       </div>
 
+                      <div className="space-y-3 pt-4 border-t border-slate-100">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          Submitted Practice Details
+                        </p>
+                        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                          {[
+                            ["DBA Name", practice.practiceDbaName],
+                            ["Tax ID / EIN", practice.taxIdEin],
+                            [
+                              "Part Of Parent Company",
+                              practice.isPartOfParentCompany ? "Yes" : "No",
+                            ],
+                            [
+                              "Offers Care Management",
+                              practice.offersCareManagementServices
+                                ? "Yes"
+                                : "No",
+                            ],
+                          ].map(([label, value]) =>
+                            hasValue(value) ? (
+                              <div
+                                key={label}
+                                className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3"
+                              >
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                  {label}
+                                </p>
+                                <p className="mt-1 break-words text-[13px] text-slate-700">
+                                  {value}
+                                </p>
+                              </div>
+                            ) : null,
+                          )}
+                        </div>
+                        {renderDetailArray(
+                          "Additional Specialty Areas",
+                          practice.additionalSpecialtyAreas,
+                        )}
+                        {renderDetailArray(
+                          "Current Services Offered",
+                          practice.currentServicesOffered,
+                        )}
+                        {renderDetailArray(
+                          "Operational Pain Points",
+                          practice.operationalPainPoints,
+                        )}
+                        {renderDetailField("Additional Notes", practice.additionalNotes)}
+                      </div>
+
                       {getFilledFieldEntries(
                         practice,
                         practiceAdditionalFieldConfigs,
@@ -1878,6 +2159,73 @@ export default function AdminOnboardingReview() {
                                       : "No"
                                     : String(entry.value)}
                                 </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {practice.locations && practice.locations.length > 0 && (
+                        <div className="space-y-4 pt-4 border-t border-slate-100">
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Location Details
+                          </p>
+                          <div className="grid gap-4">
+                            {practice.locations.map((location, locationIndex) => (
+                              <div
+                                key={location.id || locationIndex}
+                                className="rounded-2xl border border-slate-200 bg-white p-5"
+                              >
+                                <div className="mb-3 flex items-center justify-between gap-3">
+                                  <h5 className="text-[13px] font-bold text-slate-700">
+                                    {location.locationName ||
+                                      `Location ${locationIndex + 1}`}
+                                  </h5>
+                                  {location.isPrimaryLocation && (
+                                    <span className="rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-indigo-700">
+                                      Primary
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                  {[
+                                    [
+                                      "Address",
+                                      `${location.addressLine1 || ""} ${location.addressLine2 || ""}`.trim(),
+                                    ],
+                                    ["City", location.city],
+                                    ["State", location.state],
+                                    ["ZIP", location.zipCode],
+                                    ["Phone", location.mainPhoneNumber],
+                                    ["Fax", location.mainFaxNumber],
+                                    ["Email", location.officeEmail],
+                                    ["Hours", location.hoursOfOperation],
+                                    [
+                                      "Office Manager",
+                                      location.officeManagerName,
+                                    ],
+                                    [
+                                      "Patient Outreach Managed",
+                                      location.patientOutreachManaged,
+                                    ],
+                                    ["Billing Managed", location.billingManaged],
+                                    ["Notes", location.notes],
+                                  ].map(([label, value]) =>
+                                    hasValue(value) ? (
+                                      <div
+                                        key={label}
+                                        className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2"
+                                      >
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                          {label}
+                                        </p>
+                                        <p className="mt-1 break-words text-[12px] text-slate-700">
+                                          {value}
+                                        </p>
+                                      </div>
+                                    ) : null,
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -2009,6 +2357,11 @@ export default function AdminOnboardingReview() {
                     )}
                     {renderNestedField(
                       "technology",
+                      "Care Management Platform",
+                      "currentCareManagementPlatform",
+                    )}
+                    {renderNestedField(
+                      "technology",
                       "IT Contact Name",
                       "itContactName",
                     )}
@@ -2017,6 +2370,52 @@ export default function AdminOnboardingReview() {
                       "IT Contact Email",
                       "itContactEmail",
                       "email",
+                    )}
+                    {renderNestedField(
+                      "technology",
+                      "Patient Portal Available",
+                      "patientPortalAvailable",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "technology",
+                      "Patient List Exportable",
+                      "patientListExportable",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "technology",
+                      "Appointment List Exportable",
+                      "appointmentListExportable",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "technology",
+                      "API Access Available",
+                      "apiAccessAvailable",
+                      "select",
+                      [
+                        { label: "Yes", value: "true" },
+                        { label: "No", value: "false" },
+                      ],
+                    )}
+                    {renderNestedField(
+                      "technology",
+                      "Additional Technical Notes",
+                      "additionalTechnicalNotes",
+                      "textarea",
                     )}
                   </div>
                 </section>
@@ -2210,6 +2609,29 @@ export default function AdminOnboardingReview() {
                       "complianceConcerns",
                       "textarea",
                     )}
+                  </div>
+                </section>
+                )}
+                <section>
+                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <Users className="h-4.5 w-4.5" />
+                    </div>
+                    Outreach Preferences
+                  </h3>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {renderNestedMultiSelect(
+                      "outreach",
+                      "Preferred Channels",
+                      "preferredChannels",
+                      outreachChannelOptions,
+                    )}
+                    {renderNestedMultiSelect(
+                      "outreach",
+                      "Preferred Languages",
+                      "preferredLanguages",
+                      languageOptions,
+                    )}
                     {renderNestedField(
                       "outreach",
                       "Approved Outreach Hours",
@@ -2253,7 +2675,6 @@ export default function AdminOnboardingReview() {
                     )}
                   </div>
                 </section>
-                )}
                 <section>
                   <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
                     <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -2395,6 +2816,18 @@ export default function AdminOnboardingReview() {
                           { label: "Custom", value: "CUSTOM" },
                         ],
                       )}
+                      {renderNestedMultiSelect(
+                        "billing",
+                        "Currently Billed Services",
+                        "currentlyBilledServices",
+                        currentServiceOptions,
+                      )}
+                      {renderNestedMultiSelect(
+                        "billing",
+                        "Billing Pain Points",
+                        "billingPainPoints",
+                        billingPainPointOptions,
+                      )}
                       {renderNestedField(
                         "billing",
                         "Recent W9 Form",
@@ -2527,6 +2960,12 @@ export default function AdminOnboardingReview() {
                         "desiredInsurancePlans",
                         "textarea",
                       )}
+                      {renderNestedMultiSelect(
+                        "credentialing",
+                        "Current Credentialing Issues",
+                        "currentCredentialingIssues",
+                        credentialingIssueOptions,
+                      )}
                       {renderNestedField(
                         "credentialing",
                         "Additional Credentialing Notes",
@@ -2623,6 +3062,16 @@ export default function AdminOnboardingReview() {
                         "websiteUrl",
                       )}
                     {hasMarketingSelected &&
+                      renderDetailArray(
+                        "Social Media Channels",
+                        reviewingData.marketing?.socialMediaChannels,
+                      )}
+                    {hasMarketingSelected &&
+                      renderDetailArray(
+                        "Current Marketing Channels",
+                        reviewingData.marketing?.currentMarketingChannels,
+                      )}
+                    {hasMarketingSelected &&
                       renderNestedField(
                         "marketing",
                         "Monthly Budget",
@@ -2681,13 +3130,13 @@ export default function AdminOnboardingReview() {
                     <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
                       <FileText className="h-4.5 w-4.5" />
                     </div>
-                    Documents Verification
+                    Documents
                   </h3>
                   <div className="grid gap-4">
                     {reviewingData.documents?.map((doc: any, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/30"
+                        className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-slate-50/30 p-4 md:flex-row md:items-center md:justify-between"
                       >
                         <div className="flex items-center gap-4">
                           <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-sm">
@@ -2702,27 +3151,32 @@ export default function AdminOnboardingReview() {
                                 ? doc.documentType.join(", ")
                                 : doc.documentType}
                             </p>
+                            <div className="mt-2 grid gap-1 text-[11px] text-slate-500">
+                              {doc.fileUrl && (
+                                <a
+                                  href={doc.fileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="break-all text-indigo-600 hover:text-indigo-700 hover:underline"
+                                >
+                                  {getUploadedFileName(doc.fileUrl)}
+                                </a>
+                              )}
+                              {doc.required !== undefined && (
+                                <span>
+                                  Required: {doc.required ? "Yes" : "No"}
+                                </span>
+                              )}
+                              {doc.dateRequested && (
+                                <span>Requested: {doc.dateRequested}</span>
+                              )}
+                              {doc.dateReceived && (
+                                <span>Received: {doc.dateReceived}</span>
+                              )}
+                              {doc.notes && <span>Notes: {doc.notes}</span>}
+                            </div>
                           </div>
                         </div>
-                        <select
-                          className="app-control rounded-xl px-3 py-1.5 text-[11px] font-bold bg-white border-slate-200"
-                          value={doc.status || ""}
-                          onChange={(e) => {
-                            const next = [...(reviewingData.documents || [])];
-                            next[idx] = {
-                              ...next[idx],
-                              status: e.target.value,
-                            };
-                            handleUpdateReviewField("documents", next);
-                          }}
-                        >
-                          <option value="NOT_REQUESTED">Not Requested</option>
-                          <option value="REQUESTED">Requested</option>
-                          <option value="RECEIVED">Received</option>
-                          <option value="UNDER_REVIEW">Under Review</option>
-                          <option value="APPROVED">Approved</option>
-                          <option value="REJECTED">Rejected</option>
-                        </select>
                       </div>
                     ))}
                   </div>
