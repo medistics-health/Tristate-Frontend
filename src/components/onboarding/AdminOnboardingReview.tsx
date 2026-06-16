@@ -3130,7 +3130,7 @@ export default function AdminOnboardingReview() {
                     <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
                       <FileText className="h-4.5 w-4.5" />
                     </div>
-                    Documents Verification
+                    Documents
                   </h3>
                   <div className="grid gap-4">
                     {reviewingData.documents?.map((doc: any, idx) => (
@@ -3177,25 +3177,6 @@ export default function AdminOnboardingReview() {
                             </div>
                           </div>
                         </div>
-                        <select
-                          className="app-control rounded-xl px-3 py-1.5 text-[11px] font-bold bg-white border-slate-200"
-                          value={doc.status || ""}
-                          onChange={(e) => {
-                            const next = [...(reviewingData.documents || [])];
-                            next[idx] = {
-                              ...next[idx],
-                              status: e.target.value,
-                            };
-                            handleUpdateReviewField("documents", next);
-                          }}
-                        >
-                          <option value="NOT_REQUESTED">Not Requested</option>
-                          <option value="REQUESTED">Requested</option>
-                          <option value="RECEIVED">Received</option>
-                          <option value="UNDER_REVIEW">Under Review</option>
-                          <option value="APPROVED">Approved</option>
-                          <option value="REJECTED">Rejected</option>
-                        </select>
                       </div>
                     ))}
                   </div>
