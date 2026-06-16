@@ -27,6 +27,7 @@ import { getServicesView } from "../../services/operations/services";
 import { getAuditsView } from "../../services/operations/audits";
 import { getAllDeals } from "../../services/operations/deals";
 import { getSyncSummary, type SyncSummary } from "../../services/operations/quickbooks";
+import { getVendorPayables } from "../../services/operations/payables";
 
 type DashboardRole = "executive" | "sales" | "operations" | "finance";
 
@@ -101,8 +102,8 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
@@ -434,6 +435,7 @@ export default function CRMDashboardPage() {
   const [services, setServices] = useState<ServiceRevenue[]>([]);
   const [audits, setAudits] = useState<AuditItem[]>([]);
   const [deals, setDeals] = useState<DealItem[]>([]);
+  const [payables, setPayables] = useState<any[]>([]);
   const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
   const [showBillingList, setShowBillingList] = useState(false);
   const [showServicesList, setShowServicesList] = useState(false);
@@ -451,6 +453,7 @@ export default function CRMDashboardPage() {
           auditsData,
           dealsData,
           syncSummaryData,
+          payablesData,
         ] = await Promise.all([
           getAllInvoices().catch(() => []),
           getAllPractices().catch(() => []),
@@ -459,12 +462,13 @@ export default function CRMDashboardPage() {
           getAuditsView({ limit: 100 }).catch(() => ({ rows: [] })),
           getAllDeals().catch(() => []),
           getSyncSummary().catch(() => null),
+          getVendorPayables(1, 1000).catch(() => ({ payables: [] })),
         ]);
 
         setSyncSummary(syncSummaryData);
 
         setInvoices(
-          invoicesData.slice(0, 5).map((inv: any) => ({
+          invoicesData.map((inv: any) => ({
             id: inv.id,
             client: inv.practice?.name || "Unknown",
             amount: parseFloat(inv.totalAmount) || 0,
@@ -479,7 +483,7 @@ export default function CRMDashboardPage() {
         );
 
         setPractices(
-          practicesData.slice(0, 5).map((prac: any) => ({
+          practicesData.map((prac: any) => ({
             id: prac.id,
             name: prac.name,
             status: prac.status || "Active",
@@ -490,7 +494,7 @@ export default function CRMDashboardPage() {
         );
 
         setAgreements(
-          agreementsData.slice(0, 5).map((agr: any) => ({
+          agreementsData.map((agr: any) => ({
             id: agr.id,
             name: agr.practice?.name || "Unknown",
             status:
@@ -505,7 +509,7 @@ export default function CRMDashboardPage() {
         );
 
         setServices(
-          (servicesData as any)?.rows?.slice(0, 5).map((srv: any) => ({
+          (servicesData as any)?.rows?.map((srv: any) => ({
             name: srv.values?.name || "Unknown",
             revenue: 0,
             clients: 0,
@@ -513,7 +517,7 @@ export default function CRMDashboardPage() {
         );
 
         setAudits(
-          (auditsData as any)?.rows?.slice(0, 5).map((aud: any) => ({
+          (auditsData as any)?.rows?.map((aud: any) => ({
             id: aud.id,
             client: aud.values?.practiceName || "Unknown",
             status: aud.values?.status || "Scheduled",
@@ -523,13 +527,23 @@ export default function CRMDashboardPage() {
         );
 
         setDeals(
-          dealsData.slice(0, 5).map((deal: any) => ({
+          dealsData.map((deal: any) => ({
             id: deal.id,
             name: deal.practice?.name || "Unknown",
             value: parseMoney(deal.value),
             stage: deal.stage || "LEAD",
             daysInStage: 0,
             closeDate: deal.expectedCloseDate || "N/A",
+          })),
+        );
+
+        setPayables(
+          (payablesData?.payables || []).map((pay: any) => ({
+            id: pay.id,
+            vendorName: pay.vendor?.name || "Unknown",
+            amount: parseMoney(pay.totalAmount),
+            status: pay.status,
+            createdAt: pay.createdAt,
           })),
         );
       } catch (error) {
@@ -570,6 +584,11 @@ export default function CRMDashboardPage() {
     const totalInvoices = invoices.reduce((sum, i) => sum + i.amount, 0);
     const auditsOpen = audits.filter((a) => !a.completed).length;
 
+    const totalClientRevenue = invoices.reduce((sum, i) => sum + i.amount, 0);
+    const totalVendorCost = payables.reduce((sum, p) => sum + p.amount, 0);
+    const netMargin = totalClientRevenue - totalVendorCost;
+    const marginPercentage = totalClientRevenue > 0 ? (netMargin / totalClientRevenue) * 100 : 0;
+
     return {
       totalPipeline,
       dealsClosingThisMonth,
@@ -588,8 +607,12 @@ export default function CRMDashboardPage() {
       totalContracts: agreements.length,
       totalClients: practices.length,
       totalPartners: 0,
+      totalClientRevenue,
+      totalVendorCost,
+      netMargin,
+      marginPercentage,
     };
-  }, [deals, agreements, practices, services, invoices, audits]);
+  }, [deals, agreements, practices, services, invoices, audits, payables]);
 
   const renderTasksSection = () => (
     <div className="space-y-2">
@@ -998,37 +1021,30 @@ export default function CRMDashboardPage() {
 
         {selectedRole === "finance" && (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard
-                label="Revenue (Monthly)"
-                value={formatCurrency(stats.totalRevenue)}
-                change={8}
-                icon={<DollarSign className="h-5 w-5 text-green-500" />}
-                iconBg="bg-green-50"
+                label="Client Total (Billings)"
+                value={formatCurrency(stats.totalClientRevenue)}
+                icon={<DollarSign className="h-5 w-5 text-indigo-500" />}
+                iconBg="bg-indigo-50"
               />
               <StatCard
-                label="Invoices Due"
-                value={stats.invoicesDue}
-                icon={<FileText className="h-5 w-5 text-blue-500" />}
-                iconBg="bg-blue-50"
-              />
-              <StatCard
-                label="Overdue Invoices"
-                value={stats.overdueInvoices}
-                icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
-                iconBg="bg-red-50"
-              />
-              <StatCard
-                label="Total A/R"
-                value={formatCurrency(stats.totalInvoices)}
+                label="Vendor Total (Costs)"
+                value={formatCurrency(stats.totalVendorCost)}
                 icon={<Briefcase className="h-5 w-5 text-amber-500" />}
                 iconBg="bg-amber-50"
               />
               <StatCard
-                label="Sync Health"
-                value={syncSummary ? `${Math.round((syncSummary.COMPLETED / (syncSummary.total || 1)) * 100)}%` : "0%"}
-                icon={<RefreshCw className={`h-5 w-5 ${syncSummary && syncSummary.FAILED > 0 ? "text-amber-500" : "text-emerald-500"}`} />}
-                iconBg={syncSummary && syncSummary.FAILED > 0 ? "bg-amber-50" : "bg-emerald-50"}
+                label="Net Margin"
+                value={formatCurrency(stats.netMargin)}
+                icon={<TrendingUp className="h-5 w-5 text-emerald-500" />}
+                iconBg="bg-emerald-50"
+              />
+              <StatCard
+                label="Margin Percentage"
+                value={`${stats.marginPercentage.toFixed(1)}%`}
+                icon={<Activity className="h-5 w-5 text-teal-500" />}
+                iconBg="bg-teal-50"
               />
             </div>
 
@@ -1077,39 +1093,94 @@ export default function CRMDashboardPage() {
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <SectionCard
-                title="Revenue by Service"
+                title="Margin Analysis & Splits"
                 icon={<TrendingUp className="h-4 w-4" />}
-                action={
-                  <button
-                    onClick={() => setShowServicesList(!showServicesList)}
-                    className="text-[12px] font-semibold text-[#4f63ea] hover:text-[#3a4dcc] transition-colors cursor-pointer"
-                  >
-                    {showServicesList ? "Show Summary" : "Show List"}
-                  </button>
-                }
               >
-                {showServicesList ? (
-                  renderServicesSection()
-                ) : (
-                  <div className="flex flex-col justify-between h-full py-2">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="rounded-xl bg-slate-50/60 p-4 text-center border border-slate-100">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Services</p>
-                        <p className="text-[24px] font-black text-indigo-600 mt-1">{services.length}</p>
+                <div className="flex flex-col justify-between h-full py-2">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <span>Client Billings vs Vendor Splits</span>
+                      <span className="text-slate-600 font-extrabold">{stats.marginPercentage.toFixed(1)}% Margin</span>
+                    </div>
+
+                    {/* CSS Stacked Progress Bar */}
+                    <div className="relative h-7 w-full overflow-hidden rounded-xl bg-slate-100 border border-slate-200/50 flex">
+                      {stats.totalClientRevenue > 0 ? (
+                        <>
+                          {/* Vendor Splits segment */}
+                          <div
+                            className="h-full bg-gradient-to-r from-amber-400 to-orange-500 hover:opacity-90 transition-opacity duration-300 relative group cursor-pointer"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                (stats.totalVendorCost / stats.totalClientRevenue) * 100
+                              )}%`,
+                            }}
+                            title={`Vendor Splits: ${formatCurrency(stats.totalVendorCost)}`}
+                          >
+                            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white drop-shadow-sm truncate px-1">
+                              {((stats.totalVendorCost / stats.totalClientRevenue) * 100).toFixed(0)}% Cost
+                            </span>
+                          </div>
+
+                          {/* Net Margin segment */}
+                          <div
+                            className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:opacity-90 transition-opacity duration-300 relative group cursor-pointer"
+                            style={{
+                              width: `${Math.max(
+                                0,
+                                100 - (stats.totalVendorCost / stats.totalClientRevenue) * 100
+                              )}%`,
+                            }}
+                            title={`Net Margin: ${formatCurrency(stats.netMargin)}`}
+                          >
+                            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white drop-shadow-sm truncate px-1">
+                              {stats.marginPercentage.toFixed(0)}% Profit
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-slate-400 text-xs font-bold bg-slate-50">
+                          No Revenue Data Available
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Legend / Metrics list */}
+                    <div className="grid grid-cols-2 gap-4 mt-6">
+                      <div className="rounded-xl border border-indigo-100 bg-indigo-50/20 p-4 transition-all hover:bg-indigo-50/40">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-indigo-500" />
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Client Revenue</span>
+                        </div>
+                        <p className="text-xl font-extrabold text-slate-800 mt-2">{formatCurrency(stats.totalClientRevenue)}</p>
                       </div>
-                      <div className="rounded-xl bg-slate-50/60 p-4 text-center border border-slate-100">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Monthly Revenue</p>
-                        <p className="text-[24px] font-black text-emerald-600 mt-1">{formatCurrency(stats.totalRevenue)}</p>
+
+                      <div className="rounded-xl border border-amber-100 bg-amber-50/20 p-4 transition-all hover:bg-amber-50/40">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Vendor Cost</span>
+                        </div>
+                        <p className="text-xl font-extrabold text-slate-800 mt-2">{formatCurrency(stats.totalVendorCost)}</p>
                       </div>
                     </div>
-                    <div className="mt-5 text-center bg-slate-50/40 rounded-xl p-4 border border-slate-100">
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Average Service Value</p>
-                      <p className="text-[28px] font-black text-slate-700 mt-1">
-                        {services.length > 0 ? formatCurrency(stats.totalRevenue / services.length) : "$0"}
-                      </p>
+
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/20 p-4 mt-3 transition-all hover:bg-emerald-50/40 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Net Profit margin</p>
+                          <p className="text-xs text-slate-400 font-medium mt-0.5">Retained earnings after splits</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-black text-emerald-600">{formatCurrency(stats.netMargin)}</p>
+                        <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest mt-0.5">{stats.marginPercentage.toFixed(1)}%</p>
+                      </div>
                     </div>
+
                   </div>
-                )}
+                </div>
               </SectionCard>
               <SectionCard
                 title="Financial Alerts"

@@ -334,25 +334,8 @@ export default function VendorPayableDashboard() {
                               {isReleased ? "Released" : "Release"}
                             </button>
 
-                            {/* View Statement */}
-                            <button
-                              onClick={() => handleGenerateStatement(payable.id)}
-                              disabled={isAnyActionLoading(payable.id)}
-                              className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-                            >
-                              {isActionLoading(payable.id, "statement") ? (
-                                <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-400" />
-                              ) : (
-                                <FileText className="h-4 w-4 text-blue-500" />
-                              )}
-                              <div className="flex flex-col items-start leading-none gap-0 text-left">
-                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">View</span>
-                                <span className="text-[12px] font-extrabold uppercase text-slate-700">Stmt</span>
-                              </div>
-                            </button>
-
-                            {/* Sync Bill to QB */}
-                            {!payable.quickbooksBillId && (
+                            {/* Sync Bill to QB (only show after paid) */}
+                            {!payable.quickbooksBillId && payable.status === "PAID" && (
                               <button
                                 onClick={() => handleSync(payable.id)}
                                 disabled={isAnyActionLoading(payable.id)}
