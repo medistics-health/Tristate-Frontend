@@ -1326,64 +1326,6 @@ export default function PracticeProfilePage() {
           </Card>
         </div>
 
-        {hasActiveAgreement ? (
-          <Card
-            title="Practice Invoices"
-            description="Invoices associated with this practice."
-            scrollable
-          >
-            <div className="overflow-hidden rounded-2xl border border-[#ece8e1]">
-              {invoices.length ? (
-                <div className="divide-y divide-[#ece8e1]">
-                  {invoices.map((invoice) => (
-                    <div
-                      key={invoice.id}
-                      className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_150px_130px_130px]"
-                    >
-                      <div>
-                        <p className="font-semibold text-slate-900">
-                          {invoice.values.invoiceNumber}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {invoice.values.agreementLabel}
-                        </p>
-                      </div>
-                      <div className="text-sm">
-                        <p className="text-slate-400">Amount</p>
-                        <p className="font-semibold text-slate-900">
-                          {invoice.values.totalAmount}
-                        </p>
-                      </div>
-                      <div className="text-sm">
-                        <p className="text-slate-400">Due Date</p>
-                        <p className="font-medium text-slate-700">
-                          {invoice.values.dueDate}
-                        </p>
-                      </div>
-                      <div className="text-sm">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
-                            invoice.values.status,
-                          )}`}
-                        >
-                          {formatLabel(invoice.values.status)}
-                        </span>
-                        <p className="mt-2 text-xs text-slate-400">
-                          Created {invoice.values.creationDate}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
-                  No invoices found for this practice.
-                </p>
-              )}
-            </div>
-          </Card>
-        ) : null}
-
         {canUsePricingAndBilling ? (
           <>
             <Card
@@ -1600,6 +1542,64 @@ export default function PracticeProfilePage() {
               )}
             </Card>
           </>
+        ) : null}
+
+        {hasActiveAgreement ? (
+          <Card
+            title="Practice Invoices"
+            description="Invoices associated with this practice."
+            scrollable
+          >
+            <div className="overflow-hidden rounded-2xl border border-[#ece8e1]">
+              {invoices.length ? (
+                <div className="divide-y divide-[#ece8e1]">
+                  {invoices.map((invoice) => (
+                    <div
+                      key={invoice.id}
+                      className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_150px_130px_130px]"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {invoice.values.invoiceNumber}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {invoice.values.agreementLabel}
+                        </p>
+                      </div>
+                      <div className="text-sm">
+                        <p className="text-slate-400">Amount</p>
+                        <p className="font-semibold text-slate-900">
+                          {invoice.values.totalAmount}
+                        </p>
+                      </div>
+                      <div className="text-sm">
+                        <p className="text-slate-400">Due Date</p>
+                        <p className="font-medium text-slate-700">
+                          {invoice.values.dueDate}
+                        </p>
+                      </div>
+                      <div className="text-sm">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                            invoice.values.status,
+                          )}`}
+                        >
+                          {formatLabel(invoice.values.status)}
+                        </span>
+                        <p className="mt-2 text-xs text-slate-400">
+                          Created {invoice.values.creationDate}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
+                  No invoices found for this practice.
+                </p>
+              )}
+            </div>
+          </Card>
         ) : null}
       </div>
     </AppLayout>

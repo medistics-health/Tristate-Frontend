@@ -2214,7 +2214,7 @@ export default function AllPracticePage() {
           <p className="text-[14px] text-slate-500 leading-relaxed">
             This practice will be set to <strong>ACTIVE</strong> and an
             agreement will be sent to the following admin person after Internal
-            Signing Process is completed by Authorized Signer:
+            Signing Process is completed by Authorized Signer.
           </p>
           {activationPerson && (
             <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4 space-y-3">

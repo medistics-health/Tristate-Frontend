@@ -1221,23 +1221,15 @@ function CreateLeadPage() {
     updateField("selectedPracticeId", practiceId);
     setSelectedPracticeLabel(option?.label || "");
     if (!practiceId) {
+      setSelectedPracticeLabel("");
       return;
     }
 
     try {
       const fullPractice = await getPractice(practiceId);
       setSelectedPracticeLabel(fullPractice.name || "");
-      if (form.companyRelation === "existing") {
-        if (fullPractice.companyId) {
-          updateField("selectedCompanyId", fullPractice.companyId);
-          setSelectedCompany(await getCompany(fullPractice.companyId));
-        } else {
-          updateField("selectedCompanyId", "");
-          setSelectedCompany(null);
-        }
-      }
     } catch (err) {
-      console.error("Error syncing company from practice:", err);
+      console.error("Error loading selected practice:", err);
     }
   };
 
@@ -2087,10 +2079,7 @@ function CreateLeadPage() {
                         type="text"
                         value={form.primaryContactFirstName}
                         onChange={(e) =>
-                          updateField(
-                            "primaryContactFirstName",
-                            e.target.value,
-                          )
+                          updateField("primaryContactFirstName", e.target.value)
                         }
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
