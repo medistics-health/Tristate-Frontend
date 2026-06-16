@@ -491,8 +491,33 @@ export default function AdminOnboardingReview() {
   }, [pagination.page, filters.status, filters.search]);
 
   const selectedRow = useMemo(
-    () => rows.find((row) => row.id === selectedRowId) || null,
-    [rows, selectedRowId],
+    () => {
+      const row = rows.find((item) => item.id === selectedRowId);
+      if (row || !selectedOnboarding || selectedOnboarding.id !== selectedRowId) {
+        return row || null;
+      }
+
+      return {
+        id: selectedOnboarding.id,
+        practiceName:
+          (selectedOnboarding.practiceId &&
+            practiceNamesById[selectedOnboarding.practiceId]) ||
+          selectedOnboarding.practices?.[0]?.practiceName ||
+          "N/A",
+        submittedBy: selectedOnboarding.submittedByName || "Unknown",
+        type: selectedOnboarding.onboardingType || "N/A",
+        status: selectedOnboarding.status || "DRAFT",
+        priority: selectedOnboarding.priorityLevel || "MEDIUM",
+        services: selectedOnboarding.requestedServices || [],
+        submissionDate: selectedOnboarding.submissionDate
+          ? new Date(selectedOnboarding.submissionDate).toLocaleDateString()
+          : "N/A",
+        contacts: selectedOnboarding.contacts?.length || 0,
+        practices: selectedOnboarding.practices?.length || 0,
+        original: selectedOnboarding,
+      };
+    },
+    [practiceNamesById, rows, selectedOnboarding, selectedRowId],
   );
   const canonicalSelectedOnboarding =
     selectedOnboarding ?? selectedRow?.original ?? null;
@@ -651,7 +676,6 @@ export default function AdminOnboardingReview() {
     let isCancelled = false;
 
     async function openTargetOnboarding() {
-      setOpenedTargetOnboardingId(targetOnboardingId);
       setSelectedRowId(targetOnboardingId);
       setShowDetailPanel(true);
       setActiveTab("overview");
@@ -703,6 +727,8 @@ export default function AdminOnboardingReview() {
           setIsReviewing(true);
           setReviewStep(1);
         }
+
+        setOpenedTargetOnboardingId(targetOnboardingId);
       } catch (error) {
         if (!isCancelled) {
           const message =
@@ -710,6 +736,7 @@ export default function AdminOnboardingReview() {
               ? error.message
               : "Unable to load onboarding.";
           toast.error(message);
+          setOpenedTargetOnboardingId(targetOnboardingId);
         }
       } finally {
         if (!isCancelled) {
