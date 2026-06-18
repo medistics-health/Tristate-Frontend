@@ -621,6 +621,7 @@ function BillingRunsPage() {
         notes: createForm.notes || undefined,
         autoCalculate: createForm.autoCalculate,
         snapshots,
+        agreementIds: createForm.agreementIds,
       });
       await refreshRows(1);
       setPagination((prev) => ({ ...prev, page: 1 }));
