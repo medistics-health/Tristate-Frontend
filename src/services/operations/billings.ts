@@ -93,6 +93,7 @@ export type BillingRunListItem = {
     inputSnapshots: number;
     items: number;
   };
+  agreementIds?: string[];
 };
 
 export type BillingRunItem = {
@@ -172,6 +173,7 @@ export type CreateBillingRunBody = {
   notes?: string | null;
   autoCalculate?: boolean;
   snapshots?: BillingSnapshotInput[];
+  agreementIds?: string[];
 };
 
 export type UpsertBillingSnapshotsBody = {
