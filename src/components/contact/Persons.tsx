@@ -1638,7 +1638,7 @@ export default function PersonsPage() {
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Practices <span className="text-red-500">*</span>
+                    Practices
                   </label>
                   {practicesLoading ? (
                     <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
