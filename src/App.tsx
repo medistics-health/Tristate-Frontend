@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import Login from "./components/auth/Login";
 import Signup from "./components/auth/Signup";
 import AdminRoute from "./components/auth/AdminRoute";
+import RoleRoute from "./components/auth/RoleRoute";
 import AllAgreementsPage from "./components/agreements/all-agreements/AllAgreements";
 import AgreementPendingApprovalPage from "./components/agreements/pending-approval/AgreementPendingApprovalPage";
 import AllPracticeAuditsPage from "./components/audits/AllPracticeAudits";
@@ -42,7 +43,6 @@ import PersonsPage from "./components/contact/Persons";
 import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
-import OnboardingFormV3 from "./components/onboarding/OnboardingFormV3";
 import AdminOnboardingReview from "./components/onboarding/AdminOnboardingReview";
 import MonthlyReportingDashboard from "./components/monthly-reporting/MonthlyReportingDashboard";
 import SubmitMonthlyReport from "./components/monthly-reporting/SubmitMonthlyReport";
@@ -56,6 +56,12 @@ import SettingsPage from "./components/settings/Settings";
 import CreateLeadPage from "./components/leads/CreateLead";
 import type { ReactNode } from "react";
 import OnboardingFormV4 from "./components/onboarding/OnboardingFormV4";
+import {
+  BUSINESS_WRITE_ROLES,
+  INTEGRATIONS_ROLES,
+  OPERATIONS_AND_FINANCE_WRITE_ROLES,
+  SETTINGS_ROLES,
+} from "./utils/auth";
 
 function App() {
   function UUIDProtectedRoute({ children }: { children: ReactNode }) {
@@ -111,7 +117,9 @@ function App() {
         path="/onboarding/review"
         element={
           <ProtectedRoute>
-            <AdminOnboardingReview />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AdminOnboardingReview />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -128,7 +136,9 @@ function App() {
         path="/audit/all-practice-audits"
         element={
           <ProtectedRoute>
-            <AllPracticeAuditsPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AllPracticeAuditsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -137,7 +147,9 @@ function App() {
         path="/audit/all-audits"
         element={
           <ProtectedRoute>
-            <Audits />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <Audits />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -146,7 +158,9 @@ function App() {
         path="/audit/status-board"
         element={
           <ProtectedRoute>
-            <AuditStatusBoard />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AuditStatusBoard />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -155,7 +169,9 @@ function App() {
         path="/purchase-orders/all"
         element={
           <ProtectedRoute>
-            <AllPurchaseOrdersPage />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <AllPurchaseOrdersPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -164,7 +180,9 @@ function App() {
         path="/purchase-orders/status-board"
         element={
           <ProtectedRoute>
-            <PurchaseOrderStatusBoardPage />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <PurchaseOrderStatusBoardPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -173,7 +191,9 @@ function App() {
         path="/purchase-orders/pending-approval"
         element={
           <ProtectedRoute>
-            <PendingApprovalPage />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <PendingApprovalPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -182,7 +202,9 @@ function App() {
         path="/purchase-orders/unpaid-pos"
         element={
           <ProtectedRoute>
-            <PurchaseOrdersPage />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <PurchaseOrdersPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -200,7 +222,9 @@ function App() {
         path="/integrations/accounting-sync"
         element={
           <ProtectedRoute>
-            <AccountingSyncDashboard />
+            <RoleRoute allowedRoles={[...INTEGRATIONS_ROLES]}>
+              <AccountingSyncDashboard />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -209,7 +233,9 @@ function App() {
         path="/integrations/mercury-banking"
         element={
           <ProtectedRoute>
-            <MercuryBankingDashboard />
+            <RoleRoute allowedRoles={[...INTEGRATIONS_ROLES]}>
+              <MercuryBankingDashboard />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -218,7 +244,9 @@ function App() {
         path="/vendors/payables"
         element={
           <ProtectedRoute>
-            <VendorPayableDashboard />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <VendorPayableDashboard />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -227,7 +255,9 @@ function App() {
         path="/vendors/payables/pay/:id"
         element={
           <ProtectedRoute>
-            <PayVendorPayable />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <PayVendorPayable />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -254,7 +284,9 @@ function App() {
         path="/agreements/all-agreements"
         element={
           <ProtectedRoute>
-            <AllAgreementsPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AllAgreementsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -263,7 +295,9 @@ function App() {
         path="/agreements/pipeline"
         element={
           <ProtectedRoute>
-            <AgreementPipelinePage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AgreementPipelinePage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -272,9 +306,9 @@ function App() {
         path="/agreements/pending-approval"
         element={
           <ProtectedRoute>
-            {/*<AdminRoute>*/}
-            <AgreementPendingApprovalPage />
-            {/*</AdminRoute>*/}
+            <AdminRoute>
+              <AgreementPendingApprovalPage />
+            </AdminRoute>
           </ProtectedRoute>
         }
       />
@@ -292,7 +326,9 @@ function App() {
         path="/agreements/pending-signatures"
         element={
           <ProtectedRoute>
-            <AgreementPendingSignaturesPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AgreementPendingSignaturesPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -301,9 +337,9 @@ function App() {
         path="/agreements/pending-submission-changes"
         element={
           <ProtectedRoute>
-            {/*<AdminRoute>*/}
-            <AgreementPendingSubmissionChangesPage />
-            {/*</AdminRoute>*/}
+            <AdminRoute>
+              <AgreementPendingSubmissionChangesPage />
+            </AdminRoute>
           </ProtectedRoute>
         }
       />
@@ -312,7 +348,9 @@ function App() {
         path="/invoice/all-invoice-line-items"
         element={
           <ProtectedRoute>
-            <AllInvoiceLineItems />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <AllInvoiceLineItems />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -320,7 +358,9 @@ function App() {
         path="/invoice/all-line-items"
         element={
           <ProtectedRoute>
-            <AllLineItems />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <AllLineItems />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -329,7 +369,9 @@ function App() {
         path="/service/all-services"
         element={
           <ProtectedRoute>
-            <AllServices />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AllServices />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -338,7 +380,9 @@ function App() {
         path="/service/service-catalogs"
         element={
           <ProtectedRoute>
-            <ServiceCatalogPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <ServiceCatalogPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -347,7 +391,9 @@ function App() {
         path="/service/active-services"
         element={
           <ProtectedRoute>
-            <ActiveServicePage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <ActiveServicePage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -356,7 +402,9 @@ function App() {
         path="/partner/all-channel-partners"
         element={
           <ProtectedRoute>
-            <AllChannelPartnersPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AllChannelPartnersPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -365,7 +413,9 @@ function App() {
         path="/partner/all-partners"
         element={
           <ProtectedRoute>
-            <AllPartnersPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AllPartnersPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -374,7 +424,9 @@ function App() {
         path="/assessment/all-assessments"
         element={
           <ProtectedRoute>
-            <AssessmentsPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AssessmentsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -383,7 +435,9 @@ function App() {
         path="/assessment/progress"
         element={
           <ProtectedRoute>
-            <AssessmentProgressPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AssessmentProgressPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -392,7 +446,9 @@ function App() {
         path="/invoice/all-invoices"
         element={
           <ProtectedRoute>
-            <AllInvoicePage />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <AllInvoicePage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -401,7 +457,9 @@ function App() {
         path="/invoice/status-board"
         element={
           <ProtectedRoute>
-            <InvoiceStatusBoardPage />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <InvoiceStatusBoardPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -410,7 +468,9 @@ function App() {
         path="/billing/runs"
         element={
           <ProtectedRoute>
-            <BillingRunsPage />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <BillingRunsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -418,7 +478,9 @@ function App() {
         path="/billing/status-board"
         element={
           <ProtectedRoute>
-            <BillingStatusBoardPage />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <BillingStatusBoardPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -427,7 +489,9 @@ function App() {
         path="/vendors/all-vendors"
         element={
           <ProtectedRoute>
-            <AllVendorsPage />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <AllVendorsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -436,7 +500,9 @@ function App() {
         path="/vendors/contracts"
         element={
           <ProtectedRoute>
-            <VendorContractPage />
+            <RoleRoute allowedRoles={[...OPERATIONS_AND_FINANCE_WRITE_ROLES]}>
+              <VendorContractPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -445,7 +511,9 @@ function App() {
         path="/practice/pipeline"
         element={
           <ProtectedRoute>
-            <PipelineBoardPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <PipelineBoardPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -454,7 +522,9 @@ function App() {
         path="/practice/all-practices"
         element={
           <ProtectedRoute>
-            <AllPracticePage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AllPracticePage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -463,9 +533,11 @@ function App() {
         path="/practice/:id/profile"
         element={
           <ProtectedRoute>
-            <UUIDProtectedRoute>
-              <PracticeProfilePage />
-            </UUIDProtectedRoute>
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <UUIDProtectedRoute>
+                <PracticeProfilePage />
+              </UUIDProtectedRoute>
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -474,7 +546,9 @@ function App() {
         path="/practice/active-practice"
         element={
           <ProtectedRoute>
-            <ActivePracticesPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <ActivePracticesPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -482,7 +556,9 @@ function App() {
         path="/practice/prospects"
         element={
           <ProtectedRoute>
-            <ProspectsPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <ProspectsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -490,7 +566,9 @@ function App() {
         path="/lead/create"
         element={
           <ProtectedRoute>
-            <CreateLeadPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <CreateLeadPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -498,7 +576,9 @@ function App() {
         path="/practice/reminder-dues"
         element={
           <ProtectedRoute>
-            <ReminderDuePage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <ReminderDuePage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -506,7 +586,9 @@ function App() {
         path="/deal/all-deals"
         element={
           <ProtectedRoute>
-            <DealsPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <DealsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -514,7 +596,9 @@ function App() {
         path="/person/all-persons"
         element={
           <ProtectedRoute>
-            <PersonsPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <PersonsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -522,7 +606,9 @@ function App() {
         path="/company/all-companies"
         element={
           <ProtectedRoute>
-            <AllCompaniesPage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <AllCompaniesPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -530,7 +616,9 @@ function App() {
         path="/monthly-reporting/dashboard"
         element={
           <ProtectedRoute>
-            <MonthlyReportingDashboard />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <MonthlyReportingDashboard />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -538,7 +626,9 @@ function App() {
         path="/pricing-engine/rate-finalization"
         element={
           <ProtectedRoute>
-            <PricingEnginePage />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <PricingEnginePage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -546,7 +636,9 @@ function App() {
         path="/monthly-reporting/submit"
         element={
           <ProtectedRoute>
-            <SubmitMonthlyReport />
+            <RoleRoute allowedRoles={[...BUSINESS_WRITE_ROLES]}>
+              <SubmitMonthlyReport />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -554,7 +646,9 @@ function App() {
         path="/settings/general"
         element={
           <ProtectedRoute>
-            <SettingsPage />
+            <RoleRoute allowedRoles={[...SETTINGS_ROLES]}>
+              <SettingsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -562,7 +656,9 @@ function App() {
         path="/settings/integrations"
         element={
           <ProtectedRoute>
-            <SettingsPage />
+            <RoleRoute allowedRoles={[...SETTINGS_ROLES]}>
+              <SettingsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -570,7 +666,9 @@ function App() {
         path="/settings/team"
         element={
           <ProtectedRoute>
-            <SettingsPage />
+            <RoleRoute allowedRoles={[...SETTINGS_ROLES]}>
+              <SettingsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />
@@ -578,7 +676,9 @@ function App() {
         path="/settings/security"
         element={
           <ProtectedRoute>
-            <SettingsPage />
+            <RoleRoute allowedRoles={[...SETTINGS_ROLES]}>
+              <SettingsPage />
+            </RoleRoute>
           </ProtectedRoute>
         }
       />

@@ -23,14 +23,6 @@ import {
   getSystemSettingsApi,
   updateSystemSettingsApi,
 } from "../../services/operations/users";
-import {
-  disconnectQuickBooks,
-  connectQuickBooks,
-} from "../../services/operations/quickbooks";
-import {
-  getAllCompanies,
-  type Company,
-} from "../../services/operations/companies";
 import { getMercuryAccounts } from "../../services/operations/mercury";
 import QuickBooksIntegrations from "../integrations/QuickBooksIntegrations";
 
@@ -752,7 +744,6 @@ export default function SettingsPage() {
                   <option value="OPERATIONS">Operations</option>
                   <option value="FINANCE">Finance</option>
                   <option value="VIEWER">Viewer</option>
-                  <option value="INTERNAL">Internal</option>
                   <option value="ADMIN">Admin</option>
                 </select>
               </div>
@@ -880,7 +871,6 @@ export default function SettingsPage() {
                   <option value="OPERATIONS">Operations</option>
                   <option value="FINANCE">Finance</option>
                   <option value="VIEWER">Viewer</option>
-                  <option value="INTERNAL">Internal</option>
                   <option value="ADMIN">Admin</option>
                 </select>
               </div>
