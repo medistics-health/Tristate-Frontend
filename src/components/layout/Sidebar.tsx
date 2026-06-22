@@ -28,11 +28,10 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  BUSINESS_WRITE_ROLES,
   hasAdminAccess,
   hasAnyRole,
   INTEGRATIONS_ROLES,
-  OPERATIONS_AND_FINANCE_WRITE_ROLES,
+  MODULE_ACCESS,
   readStoredUser,
   SETTINGS_ROLES,
   type UserRole,
@@ -54,23 +53,27 @@ type SidebarItem = {
 };
 
 const sidebarSteps: SidebarItem[] = [
-  { label: "Dashboards", to: "/dashboard" },
-  { label: "Client Portal", to: "/portal" },
-  { label: "Lead", to: "/lead/create", requiredRoles: [...BUSINESS_WRITE_ROLES] },
-  { label: "Deal", to: "/deal/all-deals", requiredRoles: [...BUSINESS_WRITE_ROLES] },
   {
-    label: "Person",
-    to: "/person/all-persons",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    label: "Dashboards",
+    to: "/dashboard",
+    requiredRoles: [...MODULE_ACCESS.DASHBOARD],
   },
+  {
+    label: "Client Portal",
+    to: "/portal",
+    requiredRoles: [...MODULE_ACCESS.DASHBOARD],
+  },
+  { label: "Lead", to: "/lead/create", requiredRoles: [...MODULE_ACCESS.CRM] },
+  { label: "Deal", to: "/deal/all-deals", requiredRoles: [...MODULE_ACCESS.CRM] },
+  { label: "Person", to: "/person/all-persons", requiredRoles: [...MODULE_ACCESS.CRM] },
   {
     label: "Company",
     to: "/company/all-companies",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.CRM],
   },
   {
     label: "Practices",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Practice", to: "/practice/all-practices" },
       { label: "Pipeline Board", to: "/practice/pipeline" },
@@ -81,7 +84,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Agreements",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Agreements", to: "/agreements/all-agreements" },
       { label: "Agreement Pipeline", to: "/agreements/pipeline" },
@@ -100,12 +103,12 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Onboarding",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [{ label: "Review Submissions", to: "/onboarding/review" }],
   },
   {
     label: "Services",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Services", to: "/service/all-services" },
       { label: "Service Catalog", to: "/service/service-catalogs" },
@@ -114,7 +117,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Pricing Engine",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       {
         label: "Rate Finalization",
@@ -124,7 +127,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Billing",
-    requiredRoles: [...OPERATIONS_AND_FINANCE_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       { label: "Billing Runs", to: "/billing/runs" },
       { label: "Billing Status Board", to: "/billing/status-board" },
@@ -132,7 +135,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Invoices",
-    requiredRoles: [...OPERATIONS_AND_FINANCE_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       { label: "All Invoices", to: "/invoice/all-invoices" },
       { label: "Invoice Status Board", to: "/invoice/status-board" },
@@ -141,7 +144,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Invoice Line Items",
-    requiredRoles: [...OPERATIONS_AND_FINANCE_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       {
         label: "All Invoice Line Items",
@@ -152,7 +155,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Purchase Orders",
-    requiredRoles: [...OPERATIONS_AND_FINANCE_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       { label: "All Purchase Orders", to: "/purchase-orders/all" },
       { label: "PO Status Board", to: "/purchase-orders/status-board" },
@@ -165,7 +168,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Vendors",
-    requiredRoles: [...OPERATIONS_AND_FINANCE_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       { label: "All Vendors", to: "/vendors/all-vendors" },
       { label: "Vendor Contracts", to: "/vendors/contracts" },
@@ -182,7 +185,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Channel Partners",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       {
         label: "All Channel Partners",
@@ -193,7 +196,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Monthly Reports",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "Dashboard", to: "/monthly-reporting/dashboard" },
       { label: "Submit Report", to: "/monthly-reporting/submit" },
@@ -201,7 +204,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Assessments",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Assessments", to: "/assessment/all-assessments" },
       { label: "Assessments Progress", to: "/assessment/progress" },
@@ -209,7 +212,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Audits",
-    requiredRoles: [...BUSINESS_WRITE_ROLES],
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Practice Audits", to: "/audit/all-practice-audits" },
       { label: "All Audits", to: "/audit/all-audits" },

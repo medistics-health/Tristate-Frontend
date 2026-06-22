@@ -15,6 +15,15 @@ export type UserRole =
   | "FINANCE"
   | "VIEWER";
 
+export const ALL_AUTHENTICATED_ROLES: readonly UserRole[] = [
+  "ADMIN",
+  "SALES",
+  "ACCOUNTMANAGER",
+  "OPERATIONS",
+  "FINANCE",
+  "VIEWER",
+];
+
 export const BUSINESS_WRITE_ROLES: readonly UserRole[] = [
   "ADMIN",
   "SALES",
@@ -33,6 +42,19 @@ export const FINANCE_WRITE_ROLES: readonly UserRole[] = ["ADMIN", "FINANCE"];
 export const INTEGRATIONS_ROLES: readonly UserRole[] = ["ADMIN", "FINANCE"];
 
 export const SETTINGS_ROLES: readonly UserRole[] = ["ADMIN"];
+
+/**
+ * Frontend role abstractions used by route guards and sidebar rendering.
+ * Keep these groups aligned with backend RBAC and docs/ROLE_ACCESS.md.
+ */
+export const MODULE_ACCESS = {
+  DASHBOARD: ALL_AUTHENTICATED_ROLES,
+  CRM: BUSINESS_WRITE_ROLES,
+  OPERATIONS_AND_FINANCE: OPERATIONS_AND_FINANCE_WRITE_ROLES,
+  INTEGRATIONS: INTEGRATIONS_ROLES,
+  SETTINGS: SETTINGS_ROLES,
+  ADMIN_ONLY: ["ADMIN"] as const,
+} as const;
 
 function normalizeRole(role?: string | null): string {
   return String(role || "")
@@ -62,6 +84,19 @@ export function hasAnyRole(
   allowedRoles: readonly UserRole[],
 ) {
   return allowedRoles.includes(normalizeRole(role) as UserRole);
+}
+
+export function canAccessModule(
+  role: string | null | undefined,
+  module:
+    | "DASHBOARD"
+    | "CRM"
+    | "OPERATIONS_AND_FINANCE"
+    | "INTEGRATIONS"
+    | "SETTINGS"
+    | "ADMIN_ONLY",
+) {
+  return hasAnyRole(role, MODULE_ACCESS[module]);
 }
 
 export function canManageIntegrations(role?: string | null) {

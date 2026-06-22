@@ -63,7 +63,11 @@ import type {
 import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import ConfirmModal from "../shared/ConfirmModal";
-import { hasAdminAccess, readStoredUser } from "../../utils/auth";
+import {
+  canManageSettings,
+  hasAdminAccess,
+  readStoredUser,
+} from "../../utils/auth";
 import {
   buildTemplateFieldValues,
   getDocusealFieldInputType,
@@ -337,7 +341,9 @@ function getNewCompanyTaxIdKey(index: number) {
 
 function CreateLeadPage() {
   const navigate = useNavigate();
-  const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const isAdmin = hasAdminAccess(currentRole);
+  const canReadUsers = canManageSettings(currentRole);
   const [form, setForm] = useState<LeadFormState>(initialFormState);
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -793,11 +799,12 @@ function CreateLeadPage() {
     async function loadInitialData() {
       try {
         setIsLoadingServices(true);
-        const [serviceList, userList, templateRes] = await Promise.all([
+        const [serviceList, templateRes] = await Promise.all([
           getAllServices(),
-          getAllUsers(),
           getDocusealTemplates(),
         ]);
+
+        const userList = canReadUsers ? await getAllUsers() : [];
         setServices(serviceList.filter((service) => service.isActive));
         setUsers(userList);
         setTemplates(templateRes.templates.data);

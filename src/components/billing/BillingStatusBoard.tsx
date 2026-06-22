@@ -24,6 +24,11 @@ import {
   type BillingRunRow,
   type BillingRunStatus,
 } from "../../services/operations/billings";
+import {
+  canFinanceWrite,
+  canOperationsAndFinanceWrite,
+  readStoredUser,
+} from "../../utils/auth";
 
 type LaneDef = {
   id: BillingRunStatus;
@@ -68,6 +73,9 @@ function formatMoney(value?: string | number | null) {
 }
 
 function BillingStatusBoardPage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canRunWrite = canOperationsAndFinanceWrite(currentRole);
+  const canFinanceActions = canFinanceWrite(currentRole);
   const [rows, setRows] = useState<BillingRunRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -151,6 +159,14 @@ function BillingStatusBoardPage() {
 
   async function handleRunAction(action: "calculate" | "approve" | "post") {
     if (!selectedRun) return;
+    if (action === "calculate" && !canRunWrite) {
+      toast.error("You do not have permission to calculate billing runs.");
+      return;
+    }
+    if ((action === "approve" || action === "post") && !canFinanceActions) {
+      toast.error("Only finance/admin can approve or post billing runs.");
+      return;
+    }
     setIsActionLoading(action);
     try {
       if (action === "calculate") {
@@ -342,26 +358,34 @@ function BillingStatusBoardPage() {
                       ? "Re-calculate"
                       : "Calculate"}
                   </button>
-                  <button
-                    type="button"
-                    disabled={
-                      isActionLoading !== null ||
-                      !["CALCULATED", "REVIEW_REQUIRED"].includes(selectedRun.status)
-                    }
-                    onClick={() => handleRunAction("approve")}
-                    className="inline-flex items-center gap-2 rounded-md bg-[#4f63ea] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
-                  >
-                    {isActionLoading === "approve" ? "Approving..." : "Approve"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isActionLoading !== null || selectedRun.status !== "APPROVED"}
-                    onClick={() => handleRunAction("post")}
-                    className="inline-flex items-center gap-2 rounded-md bg-[#1f7a5b] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    {isActionLoading === "post" ? "Posting..." : "Post"}
-                  </button>
+                  {canFinanceActions && (
+                    <button
+                      type="button"
+                      disabled={
+                        isActionLoading !== null ||
+                        !["CALCULATED", "REVIEW_REQUIRED"].includes(
+                          selectedRun.status,
+                        )
+                      }
+                      onClick={() => handleRunAction("approve")}
+                      className="inline-flex items-center gap-2 rounded-md bg-[#4f63ea] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
+                    >
+                      {isActionLoading === "approve" ? "Approving..." : "Approve"}
+                    </button>
+                  )}
+                  {canFinanceActions && (
+                    <button
+                      type="button"
+                      disabled={
+                        isActionLoading !== null || selectedRun.status !== "APPROVED"
+                      }
+                      onClick={() => handleRunAction("post")}
+                      className="inline-flex items-center gap-2 rounded-md bg-[#1f7a5b] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      {isActionLoading === "post" ? "Posting..." : "Post"}
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex-1 overflow-auto">

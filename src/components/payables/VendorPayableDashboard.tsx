@@ -17,8 +17,16 @@ import {
 } from "../../services/operations/payables";
 import { getAllVendors, type Vendor } from "../../services/operations/vendors";
 import { getAllPractices, type Practice } from "../../services/operations/practices";
+import {
+  canFinanceWrite,
+  canOperationsAndFinanceWrite,
+  readStoredUser,
+} from "../../utils/auth";
 
 export default function VendorPayableDashboard() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canWritePayables = canOperationsAndFinanceWrite(currentRole);
+  const canFinanceActions = canFinanceWrite(currentRole);
   const navigate = useNavigate();
   const [payables, setPayables] = useState<VendorPayable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,6 +76,10 @@ export default function VendorPayableDashboard() {
 
   async function handleCreatePayable(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWritePayables) {
+      toast.error("You do not have permission to create vendor payables.");
+      return;
+    }
     if (!createForm.vendorId || !createForm.practiceId || !createForm.totalAmount) {
       toast.error("Please fill in all required fields.");
       return;
@@ -104,6 +116,10 @@ export default function VendorPayableDashboard() {
   }
 
   async function handleRelease(id: string) {
+    if (!canFinanceActions) {
+      toast.error("Only finance/admin can release payables.");
+      return;
+    }
     try {
       setActionState(id, "release", true);
       await releasePayable(id);
@@ -117,6 +133,10 @@ export default function VendorPayableDashboard() {
   }
 
   async function handleSync(id: string) {
+    if (!canFinanceActions) {
+      toast.error("Only finance/admin can sync vendor bills.");
+      return;
+    }
     try {
       setActionState(id, "sync", true);
       await syncPayableToQuickBooks(id);
@@ -129,6 +149,10 @@ export default function VendorPayableDashboard() {
   }
 
   async function handleSyncPayment(id: string) {
+    if (!canFinanceActions) {
+      toast.error("Only finance/admin can sync bill payments.");
+      return;
+    }
     try {
       setActionState(id, "syncPayment", true);
       await syncBillPaymentToQuickBooks(id);
@@ -155,6 +179,10 @@ export default function VendorPayableDashboard() {
   }
 
   async function handleDelete(id: string) {
+    if (!canFinanceActions) {
+      toast.error("Only finance/admin can delete payables.");
+      return;
+    }
     if (!window.confirm("Are you sure you want to delete this payable?")) return;
     try {
       setActionState(id, "delete", true);
@@ -169,6 +197,10 @@ export default function VendorPayableDashboard() {
   }
 
   async function handlePayPayable(id: string) {
+    if (!canFinanceActions) {
+      toast.error("Only finance/admin can mark payable as paid.");
+      return;
+    }
     try {
       setActionState(id, "pay", true);
       await payVendorPayable(id);
@@ -319,23 +351,27 @@ export default function VendorPayableDashboard() {
                         <td className="px-6 py-5 align-top text-right">
                           <div className="flex items-center justify-end gap-2.5">
                             {/* Release Action */}
-                            <button
-                              onClick={() => handleRelease(payable.id)}
-                              disabled={isReleased || isAnyActionLoading(payable.id)}
-                              className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-                            >
-                              {isActionLoading(payable.id, "release") ? (
-                                <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-400" />
-                              ) : isReleased ? (
-                                <Check className="h-4 w-4 text-green-500" />
-                              ) : (
-                                <DollarSign className="h-4 w-4 text-emerald-500" />
-                              )}
-                              {isReleased ? "Released" : "Release"}
-                            </button>
+                            {canFinanceActions && (
+                              <button
+                                onClick={() => handleRelease(payable.id)}
+                                disabled={isReleased || isAnyActionLoading(payable.id)}
+                                className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                              >
+                                {isActionLoading(payable.id, "release") ? (
+                                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                                ) : isReleased ? (
+                                  <Check className="h-4 w-4 text-green-500" />
+                                ) : (
+                                  <DollarSign className="h-4 w-4 text-emerald-500" />
+                                )}
+                                {isReleased ? "Released" : "Release"}
+                              </button>
+                            )}
 
                             {/* Sync Bill to QB (only show after paid) */}
-                            {!payable.quickbooksBillId && payable.status === "PAID" && (
+                            {canFinanceActions &&
+                              !payable.quickbooksBillId &&
+                              payable.status === "PAID" && (
                               <button
                                 onClick={() => handleSync(payable.id)}
                                 disabled={isAnyActionLoading(payable.id)}
@@ -352,10 +388,12 @@ export default function VendorPayableDashboard() {
                                   <span className="text-[12px] font-extrabold uppercase">Inv</span>
                                 </div>
                               </button>
-                            )}
+                              )}
 
                             {/* Pay Now Button (Direct checkout) */}
-                            {isReleased && payable.status !== "PAID" && (
+                            {canFinanceActions &&
+                              isReleased &&
+                              payable.status !== "PAID" && (
                               <>
                                 <button
                                   onClick={() => navigate(`/vendors/payables/pay/${payable.id}`)}
@@ -396,10 +434,13 @@ export default function VendorPayableDashboard() {
                                   </div>
                                 </button>
                               </>
-                            )}
+                              )}
 
                             {/* Bill Payment Sync to QB */}
-                            {isReleased && !payable.quickbooksBillPaymentId && !!payable.quickbooksBillId && (
+                            {canFinanceActions &&
+                              isReleased &&
+                              !payable.quickbooksBillPaymentId &&
+                              !!payable.quickbooksBillId && (
                               <button
                                 onClick={() => handleSyncPayment(payable.id)}
                                 disabled={isAnyActionLoading(payable.id)}
@@ -416,7 +457,7 @@ export default function VendorPayableDashboard() {
                                   <span className="text-[12px] font-extrabold uppercase">Pmt</span>
                                 </div>
                               </button>
-                            )}
+                              )}
 
                             {/* Download Bill PDF from QB */}
                             {payable.status === "PAID" && !!payable.quickbooksBillId && (
@@ -439,18 +480,20 @@ export default function VendorPayableDashboard() {
                             )}
 
                             {/* Delete Action */}
-                            <button
-                              onClick={() => handleDelete(payable.id)}
-                              disabled={isAnyActionLoading(payable.id)}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-red-50 hover:text-red-500 hover:border-red-100 disabled:opacity-50 transition-all shadow-sm"
-                              title="Delete Payable"
-                            >
-                              {isActionLoading(payable.id, "delete") ? (
-                                <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-400" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
-                            </button>
+                            {canFinanceActions && (
+                              <button
+                                onClick={() => handleDelete(payable.id)}
+                                disabled={isAnyActionLoading(payable.id)}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-red-50 hover:text-red-500 hover:border-red-100 disabled:opacity-50 transition-all shadow-sm"
+                                title="Delete Payable"
+                              >
+                                {isActionLoading(payable.id, "delete") ? (
+                                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
