@@ -11,6 +11,7 @@ export type TermInputValues = {
   collectionsBase?: string;
   encountersQty?: string;
   patientsQty?: string;
+  collectionsLines?: Array<{ id: string; label: string; amount: string }>;
 };
 
 export type TermPreview = {
@@ -32,6 +33,7 @@ export const DEFAULT_METRIC_KEYS: Record<string, string[]> = {
   PERCENT_PROFIT: ["profit", "total_profit"],
   SUCCESS_FEE: ["collections", "total_collections"],
   TIERED_VOLUME: ["units", "unit_count"],
+  CUSTOM_ATTACHMENT_DEFINED: ["value"],
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -169,6 +171,19 @@ export function computePricingFromModelClient(
         const fallbackRate = lastTier ? parseFloat(lastTier.rate) : NaN;
         if (!isNaN(fallbackRate)) clientAmount += remaining * fallbackRate;
       }
+      if (tiers.length === 0) {
+        const rateVal =
+          config.amount !== undefined && config.amount !== null && config.amount !== ""
+            ? parseFloat(config.amount)
+            : config.rate !== undefined && config.rate !== null && config.rate !== ""
+            ? parseFloat(config.rate)
+            : config.unitRate !== undefined && config.unitRate !== null && config.unitRate !== ""
+            ? parseFloat(config.unitRate)
+            : NaN;
+        if (!isNaN(rateVal)) {
+          clientAmount = quantity * rateVal;
+        }
+      }
       break;
     }
     case "MONTHLY_MINIMUM": {
@@ -203,6 +218,21 @@ export function computePricingFromModelClient(
       }
 
       clientAmount = Math.max(monthlyMinimumVal, totalVariableCharges);
+      break;
+    }
+    case "CUSTOM_ATTACHMENT_DEFINED": {
+      const quantity = parseFloat(inputs.quantity || "0");
+      const rateVal =
+        config.amount !== undefined && config.amount !== "" && config.amount !== null
+          ? parseFloat(config.amount)
+          : config.rate !== undefined && config.rate !== "" && config.rate !== null
+          ? parseFloat(config.rate)
+          : config.unitRate !== undefined && config.unitRate !== "" && config.unitRate !== null
+          ? parseFloat(config.unitRate)
+          : NaN;
+      if (!isNaN(rateVal)) {
+        clientAmount = quantity * rateVal;
+      }
       break;
     }
     default:
@@ -326,6 +356,7 @@ export function buildSnapshotsFromInputs(
             metricValue: Number(termInput.quantity),
             serviceId: term.serviceId,
             sourceType: "billing_run_input",
+            sourceReference: term.id,
           });
         }
         break;
@@ -342,6 +373,7 @@ export function buildSnapshotsFromInputs(
               metricValue: Number(qty),
               serviceId: term.serviceId,
               sourceType: "billing_run_input",
+              sourceReference: term.id,
             });
           }
         }
@@ -356,13 +388,30 @@ export function buildSnapshotsFromInputs(
           DEFAULT_METRIC_KEYS[term.pricingModel] ||
           DEFAULT_METRIC_KEYS.PERCENT_COLLECTIONS ||
           [];
-        if (termInput.baseAmount && parseFloat(termInput.baseAmount) > 0) {
-          snapshots.push({
-            metricKey: keys[0] || "collections",
-            metricValue: Number(termInput.baseAmount),
-            serviceId: term.serviceId,
-            sourceType: "billing_run_input",
-          });
+        if (term.pricingModel === "PERCENT_COLLECTIONS" && termInput.collectionsLines && termInput.collectionsLines.length > 0) {
+          for (const line of termInput.collectionsLines) {
+            const amt = parseFloat(line.amount);
+            if (line.label && amt > 0) {
+              snapshots.push({
+                metricKey: keys[0] || "collections",
+                metricValue: amt,
+                metricTextValue: line.label,
+                serviceId: term.serviceId,
+                sourceType: "billing_run_input",
+                sourceReference: term.id,
+              });
+            }
+          }
+        } else {
+          if (termInput.baseAmount && parseFloat(termInput.baseAmount) > 0) {
+            snapshots.push({
+              metricKey: keys[0] || "collections",
+              metricValue: Number(termInput.baseAmount),
+              serviceId: term.serviceId,
+              sourceType: "billing_run_input",
+              sourceReference: term.id,
+            });
+          }
         }
         break;
       }
@@ -375,6 +424,21 @@ export function buildSnapshotsFromInputs(
             metricValue: Number(termInput.quantity),
             serviceId: term.serviceId,
             sourceType: "billing_run_input",
+            sourceReference: term.id,
+          });
+        }
+        break;
+      }
+
+      case "CUSTOM_ATTACHMENT_DEFINED": {
+        const keys = DEFAULT_METRIC_KEYS.CUSTOM_ATTACHMENT_DEFINED || [];
+        if (termInput.quantity && parseFloat(termInput.quantity) > 0) {
+          snapshots.push({
+            metricKey: keys[0] || "value",
+            metricValue: Number(termInput.quantity),
+            serviceId: term.serviceId,
+            sourceType: "billing_run_input",
+            sourceReference: term.id,
           });
         }
         break;
@@ -388,6 +452,7 @@ export function buildSnapshotsFromInputs(
             metricValue: Number(termInput.collectionsBase),
             serviceId: term.serviceId,
             sourceType: "billing_run_input",
+            sourceReference: term.id,
           });
         }
         if (termInput.encountersQty && parseFloat(termInput.encountersQty) > 0) {
@@ -396,6 +461,7 @@ export function buildSnapshotsFromInputs(
             metricValue: Number(termInput.encountersQty),
             serviceId: term.serviceId,
             sourceType: "billing_run_input",
+            sourceReference: term.id,
           });
         }
         if (termInput.patientsQty && parseFloat(termInput.patientsQty) > 0) {
@@ -404,6 +470,7 @@ export function buildSnapshotsFromInputs(
             metricValue: Number(termInput.patientsQty),
             serviceId: term.serviceId,
             sourceType: "billing_run_input",
+            sourceReference: term.id,
           });
         }
         break;
