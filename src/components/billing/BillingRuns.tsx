@@ -1132,32 +1132,47 @@ function BillingRunsPage() {
 
                           {/* Hybrid Components details for saved run items */}
                           {(item as any).formulaSnapshot &&
-                            (item as any).formulaSnapshot.pricingModel === "HYBRID" && (
+                            (item as any).formulaSnapshot.pricingModel ===
+                              "HYBRID" && (
                               <div className="w-full mt-1.5 space-y-1 bg-slate-50 p-2 rounded border border-slate-100/60 text-[10.5px]">
                                 <div className="font-semibold text-slate-500 text-[9.5px] uppercase tracking-wider">
                                   Hybrid Components
                                 </div>
-                                {(Array.isArray((item as any).formulaSnapshot.components) 
-                                  ? (item as any).formulaSnapshot.components 
+                                {(Array.isArray(
+                                  (item as any).formulaSnapshot.components,
+                                )
+                                  ? (item as any).formulaSnapshot.components
                                   : []
                                 ).map((comp: any, cIdx: number) => {
-                                  const isPercent = comp.type === "% Collections";
+                                  const isPercent =
+                                    comp.type === "% Collections";
                                   const clientVal = parseFloat(comp.value) || 0;
-                                  const vendorComp = (item as any).formulaSnapshot.vendorPricing?.components?.[cIdx];
-                                  const vendorVal = vendorComp ? (parseFloat(vendorComp.value) || 0) : 0;
-                                  
+                                  const vendorComp = (item as any)
+                                    .formulaSnapshot.vendorPricing
+                                    ?.components?.[cIdx];
+                                  const vendorVal = vendorComp
+                                    ? parseFloat(vendorComp.value) || 0
+                                    : 0;
+
                                   const formatCompVal = (val: number) => {
                                     if (isPercent) return `${val.toFixed(2)}%`;
                                     return `$${val.toFixed(2)}`;
                                   };
-                                  
+
                                   return (
-                                    <div key={cIdx} className="flex justify-between items-center text-slate-500">
+                                    <div
+                                      key={cIdx}
+                                      className="flex justify-between items-center text-slate-500"
+                                    >
                                       <span>{comp.type}</span>
                                       <span className="font-medium text-slate-700">
                                         Client: {formatCompVal(clientVal)}
-                                        {(item as any).formulaSnapshot.vendorPricing && (
-                                          <> | Vendor: {formatCompVal(vendorVal)}</>
+                                        {(item as any).formulaSnapshot
+                                          .vendorPricing && (
+                                          <>
+                                            {" "}
+                                            | Vendor: {formatCompVal(vendorVal)}
+                                          </>
                                         )}
                                       </span>
                                     </div>
@@ -1171,7 +1186,11 @@ function BillingRunsPage() {
                         {(() => {
                           const matchingSnapshots =
                             selectedRun.inputSnapshots?.filter(
-                              (snap) => snap.serviceId === item.serviceId,
+                              (snap) =>
+                                snap.serviceId === item.serviceId &&
+                                (!snap.sourceReference ||
+                                  snap.sourceReference ===
+                                    item.agreementServiceTermId),
                             ) || [];
                           if (matchingSnapshots.length === 0) return null;
                           return (
@@ -1719,6 +1738,47 @@ function BillingRunsPage() {
                                 </span>
                               </span>
                             )}
+                            {term.pricingModel === "TIERED_VOLUME" && (
+                              <span className="text-slate-500">
+                                Rate:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {config.amount !== undefined &&
+                                  config.amount !== "" &&
+                                  config.amount !== null
+                                    ? `${formatMoney(parseFloat(config.amount))}/unit`
+                                    : config.rate !== undefined &&
+                                        config.rate !== "" &&
+                                        config.rate !== null
+                                      ? `${formatMoney(parseFloat(config.rate))}/unit`
+                                      : config.unitRate !== undefined &&
+                                          config.unitRate !== "" &&
+                                          config.unitRate !== null
+                                        ? `${formatMoney(parseFloat(config.unitRate))}/unit`
+                                        : "Tiers configured"}
+                                </span>
+                              </span>
+                            )}
+                            {term.pricingModel ===
+                              "CUSTOM_ATTACHMENT_DEFINED" && (
+                              <span className="text-slate-500">
+                                Rate:{" "}
+                                <span className="font-semibold text-slate-700">
+                                  {config.amount !== undefined &&
+                                  config.amount !== "" &&
+                                  config.amount !== null
+                                    ? `${formatMoney(parseFloat(config.amount))}`
+                                    : config.rate !== undefined &&
+                                        config.rate !== "" &&
+                                        config.rate !== null
+                                      ? `${formatMoney(parseFloat(config.rate))}`
+                                      : config.unitRate !== undefined &&
+                                          config.unitRate !== "" &&
+                                          config.unitRate !== null
+                                        ? `${formatMoney(parseFloat(config.unitRate))}`
+                                        : "—"}
+                                </span>
+                              </span>
+                            )}
                             {config.vendorRate && (
                               <span className="text-slate-500">
                                 Vendor rate:{" "}
@@ -1820,24 +1880,36 @@ function BillingRunsPage() {
                               <div className="font-semibold text-slate-500 text-[9.5px] uppercase tracking-wider">
                                 Hybrid Components
                               </div>
-                              {(Array.isArray(config.components) ? config.components : []).map((comp: any, cIdx: number) => {
+                              {(Array.isArray(config.components)
+                                ? config.components
+                                : []
+                              ).map((comp: any, cIdx: number) => {
                                 const isPercent = comp.type === "% Collections";
                                 const clientVal = parseFloat(comp.value) || 0;
-                                const vendorComp = config.vendorPricing?.components?.[cIdx];
-                                const vendorVal = vendorComp ? (parseFloat(vendorComp.value) || 0) : 0;
-                                
+                                const vendorComp =
+                                  config.vendorPricing?.components?.[cIdx];
+                                const vendorVal = vendorComp
+                                  ? parseFloat(vendorComp.value) || 0
+                                  : 0;
+
                                 const formatCompVal = (val: number) => {
                                   if (isPercent) return `${val.toFixed(2)}%`;
                                   return `$${val.toFixed(2)}`;
                                 };
-                                
+
                                 return (
-                                  <div key={cIdx} className="flex justify-between items-center text-slate-500">
+                                  <div
+                                    key={cIdx}
+                                    className="flex justify-between items-center text-slate-500"
+                                  >
                                     <span>{comp.type}</span>
                                     <span className="font-medium text-slate-700">
                                       Client: {formatCompVal(clientVal)}
                                       {config.vendorPricing && (
-                                        <> | Vendor: {formatCompVal(vendorVal)}</>
+                                        <>
+                                          {" "}
+                                          | Vendor: {formatCompVal(vendorVal)}
+                                        </>
                                       )}
                                     </span>
                                   </div>
@@ -1855,19 +1927,26 @@ function BillingRunsPage() {
                                 <span className="text-[11px] font-medium text-slate-500 block mb-1">
                                   Hybrid Component Metrics
                                 </span>
-                                {(Array.isArray(config.components) ? config.components : []).map((comp: any, idx: number) => {
+                                {(Array.isArray(config.components)
+                                  ? config.components
+                                  : []
+                                ).map((comp: any, idx: number) => {
                                   const type = comp.type;
                                   if (type === "% Collections") {
                                     return (
                                       <div key={idx} className="space-y-1">
                                         <label className="block text-[11px] font-medium text-slate-500">
-                                          Total Collections ($) for % Collections
+                                          Total Collections ($) for %
+                                          Collections
                                         </label>
                                         <input
                                           type="number"
                                           step="0.01"
                                           min="0"
-                                          value={createForm.termInputs[term.id]?.collectionsBase || ""}
+                                          value={
+                                            createForm.termInputs[term.id]
+                                              ?.collectionsBase || ""
+                                          }
                                           onChange={(event) =>
                                             setCreateForm((prev) => ({
                                               ...prev,
@@ -1875,7 +1954,8 @@ function BillingRunsPage() {
                                                 ...prev.termInputs,
                                                 [term.id]: {
                                                   ...prev.termInputs[term.id],
-                                                  collectionsBase: event.target.value,
+                                                  collectionsBase:
+                                                    event.target.value,
                                                 },
                                               },
                                             }))
@@ -1896,7 +1976,10 @@ function BillingRunsPage() {
                                           type="number"
                                           step="1"
                                           min="0"
-                                          value={createForm.termInputs[term.id]?.encountersQty || ""}
+                                          value={
+                                            createForm.termInputs[term.id]
+                                              ?.encountersQty || ""
+                                          }
                                           onChange={(event) =>
                                             setCreateForm((prev) => ({
                                               ...prev,
@@ -1904,7 +1987,8 @@ function BillingRunsPage() {
                                                 ...prev.termInputs,
                                                 [term.id]: {
                                                   ...prev.termInputs[term.id],
-                                                  encountersQty: event.target.value,
+                                                  encountersQty:
+                                                    event.target.value,
                                                 },
                                               },
                                             }))
@@ -1925,7 +2009,10 @@ function BillingRunsPage() {
                                           type="number"
                                           step="1"
                                           min="0"
-                                          value={createForm.termInputs[term.id]?.patientsQty || ""}
+                                          value={
+                                            createForm.termInputs[term.id]
+                                              ?.patientsQty || ""
+                                          }
                                           onChange={(event) =>
                                             setCreateForm((prev) => ({
                                               ...prev,
@@ -1933,7 +2020,8 @@ function BillingRunsPage() {
                                                 ...prev.termInputs,
                                                 [term.id]: {
                                                   ...prev.termInputs[term.id],
-                                                  patientsQty: event.target.value,
+                                                  patientsQty:
+                                                    event.target.value,
                                                 },
                                               },
                                             }))
@@ -2017,32 +2105,165 @@ function BillingRunsPage() {
                                 "SUCCESS_FEE",
                               ].includes(term.pricingModel) ? (
                               <div>
-                                <label className="mb-1 block text-[11px] font-medium text-slate-500">
-                                  {getModelInputLabel(term.pricingModel)}
-                                </label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={
-                                    createForm.termInputs[term.id]
-                                      ?.baseAmount || ""
-                                  }
-                                  onChange={(event) =>
-                                    setCreateForm((prev) => ({
-                                      ...prev,
-                                      termInputs: {
-                                        ...prev.termInputs,
-                                        [term.id]: {
-                                          ...prev.termInputs[term.id],
-                                          baseAmount: event.target.value,
-                                        },
+                                {(() => {
+                                  const isPercentCollections =
+                                    term.pricingModel === "PERCENT_COLLECTIONS";
+                                  if (isPercentCollections) {
+                                    const currentLines = createForm.termInputs[
+                                      term.id
+                                    ]?.collectionsLines || [
+                                      {
+                                        id: "1",
+                                        label: "Collection 1",
+                                        amount:
+                                          createForm.termInputs[term.id]
+                                            ?.baseAmount || "",
                                       },
-                                    }))
+                                    ];
+
+                                    const updateLines = (
+                                      newLines: typeof currentLines,
+                                    ) => {
+                                      const total = newLines.reduce(
+                                        (sum, line) =>
+                                          sum + (parseFloat(line.amount) || 0),
+                                        0,
+                                      );
+                                      setCreateForm((prev) => ({
+                                        ...prev,
+                                        termInputs: {
+                                          ...prev.termInputs,
+                                          [term.id]: {
+                                            ...prev.termInputs[term.id],
+                                            collectionsLines: newLines,
+                                            baseAmount:
+                                              total > 0 ? String(total) : "",
+                                          },
+                                        },
+                                      }));
+                                    };
+
+                                    return (
+                                      <div className="space-y-2">
+                                        <div className="flex justify-between items-center mb-1">
+                                          <span className="text-[11px] font-medium text-slate-500 block">
+                                            Collections Name{" "}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const nextId = String(Date.now());
+                                              const newLines = [
+                                                ...currentLines,
+                                                {
+                                                  id: nextId,
+                                                  label: `Collections ${currentLines.length + 1}`,
+                                                  amount: "",
+                                                },
+                                              ];
+                                              updateLines(newLines);
+                                            }}
+                                            className="text-[10px] text-indigo-600 font-semibold hover:underline"
+                                          >
+                                            + Add Collections
+                                          </button>
+                                        </div>
+                                        {currentLines.map((line, idx) => (
+                                          <div
+                                            key={line.id}
+                                            className="flex gap-2 items-center"
+                                          >
+                                            <input
+                                              type="text"
+                                              value={line.label}
+                                              onChange={(e) => {
+                                                const newLines =
+                                                  currentLines.map((l) =>
+                                                    l.id === line.id
+                                                      ? {
+                                                          ...l,
+                                                          label: e.target.value,
+                                                        }
+                                                      : l,
+                                                  );
+                                                updateLines(newLines);
+                                              }}
+                                              placeholder="Description"
+                                              className="app-control flex-1 rounded-md px-2 py-1 text-[12px]"
+                                            />
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              min="0"
+                                              value={line.amount}
+                                              onChange={(e) => {
+                                                const newLines =
+                                                  currentLines.map((l) =>
+                                                    l.id === line.id
+                                                      ? {
+                                                          ...l,
+                                                          amount:
+                                                            e.target.value,
+                                                        }
+                                                      : l,
+                                                  );
+                                                updateLines(newLines);
+                                              }}
+                                              placeholder="0.00"
+                                              className="app-control w-24 rounded-md px-2 py-1 text-[12px] text-right"
+                                            />
+                                            {currentLines.length > 1 && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const newLines =
+                                                    currentLines.filter(
+                                                      (l) => l.id !== line.id,
+                                                    );
+                                                  updateLines(newLines);
+                                                }}
+                                                className="text-red-500 text-[12px] font-bold px-1 hover:text-red-700"
+                                              >
+                                                ×
+                                              </button>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
                                   }
-                                  placeholder="0.00"
-                                  className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
-                                />
+
+                                  return (
+                                    <div>
+                                      <label className="mb-1 block text-[11px] font-medium text-slate-500">
+                                        {getModelInputLabel(term.pricingModel)}
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={
+                                          createForm.termInputs[term.id]
+                                            ?.baseAmount || ""
+                                        }
+                                        onChange={(event) =>
+                                          setCreateForm((prev) => ({
+                                            ...prev,
+                                            termInputs: {
+                                              ...prev.termInputs,
+                                              [term.id]: {
+                                                ...prev.termInputs[term.id],
+                                                baseAmount: event.target.value,
+                                              },
+                                            },
+                                          }))
+                                        }
+                                        placeholder="0.00"
+                                        className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
+                                      />
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             ) : (
                               <div>
