@@ -661,7 +661,7 @@ export default function VendorPayableDashboard() {
                 <div className="flex justify-end pt-4">
                   <div className="w-64 space-y-3 bg-slate-50 rounded-3xl p-6 print:bg-slate-50 print:border print:border-slate-100">
                     <div className="flex justify-between items-center text-xs font-bold text-slate-400 uppercase">
-                      <span>Subtotal</span>
+                      <span></span>
                       <span>{formatCurrency(previewPayable.totalAmount)}</span>
                     </div>
                     <div className="flex justify-between items-center text-xs font-bold text-slate-400 uppercase">
