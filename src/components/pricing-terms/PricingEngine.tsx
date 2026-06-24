@@ -42,6 +42,7 @@ import {
   getAgreementsView,
   getAgreementVersions,
   type AgreementVersion,
+  updateAgreementServiceTermApi,
 } from "../../services/operations/agreements";
 import AddPricingTermWizard from "./AddPricingTermWizard";
 import Select from "../shared/Select";
@@ -516,6 +517,38 @@ export default function PricingEnginePage() {
     }
   }
 
+  function handleDragStart(e: React.DragEvent, index: number) {
+    e.dataTransfer.setData("text/plain", index.toString());
+  }
+
+  async function handleDrop(e: React.DragEvent, targetIndex: number) {
+    e.preventDefault();
+    const dragIndex = Number(e.dataTransfer.getData("text/plain"));
+    if (isNaN(dragIndex) || dragIndex === targetIndex) return;
+
+    const reordered = [...terms];
+    const [draggedItem] = reordered.splice(dragIndex, 1);
+    reordered.splice(targetIndex, 0, draggedItem);
+    
+    // Optimistically update the UI
+    setTerms(reordered);
+
+    try {
+      // Save priorities in parallel (priority is 1-indexed)
+      await Promise.all(
+        reordered.map((term, index) =>
+          updateAgreementServiceTermApi(term.id, { priority: index + 1 })
+        )
+      );
+      toast.success("Pricing terms order updated successfully");
+    } catch (err) {
+      console.error("Failed to update pricing term order:", err);
+      toast.error("Failed to save pricing terms order");
+      // Reload original terms
+      await loadTerms();
+    }
+  }
+
   async function handleDelete() {
     if (!selectedTerm) return;
     if (!window.confirm("Delete this pricing term?")) return;
@@ -781,7 +814,7 @@ export default function PricingEnginePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {terms.map((term) => {
+                  {terms.map((term, index) => {
                     const cl = extractClientRate(term);
                     const vn = extractVendorRate(term);
                     const mg = cl - vn;
@@ -792,11 +825,15 @@ export default function PricingEnginePage() {
                     return (
                       <tr
                         key={term.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => void handleDrop(e, index)}
                         onClick={() => {
                           setSelectedTerm(term);
                           setShowDetail(true);
                         }}
-                        className="cursor-pointer border-b border-[#f0ece6] hover:bg-[#faf9f7] transition-colors"
+                        className="cursor-pointer select-none border-b border-[#f0ece6] hover:bg-[#faf9f7] transition-colors"
                       >
                         <td className="px-4 py-2.5 font-medium text-slate-700">
                           {term.service?.name ?? "-"}
