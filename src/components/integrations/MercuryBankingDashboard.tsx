@@ -25,6 +25,7 @@ import {
   reconcileMercuryTransaction,
   type MercuryTransaction,
 } from "../../services/operations/mercury";
+import { canManageIntegrations, readStoredUser } from "../../utils/auth";
 
 const RECON_STATUS_OPTIONS = [
   { value: "", label: "All Transactions" },
@@ -83,6 +84,8 @@ function reconStatusIcon(status: string) {
 }
 
 export default function MercuryBankingPage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canWriteIntegrations = canManageIntegrations(currentRole);
   const [transactions, setTransactions] = useState<MercuryTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -128,6 +131,10 @@ export default function MercuryBankingPage() {
   }, [filters.reconciliationStatus, filters.direction]);
 
   async function handleSync() {
+    if (!canWriteIntegrations) {
+      toast.error("Only finance/admin can sync Mercury transactions.");
+      return;
+    }
     setIsSyncing(true);
     try {
       const result = await syncMercuryTransactions();
@@ -142,6 +149,10 @@ export default function MercuryBankingPage() {
 
   async function handleReconcile() {
     if (!selectedTxn) return;
+    if (!canWriteIntegrations) {
+      toast.error("Only finance/admin can update reconciliation.");
+      return;
+    }
     setIsReconSubmitting(true);
     try {
       await reconcileMercuryTransaction(selectedTxn.id, {
@@ -179,13 +190,17 @@ export default function MercuryBankingPage() {
       activeModule="Integrations"
       activeSubItem="Mercury Banking"
       navbarIcon={<Banknote className="h-4 w-4 text-slate-500" />}
-      navbarActions={[
-        {
-          label: isSyncing ? "Syncing…" : "Sync Transactions",
-          icon: <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />,
-          onClick: handleSync,
-        },
-      ]}
+      navbarActions={
+        canWriteIntegrations
+          ? [
+              {
+                label: isSyncing ? "Syncing…" : "Sync Transactions",
+                icon: <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />,
+                onClick: handleSync,
+              },
+            ]
+          : []
+      }
     >
       <div className="flex h-full gap-2">
         {/* ── Main Panel ── */}
@@ -450,31 +465,37 @@ export default function MercuryBankingPage() {
               )}
 
               {/* Reconcile Form */}
-              <div>
-                <h4 className="mb-2 text-[13px] font-medium text-slate-700">Update Reconciliation</h4>
-                <div className="space-y-3 rounded-xl border border-[#f0ece6] p-3">
-                  <div>
-                    <label className="mb-1 block text-[12px] text-slate-500">Status</label>
-                    <select
-                      value={reconValue}
-                      onChange={(e) => setReconValue(e.target.value)}
-                      className="app-control w-full rounded-lg px-3 py-2 text-[13px]"
+              {canWriteIntegrations ? (
+                <div>
+                  <h4 className="mb-2 text-[13px] font-medium text-slate-700">Update Reconciliation</h4>
+                  <div className="space-y-3 rounded-xl border border-[#f0ece6] p-3">
+                    <div>
+                      <label className="mb-1 block text-[12px] text-slate-500">Status</label>
+                      <select
+                        value={reconValue}
+                        onChange={(e) => setReconValue(e.target.value)}
+                        className="app-control w-full rounded-lg px-3 py-2 text-[13px]"
+                      >
+                        <option value="UNMATCHED">Unmatched</option>
+                        <option value="MATCHED">Matched</option>
+                        <option value="RECONCILED">Reconciled</option>
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleReconcile}
+                      disabled={isReconSubmitting}
+                      className="w-full rounded-xl bg-slate-900 py-2.5 text-[13px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
                     >
-                      <option value="UNMATCHED">Unmatched</option>
-                      <option value="MATCHED">Matched</option>
-                      <option value="RECONCILED">Reconciled</option>
-                    </select>
+                      {isReconSubmitting ? "Saving…" : "Save Reconciliation"}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleReconcile}
-                    disabled={isReconSubmitting}
-                    className="w-full rounded-xl bg-slate-900 py-2.5 text-[13px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
-                  >
-                    {isReconSubmitting ? "Saving…" : "Save Reconciliation"}
-                  </button>
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[12px] text-slate-500">
+                  Reconciliation is read-only for your role.
+                </div>
+              )}
 
               {/* Info Box */}
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[12px] text-slate-500">

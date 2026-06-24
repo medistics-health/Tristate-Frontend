@@ -8,7 +8,7 @@ Backend authorization remains the source of truth. Frontend checks are only for 
 
 - Hide actions the current user can never perform.
 - Avoid API calls that are known to be unauthorized for the current role.
-- Keep route guards only where the backend blocks the whole module.
+- Allow `VIEWER` to access read pages because the backend now permits `VIEWER` on protected `GET` requests.
 - Do not expose frontend-only roles or permissions.
 
 The backend currently supports these user roles:
@@ -32,29 +32,54 @@ Frontend role helpers live in `src/utils/auth.ts`.
 | `BUSINESS_WRITE_ROLES` | `ADMIN`, `SALES`, `ACCOUNTMANAGER`, `OPERATIONS` | Business/CRM write actions. |
 | `OPERATIONS_AND_FINANCE_WRITE_ROLES` | `ADMIN`, `OPERATIONS`, `FINANCE` | Operational/financial write actions. |
 | `FINANCE_WRITE_ROLES` | `ADMIN`, `FINANCE` | Finance-only actions such as approval, posting, payment, release, and deletion of finance records. |
-| `INTEGRATIONS_ROLES` | `ADMIN`, `FINANCE` | Integration module access and QuickBooks/Mercury/Stripe sync actions. |
-| `SETTINGS_ROLES` | `ADMIN` | Settings and user administration. |
+| `INTEGRATIONS_ROLES` | `ADMIN`, `FINANCE` | Integration mutation actions such as connect, sync, retry, reconcile, and disconnect. |
+| `SETTINGS_ROLES` | `ADMIN` | Settings and user administration mutation actions. |
 
 ## Route-Level Access
 
-Route guards are intentionally limited to modules where the backend blocks the whole module.
+Route guards are applied at the module level using `MODULE_ACCESS` from `src/utils/auth.ts`.
 
 | Frontend route area | Allowed roles | Reason |
 | --- | --- | --- |
-| `/settings/*` | `ADMIN` | Backend settings and user APIs are admin-only. |
-| `/integrations/*` | `ADMIN`, `FINANCE` | Backend integration routers require `INTEGRATIONS_ROLES`. |
+| Dashboard and Client Portal | `ADMIN`, `SALES`, `ACCOUNTMANAGER`, `OPERATIONS`, `FINANCE`, `VIEWER` | Base authenticated access. |
+| CRM modules | `ADMIN`, `SALES`, `ACCOUNTMANAGER`, `OPERATIONS` | Business workflow access. |
+| Billing, invoices, purchase orders, and vendors | `ADMIN`, `OPERATIONS`, `FINANCE` | Operational and financial workflow access. |
+| `/settings/*` | All authenticated roles | Backend now permits `VIEWER` on protected `GET` requests. Non-GET settings/user actions remain admin-only. |
+| `/integrations/*` | All authenticated roles | Backend now permits `VIEWER` on protected `GET` requests. Connect, sync, retry, reconcile, and disconnect actions remain finance/admin-only. |
+| Admin agreement queues | `ADMIN` | Frontend keeps admin workflow queues restricted to admin users. |
 
-General CRM, billing, invoice, vendor, agreement, practice, assessment, audit, and monthly reporting pages are not hard-blocked at the route level unless the backend blocks the whole route. Those pages may still hide write/action buttons based on role.
+`VIEWER` has read page access but must not see or execute mutation actions.
 
 ## Sidebar Access
 
 Sidebar visibility follows the same rule:
 
-- `Settings` is visible only to `ADMIN`.
-- `Integrations` is visible only to `ADMIN` and `FINANCE`.
-- Other modules remain visible to authenticated users if the backend allows read access.
+- All authenticated roles, including `VIEWER`, can see read-access modules.
+- Mutation buttons remain hidden or blocked based on the action-level role helpers.
+- Settings mutation controls are visible only to `ADMIN`.
+- Integration mutation controls are visible only to `ADMIN` and `FINANCE`.
 
-This prevents frontend from hiding a whole module when the backend still allows read access.
+This keeps page navigation aligned with the frontend module access groups.
+
+## Page Access By Role
+
+Page access is based on the frontend module groups in `src/utils/auth.ts`, which are kept aligned with backend role groups. A user may have access to a page but still be blocked from specific actions on that page.
+
+| Role | Pages they can access |
+| --- | --- |
+| `ADMIN` | All authenticated pages, including Dashboard, Client Portal, CRM modules, Billing, Invoices, Vendors, Agreements, Onboarding Review, Monthly Reports, Assessments, Audits, Integrations, and Settings. |
+| `FINANCE` | All authenticated read pages. Finance/admin-only actions are available where applicable. |
+| `OPERATIONS` | All authenticated read pages. Operations/finance write actions are available where applicable, but finance-only and integration write actions are hidden/blocked. |
+| `SALES` | All authenticated read pages. Business write actions are available where applicable, but finance, operations/finance, settings, and integration write actions are hidden/blocked. |
+| `ACCOUNTMANAGER` | All authenticated read pages. Business write actions are available where applicable, but finance, operations/finance, settings, and integration write actions are hidden/blocked. |
+| `VIEWER` | All authenticated read pages. All non-GET actions are hidden or blocked. |
+
+Notes:
+
+- `/settings/*` and `/integrations/*` are readable by `VIEWER` after the backend GET-access change.
+- Create-only and submit-only pages remain restricted to the backend write roles that can call their mutation endpoints.
+- Other pages may still hide buttons or block action handlers when the user role can access the page but cannot call the related backend mutation.
+- Read access and write/action access are different. A user may see a page but not see create, update, delete, approve, sync, release, post, or payment actions.
 
 ## Action-Level Access
 
@@ -131,19 +156,20 @@ File: `src/components/settings/Settings.tsx`
 Changes:
 
 - Removed `INTERNAL` from both add-user and edit-user role dropdowns.
-- Settings pages are admin-only via route guard.
-- User management API calls remain available only through `ADMIN` access.
+- Settings pages are readable by all authenticated roles after the backend GET-access change.
+- User management mutation actions remain available only through `ADMIN` access.
+- Settings inputs can load for `VIEWER`, but save, add, edit, and delete actions are hidden or blocked.
 
 ## Route Guard Components
 
 File: `src/components/auth/RoleRoute.tsx`
 
-`RoleRoute` accepts an `allowedRoles` list and redirects unauthorized users to `/dashboard`. It is used only for routes where backend blocks the whole module, such as settings and integrations.
+`RoleRoute` accepts an `allowedRoles` list and redirects unauthorized users to `/dashboard`. It is used for routes where the frontend still needs role-based page access, such as create-only pages, admin workflow queues, or read modules that should follow backend GET access.
 
 Example:
 
 ```tsx
-<RoleRoute allowedRoles={[...INTEGRATIONS_ROLES]}>
+<RoleRoute allowedRoles={[...MODULE_ACCESS.INTEGRATIONS]}>
   <AccountingSyncDashboard />
 </RoleRoute>
 ```

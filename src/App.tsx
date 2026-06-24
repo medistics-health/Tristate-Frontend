@@ -55,7 +55,7 @@ import SettingsPage from "./components/settings/Settings";
 import CreateLeadPage from "./components/leads/CreateLead";
 import type { JSX, ReactNode } from "react";
 import OnboardingFormV4 from "./components/onboarding/OnboardingFormV4";
-import { MODULE_ACCESS } from "./utils/auth";
+import { BUSINESS_WRITE_ROLES, MODULE_ACCESS } from "./utils/auth";
 
 function App() {
   function ModuleRoute({
@@ -508,7 +508,7 @@ function App() {
       <Route
         path="/lead/create"
         element={
-          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+          <ModuleRoute allowedRoles={BUSINESS_WRITE_ROLES}>
             <CreateLeadPage />
           </ModuleRoute>
         }
@@ -564,7 +564,7 @@ function App() {
       <Route
         path="/monthly-reporting/submit"
         element={
-          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+          <ModuleRoute allowedRoles={BUSINESS_WRITE_ROLES}>
             <SubmitMonthlyReport />
           </ModuleRoute>
         }

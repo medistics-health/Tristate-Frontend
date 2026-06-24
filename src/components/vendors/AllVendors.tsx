@@ -28,8 +28,12 @@ import {
   type VendorQueryParams,
 } from "../../services/operations/vendors";
 import toast from "react-hot-toast";
+import { canOperationsAndFinanceWrite, readStoredUser } from "../../utils/auth";
 
 function AllVendorsPage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canManageVendors = canOperationsAndFinanceWrite(currentRole);
+
   const [rows, setRows] = useState<VendorRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -218,6 +222,7 @@ function AllVendorsPage() {
   }
 
   function openCreateForm() {
+    if (!canManageVendors) return;
     setFormData({
       name: "",
       type: "BILLING",
@@ -244,6 +249,7 @@ function AllVendorsPage() {
 
   async function handleCreateVendor(e: React.FormEvent) {
     e.preventDefault();
+    if (!canManageVendors) return;
     if (!formData.name.trim()) {
       toast.error("Vendor name is required");
       return;
@@ -285,6 +291,7 @@ function AllVendorsPage() {
   }
 
   async function handleDeleteVendor() {
+    if (!canManageVendors) return;
     if (!selectedRow) return;
 
     if (!window.confirm("Are you sure you want to delete this vendor?")) {
@@ -312,6 +319,7 @@ function AllVendorsPage() {
 
   async function handleUpdateVendor(e: React.FormEvent) {
     e.preventDefault();
+    if (!canManageVendors) return;
     if (!editForm.name.trim()) {
       toast.error("Vendor name is required");
       return;
@@ -350,13 +358,15 @@ function AllVendorsPage() {
     }
   }
 
-  const navbarActions = [
-    {
-      label: "New record",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: openCreateForm,
-    },
-  ];
+  const navbarActions = canManageVendors
+    ? [
+        {
+          label: "New record",
+          icon: <Plus className="h-4 w-4" />,
+          onClick: openCreateForm,
+        },
+      ]
+    : [];
 
   if (isLoading) {
     return (
@@ -467,14 +477,16 @@ function AllVendorsPage() {
                   <p className="mt-2 text-[14px] text-slate-400">
                     Create your first vendor to get started
                   </p>
-                  <button
-                    type="button"
-                    onClick={openCreateForm}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Create Vendor
-                  </button>
+                  {canManageVendors ? (
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Create Vendor
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -637,6 +649,7 @@ function AllVendorsPage() {
                         onChange={(e) =>
                           setEditForm({ ...editForm, name: e.target.value })
                         }
+                        readOnly={!canManageVendors}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                         required
                       />
@@ -656,6 +669,7 @@ function AllVendorsPage() {
                               | "VENDOR_PLATFORM",
                           })
                         }
+                        disabled={!canManageVendors}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       >
                         <option value="BILLING">Billing</option>
@@ -680,6 +694,7 @@ function AllVendorsPage() {
                             renewalDate: e.target.value,
                           })
                         }
+                        readOnly={!canManageVendors}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </div>
@@ -697,6 +712,7 @@ function AllVendorsPage() {
                             quickbooksVendorId: e.target.value,
                           })
                         }
+                        readOnly={!canManageVendors}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </div>
@@ -714,6 +730,7 @@ function AllVendorsPage() {
                             remitEmail: e.target.value,
                           })
                         }
+                        readOnly={!canManageVendors}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </div>
@@ -731,37 +748,40 @@ function AllVendorsPage() {
                             paymentTerms: e.target.value,
                           })
                         }
+                        readOnly={!canManageVendors}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={handleDeleteVendor}
-                    disabled={isDeleting}
-                    className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {isDeleting ? "Deleting..." : "Delete"}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
-                  >
-                    <Save className="h-4 w-4" />
-                    {isSaving ? "Saving..." : "Save Changes"}
-                  </button>
-                </div>
+                {canManageVendors ? (
+                  <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={handleDeleteVendor}
+                      disabled={isDeleting}
+                      className="flex items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+                    >
+                      <Save className="h-4 w-4" />
+                      {isSaving ? "Saving..." : "Save Changes"}
+                    </button>
+                  </div>
+                ) : null}
               </form>
             )}
           </aside>
         )}
 
-        {showCreateForm && (
+        {showCreateForm && canManageVendors && (
           <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
               <h2 className="text-[15px] font-semibold text-slate-700">

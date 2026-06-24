@@ -9,8 +9,11 @@ import {
   type ExternalSyncJob,
 } from "../../services/operations/quickbooks";
 import { getAllCompanies, type Company } from "../../services/operations/companies";
+import { canManageIntegrations, readStoredUser } from "../../utils/auth";
 
 export default function AccountingSyncDashboard() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canWriteIntegrations = canManageIntegrations(currentRole);
   const [logs, setLogs] = useState<ExternalSyncJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRetryingMap, setIsRetryingMap] = useState<Record<string, boolean>>({});
@@ -90,6 +93,10 @@ export default function AccountingSyncDashboard() {
 
   // Handlers for sync logs
   async function handleRetry(jobId: string) {
+    if (!canWriteIntegrations) {
+      toast.error("Only finance/admin can retry sync jobs.");
+      return;
+    }
     try {
       setIsRetryingMap(prev => ({ ...prev, [jobId]: true }));
       await retrySyncJob(jobId);
@@ -103,6 +110,10 @@ export default function AccountingSyncDashboard() {
   }
 
   async function handleRetryFailedSyncs() {
+    if (!canWriteIntegrations) {
+      toast.error("Only finance/admin can retry sync jobs.");
+      return;
+    }
     const failedJobs = logs.filter(l => l.status === "FAILED");
     if (failedJobs.length === 0) {
       toast.success("No failed syncs on this page.");
@@ -185,14 +196,16 @@ export default function AccountingSyncDashboard() {
               <RefreshCw className="h-4 w-4" />
               Refresh Log
             </button>
-            <button
-              onClick={handleRetryFailedSyncs}
-              disabled={failedCount === 0}
-              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <AlertCircle className="h-4 w-4" />
-              Retry Failed ({failedCount})
-            </button>
+            {canWriteIntegrations && (
+              <button
+                onClick={handleRetryFailedSyncs}
+                disabled={failedCount === 0}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <AlertCircle className="h-4 w-4" />
+                Retry Failed ({failedCount})
+              </button>
+            )}
             <div className="flex items-center gap-4">
               <div className="flex-1 max-w-xs relative">
                 <select
@@ -284,20 +297,26 @@ export default function AccountingSyncDashboard() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleRetry(log.id)}
-                          disabled={log.status === "COMPLETED" || isRetryingMap[log.id]}
-                          className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {isRetryingMap[log.id] ? (
-                            <>
-                              <RefreshCw className="h-4 w-4 animate-spin" />
-                              Retrying
-                            </>
-                          ) : (
-                            "Retry"
-                          )}
-                        </button>
+                        {canWriteIntegrations ? (
+                          <button
+                            onClick={() => handleRetry(log.id)}
+                            disabled={log.status === "COMPLETED" || isRetryingMap[log.id]}
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {isRetryingMap[log.id] ? (
+                              <>
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                                Retrying
+                              </>
+                            ) : (
+                              "Retry"
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-xs font-semibold text-slate-400">
+                            Read only
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))

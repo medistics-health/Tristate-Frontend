@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useRef, useState, useEffect, type ReactNode } from "react";
 import type { NavbarAction } from "../layout/Navbar";
+import { readStoredUser } from "../../utils/auth";
 
 /**
  * Common tabs used in the DetailSidePanel
@@ -44,6 +45,10 @@ export function AvatarPill({ name }: { name: string }) {
  * Standard Navbar Actions helper
  */
 export function getStandardNavbarActions(onAddNew: () => void): NavbarAction[] {
+  if (readStoredUser()?.role?.trim().toUpperCase() === "VIEWER") {
+    return [];
+  }
+
   return [
     {
       label: "New record",

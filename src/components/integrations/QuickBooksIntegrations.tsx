@@ -16,8 +16,11 @@ import {
 import toast from "react-hot-toast";
 import { getQuickBooksStatus, connectQuickBooks, disconnectQuickBooks, type QuickBooksConnectionStatus } from "../../services/operations/quickbooks";
 import { getAllCompanies, type Company } from "../../services/operations/companies";
+import { canManageIntegrations, readStoredUser } from "../../utils/auth";
 
 export default function QuickBooksIntegrations() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canWriteIntegrations = canManageIntegrations(currentRole);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [statuses, setStatuses] = useState<Record<string, QuickBooksConnectionStatus>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -111,6 +114,10 @@ export default function QuickBooksIntegrations() {
   }
 
   async function handleConnect(companyId: string) {
+    if (!canWriteIntegrations) {
+      toast.error("Only finance/admin can connect QuickBooks.");
+      return;
+    }
     try {
       setIsConnecting((prev) => ({ ...prev, [companyId]: true }));
       const { authUrl } = await connectQuickBooks(companyId);
@@ -127,6 +134,10 @@ export default function QuickBooksIntegrations() {
   }
 
   async function handleDisconnect(companyId: string) {
+    if (!canWriteIntegrations) {
+      toast.error("Only finance/admin can disconnect QuickBooks.");
+      return;
+    }
     const company = companies.find((c) => c.id === companyId);
     if (!window.confirm(`Disconnect ${company?.name} from QuickBooks?`)) return;
 
@@ -271,49 +282,55 @@ export default function QuickBooksIntegrations() {
 
                     {/* Actions */}
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                        {isConnected ? (
-                          <>
+                      {canWriteIntegrations ? (
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                          {isConnected ? (
+                            <>
+                              <button
+                                onClick={() => handleConnect(company.id)}
+                                disabled={isConnecting[company.id]}
+                                className="flex items-center gap-1 rounded-md bg-blue-50 text-blue-600 px-2.5 py-1.5 text-[11px] font-bold hover:bg-blue-100 transition-all disabled:opacity-50"
+                              >
+                                {isConnecting[company.id] ? (
+                                  <RefreshCw className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Link2 className="h-3 w-3" />
+                                )}
+                                Reconnect
+                              </button>
+                              <button
+                                onClick={() => handleDisconnect(company.id)}
+                                disabled={isDisconnecting[company.id]}
+                                className="flex items-center gap-1 rounded-md bg-rose-50 text-rose-600 px-2.5 py-1.5 text-[11px] font-bold hover:bg-rose-100 transition-all disabled:opacity-50"
+                              >
+                                {isDisconnecting[company.id] ? (
+                                  <RefreshCw className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Unlink2 className="h-3 w-3" />
+                                )}
+                                Disconnect
+                              </button>
+                            </>
+                          ) : (
                             <button
                               onClick={() => handleConnect(company.id)}
                               disabled={isConnecting[company.id]}
-                              className="flex items-center gap-1 rounded-md bg-blue-50 text-blue-600 px-2.5 py-1.5 text-[11px] font-bold hover:bg-blue-100 transition-all disabled:opacity-50"
+                              className="flex items-center gap-1 rounded-md bg-emerald-600 text-white px-2.5 py-1.5 text-[11px] font-bold hover:bg-emerald-700 transition-all disabled:opacity-50 shadow-sm"
                             >
                               {isConnecting[company.id] ? (
                                 <RefreshCw className="h-3 w-3 animate-spin" />
                               ) : (
                                 <Link2 className="h-3 w-3" />
                               )}
-                              Reconnect
+                              Connect
                             </button>
-                            <button
-                              onClick={() => handleDisconnect(company.id)}
-                              disabled={isDisconnecting[company.id]}
-                              className="flex items-center gap-1 rounded-md bg-rose-50 text-rose-600 px-2.5 py-1.5 text-[11px] font-bold hover:bg-rose-100 transition-all disabled:opacity-50"
-                            >
-                              {isDisconnecting[company.id] ? (
-                                <RefreshCw className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Unlink2 className="h-3 w-3" />
-                              )}
-                              Disconnect
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => handleConnect(company.id)}
-                            disabled={isConnecting[company.id]}
-                            className="flex items-center gap-1 rounded-md bg-emerald-600 text-white px-2.5 py-1.5 text-[11px] font-bold hover:bg-emerald-700 transition-all disabled:opacity-50 shadow-sm"
-                          >
-                            {isConnecting[company.id] ? (
-                              <RefreshCw className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Link2 className="h-3 w-3" />
-                            )}
-                            Connect
-                          </button>
-                        )}
-                      </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-slate-400">
+                          Read only
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

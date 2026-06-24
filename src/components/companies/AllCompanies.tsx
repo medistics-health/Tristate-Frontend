@@ -52,6 +52,7 @@ import {
   type CompanyQueryParams,
 } from "../../services/operations/companies";
 import toast from "react-hot-toast";
+import { canBusinessWrite, readStoredUser } from "../../utils/auth";
 
 function isUserValue(value: CompanyCellValue): value is CompanyUserValue {
   return (
@@ -182,6 +183,8 @@ function companyToFormData(company: Company): CompanyFormData {
 }
 
 export default function AllCompaniesPage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canWriteCompanies = canBusinessWrite(currentRole);
   const [searchParams] = useSearchParams();
   const profileCompanyId = searchParams.get("companyId") || "";
   const profileAction = searchParams.get("action") || "";
@@ -432,6 +435,10 @@ export default function AllCompaniesPage() {
   });
 
   function openCreateForm() {
+    if (!canWriteCompanies) {
+      toast.error("You do not have permission to create companies.");
+      return;
+    }
     setFormData(initialFormData);
     setShowCreateForm(true);
     setShowDetailPanel(false);
@@ -512,6 +519,10 @@ export default function AllCompaniesPage() {
 
   async function handleCreateCompany(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWriteCompanies) {
+      toast.error("You do not have permission to create companies.");
+      return;
+    }
     const trimmedPhone = formData.phone.trim();
     const trimmedEmail = formData.email.trim();
 
@@ -586,6 +597,10 @@ export default function AllCompaniesPage() {
 
   async function handleUpdateCompany(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWriteCompanies) {
+      toast.error("You do not have permission to update companies.");
+      return;
+    }
     const trimmedPhone = formData.phone.trim();
     const trimmedEmail = formData.email.trim();
 
@@ -657,6 +672,10 @@ export default function AllCompaniesPage() {
 
   async function handleDeleteCompany() {
     if (!selectedRow) return;
+    if (!canWriteCompanies) {
+      toast.error("You do not have permission to inactivate companies.");
+      return;
+    }
     if (formData.status === "INACTIVE") {
       toast.error("Company is Already Inactive");
       return;
@@ -1152,25 +1171,27 @@ export default function AllCompaniesPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-          <button
-            type="button"
-            onClick={handleDeleteCompany}
-            disabled={isDeleting}
-            className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
-          >
-            <Trash2 className="h-4 w-4" />
-            {isDeleting ? "Inacticating..." : "Inactive"}
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
-          >
-            <Save className="h-4 w-4" />
-            {isSubmitting ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
+        {canWriteCompanies && (
+          <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+            <button
+              type="button"
+              onClick={handleDeleteCompany}
+              disabled={isDeleting}
+              className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeleting ? "Inacticating..." : "Inactive"}
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        )}
       </form>
     );
   };
@@ -1216,7 +1237,7 @@ export default function AllCompaniesPage() {
       activeModule="Companies"
       activeSubItem="All Companies"
       navbarIcon={<Building2 className="h-4 w-4 text-slate-500" />}
-      navbarActions={getStandardNavbarActions(openCreateForm)}
+      navbarActions={canWriteCompanies ? getStandardNavbarActions(openCreateForm) : []}
     >
       <div className="flex h-full gap-2">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">

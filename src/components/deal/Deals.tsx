@@ -41,6 +41,7 @@ import {
 import type { Practice } from "../practices/types";
 import type { Company } from "../companies/types";
 import type { Service } from "../services/types";
+import { canBusinessWrite, readStoredUser } from "../../utils/auth";
 
 const stageStyles: Record<DealStage, string> = {
   PROSPECTING: "bg-blue-100 text-blue-700",
@@ -167,11 +168,13 @@ function SelectedServicesField({
   setForm,
   services,
   mode,
+  readOnly = false,
 }: {
   form: DealFormState;
   setForm: React.Dispatch<React.SetStateAction<DealFormState>>;
   services: Service[];
   mode: "create" | "edit";
+  readOnly?: boolean;
 }) {
   const selectedServices = services.filter((service) =>
     form.selectedServiceIds.includes(service.id),
@@ -208,6 +211,7 @@ function SelectedServicesField({
                 <input
                   type="checkbox"
                   checked={checked}
+                  disabled={readOnly}
                   onChange={(event) =>
                     setForm((prev) => ({
                       ...prev,
@@ -239,6 +243,7 @@ function DealFormFields({
   services,
   contactOptions,
   mode,
+  readOnly = false,
 }: {
   form: DealFormState;
   setForm: React.Dispatch<React.SetStateAction<DealFormState>>;
@@ -247,6 +252,7 @@ function DealFormFields({
   services: Service[];
   contactOptions: ContactOption[];
   mode: "create" | "edit";
+  readOnly?: boolean;
 }) {
   const selectedPractice = useMemo(
     () => practices.find((practice) => practice.id === form.practiceId) || null,
@@ -273,6 +279,7 @@ function DealFormFields({
         </label>
         <select
           value={form.practiceId}
+          disabled={readOnly}
           onChange={(event) => {
             const nextPracticeId = event.target.value;
             const practice = practices.find((item) => item.id === nextPracticeId);
@@ -301,6 +308,7 @@ function DealFormFields({
         </label>
         <select
           value={form.companyId}
+          disabled={readOnly}
           onChange={(event) =>
             setForm((prev) => ({
               ...prev,
@@ -330,6 +338,7 @@ function DealFormFields({
         </label>
         <select
           value={form.primaryContactId}
+          disabled={readOnly}
           onChange={(event) =>
             setForm((prev) => ({
               ...prev,
@@ -354,6 +363,7 @@ function DealFormFields({
         </label>
         <select
           value={form.stage}
+          disabled={readOnly}
           onChange={(event) =>
             setForm((prev) => ({
               ...prev,
@@ -375,6 +385,7 @@ function DealFormFields({
         setForm={setForm}
         services={services}
         mode={mode}
+        readOnly={readOnly}
       />
 
       <div>
@@ -385,6 +396,7 @@ function DealFormFields({
           type="number"
           step="1"
           value={form.value}
+          readOnly={readOnly}
           onChange={(event) =>
             setForm((prev) => ({
               ...prev,
@@ -407,6 +419,7 @@ function DealFormFields({
           max="100"
           step="1"
           value={form.probability}
+          readOnly={readOnly}
           onChange={(event) =>
             setForm((prev) => ({
               ...prev,
@@ -425,6 +438,7 @@ function DealFormFields({
         <input
           type="date"
           value={form.expectedCloseDate}
+          readOnly={readOnly}
           onChange={(event) =>
             setForm((prev) => ({
               ...prev,
@@ -442,6 +456,7 @@ function DealFormFields({
         <input
           type="text"
           value={form.nextTaskTitle}
+          readOnly={readOnly}
           onChange={(event) =>
             setForm((prev) => ({
               ...prev,
@@ -460,6 +475,7 @@ function DealFormFields({
         <input
           type="date"
           value={form.nextTaskDueAt}
+          readOnly={readOnly}
           onChange={(event) =>
             setForm((prev) => ({
               ...prev,
@@ -474,6 +490,9 @@ function DealFormFields({
 }
 
 function DealsPage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canManageDeals = canBusinessWrite(currentRole);
+
   const [rows, setRows] = useState<DealRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -720,6 +739,7 @@ function DealsPage() {
   }
 
   function openCreateForm() {
+    if (!canManageDeals) return;
     setCreateForm(initialFormState);
     setShowCreateForm(true);
     setShowDetailPanel(false);
@@ -753,6 +773,7 @@ function DealsPage() {
 
   async function handleCreateDeal(event: React.FormEvent) {
     event.preventDefault();
+    if (!canManageDeals) return;
     if (!createForm.practiceId || !createForm.value) {
       toast.error("Practice and value are required");
       return;
@@ -784,6 +805,7 @@ function DealsPage() {
 
   async function handleUpdateDeal(event: React.FormEvent) {
     event.preventDefault();
+    if (!canManageDeals) return;
     if (!selectedDeal) return;
     if (!editForm.practiceId || !editForm.value) {
       toast.error("Practice and value are required");
@@ -819,6 +841,7 @@ function DealsPage() {
   }
 
   async function handleDeleteDeal() {
+    if (!canManageDeals) return;
     if (!selectedDeal) return;
     if (!window.confirm("Are you sure you want to delete this deal?")) return;
     setIsDeleting(true);
@@ -836,13 +859,15 @@ function DealsPage() {
     }
   }
 
-  const navbarActions = [
-    {
-      label: "New Deal",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: openCreateForm,
-    },
-  ];
+  const navbarActions = canManageDeals
+    ? [
+        {
+          label: "New Deal",
+          icon: <Plus className="h-4 w-4" />,
+          onClick: openCreateForm,
+        },
+      ]
+    : [];
 
   const detailPanel = (
     <aside className="app-panel relative flex w-[430px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
@@ -946,28 +971,31 @@ function DealsPage() {
               services={services}
               contactOptions={contactOptions}
               mode="edit"
+              readOnly={!canManageDeals}
             />
           </div>
 
-          <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-            <button
-              type="button"
-              onClick={handleDeleteDeal}
-              disabled={isDeleting}
-              className="flex cursor-pointer items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4" />
-              {isDeleting ? "Deleting..." : "Delete"}
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
-            >
-              <Save className="h-4 w-4" />
-              {isSaving ? "Saving..." : "Save Changes"}
-            </button>
-          </div>
+          {canManageDeals ? (
+            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+              <button
+                type="button"
+                onClick={handleDeleteDeal}
+                disabled={isDeleting}
+                className="flex cursor-pointer items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
+              >
+                <Trash2 className="h-4 w-4" />
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {isSaving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          ) : null}
         </form>
       )}
     </aside>
@@ -1204,14 +1232,16 @@ function DealsPage() {
                   <p className="mt-2 text-[14px] text-slate-400">
                     Create your first deal to get started
                   </p>
-                  <button
-                    type="button"
-                    onClick={openCreateForm}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Create Deal
-                  </button>
+                  {canManageDeals ? (
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Create Deal
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -1328,7 +1358,7 @@ function DealsPage() {
         </section>
 
         {showDetailPanel && detailPanel}
-        {showCreateForm && createPanel}
+        {showCreateForm && canManageDeals && createPanel}
       </div>
     </AppLayout>
   );

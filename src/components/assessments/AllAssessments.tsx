@@ -24,6 +24,7 @@ import {
   type AssessmentRow,
 } from "../../services/operations/assessments";
 import { getAllPractices } from "../../services/operations/practices";
+import { canBusinessWrite, readStoredUser } from "../../utils/auth";
 
 type Practice = {
   id: string;
@@ -38,6 +39,9 @@ function formatDateTime(value?: string | null) {
 }
 
 function AssessmentsPage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canManageAssessments = canBusinessWrite(currentRole);
+
   const [rows, setRows] = useState<AssessmentRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +168,7 @@ function AssessmentsPage() {
   }
 
   function openCreateForm() {
+    if (!canManageAssessments) return;
     setCreateForm({ practiceId: "", responses: {}, score: "" });
     setShowCreateForm(true);
     setShowDetailPanel(false);
@@ -178,6 +183,7 @@ function AssessmentsPage() {
 
   async function handleCreateAssessment(event: React.FormEvent) {
     event.preventDefault();
+    if (!canManageAssessments) return;
     if (!createForm.practiceId) {
       toast.error("Practice is required");
       return;
@@ -203,6 +209,7 @@ function AssessmentsPage() {
 
   async function handleUpdateAssessment(event: React.FormEvent) {
     event.preventDefault();
+    if (!canManageAssessments) return;
     if (!selectedAssessment) return;
 
     setIsSaving(true);
@@ -223,6 +230,7 @@ function AssessmentsPage() {
   }
 
   async function handleDeleteAssessment() {
+    if (!canManageAssessments) return;
     if (!selectedAssessment) return;
     if (!window.confirm("Are you sure you want to delete this assessment?")) return;
 
@@ -240,13 +248,15 @@ function AssessmentsPage() {
     }
   }
 
-  const navbarActions: NavbarAction[] = [
-    {
-      label: "New record",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: openCreateForm,
-    },
-  ];
+  const navbarActions: NavbarAction[] = canManageAssessments
+    ? [
+        {
+          label: "New record",
+          icon: <Plus className="h-4 w-4" />,
+          onClick: openCreateForm,
+        },
+      ]
+    : [];
 
   const detailPanel = (
     <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
@@ -296,6 +306,7 @@ function AssessmentsPage() {
                   type="number"
                   step="0.01"
                   value={editForm.score}
+                  readOnly={!canManageAssessments}
                   onChange={(event) =>
                     setEditForm((prev) => ({ ...prev, score: event.target.value }))
                   }
@@ -310,6 +321,7 @@ function AssessmentsPage() {
                 </label>
                 <textarea
                   value={JSON.stringify(editForm.responses, null, 2)}
+                  readOnly={!canManageAssessments}
                   onChange={(event) => {
                     try {
                       setEditForm((prev) => ({
@@ -327,25 +339,27 @@ function AssessmentsPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-            <button
-              type="button"
-              onClick={handleDeleteAssessment}
-              disabled={isDeleting}
-              className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4" />
-              {isDeleting ? "Deleting..." : "Delete"}
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
-            >
-              <Save className="h-4 w-4" />
-              {isSaving ? "Saving..." : "Save Changes"}
-            </button>
-          </div>
+          {canManageAssessments ? (
+            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+              <button
+                type="button"
+                onClick={handleDeleteAssessment}
+                disabled={isDeleting}
+                className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+              >
+                <Trash2 className="h-4 w-4" />
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {isSaving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          ) : null}
         </form>
       )}
 
@@ -545,14 +559,16 @@ function AssessmentsPage() {
                   <p className="mt-2 text-[14px] text-slate-400">
                     Create your first assessment to get started
                   </p>
-                  <button
-                    type="button"
-                    onClick={openCreateForm}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Create Assessment
-                  </button>
+                  {canManageAssessments ? (
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Create Assessment
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -645,7 +661,7 @@ function AssessmentsPage() {
         </section>
 
         {showDetailPanel && detailPanel}
-        {showCreateForm && createPanel}
+        {showCreateForm && canManageAssessments && createPanel}
       </div>
     </AppLayout>
   );

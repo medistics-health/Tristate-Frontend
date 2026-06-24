@@ -28,12 +28,11 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
+  BUSINESS_WRITE_ROLES,
   hasAdminAccess,
   hasAnyRole,
-  INTEGRATIONS_ROLES,
   MODULE_ACCESS,
   readStoredUser,
-  SETTINGS_ROLES,
   type UserRole,
 } from "../../utils/auth";
 
@@ -63,7 +62,7 @@ const sidebarSteps: SidebarItem[] = [
     to: "/portal",
     requiredRoles: [...MODULE_ACCESS.DASHBOARD],
   },
-  { label: "Lead", to: "/lead/create", requiredRoles: [...MODULE_ACCESS.CRM] },
+  { label: "Lead", to: "/lead/create", requiredRoles: [...BUSINESS_WRITE_ROLES] },
   { label: "Deal", to: "/deal/all-deals", requiredRoles: [...MODULE_ACCESS.CRM] },
   { label: "Person", to: "/person/all-persons", requiredRoles: [...MODULE_ACCESS.CRM] },
   {
@@ -177,7 +176,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Integrations",
-    requiredRoles: [...INTEGRATIONS_ROLES],
+    requiredRoles: [...MODULE_ACCESS.INTEGRATIONS],
     items: [
       { label: "Accounting Sync", to: "/integrations/accounting-sync" },
       { label: "Mercury Banking", to: "/integrations/mercury-banking" },
@@ -199,7 +198,11 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "Dashboard", to: "/monthly-reporting/dashboard" },
-      { label: "Submit Report", to: "/monthly-reporting/submit" },
+      {
+        label: "Submit Report",
+        to: "/monthly-reporting/submit",
+        requiredRoles: [...BUSINESS_WRITE_ROLES],
+      },
     ],
   },
   {
@@ -221,7 +224,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Settings",
-    requiredRoles: [...SETTINGS_ROLES],
+    requiredRoles: [...MODULE_ACCESS.SETTINGS],
     items: [
       { label: "General Settings", to: "/settings/general" },
       { label: "API & Integrations", to: "/settings/integrations" },

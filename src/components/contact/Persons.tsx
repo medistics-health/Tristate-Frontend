@@ -46,6 +46,7 @@ import { getAllPractices } from "../../services/operations/practices";
 import { getAllCompanies } from "../../services/operations/companies";
 import type { Practice } from "../practices/types";
 import toast from "react-hot-toast";
+import { canBusinessWrite, readStoredUser } from "../../utils/auth";
 
 function getCellDisplayValue(value: PersonCellValue): string {
   if (value === null || value === undefined) return "-";
@@ -104,6 +105,8 @@ const influenceOptions = ["LOW", "MEDIUM", "HIGH", "DECISION_MAKER"];
 const statusOptions = ["ACTIVE", "INACTIVE"];
 
 export default function PersonsPage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canWritePersons = canBusinessWrite(currentRole);
   const [viewData, setViewData] = useState<PersonViewData | null>(null);
   const [rows, setRows] = useState<PersonRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -419,6 +422,10 @@ export default function PersonsPage() {
   });
 
   async function openCreateForm() {
+    if (!canWritePersons) {
+      toast.error("You do not have permission to create persons.");
+      return;
+    }
     setFormData(initialFormData);
     setShowCreateForm(true);
     setShowDetailPanel(false);
@@ -549,6 +556,10 @@ export default function PersonsPage() {
 
   async function handleCreatePerson(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWritePersons) {
+      toast.error("You do not have permission to create persons.");
+      return;
+    }
     const trimmedPhone = formData.phone.trim();
 
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
@@ -601,6 +612,10 @@ export default function PersonsPage() {
 
   async function handleUpdatePerson(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWritePersons) {
+      toast.error("You do not have permission to update persons.");
+      return;
+    }
     const trimmedPhone = formData.phone.trim();
 
     if (
@@ -652,6 +667,10 @@ export default function PersonsPage() {
 
   async function handleDeletePerson() {
     if (!selectedRow) return;
+    if (!canWritePersons) {
+      toast.error("You do not have permission to inactivate persons.");
+      return;
+    }
 
     if (formData.status === "INACTIVE") {
       toast.error("Person is Already Inactive");
@@ -1047,25 +1066,27 @@ export default function PersonsPage() {
             </div>
           )}
 
-        <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-          <button
-            type="button"
-            onClick={handleDeletePerson}
-            disabled={isDeleting}
-            className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
-          >
-            <Trash2 className="h-4 w-4" />
-            {isDeleting ? "Inactivating..." : "Inactive"}
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
-          >
-            <Save className="h-4 w-4" />
-            {isSubmitting ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
+        {canWritePersons && (
+          <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+            <button
+              type="button"
+              onClick={handleDeletePerson}
+              disabled={isDeleting}
+              className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeleting ? "Inactivating..." : "Inactive"}
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        )}
       </form>
     );
   };
@@ -1111,7 +1132,7 @@ export default function PersonsPage() {
       activeModule="Persons"
       activeSubItem="All Persons"
       navbarIcon={<UserCircle className="h-4 w-4 text-slate-500" />}
-      navbarActions={getStandardNavbarActions(openCreateForm)}
+      navbarActions={canWritePersons ? getStandardNavbarActions(openCreateForm) : []}
     >
       <div className="flex h-full gap-2">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
