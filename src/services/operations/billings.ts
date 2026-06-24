@@ -302,11 +302,15 @@ export async function getBillingReadiness(params: {
   practiceId: string;
   periodStart: string;
   periodEnd: string;
+  agreementIds?: string[];
 }): Promise<BillingReadinessResponse> {
   try {
     const queryString = new URLSearchParams();
     queryString.set("periodStart", params.periodStart);
     queryString.set("periodEnd", params.periodEnd);
+    if (params.agreementIds && params.agreementIds.length > 0) {
+      queryString.set("agreementIds", params.agreementIds.join(","));
+    }
 
     const response = await apiConnector({
       method: "GET",

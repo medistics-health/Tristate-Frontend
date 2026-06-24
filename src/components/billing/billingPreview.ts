@@ -314,10 +314,7 @@ export function computeTermPreview(
     }
   }
 
-  const marginAmount =
-    vendorAmount !== null
-      ? roundMoneyClient(clientAmount - vendorAmount)
-      : null;
+  const marginAmount = roundMoneyClient(clientAmount - (vendorAmount || 0));
 
   return { clientAmount, vendorAmount, marginAmount };
 }
