@@ -675,6 +675,7 @@ function BillingRunsPage() {
         practiceId: createForm.practiceId,
         periodStart: createForm.periodStart,
         periodEnd: createForm.periodEnd,
+        agreementIds: createForm.agreementIds,
       });
       setReadiness(result);
       if (result.isReady) {
@@ -716,6 +717,7 @@ function BillingRunsPage() {
     createForm.practiceId,
     createForm.periodStart,
     createForm.periodEnd,
+    createForm.agreementIds,
   ]);
 
   async function reloadSelectedRun() {
@@ -1486,6 +1488,58 @@ function BillingRunsPage() {
             Auto calculate after creation
           </label>
 
+          {/* Agreements Selection */}
+          {createForm.practiceId && (
+            <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
+              <h3 className="mb-2 text-[13px] font-medium text-slate-700">
+                Agreements
+              </h3>
+              {isLoadingAgreements ? (
+                <div className="flex items-center gap-2 py-3 text-[12px] text-slate-400">
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  Loading agreements...
+                </div>
+              ) : practiceAgreements.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-[12px] text-slate-400">
+                  No active agreements found for this practice.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {practiceAgreements.map((agreement) => (
+                    <label
+                      key={agreement.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece7df] bg-white px-3 py-2 text-[12px] transition-colors hover:border-indigo-200 hover:bg-indigo-50/30"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={createForm.agreementIds.includes(agreement.id)}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setCreateForm((prev) => ({
+                            ...prev,
+                            agreementIds: checked
+                              ? [...prev.agreementIds, agreement.id]
+                              : prev.agreementIds.filter(
+                                  (id) => id !== agreement.id,
+                                ),
+                          }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-slate-300"
+                      />
+                      <span className="flex-1 font-medium text-slate-700">
+                        {agreement.type}
+                      </span>
+                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                        {agreement.status}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Billing Readiness */}
           <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -1575,57 +1629,6 @@ function BillingRunsPage() {
               </div>
             )}
           </div>
-
-          {/* Agreements Selection */}
-          {createForm.practiceId && (
-            <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
-              <h3 className="mb-2 text-[13px] font-medium text-slate-700">
-                Agreements
-              </h3>
-              {isLoadingAgreements ? (
-                <div className="flex items-center gap-2 py-3 text-[12px] text-slate-400">
-                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                  Loading agreements...
-                </div>
-              ) : practiceAgreements.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-[12px] text-slate-400">
-                  No active agreements found for this practice.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {practiceAgreements.map((agreement) => (
-                    <label
-                      key={agreement.id}
-                      className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece7df] bg-white px-3 py-2 text-[12px] transition-colors hover:border-indigo-200 hover:bg-indigo-50/30"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={createForm.agreementIds.includes(agreement.id)}
-                        onChange={(event) => {
-                          const checked = event.target.checked;
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            agreementIds: checked
-                              ? [...prev.agreementIds, agreement.id]
-                              : prev.agreementIds.filter(
-                                  (id) => id !== agreement.id,
-                                ),
-                          }));
-                        }}
-                        className="h-3.5 w-3.5 rounded border-slate-300"
-                      />
-                      <span className="flex-1 font-medium text-slate-700">
-                        {agreement.type}
-                      </span>
-                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        {agreement.status}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Pricing Terms */}
           {createForm.agreementIds.length > 0 && (

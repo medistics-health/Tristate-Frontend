@@ -555,15 +555,13 @@ function AllInvoicePage() {
     }
   }
 
-  const navbarActions = canInvoiceWrite
-    ? [
-        {
-          label: "New record",
-          icon: <Plus className="h-4 w-4" />,
-          onClick: openCreateForm,
-        },
-      ]
-    : [];
+  const navbarActions:any[] = [
+    // {
+    //   label: "New record",
+    //   icon: <Plus className="h-4 w-4" />,
+    //   onClick: openCreateForm,
+    // },
+  ];
   const detailPanel = (
     <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
