@@ -1040,7 +1040,7 @@ export default function PersonsPage() {
                       className="flex items-center justify-between rounded px-2 py-2 hover:bg-[#f7f5f1]"
                     >
                       <div className="flex flex-col">
-                        <span className="text-[13px] font-medium text-slate-700">
+                        <span className="text-[13px] font-medium text-slate-700 whitespace-normal">
                           {decodeURIComponent(
                             sub.signedDocUrl.split("/").pop() || "",
                           ).replace(".pdf", "")}
