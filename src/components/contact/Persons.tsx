@@ -61,6 +61,43 @@ function isValidPersonPhone(value: string): boolean {
   return /^\d{10}$/.test(value);
 }
 
+function getSignedDocumentUrls(submission: {
+  signedDocUrl?: string | null;
+  signedDocUrls?: string | null;
+}) {
+  const rawValue = submission.signedDocUrl || submission.signedDocUrls;
+  if (!rawValue) return [];
+
+  const trimmed = rawValue.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (url): url is string => typeof url === "string" && Boolean(url),
+      );
+    }
+  } catch {
+    // Support plain string and comma-separated URL formats.
+  }
+
+  return trimmed
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function getDocumentLabel(url: string, fallback: string) {
+  try {
+    const pathname = new URL(url).pathname;
+    const filename = decodeURIComponent(pathname.split("/").pop() || "");
+    return filename.replace(/\.pdf$/i, "") || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 type Company = {
   id: string;
   name: string;
@@ -1034,34 +1071,50 @@ export default function PersonsPage() {
                     (sub: any) =>
                       sub.status === "completed" || sub.status === "signed",
                   )
-                  .map((sub: any) => (
+                  .flatMap((sub: any) =>
+                    getSignedDocumentUrls(sub).map((url, index) => ({
+                      id: `${sub.id}-signed-${index}`,
+                      url,
+                      label: getDocumentLabel(
+                        url,
+                        `Signed document ${index + 1}`,
+                      ),
+                      status: sub.status,
+                      updatedAt: sub.updatedAt,
+                    })),
+                  )
+                  .map(
+                    (document: {
+                      id: string;
+                      url: string;
+                      label: string;
+                      status: string;
+                      updatedAt: string;
+                    }) => (
                     <div
-                      key={sub.id}
-                      className="flex items-center justify-between rounded px-2 py-2 hover:bg-[#f7f5f1]"
+                      key={document.id}
+                      className="flex items-start justify-between gap-3 rounded px-2 py-2 hover:bg-[#f7f5f1]"
                     >
-                      <div className="flex flex-col">
-                        <span className="text-[13px] font-medium text-slate-700 whitespace-normal">
-                          {decodeURIComponent(
-                            sub.signedDocUrl.split("/").pop() || "",
-                          ).replace(".pdf", "")}
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-medium text-slate-700 break-words">
+                          {document.label}
                         </span>
                         <span className="text-[11px] text-slate-500">
-                          {sub.status} •{" "}
-                          {new Date(sub.updatedAt).toLocaleDateString()}
+                          {document.status} •{" "}
+                          {new Date(document.updatedAt).toLocaleDateString()}
                         </span>
                       </div>
-                      {sub.signedDocUrl ? (
-                        <a
-                          href={sub.signedDocUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] text-blue-600 hover:underline"
-                        >
-                          View PDF
-                        </a>
-                      ) : null}
+                      <a
+                        href={document.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 whitespace-nowrap text-[11px] text-blue-600 hover:underline"
+                      >
+                        View PDF
+                      </a>
                     </div>
-                  ))}
+                    ),
+                  )}
               </div>
             </div>
           )}
@@ -1252,6 +1305,7 @@ export default function PersonsPage() {
                     role: "",
                     influence: "",
                     practiceId: "",
+                    practiceIds: [],
                   })
                 }
                 disabled={disableMe}

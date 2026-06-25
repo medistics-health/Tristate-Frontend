@@ -57,11 +57,11 @@ const sidebarSteps: SidebarItem[] = [
     to: "/dashboard",
     requiredRoles: [...MODULE_ACCESS.DASHBOARD],
   },
-  {
-    label: "Client Portal",
-    to: "/portal",
-    requiredRoles: [...MODULE_ACCESS.DASHBOARD],
-  },
+  // {
+  //   label: "Client Portal",
+  //   to: "/portal",
+  //   requiredRoles: [...MODULE_ACCESS.DASHBOARD],
+  // },
   { label: "Lead", to: "/lead/create", requiredRoles: [...BUSINESS_WRITE_ROLES] },
   { label: "Deal", to: "/deal/all-deals", requiredRoles: [...MODULE_ACCESS.CRM] },
   { label: "Person", to: "/person/all-persons", requiredRoles: [...MODULE_ACCESS.CRM] },
