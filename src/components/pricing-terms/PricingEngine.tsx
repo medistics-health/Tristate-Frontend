@@ -12,9 +12,9 @@ import {
   TrendingUp,
   CheckCircle2,
   Clock,
-  UserCheck,
   XCircle,
   RefreshCw,
+  GripVertical,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
@@ -354,6 +354,7 @@ export default function PricingEnginePage() {
     null,
   );
   const [isDeleting, setIsDeleting] = useState(false);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
   // ✅ Load initial data (practices, services, vendors)
   useEffect(() => {
@@ -395,11 +396,13 @@ export default function PricingEnginePage() {
         }));
         const nextAgreementId =
           profileAgreementId &&
-          practiceAgreements.some((agreement) => agreement.id === profileAgreementId)
+          practiceAgreements.some(
+            (agreement) => agreement.id === profileAgreementId,
+          )
             ? profileAgreementId
             : "";
         setAgreements(practiceAgreements);
-        
+
         // Reset downstream selections
         setSelectedAgreementId(nextAgreementId);
         setVersions([]);
@@ -447,7 +450,7 @@ export default function PricingEnginePage() {
     getAgreementVersions({ agreementId: selectedAgreementId, limit: 50 })
       .then((d) => {
         setVersions(d.versions);
-        
+
         // Auto-select current version or first version
         const requestedVersion = d.versions.find(
           (v) => v.id === profileVersionId,
@@ -499,7 +502,7 @@ export default function PricingEnginePage() {
 
   async function loadTerms() {
     if (!selectedVersionId || !selectedAgreementId) return;
-    
+
     setIsLoading(true);
     try {
       const d = await getPricingTerms({
@@ -510,7 +513,9 @@ export default function PricingEnginePage() {
       setTerms(d.terms || []);
     } catch (e) {
       console.error("Failed to load pricing terms:", e);
-      toast.error(e instanceof Error ? e.message : "Failed to load pricing terms");
+      toast.error(
+        e instanceof Error ? e.message : "Failed to load pricing terms",
+      );
       setTerms([]);
     } finally {
       setIsLoading(false);
@@ -518,9 +523,12 @@ export default function PricingEnginePage() {
   }
 
   function handleDragStart(e: React.DragEvent, index: number) {
+    setDraggingIndex(index);
     e.dataTransfer.setData("text/plain", index.toString());
   }
-
+  function handleDragEnd() {
+    setDraggingIndex(null);
+  }
   async function handleDrop(e: React.DragEvent, targetIndex: number) {
     e.preventDefault();
     const dragIndex = Number(e.dataTransfer.getData("text/plain"));
@@ -529,7 +537,7 @@ export default function PricingEnginePage() {
     const reordered = [...terms];
     const [draggedItem] = reordered.splice(dragIndex, 1);
     reordered.splice(targetIndex, 0, draggedItem);
-    
+
     // Optimistically update the UI
     setTerms(reordered);
 
@@ -537,8 +545,8 @@ export default function PricingEnginePage() {
       // Save priorities in parallel (priority is 1-indexed)
       await Promise.all(
         reordered.map((term, index) =>
-          updateAgreementServiceTermApi(term.id, { priority: index + 1 })
-        )
+          updateAgreementServiceTermApi(term.id, { priority: index + 1 }),
+        ),
       );
       toast.success("Pricing terms order updated successfully");
     } catch (err) {
@@ -614,12 +622,23 @@ export default function PricingEnginePage() {
             </span>
             {selectedPracticeId && (
               <span className="text-[12px] text-slate-400">
-                {practices.find(p => p.id === selectedPracticeId)?.name || "Practice"}
+                {practices.find((p) => p.id === selectedPracticeId)?.name ||
+                  "Practice"}
                 {selectedAgreementId && agreements.length > 0 && (
-                  <> → {agreements.find(a => a.id === selectedAgreementId)?.label || "Agreement"}</>
+                  <>
+                    {" "}
+                    →{" "}
+                    {agreements.find((a) => a.id === selectedAgreementId)
+                      ?.label || "Agreement"}
+                  </>
                 )}
                 {selectedVersionId && versions.length > 0 && (
-                  <> → v{versions.find(v => v.id === selectedVersionId)?.versionNumber || "?"}</>
+                  <>
+                    {" "}
+                    → v
+                    {versions.find((v) => v.id === selectedVersionId)
+                      ?.versionNumber || "?"}
+                  </>
                 )}
               </span>
             )}
@@ -685,7 +704,9 @@ export default function PricingEnginePage() {
                   title="Refresh Pricing Terms"
                   className="inline-flex items-center justify-center rounded-md border border-[#ece8e1] bg-white p-1.5 text-slate-600 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
                 >
-                  <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+                  <RefreshCw
+                    className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+                  />
                 </button>
                 <button
                   type="button"
@@ -772,16 +793,20 @@ export default function PricingEnginePage() {
             ) : !selectedAgreementId ? (
               <EmptyHint
                 icon={<TrendingUp className="h-8 w-8 opacity-30" />}
-                text={agreements.length === 0 
-                  ? "No agreements found for this practice" 
-                  : "Select an agreement to configure pricing"}
+                text={
+                  agreements.length === 0
+                    ? "No agreements found for this practice"
+                    : "Select an agreement to configure pricing"
+                }
               />
             ) : !selectedVersionId ? (
               <EmptyHint
                 icon={<TrendingUp className="h-8 w-8 opacity-30" />}
-                text={versions.length === 0
-                  ? "No versions found for this agreement"
-                  : "Select an agreement version"}
+                text={
+                  versions.length === 0
+                    ? "No versions found for this agreement"
+                    : "Select an agreement version"
+                }
               />
             ) : isLoading ? (
               <SkeletonTableRows />
@@ -804,6 +829,7 @@ export default function PricingEnginePage() {
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b border-[#f0ece6] bg-[#faf9f7] text-[12px] font-medium text-slate-500">
+                    <th className="px-2 py-2 text-center"></th>
                     <th className="px-4 py-2.5 text-left">Service</th>
                     <th className="px-4 py-2.5 text-left">Pricing Model</th>
                     <th className="px-4 py-2.5 text-right">Client Rate</th>
@@ -827,14 +853,28 @@ export default function PricingEnginePage() {
                         key={term.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, index)}
+                        onDragEnd={handleDragEnd}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => void handleDrop(e, index)}
                         onClick={() => {
                           setSelectedTerm(term);
                           setShowDetail(true);
                         }}
-                        className="cursor-pointer select-none border-b border-[#f0ece6] hover:bg-[#faf9f7] transition-colors"
+                        className={`
+        border-b border-[#f0ece6]
+        transition-all duration-200
+        ${draggingIndex === index ? "opacity-50 bg-blue-50 scale-[1.01]" : ""}
+    `}
                       >
+                        <td className="px-2 py-2">
+                          <div className="flex items-center justify-center gap-2">
+                            <GripVertical
+                              size={16}
+                              className="text-slate-400 cursor-grab active:cursor-grabbing shrink-0"
+                            />
+                            {/* <span>{index + 1}</span> */}
+                          </div>
+                        </td>
                         <td className="px-4 py-2.5 font-medium text-slate-700">
                           {term.service?.name ?? "-"}
                         </td>
@@ -846,15 +886,21 @@ export default function PricingEnginePage() {
                           </span>
                         </td>
                         <td className="px-4 py-2.5 text-right text-slate-700">
-                          {term.pricingModel === "HYBRID" ? "- " : fmtModelValue(cl, term.pricingModel)}
+                          {term.pricingModel === "HYBRID"
+                            ? "- "
+                            : fmtModelValue(cl, term.pricingModel)}
                         </td>
                         <td className="px-4 py-2.5 text-right text-slate-500">
-                          {term.pricingModel === "HYBRID" ? "-" : (term.vendorId
-                            ? fmtModelValue(vn, term.pricingModel)
-                            : "-")}
+                          {term.pricingModel === "HYBRID"
+                            ? "-"
+                            : term.vendorId
+                              ? fmtModelValue(vn, term.pricingModel)
+                              : "-"}
                         </td>
                         <td className="px-4 py-2.5 text-right">
-                          {term.pricingModel === "HYBRID" ? "- " : (cl > 0 ? (
+                          {term.pricingModel === "HYBRID" ? (
+                            "- "
+                          ) : cl > 0 ? (
                             <span
                               className={
                                 mp < 20
@@ -866,7 +912,7 @@ export default function PricingEnginePage() {
                             </span>
                           ) : (
                             "-"
-                          ))}
+                          )}
                         </td>
                         <td className="px-4 py-2.5 text-slate-500">
                           {term.vendor?.name ?? "-"}
@@ -1039,7 +1085,9 @@ function TermDetailPanel({
     const vendorComps = cfg.vendorPricing?.components ?? [];
     preview.requiresApproval = comps.some((c, idx) => {
       const clientVal = parseFloat(c.value) || 0;
-      const vendorVal = term.vendorId ? (parseFloat(vendorComps[idx]?.value) || 0) : 0;
+      const vendorVal = term.vendorId
+        ? parseFloat(vendorComps[idx]?.value) || 0
+        : 0;
       const marginVal = clientVal - vendorVal;
       const marginPct = clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
       return clientVal > 0 && marginPct < 20;
@@ -1265,8 +1313,6 @@ function TermDetailPanel({
                 </span>
               </div>
             )}
-
-
           </div>
         )}
 
@@ -1340,32 +1386,50 @@ function TermDetailPanel({
               {(cfg.components ?? []).map((component, idx) => {
                 const clientVal = parseFloat(component.value) || 0;
                 const vendorComp = cfg.vendorPricing?.components?.[idx];
-                const vendorVal = vendorComp ? (parseFloat(vendorComp.value) || 0) : 0;
+                const vendorVal = vendorComp
+                  ? parseFloat(vendorComp.value) || 0
+                  : 0;
                 const marginVal = clientVal - vendorVal;
-                const marginPct = clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
+                const marginPct =
+                  clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
                 const isPercent = component.type === "% Collections";
-                
+
                 const formatVal = (val: number) => {
                   if (isPercent) return `${val.toFixed(2)}%`;
                   return `$${val.toFixed(2)}`;
                 };
 
                 return (
-                  <div key={idx} className="rounded-lg border border-[#f0ece6] bg-[#faf9f7] p-3 space-y-1.5 text-[13px]">
-                    <div className="font-semibold text-slate-700">{component.type || `Component ${idx + 1}`}</div>
+                  <div
+                    key={idx}
+                    className="rounded-lg border border-[#f0ece6] bg-[#faf9f7] p-3 space-y-1.5 text-[13px]"
+                  >
+                    <div className="font-semibold text-slate-700">
+                      {component.type || `Component ${idx + 1}`}
+                    </div>
                     <div className="flex justify-between text-slate-500 pl-2">
                       <span>Client Rate</span>
-                      <span className="font-semibold text-[#4f63ea]">{formatVal(clientVal)}</span>
+                      <span className="font-semibold text-[#4f63ea]">
+                        {formatVal(clientVal)}
+                      </span>
                     </div>
                     {term.vendorId && (
                       <>
                         <div className="flex justify-between text-slate-500 pl-2">
                           <span>Vendor Rate</span>
-                          <span className="font-semibold text-red-500">{formatVal(vendorVal)}</span>
+                          <span className="font-semibold text-red-500">
+                            {formatVal(vendorVal)}
+                          </span>
                         </div>
                         <div className="flex justify-between border-t border-dashed border-[#ece8e1] pt-1 pl-2 font-medium">
                           <span className="text-slate-600">Gross Margin</span>
-                          <span className={marginPct < 20 ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold"}>
+                          <span
+                            className={
+                              marginPct < 20
+                                ? "text-amber-600 font-semibold"
+                                : "text-emerald-600 font-semibold"
+                            }
+                          >
                             {formatVal(marginVal)} ({marginPct.toFixed(2)}%)
                           </span>
                         </div>
@@ -1380,7 +1444,9 @@ function TermDetailPanel({
               {/* ✅ UPDATED: Use model-aware labels and formatting */}
               <div className="flex flex-col gap-1 rounded-lg border border-[#f0ece6] bg-white p-3">
                 <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-                  {isPercentageBased ? "Est. Client Rate" : "Est. Client Revenue"}
+                  {isPercentageBased
+                    ? "Est. Client Rate"
+                    : "Est. Client Revenue"}
                 </span>
                 <span className="text-[15px] font-semibold text-[#4f63ea] break-words">
                   {fmtModelValue(preview.clientRevenue, term.pricingModel)}

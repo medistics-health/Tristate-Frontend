@@ -65,6 +65,7 @@ import {
   type BillingRunStatus,
   type BillingSnapshotInput,
 } from "../../services/operations/billings";
+import { billingEndpoints } from "../../services/apis";
 
 const statusStyles: Record<BillingRunStatus, string> = {
   PENDING: "bg-slate-100 text-slate-700",
@@ -203,6 +204,9 @@ function BillingRunsPage() {
   const [loadedTerms, setLoadedTerms] = useState<AgreementServiceTerm[]>([]);
   const [isLoadingAgreements, setIsLoadingAgreements] = useState(false);
   const [isLoadingTerms, setIsLoadingTerms] = useState(false);
+  const canPreviewBillingRun = selectedRun
+    ? ["CALCULATED", "REVIEW_REQUIRED", "APPROVED"].includes(selectedRun.status)
+    : false;
 
   const activePricingTerms = useMemo(() => {
     if (
@@ -841,9 +845,14 @@ function BillingRunsPage() {
               type="button"
               disabled={
                 isActionLoading !== null ||
-                ["APPROVED", "POSTED", "CLOSED", "RUNNING"].includes(
-                  selectedRun.status,
-                )
+                [
+                  "CALCULATED",
+                  "REVIEW_REQUIRED",
+                  "APPROVED",
+                  "POSTED",
+                  "CLOSED",
+                  "RUNNING",
+                ].includes(selectedRun.status)
               }
               onClick={() => handleRunAction("calculate")}
               className="app-control inline-flex items-center gap-2 rounded-md px-3 py-2 text-[12px] font-medium disabled:opacity-50"
@@ -852,7 +861,7 @@ function BillingRunsPage() {
               {isActionLoading === "calculate"
                 ? "Calculating..."
                 : ["CALCULATED", "REVIEW_REQUIRED"].includes(selectedRun.status)
-                  ? "Re-calculate"
+                  ? "Calculated"
                   : "Calculate"}
             </button>
             <button
@@ -1245,6 +1254,10 @@ function BillingRunsPage() {
                 <h3 className="mb-2 font-medium text-slate-700">Invoices</h3>
                 <div className="space-y-2">
                   {(() => {
+                    const canPreviewInvoice =
+                      selectedRun.status !== "POSTED" &&
+                      selectedRun.status !== "CLOSED" &&
+                      selectedRun.status !== "PENDING"
                     const linkedInvoices = Array.from(
                       new Map(
                         (selectedRun.items || [])
@@ -1257,13 +1270,29 @@ function BillingRunsPage() {
                       ).values(),
                     );
                     if (linkedInvoices.length === 0) {
-                      return (
+                      return canPreviewInvoice ? (
+                        <button
+                          type="button"
+                          onClick={() => window.open(billingEndpoints.INVOICE_PREVIEW(selectedRun.id), "_blank", "noopener,noreferrer")}
+                          className="w-full rounded-lg border border-[#c7d2fe] bg-indigo-50 px-3 py-3 text-left text-indigo-700 transition-colors hover:bg-indigo-100"
+                        >
+                          <div className="text-[13px] font-semibold">Preview Invoice PDF</div>
+                          <div className="text-[11px] text-indigo-500">Generated from calculated items before posting.</div>
+                        </button>
+                      ) : (
                         <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-slate-400">
                           No invoices created yet.
                         </div>
                       );
                     }
-                    return linkedInvoices.map((invoice) => (
+                    return linkedInvoices.map((invoice) => {
+                      const canViewInvoicePdf =
+                        invoice.status === "SENT" || invoice.status === "PAID";
+                      const pdfUrl =
+                        invoice.status === "PAID"
+                          ? invoice.receiptPdfBlobUrl
+                          : invoice.invoicePdfBlobUrl;
+                      return (
                       <div
                         key={invoice.id}
                         className="rounded-lg border border-[#f0ece6] px-3 py-2"
@@ -1280,8 +1309,27 @@ function BillingRunsPage() {
                         <div className="mt-1 text-[12px] text-slate-400">
                           {invoice.status}
                         </div>
+                        {canViewInvoicePdf && (
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                window.open(
+                                  pdfUrl ||
+                                    billingEndpoints.INVOICE_PREVIEW(selectedRun.id),
+                                  "_blank",
+                                  "noopener,noreferrer",
+                                )
+                              }
+                              className="rounded-md border border-[#e2e8f0] px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              View PDF
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    ));
+                    );
+                    });
                   })()}
                 </div>
               </div>
