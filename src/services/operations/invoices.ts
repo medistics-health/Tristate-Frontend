@@ -63,6 +63,8 @@ export type Invoice = {
   stripeInvoiceId?: string | null;
   stripeHostedInvoiceUrl?: string | null;
   stripeInvoicePdfUrl?: string | null;
+  invoicePdfBlobUrl?: string | null;
+  receiptPdfBlobUrl?: string | null;
   quickbooksInvoiceId?: string | null;
   paymentAllocations?: Array<{
     id: string;

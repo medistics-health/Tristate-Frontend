@@ -7,6 +7,7 @@ import {
   type Invoice,
   type StripeEventLog,
 } from "../../services/operations/invoices";
+import { invoiceEndpoints } from "../../services/apis";
 
 type Props = {
   invoice: Invoice;
@@ -54,6 +55,16 @@ export default function StripeInvoiceFlow({ invoice, onUpdate, canResend }: Prop
     }
   }
 
+  function openCustomInvoicePdf() {
+    window.open(
+      invoice.status === "PAID"
+        ? invoiceEndpoints.RECEIPT_PDF(invoice.id)
+        : invoiceEndpoints.PDF(invoice.id),
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
+
   function getEventIcon(type: string) {
     if (type.includes("paid") || type.includes("success")) return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
     if (type.includes("sent")) return <Mail className="h-4 w-4 text-blue-500" />;
@@ -75,33 +86,27 @@ export default function StripeInvoiceFlow({ invoice, onUpdate, canResend }: Prop
       <div className="mb-5 flex flex-row gap-2">
         <button
           type="button"
-          onClick={() => {
-            if (invoice.stripeHostedInvoiceUrl) {
-              window.open(invoice.stripeHostedInvoiceUrl, "_blank");
-            } else {
-              toast.error("No Stripe URL available for this invoice.");
-            }
-          }}
+          onClick={openCustomInvoicePdf}
           className="flex items-center w-fit gap- rounded-xl border border-[#e2e8f0] bg-white px-4 py-1 text-[#6366f1] shadow-sm transition-all hover:bg-slate-50 group"
         >
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-100">
             <ExternalLink className="h-4 w-4" />
           </div>
-          <span className="text-[12px] font-extrabold uppercase">View Stripe Invoice</span>
+          <span className="text-[12px] font-extrabold uppercase">View Invoice PDF</span>
         </button>
 
-        {canResend && (
+        {invoice.status !== "PAID" && canResend && (
           <button
-            type="button"
-            onClick={handleResend}
-            disabled={isResending}
-            className="flex items-center w-fit gap-3 rounded-xl border border-transparent bg-indigo-50 px-4 py-1 text-indigo-700 transition-all hover:bg-indigo-100 disabled:opacity-50 group"
-          >
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 text-indigo-600 transition-colors group-hover:bg-white">
-              <Mail className="h-4 w-4" />
-            </div>
-            <span className="text-[12px] font-extrabold uppercase tracking-tight">Resend Payment Email</span>
-          </button>
+              type="button"
+              onClick={handleResend}
+              disabled={isResending}
+              className="flex items-center w-fit gap-3 rounded-xl border border-transparent bg-indigo-50 px-4 py-1 text-indigo-700 transition-all hover:bg-indigo-100 disabled:opacity-50 group"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 text-indigo-600 transition-colors group-hover:bg-white">
+                <Mail className="h-4 w-4" />
+              </div>
+              <span className="text-[12px] font-extrabold uppercase tracking-tight">Resend Payment Email</span>
+            </button>
         )}
       </div>
 
@@ -119,8 +124,8 @@ export default function StripeInvoiceFlow({ invoice, onUpdate, canResend }: Prop
           <div className="relative pl-7 space-y-5 before:absolute before:inset-y-0 before:left-[13px] before:w-[1px] before:bg-slate-200">
             {events.map((evt) => (
               <div key={evt.id} className="relative">
-                <div className="absolute -left-[28px] top-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-[#6366f1] text-white shadow-sm z-10">
-                  <Mail className="h-3.5 w-3.5" />
+                <div className="absolute -left-[28px] top-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-white text-slate-600 shadow-sm z-10">
+                  {getEventIcon(evt.eventType)}
                 </div>
                 <div className="flex flex-col rounded-xl border border-[#e2e8f0] bg-white p-3.5 shadow-sm transition-all hover:shadow-md">
                   <div className="flex flex-col gap-0.5 mb-1.5">

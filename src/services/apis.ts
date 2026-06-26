@@ -75,6 +75,8 @@ export const invoiceEndpoints = {
   LIST: BACKEND_URL + "/api/v1/invoices",
   CREATE: BACKEND_URL + "/api/v1/invoices",
   GET: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
+  PDF: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}/pdf`,
+  RECEIPT_PDF: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}/receipt-pdf`,
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
   DELETE: (id: string) => BACKEND_URL + `/api/v1/invoices/${id}`,
 };
@@ -86,6 +88,8 @@ export const billingEndpoints = {
   LIST_RUNS: BACKEND_URL + "/api/v1/billing/runs",
   CREATE_RUN: BACKEND_URL + "/api/v1/billing/runs",
   GET_RUN: (id: string) => BACKEND_URL + `/api/v1/billing/runs/${id}`,
+  INVOICE_PREVIEW: (id: string) =>
+    BACKEND_URL + `/api/v1/billing/runs/${id}/invoice-preview`,
   SAVE_SNAPSHOTS: (id: string) =>
     BACKEND_URL + `/api/v1/billing/runs/${id}/snapshots`,
   CALCULATE_RUN: (id: string) =>

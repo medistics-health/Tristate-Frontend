@@ -7,6 +7,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import {
+  ExternalLink,
   LayoutList,
   Plus,
   Save,
@@ -43,6 +44,7 @@ import {
   type InvoiceRow,
   type InvoiceStatus,
 } from "../../services/operations/invoices";
+import { invoiceEndpoints } from "../../services/apis";
 import type { Practice } from "../practices/types";
 import StripeInvoiceFlow from "./StripeInvoiceFlow";
 import {
@@ -555,6 +557,14 @@ function AllInvoicePage() {
     }
   }
 
+  function openInvoicePdf(invoice: Invoice) {
+    const target =
+      invoice.status === "PAID"
+        ? invoiceEndpoints.RECEIPT_PDF(invoice.id)
+        : invoiceEndpoints.PDF(invoice.id);
+    window.open(target, "_blank", "noopener,noreferrer");
+  }
+
   const navbarActions:any[] = [
     // {
     //   label: "New record",
@@ -754,26 +764,7 @@ function AllInvoicePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 border-t border-[#f1f5f9] px-2 py-3 bg-white sticky bottom-0 z-20">
-            {/* Resend Button */}
-            {canFinanceActions && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedInvoice) {
-                    setResendInvoiceId(selectedInvoice.id);
-                    handleResendInvoice();
-                  }
-                }}
-                disabled={isResending}
-                className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#e2e8f0] bg-white px-2.5 text-[12px] font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:opacity-50 shadow-sm"
-              >
-                <RefreshCw className={`h-4 w-4 shrink-0 text-slate-400 ${isResending ? "animate-spin" : ""}`} />
-                <div className="flex flex-col items-start leading-none gap-0 text-left">
-                  <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Resend</span>
-                  <span className="text-[12px] font-extrabold text-slate-800 uppercase">Inv</span>
-                </div>
-              </button>
-            )}
+           
 
             {/* Sync QB Button */}
             {canIntegrationActions && (
