@@ -339,7 +339,7 @@ function BillingStatusBoardPage() {
                     {isActionLoading === "calculate"
                       ? "Calculating..."
                       : ["CALCULATED", "REVIEW_REQUIRED"].includes(selectedRun.status)
-                      ? "Re-calculate"
+                      ? "Calculated"
                       : "Calculate"}
                   </button>
                   <button
