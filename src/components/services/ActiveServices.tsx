@@ -25,8 +25,12 @@ import {
   deleteServiceApi,
   type Service,
 } from "../../services/operations/services";
+import { canBusinessWrite, readStoredUser } from "../../utils/auth";
 
 function ActiveServicePage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canManageServices = canBusinessWrite(currentRole);
+
   const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sorting, setSorting] = useState<SortingState>([
@@ -109,6 +113,7 @@ function ActiveServicePage() {
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault();
+    if (!canManageServices) return;
     if (!selectedService || !editForm.name.trim()) {
       toast.error("Service name is required");
       return;
@@ -136,6 +141,7 @@ function ActiveServicePage() {
   }
 
   async function handleDelete() {
+    if (!canManageServices) return;
     if (!selectedService) return;
     if (!window.confirm("Are you sure you want to delete this service?")) {
       return;
@@ -254,13 +260,15 @@ function ActiveServicePage() {
     enableSortingRemoval: false,
   });
 
-  const navbarActions: NavbarAction[] = [
-    {
-      label: "New record",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: () => toast("Create new services from All Services."),
-    },
-  ];
+  const navbarActions: NavbarAction[] = canManageServices
+    ? [
+        {
+          label: "New record",
+          icon: <Plus className="h-4 w-4" />,
+          onClick: () => toast("Create new services from All Services."),
+        },
+      ]
+    : [];
 
   if (isLoading) {
     return (
@@ -449,6 +457,7 @@ function ActiveServicePage() {
                             name: e.target.value,
                           }))
                         }
+                        readOnly={!canManageServices}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                         required
                       />
@@ -467,6 +476,7 @@ function ActiveServicePage() {
                             code: e.target.value,
                           }))
                         }
+                        readOnly={!canManageServices}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </div>
@@ -484,6 +494,7 @@ function ActiveServicePage() {
                             category: e.target.value,
                           }))
                         }
+                        readOnly={!canManageServices}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </div>
@@ -499,6 +510,7 @@ function ActiveServicePage() {
                             isActive: e.target.checked,
                           }))
                         }
+                        disabled={!canManageServices}
                         className="h-4 w-4 rounded border-slate-300 text-[#4f63ea]"
                       />
                       <label
@@ -511,25 +523,27 @@ function ActiveServicePage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="flex cursor-pointer items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {isDeleting ? "Deleting..." : "Delete"}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
-                  >
-                    <Save className="h-4 w-4" />
-                    {isSaving ? "Saving..." : "Save Changes"}
-                  </button>
-                </div>
+                {canManageServices ? (
+                  <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="flex cursor-pointer items-center gap-2 text-[13px] text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+                    >
+                      <Save className="h-4 w-4" />
+                      {isSaving ? "Saving..." : "Save Changes"}
+                    </button>
+                  </div>
+                ) : null}
               </form>
             )}
           </aside>

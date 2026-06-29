@@ -62,6 +62,7 @@ import { activatePracticeWithAgreementEmail } from "../../services/operations/pr
 import type { Company } from "../companies/types";
 import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
+import { canBusinessWrite, readStoredUser } from "../../utils/auth";
 
 function isUserValue(value: PracticeCellValue): value is PracticeUserValue {
   return (
@@ -164,6 +165,8 @@ const sourceOptions = [
 ];
 
 export default function AllPracticePage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canWritePractices = canBusinessWrite(currentRole);
   const [viewData, setViewData] = useState<PracticeViewData | null>(null);
   const [rows, setRows] = useState<PracticeRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -568,6 +571,10 @@ export default function AllPracticePage() {
   };
 
   async function openCreateForm() {
+    if (!canWritePractices) {
+      toast.error("You do not have permission to create practices.");
+      return;
+    }
     setFormData(initialFormData);
     setGroupNpiEntries([]);
     setShowCreateForm(true);
@@ -673,6 +680,10 @@ export default function AllPracticePage() {
 
   async function handleCreatePractice(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWritePractices) {
+      toast.error("You do not have permission to create practices.");
+      return;
+    }
     if (!formData.name.trim()) {
       toast.error("Practice name is required");
       return;
@@ -801,6 +812,10 @@ export default function AllPracticePage() {
 
   async function handleUpdatePractice(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWritePractices) {
+      toast.error("You do not have permission to update practices.");
+      return;
+    }
     if (!selectedRow || !formData.name.trim()) {
       toast.error("Practice name is required");
       return;
@@ -927,6 +942,10 @@ export default function AllPracticePage() {
 
   async function handleDeletePractice() {
     if (!selectedRow) return;
+    if (!canWritePractices) {
+      toast.error("You do not have permission to inactivate practices.");
+      return;
+    }
 
     if (formData.status === "INACTIVE") {
       toast.error("Practice is Already Inactive");
@@ -1360,58 +1379,64 @@ export default function AllPracticePage() {
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="INACTIVE">INACTIVE</option>
                 </select>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setGroupNpiEntries(
-                      groupNpiEntries.filter((_, i) => i !== index),
-                    )
-                  }
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                {canWritePractices && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setGroupNpiEntries(
+                        groupNpiEntries.filter((_, i) => i !== index),
+                      )
+                    }
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             ))}
-            <button
-              type="button"
-              onClick={() =>
-                setGroupNpiEntries([
-                  ...groupNpiEntries,
-                  {
-                    groupNpiNumber: "",
-                    groupName: "",
-                    status: "ACTIVE",
-                    notes: "",
-                  },
-                ])
-              }
-              className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#4f63ea]"
-            >
-              <Plus className="h-4 w-4" /> Add Group NPI
-            </button>
+            {canWritePractices && (
+              <button
+                type="button"
+                onClick={() =>
+                  setGroupNpiEntries([
+                    ...groupNpiEntries,
+                    {
+                      groupNpiNumber: "",
+                      groupName: "",
+                      status: "ACTIVE",
+                      notes: "",
+                    },
+                  ])
+                }
+                className="flex items-center gap-1 text-[13px] text-[#4f63ea] hover:text-[#4f63ea]"
+              >
+                <Plus className="h-4 w-4" /> Add Group NPI
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-          <button
-            type="button"
-            onClick={handleDeletePractice}
-            disabled={isDeleting}
-            className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
-          >
-            <Trash2 className="h-4 w-4" />
-            {isDeleting ? "Inactivating..." : "Inactive"}
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
-          >
-            <Save className="h-4 w-4" />
-            {isSubmitting ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
+        {canWritePractices && (
+          <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+            <button
+              type="button"
+              onClick={handleDeletePractice}
+              disabled={isDeleting}
+              className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeleting ? "Inactivating..." : "Inactive"}
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        )}
       </form>
     );
   };
@@ -1457,7 +1482,7 @@ export default function AllPracticePage() {
       activeModule="Practices"
       activeSubItem="All Practices"
       navbarIcon={<Building2 className="h-4 w-4 text-slate-500" />}
-      navbarActions={getStandardNavbarActions(openCreateForm)}
+      navbarActions={canWritePractices ? getStandardNavbarActions(openCreateForm) : []}
     >
       <div className="flex h-full gap-2">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">

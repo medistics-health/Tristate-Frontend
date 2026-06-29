@@ -27,12 +27,20 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { hasAdminAccess, readStoredUser } from "../../utils/auth";
+import {
+  BUSINESS_WRITE_ROLES,
+  hasAdminAccess,
+  hasAnyRole,
+  MODULE_ACCESS,
+  readStoredUser,
+  type UserRole,
+} from "../../utils/auth";
 
 type SidebarSectionItem = {
   label: string;
   to?: string;
   adminOnly?: boolean;
+  requiredRoles?: UserRole[];
 };
 
 type SidebarItem = {
@@ -40,17 +48,31 @@ type SidebarItem = {
   to?: string;
   items?: SidebarSectionItem[];
   adminOnly?: boolean;
+  requiredRoles?: UserRole[];
 };
 
 const sidebarSteps: SidebarItem[] = [
-  { label: "Dashboards", to: "/dashboard" },
-  { label: "Client Portal", to: "/portal" },
-  { label: "Lead", to: "/lead/create" },
-  { label: "Deal", to: "/deal/all-deals" },
-  { label: "Person", to: "/person/all-persons" },
-  { label: "Company", to: "/company/all-companies" },
+  {
+    label: "Dashboards",
+    to: "/dashboard",
+    requiredRoles: [...MODULE_ACCESS.DASHBOARD],
+  },
+  // {
+  //   label: "Client Portal",
+  //   to: "/portal",
+  //   requiredRoles: [...MODULE_ACCESS.DASHBOARD],
+  // },
+  { label: "Lead", to: "/lead/create", requiredRoles: [...BUSINESS_WRITE_ROLES] },
+  { label: "Deal", to: "/deal/all-deals", requiredRoles: [...MODULE_ACCESS.CRM] },
+  { label: "Person", to: "/person/all-persons", requiredRoles: [...MODULE_ACCESS.CRM] },
+  {
+    label: "Company",
+    to: "/company/all-companies",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+  },
   {
     label: "Practices",
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Practice", to: "/practice/all-practices" },
       { label: "Pipeline Board", to: "/practice/pipeline" },
@@ -61,6 +83,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Agreements",
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Agreements", to: "/agreements/all-agreements" },
       { label: "Agreement Pipeline", to: "/agreements/pipeline" },
@@ -79,10 +102,12 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Onboarding",
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [{ label: "Review Submissions", to: "/onboarding/review" }],
   },
   {
     label: "Services",
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Services", to: "/service/all-services" },
       { label: "Service Catalog", to: "/service/service-catalogs" },
@@ -91,6 +116,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Pricing Engine",
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       {
         label: "Rate Finalization",
@@ -100,6 +126,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Billing",
+    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       { label: "Billing Runs", to: "/billing/runs" },
       { label: "Billing Status Board", to: "/billing/status-board" },
@@ -107,6 +134,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Invoices",
+    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       { label: "All Invoices", to: "/invoice/all-invoices" },
       { label: "Invoice Status Board", to: "/invoice/status-board" },
@@ -115,6 +143,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Invoice Line Items",
+    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       {
         label: "All Invoice Line Items",
@@ -125,6 +154,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Purchase Orders",
+    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       { label: "All Purchase Orders", to: "/purchase-orders/all" },
       { label: "PO Status Board", to: "/purchase-orders/status-board" },
@@ -137,6 +167,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Vendors",
+    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       { label: "All Vendors", to: "/vendors/all-vendors" },
       { label: "Vendor Contracts", to: "/vendors/contracts" },
@@ -145,6 +176,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Integrations",
+    requiredRoles: [...MODULE_ACCESS.INTEGRATIONS],
     items: [
       { label: "Accounting Sync", to: "/integrations/accounting-sync" },
       { label: "Mercury Banking", to: "/integrations/mercury-banking" },
@@ -152,6 +184,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Channel Partners",
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       {
         label: "All Channel Partners",
@@ -162,13 +195,19 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Monthly Reports",
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "Dashboard", to: "/monthly-reporting/dashboard" },
-      { label: "Submit Report", to: "/monthly-reporting/submit" },
+      {
+        label: "Submit Report",
+        to: "/monthly-reporting/submit",
+        requiredRoles: [...BUSINESS_WRITE_ROLES],
+      },
     ],
   },
   {
     label: "Assessments",
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Assessments", to: "/assessment/all-assessments" },
       { label: "Assessments Progress", to: "/assessment/progress" },
@@ -176,6 +215,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Audits",
+    requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Practice Audits", to: "/audit/all-practice-audits" },
       { label: "All Audits", to: "/audit/all-audits" },
@@ -184,6 +224,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Settings",
+    requiredRoles: [...MODULE_ACCESS.SETTINGS],
     items: [
       { label: "General Settings", to: "/settings/general" },
       { label: "API & Integrations", to: "/settings/integrations" },
@@ -311,10 +352,13 @@ type SidebarProps = {
 function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
-  const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
+  const userRole = readStoredUser()?.role as string | undefined;
+  const isAdmin = hasAdminAccess(userRole);
 
   function canRenderItem(item: SidebarSectionItem | SidebarItem) {
-    return !item.adminOnly || isAdmin;
+    if (item.adminOnly && !isAdmin) return false;
+    if (!item.requiredRoles || item.requiredRoles.length === 0) return true;
+    return hasAnyRole(userRole, item.requiredRoles);
   }
 
   function isItemActive(item: SidebarSectionItem) {
@@ -429,6 +473,7 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
               {isOpen ? (
                 <div className="pl-4 pr-2 pb-2">
                   {visibleItems.filter(canRenderItem).map((item) => {
+                    if (!item.to) return null;
                     const isActive = isItemActive(item);
 
                     // Selection of icon based on label

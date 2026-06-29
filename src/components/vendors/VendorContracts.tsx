@@ -15,6 +15,7 @@ import {
 import { useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import type { NavbarAction } from "../layout/Navbar";
+import { canOperationsAndFinanceWrite, readStoredUser } from "../../utils/auth";
 
 type VendorContractsStatus =
   | "scheduled"
@@ -152,6 +153,9 @@ const detailTabs = [
 ] as const;
 
 function VendorContractPage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canManageVendors = canOperationsAndFinanceWrite(currentRole);
+
   const [cards, setCards] = useState(initialCards);
   const [selectedAuditId, setSelectedAuditId] = useState(
     initialCards[4]?.id ?? "",
@@ -219,13 +223,15 @@ function VendorContractPage() {
     setShowDetailPanel((current) => !current);
   }
 
-  const navbarActions: NavbarAction[] = [
-    {
-      label: "New record",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: () => addAudit("scheduled"),
-    },
-  ];
+  const navbarActions: NavbarAction[] = canManageVendors
+    ? [
+        {
+          label: "New record",
+          icon: <Plus className="h-4 w-4" />,
+          onClick: () => addAudit("scheduled"),
+        },
+      ]
+    : [];
 
   return (
     <AppLayout
@@ -308,14 +314,16 @@ function VendorContractPage() {
                       );
                     })}
 
-                    <button
-                      type="button"
-                      onClick={() => addAudit(lane.id)}
-                      className="inline-flex items-center gap-2 px-1 py-1 text-[13px] text-slate-400 hover:text-slate-600"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      New
-                    </button>
+                    {canManageVendors ? (
+                      <button
+                        type="button"
+                        onClick={() => addAudit(lane.id)}
+                        className="inline-flex items-center gap-2 px-1 py-1 text-[13px] text-slate-400 hover:text-slate-600"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        New
+                      </button>
+                    ) : null}
                   </div>
                 </section>
               ))}

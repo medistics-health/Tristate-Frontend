@@ -7,7 +7,11 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { useRef } from "react";
-import { hasAdminAccess, readStoredUser } from "../../../utils/auth";
+import {
+  canBusinessWrite,
+  hasAdminAccess,
+  readStoredUser,
+} from "../../../utils/auth";
 import {
   ChevronLeft,
   Circle,
@@ -238,7 +242,9 @@ type AgreementRow = {
 };
 
 function AllAgreementsPage() {
-  const isAdmin = hasAdminAccess(readStoredUser()?.role as string | undefined);
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const isAdmin = hasAdminAccess(currentRole);
+  const canWriteAgreements = canBusinessWrite(currentRole);
   const [searchParams] = useSearchParams();
 
   const [rows, setRows] = useState<AgreementRow[]>([]);
@@ -664,6 +670,10 @@ function AllAgreementsPage() {
   }
 
   function openCreateForm() {
+    if (!canWriteAgreements) {
+      toast.error("You do not have permission to create agreements.");
+      return;
+    }
     setCreateForm(initialFormState);
     createFormAutoFilledValuesRef.current = {};
     setTemplateSearch("");
@@ -823,6 +833,10 @@ function AllAgreementsPage() {
 
   async function handleCreateAgreement(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWriteAgreements) {
+      toast.error("You do not have permission to create agreements.");
+      return;
+    }
     if (!createForm.practiceId) {
       toast.error("Practice is required");
       return;
@@ -872,6 +886,10 @@ function AllAgreementsPage() {
 
   async function handleUpdateAgreement(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWriteAgreements) {
+      toast.error("You do not have permission to update agreements.");
+      return;
+    }
     if (!editForm.practiceId) {
       toast.error("Practice is required");
       return;
@@ -911,6 +929,10 @@ function AllAgreementsPage() {
 
   async function handleDeleteAgreement() {
     if (!selectedRowId) return;
+    if (!canWriteAgreements) {
+      toast.error("You do not have permission to inactivate agreements.");
+      return;
+    }
     if (editForm.status === "INACTIVE") {
       toast.error("Agreement is Already Inactive");
       return;
@@ -1088,13 +1110,15 @@ function AllAgreementsPage() {
     practices,
   ]);
 
-  const navbarActions = [
-    {
-      label: "New record",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: openCreateForm,
-    },
-  ];
+  const navbarActions = canWriteAgreements
+    ? [
+        {
+          label: "New record",
+          icon: <Plus className="h-4 w-4" />,
+          onClick: openCreateForm,
+        },
+      ]
+    : [];
 
   const detailPanel = (
     <aside className="app-panel relative flex w-[500px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
@@ -1364,25 +1388,27 @@ function AllAgreementsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
-                <button
-                  type="button"
-                  onClick={handleDeleteAgreement}
-                  disabled={isDeleting}
-                  className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  {isDeleting ? "Inactivating..." : "Inactive"}
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
-                >
-                  <Save className="h-4 w-4" />
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
+              {canWriteAgreements && (
+                <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={handleDeleteAgreement}
+                    disabled={isDeleting}
+                    className="flex items-center cursor-pointer gap-2 text-[13px] text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {isDeleting ? "Inactivating..." : "Inactive"}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="app-control inline-flex items-center gap-2 cursor-pointer rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4f63ea] hover:text-white disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              )}
             </form>
           )}
 
@@ -1393,30 +1419,36 @@ function AllAgreementsPage() {
                 <h3 className="text-[14px] font-medium text-slate-700">
                   Versions ({versions.length})
                 </h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingVersionId(null);
-                    setShowVersionForm(!showVersionForm);
-                    setVersionForm({
-                      versionNumber: versions.length + 1,
-                      isCurrent: true,
-                      effectiveDate: "",
-                      endDate: "",
-                      notes: "",
-                    });
-                  }}
-                  className="inline-flex items-center cursor-pointer gap-1.5 rounded-md bg-[#4f63ea] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#3d4ed1]"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Version
-                </button>
+                {canWriteAgreements && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingVersionId(null);
+                      setShowVersionForm(!showVersionForm);
+                      setVersionForm({
+                        versionNumber: versions.length + 1,
+                        isCurrent: true,
+                        effectiveDate: "",
+                        endDate: "",
+                        notes: "",
+                      });
+                    }}
+                    className="inline-flex items-center cursor-pointer gap-1.5 rounded-md bg-[#4f63ea] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#3d4ed1]"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Version
+                  </button>
+                )}
               </div>
 
               {showVersionForm && (
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    if (!canWriteAgreements) {
+                      toast.error("You do not have permission to update agreement versions.");
+                      return;
+                    }
                     if (!selectedRowId) return;
                     const isOnlyCurrentVersion =
                       editingVersionId &&
@@ -1636,66 +1668,68 @@ function AllAgreementsPage() {
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingVersionId(version.id);
-                              setVersionForm({
-                                versionNumber: version.versionNumber,
-                                isCurrent: version.isCurrent,
-                                effectiveDate: version.effectiveDate
-                                  ? new Date(version.effectiveDate)
-                                      .toISOString()
-                                      .slice(0, 10)
-                                  : "",
-                                endDate: version.endDate
-                                  ? new Date(version.endDate)
-                                      .toISOString()
-                                      .slice(0, 10)
-                                  : "",
-                                notes: version.notes || "",
-                              });
-                              setShowVersionForm(true);
-                            }}
-                            className="text-slate-400 hover:text-slate-600"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!window.confirm("Delete this version?"))
-                                return;
-                              try {
-                                if (version.isCurrent && versions.length > 1) {
-                                  const nextCurrentVersion = versions
-                                    .filter((item) => item.id !== version.id)
-                                    .sort(
-                                      (a, b) =>
-                                        b.versionNumber - a.versionNumber,
-                                    )[0];
-                                  await updateAgreementVersionApi(
-                                    nextCurrentVersion.id,
-                                    { isCurrent: true },
+                        {canWriteAgreements && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingVersionId(version.id);
+                                setVersionForm({
+                                  versionNumber: version.versionNumber,
+                                  isCurrent: version.isCurrent,
+                                  effectiveDate: version.effectiveDate
+                                    ? new Date(version.effectiveDate)
+                                        .toISOString()
+                                        .slice(0, 10)
+                                    : "",
+                                  endDate: version.endDate
+                                    ? new Date(version.endDate)
+                                        .toISOString()
+                                        .slice(0, 10)
+                                    : "",
+                                  notes: version.notes || "",
+                                });
+                                setShowVersionForm(true);
+                              }}
+                              className="text-slate-400 hover:text-slate-600"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!window.confirm("Delete this version?"))
+                                  return;
+                                try {
+                                  if (version.isCurrent && versions.length > 1) {
+                                    const nextCurrentVersion = versions
+                                      .filter((item) => item.id !== version.id)
+                                      .sort(
+                                        (a, b) =>
+                                          b.versionNumber - a.versionNumber,
+                                      )[0];
+                                    await updateAgreementVersionApi(
+                                      nextCurrentVersion.id,
+                                      { isCurrent: true },
+                                    );
+                                  }
+                                  await deleteAgreementVersionApi(version.id);
+                                  toast.success("Version deleted");
+                                  if (selectedRowId) loadVersions(selectedRowId);
+                                } catch (err) {
+                                  toast.error(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Failed to delete",
                                   );
                                 }
-                                await deleteAgreementVersionApi(version.id);
-                                toast.success("Version deleted");
-                                if (selectedRowId) loadVersions(selectedRowId);
-                              } catch (err) {
-                                toast.error(
-                                  err instanceof Error
-                                    ? err.message
-                                    : "Failed to delete",
-                                );
-                              }
-                            }}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                              }}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

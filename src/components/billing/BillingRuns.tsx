@@ -65,6 +65,11 @@ import {
   type BillingRunStatus,
   type BillingSnapshotInput,
 } from "../../services/operations/billings";
+import {
+  canFinanceWrite,
+  canOperationsAndFinanceWrite,
+  readStoredUser,
+} from "../../utils/auth";
 import { billingEndpoints } from "../../services/apis";
 
 const statusStyles: Record<BillingRunStatus, string> = {
@@ -158,6 +163,9 @@ function formatDateRange(start?: string | null, end?: string | null) {
 }
 
 function BillingRunsPage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canRunWrite = canOperationsAndFinanceWrite(currentRole);
+  const canFinanceActions = canFinanceWrite(currentRole);
   const [searchParams] = useSearchParams();
   const profilePracticeId = searchParams.get("practiceId") || "";
   const profileAction = searchParams.get("action") || "";
@@ -567,6 +575,10 @@ function BillingRunsPage() {
   }
 
   function openCreateForm() {
+    if (!canRunWrite) {
+      toast.error("You do not have permission to create billing runs.");
+      return;
+    }
     const preselectedPracticeId = filters.practiceId || profilePracticeId || "";
     setShowCreateForm(true);
     setShowDetailPanel(false);
@@ -583,6 +595,10 @@ function BillingRunsPage() {
   }
 
   function openPaymentForm() {
+    if (!canFinanceActions) {
+      toast.error("Only finance/admin can record payments.");
+      return;
+    }
     setShowPaymentForm(true);
     setShowCreateForm(false);
     setShowDetailPanel(false);
@@ -593,6 +609,10 @@ function BillingRunsPage() {
 
   async function handleCreateRun(event: React.FormEvent) {
     event.preventDefault();
+    if (!canRunWrite) {
+      toast.error("You do not have permission to create billing runs.");
+      return;
+    }
     if (
       !createForm.practiceId ||
       !createForm.periodStart ||
@@ -713,6 +733,14 @@ function BillingRunsPage() {
 
   async function handleRunAction(action: "calculate" | "approve" | "post") {
     if (!selectedRun) return;
+    if (action === "calculate" && !canRunWrite) {
+      toast.error("You do not have permission to calculate billing runs.");
+      return;
+    }
+    if ((action === "approve" || action === "post") && !canFinanceActions) {
+      toast.error("Only finance/admin can approve or post billing runs.");
+      return;
+    }
     setIsActionLoading(action);
     try {
       if (action === "calculate") {
@@ -741,6 +769,10 @@ function BillingRunsPage() {
 
   async function handleDeleteRun() {
     if (!selectedRun) return;
+    if (!canFinanceActions) {
+      toast.error("Only finance/admin can delete billing runs.");
+      return;
+    }
     if (
       !window.confirm(
         "Are you sure you want to delete this billing run? All associated items and snapshots will be removed. This cannot be undone.",
@@ -767,6 +799,10 @@ function BillingRunsPage() {
 
   async function handleRecordPayment(event: React.FormEvent) {
     event.preventDefault();
+    if (!canFinanceActions) {
+      toast.error("Only finance/admin can record payments.");
+      return;
+    }
     if (!paymentForm.practiceId || !paymentForm.amount) {
       toast.error("Practice and payment amount are required");
       return;
@@ -802,16 +838,24 @@ function BillingRunsPage() {
   }
 
   const navbarActions = [
-    {
-      label: "Record payment",
-      icon: <Coins className="h-4 w-4" />,
-      onClick: openPaymentForm,
-    },
-    {
-      label: "New run",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: openCreateForm,
-    },
+    ...(canFinanceActions
+      ? [
+          {
+            label: "Record payment",
+            icon: <Coins className="h-4 w-4" />,
+            onClick: openPaymentForm,
+          },
+        ]
+      : []),
+    ...(canRunWrite
+      ? [
+          {
+            label: "New run",
+            icon: <Plus className="h-4 w-4" />,
+            onClick: openCreateForm,
+          },
+        ]
+      : []),
   ];
 
   const detailPanel = (
@@ -864,47 +908,53 @@ function BillingRunsPage() {
                   ? "Calculated"
                   : "Calculate"}
             </button>
-            <button
-              type="button"
-              disabled={
-                isActionLoading !== null ||
-                !["CALCULATED", "REVIEW_REQUIRED"].includes(selectedRun.status)
-              }
-              onClick={() => handleRunAction("approve")}
-              className="inline-flex items-center gap-2 rounded-md bg-[#4f63ea] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
-            >
-              <Save className="h-3.5 w-3.5" />
-              {isActionLoading === "approve" ? "Approving..." : "Approve"}
-            </button>
-            <button
-              type="button"
-              disabled={
-                isActionLoading !== null || selectedRun.status !== "APPROVED"
-              }
-              onClick={() => handleRunAction("post")}
-              className="inline-flex items-center gap-2 rounded-md bg-[#1f7a5b] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
-            >
-              <Send className="h-3.5 w-3.5" />
-              {isActionLoading === "post" ? "Posting..." : "Post"}
-            </button>
-            <button
-              type="button"
-              disabled={
-                isActionLoading !== null ||
-                ["APPROVED", "POSTED", "CLOSED", "RUNNING"].includes(
-                  selectedRun.status,
-                )
-              }
-              onClick={handleDeleteRun}
-              className="inline-flex items-center gap-2 rounded-md bg-white border border-slate-200 px-3 py-2 text-[12px] font-medium text-red-600 hover:bg-red-50 hover:border-red-100 disabled:opacity-50"
-              title="Delete Billing Run"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              {isActionLoading === "calculate" &&
-              selectedRun.status !== "PENDING"
-                ? "Deleting..."
-                : "Delete"}
-            </button>
+            {canFinanceActions && (
+              <button
+                type="button"
+                disabled={
+                  isActionLoading !== null ||
+                  !["CALCULATED", "REVIEW_REQUIRED"].includes(selectedRun.status)
+                }
+                onClick={() => handleRunAction("approve")}
+                className="inline-flex items-center gap-2 rounded-md bg-[#4f63ea] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
+              >
+                <Save className="h-3.5 w-3.5" />
+                {isActionLoading === "approve" ? "Approving..." : "Approve"}
+              </button>
+            )}
+            {canFinanceActions && (
+              <button
+                type="button"
+                disabled={
+                  isActionLoading !== null || selectedRun.status !== "APPROVED"
+                }
+                onClick={() => handleRunAction("post")}
+                className="inline-flex items-center gap-2 rounded-md bg-[#1f7a5b] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
+              >
+                <Send className="h-3.5 w-3.5" />
+                {isActionLoading === "post" ? "Posting..." : "Post"}
+              </button>
+            )}
+            {canFinanceActions && (
+              <button
+                type="button"
+                disabled={
+                  isActionLoading !== null ||
+                  ["APPROVED", "POSTED", "CLOSED", "RUNNING"].includes(
+                    selectedRun.status,
+                  )
+                }
+                onClick={handleDeleteRun}
+                className="inline-flex items-center gap-2 rounded-md bg-white border border-slate-200 px-3 py-2 text-[12px] font-medium text-red-600 hover:bg-red-50 hover:border-red-100 disabled:opacity-50"
+                title="Delete Billing Run"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {isActionLoading === "calculate" &&
+                selectedRun.status !== "PENDING"
+                  ? "Deleting..."
+                  : "Delete"}
+              </button>
+            )}
           </div>
 
           <div className="flex-1 overflow-auto p-4">

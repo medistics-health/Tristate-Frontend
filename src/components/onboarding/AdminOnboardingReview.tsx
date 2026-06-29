@@ -41,6 +41,7 @@ import {
   type OnboardingProvider,
 } from "../../services/operations/onboarding";
 import { getPractice } from "../../services/operations/practices";
+import { canBusinessWrite, readStoredUser } from "../../utils/auth";
 
 type PaginationInfo = {
   page: number;
@@ -402,6 +403,9 @@ function BoolBadge({
 }
 
 export default function AdminOnboardingReview() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canManageOnboarding = canBusinessWrite(currentRole);
+
   const [searchParams] = useSearchParams();
   const targetOnboardingId = searchParams.get("onboardingId") || "";
   const shouldStartTargetReview = searchParams.get("review") === "true";
@@ -802,7 +806,7 @@ export default function AdminOnboardingReview() {
               ],
         );
 
-        if (shouldStartTargetReview) {
+        if (shouldStartTargetReview && canManageOnboarding) {
           setReviewingData(onboarding);
           setIsReviewing(true);
           setReviewStep(1);
@@ -831,6 +835,7 @@ export default function AdminOnboardingReview() {
       isCancelled = true;
     };
   }, [
+    canManageOnboarding,
     openedTargetOnboardingId,
     practiceNamesById,
     shouldStartTargetReview,
@@ -844,6 +849,7 @@ export default function AdminOnboardingReview() {
   };
 
   const startReview = async () => {
+    if (!canManageOnboarding) return;
     if (!selectedRow) return;
     setIsSelectedLoading(true);
     try {
@@ -876,6 +882,7 @@ export default function AdminOnboardingReview() {
   };
 
   const handleSaveReview = async (finalStatus?: string) => {
+    if (!canManageOnboarding) return;
     if (!reviewingData) return;
     setIsUpdating(true);
     try {
@@ -917,6 +924,7 @@ export default function AdminOnboardingReview() {
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
+    if (!canManageOnboarding) return;
     if (!selectedRow) return;
     setIsUpdating(true);
     try {
@@ -3200,71 +3208,73 @@ export default function AdminOnboardingReview() {
                   </p>
                 </div>
 
-                <div className="grid gap-4 w-full max-w-lg">
-                  <button
-                    type="button"
-                    disabled={isUpdating}
-                    onClick={() => handleSaveReview("IN_PROGRESS")}
-                    className="flex items-center justify-between p-5 rounded-2xl border-2 border-transparent bg-blue-50 text-blue-700 hover:border-blue-400 transition-all group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
-                        <Clock className="h-6 w-6" />
+                {canManageOnboarding ? (
+                  <div className="grid gap-4 w-full max-w-lg">
+                    <button
+                      type="button"
+                      disabled={isUpdating}
+                      onClick={() => handleSaveReview("IN_PROGRESS")}
+                      className="flex items-center justify-between p-5 rounded-2xl border-2 border-transparent bg-blue-50 text-blue-700 hover:border-blue-400 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                          <Clock className="h-6 w-6" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-[15px]">
+                            Set to In-Progress
+                          </p>
+                          <p className="text-[12px] opacity-70">
+                            Marks the onboarding as currently being handled.
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <p className="font-bold text-[15px]">
-                          Set to In-Progress
-                        </p>
-                        <p className="text-[12px] opacity-70">
-                          Marks the onboarding as currently being handled.
-                        </p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
+                      <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={isUpdating}
-                    onClick={() => handleSaveReview("COMPLETED")}
-                    className="flex items-center justify-between p-5 rounded-2xl border-2 border-transparent bg-green-50 text-green-700 hover:border-green-400 transition-all group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
-                        <CheckCircle className="h-6 w-6" />
+                    <button
+                      type="button"
+                      disabled={isUpdating}
+                      onClick={() => handleSaveReview("COMPLETED")}
+                      className="flex items-center justify-between p-5 rounded-2xl border-2 border-transparent bg-green-50 text-green-700 hover:border-green-400 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                          <CheckCircle className="h-6 w-6" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-[15px]">
+                            Approve & Complete
+                          </p>
+                          <p className="text-[12px] opacity-70">
+                            Finalizes the onboarding process successfully.
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <p className="font-bold text-[15px]">
-                          Approve & Complete
-                        </p>
-                        <p className="text-[12px] opacity-70">
-                          Finalizes the onboarding process successfully.
-                        </p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
+                      <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={isUpdating}
-                    onClick={() => handleSaveReview("CANCELLED")}
-                    className="flex items-center justify-between p-5 rounded-2xl border-2 border-transparent bg-red-50 text-red-700 hover:border-red-400 transition-all group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
-                        <XCircle className="h-6 w-6" />
+                    <button
+                      type="button"
+                      disabled={isUpdating}
+                      onClick={() => handleSaveReview("CANCELLED")}
+                      className="flex items-center justify-between p-5 rounded-2xl border-2 border-transparent bg-red-50 text-red-700 hover:border-red-400 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                          <XCircle className="h-6 w-6" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-[15px]">Reject / Cancel</p>
+                          <p className="text-[12px] opacity-70">
+                            Stops the onboarding and marks it as cancelled.
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <p className="font-bold text-[15px]">Reject / Cancel</p>
-                        <p className="text-[12px] opacity-70">
-                          Stops the onboarding and marks it as cancelled.
-                        </p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                </div>
+                      <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -3279,27 +3289,29 @@ export default function AdminOnboardingReview() {
             >
               Back
             </button>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => handleSaveReview()}
-                disabled={isUpdating || reviewStep === 7}
-                className="rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-2 text-[13px] font-medium text-indigo-600 hover:bg-indigo-100 disabled:opacity-40"
-              >
-                Save Changes
-              </button>
-              {reviewStep < 7 && (
+            {canManageOnboarding ? (
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setReviewStep(Math.min(7, reviewStep + 1))}
-                  disabled={isUpdating}
-                  className="flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-2 text-[13px] font-medium text-white hover:bg-slate-800 disabled:opacity-40"
+                  onClick={() => handleSaveReview()}
+                  disabled={isUpdating || reviewStep === 7}
+                  className="rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-2 text-[13px] font-medium text-indigo-600 hover:bg-indigo-100 disabled:opacity-40"
                 >
-                  Next Step
-                  <ArrowRight className="h-4 w-4" />
+                  Save Changes
                 </button>
-              )}
-            </div>
+                {reviewStep < 7 && (
+                  <button
+                    type="button"
+                    onClick={() => setReviewStep(Math.min(7, reviewStep + 1))}
+                    disabled={isUpdating}
+                    className="flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-2 text-[13px] font-medium text-white hover:bg-slate-800 disabled:opacity-40"
+                  >
+                    Next Step
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -4317,70 +4329,72 @@ export default function AdminOnboardingReview() {
               )}
             </div>
 
-            <div className="border-t border-[#f0ece6] px-4 py-3 bg-slate-50/50">
-              <button
-                type="button"
-                onClick={startReview}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 text-white text-[13px] font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10 mb-4"
-              >
-                <Target className="h-4 w-4" />
-                Full Admin Review
-              </button>
+            {canManageOnboarding ? (
+              <div className="border-t border-[#f0ece6] px-4 py-3 bg-slate-50/50">
+                <button
+                  type="button"
+                  onClick={startReview}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 text-white text-[13px] font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10 mb-4"
+                >
+                  <Target className="h-4 w-4" />
+                  Full Admin Review
+                </button>
 
-              <p className="mb-2 text-[11px] font-medium text-slate-500">
-                Quick Status Update
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                disabled={
-                  isUpdating ||
-                  (detailData?.status ?? selectedRow.status) === "IN_PROGRESS"
-                }
-                onClick={() => handleStatusUpdate("IN_PROGRESS")}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
-                    (detailData?.status ?? selectedRow.status) === "IN_PROGRESS"
-                      ? "bg-blue-100 text-blue-700"
-                      : "border border-[#ece8e1] text-blue-600 hover:bg-blue-50"
-                  } disabled:opacity-40`}
-                >
-                  <Clock className="h-3.5 w-3.5" />
-                  In Progress
-                </button>
-                <button
-                  type="button"
-                disabled={
-                  isUpdating ||
-                  (detailData?.status ?? selectedRow.status) === "COMPLETED"
-                }
-                onClick={() => handleStatusUpdate("COMPLETED")}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
-                    (detailData?.status ?? selectedRow.status) === "COMPLETED"
-                      ? "bg-green-100 text-green-700"
-                      : "border border-[#ece8e1] text-green-600 hover:bg-green-50"
-                  } disabled:opacity-40`}
-                >
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  Completed
-                </button>
-                <button
-                  type="button"
-                disabled={
-                  isUpdating ||
-                  (detailData?.status ?? selectedRow.status) === "CANCELLED"
-                }
-                onClick={() => handleStatusUpdate("CANCELLED")}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
-                    (detailData?.status ?? selectedRow.status) === "CANCELLED"
-                      ? "bg-red-100 text-red-700"
-                      : "border border-[#ece8e1] text-red-600 hover:bg-red-50"
-                  } disabled:opacity-40`}
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  Cancelled
-                </button>
+                <p className="mb-2 text-[11px] font-medium text-slate-500">
+                  Quick Status Update
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={
+                      isUpdating ||
+                      (detailData?.status ?? selectedRow.status) === "IN_PROGRESS"
+                    }
+                    onClick={() => handleStatusUpdate("IN_PROGRESS")}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
+                      (detailData?.status ?? selectedRow.status) === "IN_PROGRESS"
+                        ? "bg-blue-100 text-blue-700"
+                        : "border border-[#ece8e1] text-blue-600 hover:bg-blue-50"
+                    } disabled:opacity-40`}
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    In Progress
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      isUpdating ||
+                      (detailData?.status ?? selectedRow.status) === "COMPLETED"
+                    }
+                    onClick={() => handleStatusUpdate("COMPLETED")}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
+                      (detailData?.status ?? selectedRow.status) === "COMPLETED"
+                        ? "bg-green-100 text-green-700"
+                        : "border border-[#ece8e1] text-green-600 hover:bg-green-50"
+                    } disabled:opacity-40`}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Completed
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      isUpdating ||
+                      (detailData?.status ?? selectedRow.status) === "CANCELLED"
+                    }
+                    onClick={() => handleStatusUpdate("CANCELLED")}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
+                      (detailData?.status ?? selectedRow.status) === "CANCELLED"
+                        ? "bg-red-100 text-red-700"
+                        : "border border-[#ece8e1] text-red-600 hover:bg-red-50"
+                    } disabled:opacity-40`}
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    Cancelled
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : null}
           </aside>
         )}
       </div>

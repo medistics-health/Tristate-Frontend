@@ -14,10 +14,13 @@ import {
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import { getVendorPayableById, payVendorPayable, type VendorPayable } from "../../services/operations/payables";
+import { canFinanceWrite, readStoredUser } from "../../utils/auth";
 
 export default function PayVendorPayable() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canPayPayable = canFinanceWrite(currentRole);
   
   const [payable, setPayable] = useState<VendorPayable | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,6 +71,10 @@ export default function PayVendorPayable() {
   async function handlePaymentSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!payable || !id) return;
+    if (!canPayPayable) {
+      toast.error("Only finance/admin can process vendor payments.");
+      return;
+    }
 
     // Form Validations
     if (activeTab === "ach") {
@@ -322,6 +329,21 @@ export default function PayVendorPayable() {
                         <h4 className="text-base font-bold text-slate-800">This Bill has been Settled</h4>
                         <p className="text-sm text-slate-500 max-w-sm mx-auto mt-1">
                           No further action is required. This bill was recorded as paid.
+                        </p>
+                      </div>
+                    </div>
+                  ) : !canPayPayable ? (
+                    <div className="text-center py-8 space-y-4">
+                      <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-amber-600 border border-amber-100">
+                        <AlertCircle className="h-8 w-8" />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-bold text-slate-800">
+                          Access Restricted
+                        </h4>
+                        <p className="text-sm text-slate-500 max-w-sm mx-auto mt-1">
+                          Only users with Finance/Admin role can process this
+                          payment.
                         </p>
                       </div>
                     </div>

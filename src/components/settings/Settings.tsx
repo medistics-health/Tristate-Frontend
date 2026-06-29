@@ -23,16 +23,9 @@ import {
   getSystemSettingsApi,
   updateSystemSettingsApi,
 } from "../../services/operations/users";
-import {
-  disconnectQuickBooks,
-  connectQuickBooks,
-} from "../../services/operations/quickbooks";
-import {
-  getAllCompanies,
-  type Company,
-} from "../../services/operations/companies";
 import { getMercuryAccounts } from "../../services/operations/mercury";
 import QuickBooksIntegrations from "../integrations/QuickBooksIntegrations";
+import { canManageSettings, readStoredUser } from "../../utils/auth";
 
 function parseNotifyToEmails(value: string) {
   return [
@@ -47,6 +40,8 @@ function parseNotifyToEmails(value: string) {
 
 export default function SettingsPage() {
   const location = useLocation();
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canWriteSettings = canManageSettings(currentRole);
   const [isSaving, setIsSaving] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
@@ -152,6 +147,10 @@ export default function SettingsPage() {
   }
 
   const handleSaveGeneral = async () => {
+    if (!canWriteSettings) {
+      toast.error("Only admin users can update organization settings.");
+      return;
+    }
     setIsSaving(true);
     try {
       await updateSystemSettingsApi({
@@ -169,6 +168,10 @@ export default function SettingsPage() {
 
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWriteSettings) {
+      toast.error("Only admin users can add team members.");
+      return;
+    }
     try {
       await createUserApi(newUser);
       toast.success("Team member added");
@@ -190,6 +193,10 @@ export default function SettingsPage() {
   async function handleUpdateUser(e: React.FormEvent) {
     e.preventDefault();
     if (!editingUser) return;
+    if (!canWriteSettings) {
+      toast.error("Only admin users can update team members.");
+      return;
+    }
 
     try {
       await updateUserApi(editingUser.id, editingUser);
@@ -202,6 +209,10 @@ export default function SettingsPage() {
   }
 
   async function handleDeleteUser(id: string) {
+    if (!canWriteSettings) {
+      toast.error("Only admin users can delete team members.");
+      return;
+    }
     if (!window.confirm("Are you sure you want to remove this team member?"))
       return;
     try {
@@ -268,7 +279,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {activeTab === "team" && (
+            {activeTab === "team" && canWriteSettings && (
               <button
                 onClick={() => setShowAddModal(true)}
                 className="rounded-xl bg-[#4f63ea] px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-[#3d4ed1] shadow-lg shadow-blue-500/10"
@@ -276,18 +287,20 @@ export default function SettingsPage() {
                 Add Member
               </button>
             )}
-            <button
-              onClick={handleSaveGeneral}
-              disabled={isSaving || activeTab !== "general"}
-              className="flex items-center gap-2 rounded-xl bg-white border border-[#ece8e1] px-5 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:opacity-50"
-            >
-              {isSaving ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-              ) : (
-                <Save className="h-4 w-4 text-slate-400" />
-              )}
-              Save Changes
-            </button>
+            {activeTab === "general" && canWriteSettings && (
+              <button
+                onClick={handleSaveGeneral}
+                disabled={isSaving}
+                className="flex items-center gap-2 rounded-xl bg-white border border-[#ece8e1] px-5 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                ) : (
+                  <Save className="h-4 w-4 text-slate-400" />
+                )}
+                Save Changes
+              </button>
+            )}
           </div>
         </div>
 
@@ -586,9 +599,11 @@ export default function SettingsPage() {
                         <th className="px-6 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">
                           Account Status
                         </th>
-                        <th className="px-6 py-5 text-right font-bold text-slate-400 uppercase tracking-widest text-[10px]">
-                          Action
-                        </th>
+                        {canWriteSettings && (
+                          <th className="px-6 py-5 text-right font-bold text-slate-400 uppercase tracking-widest text-[10px]">
+                            Action
+                          </th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#ece8e1]">
@@ -624,22 +639,24 @@ export default function SettingsPage() {
                               Active
                             </span>
                           </td>
-                          <td className="px-6 py-5 text-right">
-                            <div className="flex justify-end gap-1">
-                              <button
-                                onClick={() => setEditingUser(user)}
-                                className="p-2.5 rounded-xl text-slate-400 hover:bg-white hover:text-[#4f63ea] hover:shadow-sm transition-all"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteUser(user.id)}
-                                className="p-2.5 rounded-xl text-slate-400 hover:bg-white hover:text-red-500 hover:shadow-sm transition-all"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
+                          {canWriteSettings && (
+                            <td className="px-6 py-5 text-right">
+                              <div className="flex justify-end gap-1">
+                                <button
+                                  onClick={() => setEditingUser(user)}
+                                  className="p-2.5 rounded-xl text-slate-400 hover:bg-white hover:text-[#4f63ea] hover:shadow-sm transition-all"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(user.id)}
+                                  className="p-2.5 rounded-xl text-slate-400 hover:bg-white hover:text-red-500 hover:shadow-sm transition-all"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -752,7 +769,6 @@ export default function SettingsPage() {
                   <option value="OPERATIONS">Operations</option>
                   <option value="FINANCE">Finance</option>
                   <option value="VIEWER">Viewer</option>
-                  <option value="INTERNAL">Internal</option>
                   <option value="ADMIN">Admin</option>
                 </select>
               </div>
@@ -880,7 +896,6 @@ export default function SettingsPage() {
                   <option value="OPERATIONS">Operations</option>
                   <option value="FINANCE">Finance</option>
                   <option value="VIEWER">Viewer</option>
-                  <option value="INTERNAL">Internal</option>
                   <option value="ADMIN">Admin</option>
                 </select>
               </div>

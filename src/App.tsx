@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import Login from "./components/auth/Login";
 import Signup from "./components/auth/Signup";
-import AdminRoute from "./components/auth/AdminRoute";
+import RoleRoute from "./components/auth/RoleRoute";
 import AllAgreementsPage from "./components/agreements/all-agreements/AllAgreements";
 import AgreementPendingApprovalPage from "./components/agreements/pending-approval/AgreementPendingApprovalPage";
 import AllPracticeAuditsPage from "./components/audits/AllPracticeAudits";
@@ -42,7 +42,6 @@ import PersonsPage from "./components/contact/Persons";
 import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
-import OnboardingFormV3 from "./components/onboarding/OnboardingFormV3";
 import AdminOnboardingReview from "./components/onboarding/AdminOnboardingReview";
 import MonthlyReportingDashboard from "./components/monthly-reporting/MonthlyReportingDashboard";
 import SubmitMonthlyReport from "./components/monthly-reporting/SubmitMonthlyReport";
@@ -54,10 +53,34 @@ import PayVendorPayable from "./components/payables/PayVendorPayable";
 import ClientPortalDashboard from "./components/portal/ClientPortalDashboard";
 import SettingsPage from "./components/settings/Settings";
 import CreateLeadPage from "./components/leads/CreateLead";
-import type { ReactNode } from "react";
+import type { JSX, ReactNode } from "react";
 import OnboardingFormV4 from "./components/onboarding/OnboardingFormV4";
+import { BUSINESS_WRITE_ROLES, MODULE_ACCESS } from "./utils/auth";
 
 function App() {
+  function ModuleRoute({
+    children,
+    allowedRoles,
+  }: {
+    children: ReactNode;
+    allowedRoles: readonly (
+      | "ADMIN"
+      | "SALES"
+      | "ACCOUNTMANAGER"
+      | "OPERATIONS"
+      | "FINANCE"
+      | "VIEWER"
+    )[];
+  }) {
+    return (
+      <ProtectedRoute>
+        <RoleRoute allowedRoles={[...allowedRoles]}>
+          {children as JSX.Element}
+        </RoleRoute>
+      </ProtectedRoute>
+    );
+  }
+
   function UUIDProtectedRoute({ children }: { children: ReactNode }) {
     const { id } = useParams();
 
@@ -110,9 +133,9 @@ function App() {
       <Route
         path="/onboarding/review"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AdminOnboardingReview />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
@@ -127,63 +150,63 @@ function App() {
       <Route
         path="/audit/all-practice-audits"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AllPracticeAuditsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/audit/all-audits"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <Audits />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/audit/status-board"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AuditStatusBoard />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/purchase-orders/all"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <AllPurchaseOrdersPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/purchase-orders/status-board"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <PurchaseOrderStatusBoardPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/purchase-orders/pending-approval"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <PendingApprovalPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/purchase-orders/unpaid-pos"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <PurchaseOrdersPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
@@ -199,36 +222,36 @@ function App() {
       <Route
         path="/integrations/accounting-sync"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.INTEGRATIONS}>
             <AccountingSyncDashboard />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/integrations/mercury-banking"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.INTEGRATIONS}>
             <MercuryBankingDashboard />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/vendors/payables"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <VendorPayableDashboard />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/vendors/payables/pay/:id"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <PayVendorPayable />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
@@ -253,333 +276,329 @@ function App() {
       <Route
         path="/agreements/all-agreements"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AllAgreementsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/agreements/pipeline"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AgreementPipelinePage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/agreements/pending-approval"
         element={
-          <ProtectedRoute>
-            {/*<AdminRoute>*/}
+          <ModuleRoute allowedRoles={MODULE_ACCESS.ADMIN_ONLY}>
             <AgreementPendingApprovalPage />
-            {/*</AdminRoute>*/}
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/invoice/overdue"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <OverdueInvoicePage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/agreements/pending-signatures"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AgreementPendingSignaturesPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/agreements/pending-submission-changes"
         element={
-          <ProtectedRoute>
-            {/*<AdminRoute>*/}
+          <ModuleRoute allowedRoles={MODULE_ACCESS.ADMIN_ONLY}>
             <AgreementPendingSubmissionChangesPage />
-            {/*</AdminRoute>*/}
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/invoice/all-invoice-line-items"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <AllInvoiceLineItems />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/invoice/all-line-items"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <AllLineItems />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/service/all-services"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AllServices />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/service/service-catalogs"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <ServiceCatalogPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/service/active-services"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <ActiveServicePage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/partner/all-channel-partners"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AllChannelPartnersPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/partner/all-partners"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AllPartnersPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/assessment/all-assessments"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AssessmentsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/assessment/progress"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AssessmentProgressPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/invoice/all-invoices"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <AllInvoicePage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/invoice/status-board"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <InvoiceStatusBoardPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/billing/runs"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <BillingRunsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/billing/status-board"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <BillingStatusBoardPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/vendors/all-vendors"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <AllVendorsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/vendors/contracts"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <VendorContractPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/practice/pipeline"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <PipelineBoardPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/practice/all-practices"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AllPracticePage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/practice/:id/profile"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <UUIDProtectedRoute>
               <PracticeProfilePage />
             </UUIDProtectedRoute>
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
 
       <Route
         path="/practice/active-practice"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <ActivePracticesPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/practice/prospects"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <ProspectsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/lead/create"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={BUSINESS_WRITE_ROLES}>
             <CreateLeadPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/practice/reminder-dues"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <ReminderDuePage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/deal/all-deals"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <DealsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/person/all-persons"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <PersonsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/company/all-companies"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AllCompaniesPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/monthly-reporting/dashboard"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <MonthlyReportingDashboard />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/pricing-engine/rate-finalization"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <PricingEnginePage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/monthly-reporting/submit"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={BUSINESS_WRITE_ROLES}>
             <SubmitMonthlyReport />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/settings/general"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.SETTINGS}>
             <SettingsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/settings/integrations"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.SETTINGS}>
             <SettingsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/settings/team"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.SETTINGS}>
             <SettingsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
       <Route
         path="/settings/security"
         element={
-          <ProtectedRoute>
+          <ModuleRoute allowedRoles={MODULE_ACCESS.SETTINGS}>
             <SettingsPage />
-          </ProtectedRoute>
+          </ModuleRoute>
         }
       />
     </Routes>

@@ -233,6 +233,31 @@ function isGeneratedOnboardingPdf(document: {
   );
 }
 
+function formatOnboardingLocation(location: {
+  locationName?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+}) {
+  const addressParts = [
+    location.addressLine1,
+    location.addressLine2,
+    location.city,
+    location.state,
+    location.zipCode,
+  ].filter(Boolean);
+
+  const address = addressParts.length ? addressParts.join(", ") : "";
+
+  if (location.locationName && address) {
+    return `${location.locationName} (${address})`;
+  }
+
+  return location.locationName || address;
+}
+
 function Card({
   title,
   description,
@@ -410,6 +435,27 @@ export default function PracticeProfilePage() {
     () => onboarding?.documents?.filter(isGeneratedOnboardingPdf) || [],
     [onboarding?.documents],
   );
+  const onboardingPracticeLocations = useMemo(() => {
+    if (!onboarding?.practices?.length) return [];
+
+    const currentPracticeName = practice?.name?.trim().toLowerCase();
+    const matchedPractice = onboarding.practices.find((item) => {
+      const onboardingPracticeName = item.practiceName?.trim().toLowerCase();
+      return Boolean(
+        onboardingPracticeName &&
+          currentPracticeName &&
+          onboardingPracticeName === currentPracticeName,
+      );
+    });
+
+    const practicesToRead = matchedPractice ? [matchedPractice] : onboarding.practices;
+    const labels = practicesToRead
+      .flatMap((item) => item.locations || [])
+      .map(formatOnboardingLocation)
+      .filter(Boolean) as string[];
+
+    return Array.from(new Set(labels));
+  }, [onboarding?.practices, practice?.name]);
 
   const pricingEngineUrl = useMemo(() => {
     const params = new URLSearchParams({
@@ -1308,6 +1354,20 @@ export default function PracticeProfilePage() {
                   ) ||
                   onboarding?.numberOfLocations ||
                   0
+                }
+              />
+              <InfoRow
+                label="Practice Location"
+                value={
+                  onboardingPracticeLocations.length ? (
+                    <ul className="space-y-1">
+                      {onboardingPracticeLocations.map((location) => (
+                        <li key={location}>{location}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    "-"
+                  )
                 }
               />
               <InfoRow

@@ -12,9 +12,10 @@ import { invoiceEndpoints } from "../../services/apis";
 type Props = {
   invoice: Invoice;
   onUpdate: () => void;
+  canResend: boolean;
 };
 
-export default function StripeInvoiceFlow({ invoice, onUpdate }: Props) {
+export default function StripeInvoiceFlow({ invoice, onUpdate, canResend }: Props) {
   const [events, setEvents] = useState<StripeEventLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
@@ -35,6 +36,10 @@ export default function StripeInvoiceFlow({ invoice, onUpdate }: Props) {
   }, [invoice.id]);
 
   async function handleResend() {
+    if (!canResend) {
+      toast.error("Only finance/admin can resend invoice emails.");
+      return;
+    }
     try {
       setIsResending(true);
       await resendStripeInvoice(invoice.id);
@@ -90,18 +95,18 @@ export default function StripeInvoiceFlow({ invoice, onUpdate }: Props) {
           <span className="text-[12px] font-extrabold uppercase">View Invoice PDF</span>
         </button>
 
-        {invoice.status !== "PAID" && (
+        {invoice.status !== "PAID" && canResend && (
           <button
-            type="button"
-            onClick={handleResend}
-            disabled={isResending}
-            className="flex items-center w-fit gap-3 rounded-xl border border-transparent bg-indigo-50 px-4 py-1 text-indigo-700 transition-all hover:bg-indigo-100 disabled:opacity-50 group"
-          >
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 text-indigo-600 transition-colors group-hover:bg-white">
-              <Mail className="h-4 w-4" />
-            </div>
-            <span className="text-[12px] font-extrabold uppercase tracking-tight">Resend Payment Email</span>
-          </button>
+              type="button"
+              onClick={handleResend}
+              disabled={isResending}
+              className="flex items-center w-fit gap-3 rounded-xl border border-transparent bg-indigo-50 px-4 py-1 text-indigo-700 transition-all hover:bg-indigo-100 disabled:opacity-50 group"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 text-indigo-600 transition-colors group-hover:bg-white">
+                <Mail className="h-4 w-4" />
+              </div>
+              <span className="text-[12px] font-extrabold uppercase tracking-tight">Resend Payment Email</span>
+            </button>
         )}
       </div>
 

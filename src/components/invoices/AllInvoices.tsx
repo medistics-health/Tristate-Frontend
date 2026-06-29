@@ -47,6 +47,12 @@ import {
 import { invoiceEndpoints } from "../../services/apis";
 import type { Practice } from "../practices/types";
 import StripeInvoiceFlow from "./StripeInvoiceFlow";
+import {
+  canFinanceWrite,
+  canManageIntegrations,
+  canOperationsAndFinanceWrite,
+  readStoredUser,
+} from "../../utils/auth";
 
 const statusStyles: Record<InvoiceStatus, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
@@ -96,6 +102,10 @@ function buildFormState(invoice?: Invoice | null): InvoiceFormState {
 }
 
 function AllInvoicePage() {
+  const currentRole = readStoredUser()?.role as string | undefined;
+  const canInvoiceWrite = canOperationsAndFinanceWrite(currentRole);
+  const canFinanceActions = canFinanceWrite(currentRole);
+  const canIntegrationActions = canManageIntegrations(currentRole);
   const [rows, setRows] = useState<InvoiceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -207,7 +217,7 @@ function AllInvoicePage() {
                       </div>
                     )}
                   </div>
-                ) : (
+                ) : canIntegrationActions ? (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -223,7 +233,7 @@ function AllInvoicePage() {
                       className="h-4 w-4 grayscale hover:grayscale-0 transition-all"
                     />
                   </button>
-                )}
+                ) : null}
               </div>
             );
           },
@@ -250,7 +260,7 @@ function AllInvoicePage() {
             String(row.original.values.creationDate),
         },
       ] as ColumnDef<InvoiceRow>[],
-    [actionLoading],
+    [actionLoading, canIntegrationActions],
   );
 
   const table = useReactTable({
@@ -374,6 +384,10 @@ function AllInvoicePage() {
 
   async function handleCreateInvoice(event: React.FormEvent) {
     event.preventDefault();
+    if (!canInvoiceWrite) {
+      toast.error("You do not have permission to create invoices.");
+      return;
+    }
     if (!createForm.practiceId || !createForm.totalAmount) {
       toast.error("Practice, total amount and status are required");
       return;
@@ -401,6 +415,10 @@ function AllInvoicePage() {
 
   async function handleUpdateInvoice(event: React.FormEvent) {
     event.preventDefault();
+    if (!canInvoiceWrite) {
+      toast.error("You do not have permission to update invoices.");
+      return;
+    }
     if (!selectedInvoice) return;
     if (!editForm.practiceId || !editForm.totalAmount) {
       toast.error("Practice, total amount and status are required");
@@ -442,6 +460,10 @@ function AllInvoicePage() {
 
   async function handleDeleteInvoice() {
     if (!selectedInvoice) return;
+    if (!canInvoiceWrite) {
+      toast.error("You do not have permission to delete invoices.");
+      return;
+    }
     if (!window.confirm("Are you sure you want to delete this invoice?"))
       return;
     setIsDeleting(true);
@@ -460,6 +482,10 @@ function AllInvoicePage() {
   }
 
   async function handleSyncToQB(invoiceId: string) {
+    if (!canIntegrationActions) {
+      toast.error("Only finance/admin can sync with QuickBooks.");
+      return;
+    }
     try {
       setActionState(invoiceId, "sync", true);
       await syncInvoiceToQuickBooks(invoiceId);
@@ -474,6 +500,10 @@ function AllInvoicePage() {
   }
 
   async function handleSyncPaymentToQB(paymentId: string, invoiceId: string) {
+    if (!canIntegrationActions) {
+      toast.error("Only finance/admin can sync payments to QuickBooks.");
+      return;
+    }
     try {
       setActionState(invoiceId, "syncPayment", true);
       await syncPaymentToQuickBooks(paymentId);
@@ -489,6 +519,10 @@ function AllInvoicePage() {
   }
 
   async function handleQuickSyncPaymentToQB(invoiceId: string) {
+    if (!canIntegrationActions) {
+      toast.error("Only finance/admin can sync payments to QuickBooks.");
+      return;
+    }
     try {
       setActionState(invoiceId, "syncPayment", true);
       await quickSyncInvoicePayment(invoiceId);
@@ -505,6 +539,10 @@ function AllInvoicePage() {
 
   async function handleResendInvoice() {
     if (!resendInvoiceId) return;
+    if (!canFinanceActions) {
+      toast.error("Only finance/admin can resend invoices.");
+      return;
+    }
     try {
       setIsResending(true);
       await resendStripeInvoice(resendInvoiceId);
@@ -717,6 +755,7 @@ function AllInvoicePage() {
             {/* --- STRIPE FLOW SECTION --- */}
             <StripeInvoiceFlow
               invoice={selectedInvoice}
+              canResend={canFinanceActions}
               onUpdate={() => {
                 refreshRows();
                 getInvoice(selectedInvoice.id).then(setSelectedInvoice);
@@ -728,28 +767,30 @@ function AllInvoicePage() {
            
 
             {/* Sync QB Button */}
-            <button
-              type="button"
-              onClick={() =>
-                selectedInvoice && handleSyncToQB(selectedInvoice.id)
-              }
-              disabled={isActionLoading(selectedInvoice?.id || "", "sync")}
-              className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#e2e8f0] bg-white px-2.5 transition-all hover:bg-slate-50 disabled:opacity-50 shadow-sm"
-              title="Sync Invoice to QuickBooks"
-            >
-              <img
-                src="https://quickbooks.intuit.com/cas/dam/IMAGE/A8u8GvpJS/apple-touch-icon-152x152.png"
-                alt="QB"
-                className="h-4 w-4 shrink-0 rounded-sm"
-              />
-              <div className="flex flex-col items-start leading-none gap-0">
-                <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Sync</span>
-                <span className="text-[12px] font-extrabold text-slate-800">INV</span>
-              </div>
-            </button>
+            {canIntegrationActions && (
+              <button
+                type="button"
+                onClick={() =>
+                  selectedInvoice && handleSyncToQB(selectedInvoice.id)
+                }
+                disabled={isActionLoading(selectedInvoice?.id || "", "sync")}
+                className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#e2e8f0] bg-white px-2.5 transition-all hover:bg-slate-50 disabled:opacity-50 shadow-sm"
+                title="Sync Invoice to QuickBooks"
+              >
+                <img
+                  src="https://quickbooks.intuit.com/cas/dam/IMAGE/A8u8GvpJS/apple-touch-icon-152x152.png"
+                  alt="QB"
+                  className="h-4 w-4 shrink-0 rounded-sm"
+                />
+                <div className="flex flex-col items-start leading-none gap-0">
+                  <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Sync</span>
+                  <span className="text-[12px] font-extrabold text-slate-800">INV</span>
+                </div>
+              </button>
+            )}
 
             {/* Sync Payment Button */}
-            {selectedInvoice?.status === "PAID" && (
+            {canIntegrationActions && selectedInvoice?.status === "PAID" && (
               <button
                 type="button"
                 onClick={() => {
@@ -782,28 +823,32 @@ function AllInvoicePage() {
             )}
 
             {/* Delete Button */}
-            <button
-              type="button"
-              onClick={handleDeleteInvoice}
-              disabled={isDeleting}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#fee2e2] bg-white px-2.5 text-[12px] font-bold text-[#ef4444] transition-all hover:bg-red-50 disabled:opacity-50 shadow-sm"
-            >
-              <Trash2 className="h-4 w-4 shrink-0" />
-              <div className="flex flex-col items-start leading-none gap-0 text-left">
-                <span className="text-[8px] font-bold text-[#fca5a5] uppercase tracking-tighter">Delete</span>
-                <span className="text-[12px] font-extrabold text-red-600 uppercase">Inv</span>
-              </div>
-            </button>
+            {canInvoiceWrite && (
+              <button
+                type="button"
+                onClick={handleDeleteInvoice}
+                disabled={isDeleting}
+                className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#fee2e2] bg-white px-2.5 text-[12px] font-bold text-[#ef4444] transition-all hover:bg-red-50 disabled:opacity-50 shadow-sm"
+              >
+                <Trash2 className="h-4 w-4 shrink-0" />
+                <div className="flex flex-col items-start leading-none gap-0 text-left">
+                  <span className="text-[8px] font-bold text-[#fca5a5] uppercase tracking-tighter">Delete</span>
+                  <span className="text-[12px] font-extrabold text-red-600 uppercase">Inv</span>
+                </div>
+              </button>
+            )}
 
             {/* Save Changes Button */}
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-[#4f63ea] px-3 ml-auto text-white shadow-lg transition-all hover:bg-[#3d50d6] disabled:opacity-50"
-            >
-              <Save className="h-5 w-5 shrink-0" />
-              <span className="text-[12px] font-extrabold uppercase tracking-tight whitespace-nowrap">Save</span>
-            </button>
+            {canInvoiceWrite && (
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-[#4f63ea] px-3 ml-auto text-white shadow-lg transition-all hover:bg-[#3d50d6] disabled:opacity-50"
+              >
+                <Save className="h-5 w-5 shrink-0" />
+                <span className="text-[12px] font-extrabold uppercase tracking-tight whitespace-nowrap">Save</span>
+              </button>
+            )}
           </div>
         </form>
       )}
