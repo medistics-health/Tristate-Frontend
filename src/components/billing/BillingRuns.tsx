@@ -1359,7 +1359,7 @@ function BillingRunsPage() {
                         <div className="mt-1 text-[12px] text-slate-400">
                           {invoice.status}
                         </div>
-                        {canViewInvoicePdf && (
+                        {/* {canViewInvoicePdf && (
                           <div className="mt-2">
                             <button
                               type="button"
@@ -1376,7 +1376,7 @@ function BillingRunsPage() {
                               View PDF
                             </button>
                           </div>
-                        )}
+                        )} */}
                       </div>
                     );
                     });

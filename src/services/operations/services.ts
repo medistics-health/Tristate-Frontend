@@ -31,6 +31,7 @@ function serviceToRow(service: Service): ServiceRow {
       name: service.name,
       code: service.code ?? "",
       category: service.category ?? "",
+      vendorName: service.vendor?.name ?? "",
       isActive: service.isActive,
       creationDate: new Date(service.createdAt).toLocaleString(),
       lastUpdate: new Date(service.updatedAt).toLocaleString(),
@@ -42,6 +43,7 @@ const fields = [
   { id: "name", label: "Name", type: "text" as const, visible: true },
   { id: "code", label: "Code", type: "text" as const, visible: true },
   { id: "category", label: "Category", type: "text" as const, visible: true },
+  { id: "vendorName", label: "Vendor", type: "text" as const, visible: true },
   { id: "isActive", label: "Active", type: "text" as const, visible: true },
   {
     id: "creationDate",
