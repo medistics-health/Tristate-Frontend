@@ -1109,6 +1109,42 @@ function AllAgreementsPage() {
     docusealTemplates,
     practices,
   ]);
+  function getSignedDocumentUrls(submission: {
+    signedDocUrl?: string | null;
+    signedDocUrls?: string | null;
+  }) {
+    const rawValue = submission.signedDocUrl || submission.signedDocUrls;
+    if (!rawValue) return [];
+  
+    const trimmed = rawValue.trim();
+    if (!trimmed) return [];
+  
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (url): url is string => typeof url === "string" && Boolean(url),
+        );
+      }
+    } catch {
+      // Support plain string and comma-separated URL formats.
+    }
+  
+    return trimmed
+      .split(",")
+      .map((url) => url.trim())
+      .filter(Boolean);
+  }
+  
+  function getDocumentLabel(url: string, fallback: string) {
+    try {
+      const pathname = new URL(url).pathname;
+      const filename = decodeURIComponent(pathname.split("/").pop() || "");
+      return filename.replace(/\.pdf$/i, "") || fallback;
+    } catch {
+      return fallback;
+    }
+  }
 
   const navbarActions = canWriteAgreements
     ? [
@@ -1342,7 +1378,7 @@ function AllAgreementsPage() {
                                     submission?.url?.split("/").pop() || "",
                                   ).replace(".pdf", "")
                                 } - ${submission.templateId}`
-                              : "DocuSeal Template");
+                              : "External Agreement");
                           const savedFieldCount = Object.keys(
                             submission.fieldValues || {},
                           ).length;
