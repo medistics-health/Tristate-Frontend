@@ -23,8 +23,8 @@ import type {
   AgreementServiceTerm,
   PricingModel,
 } from "../../services/operations/agreements";
+import type { Service } from "../services/types";
 import { RateFormFields } from "./RateFormFields";
-import Select from "../shared/Select";
 
 const STEPS = [
   "Service",
@@ -256,7 +256,7 @@ function formatModelValue(model: PricingModel, value: number | null): string {
 type Props = {
   agreementId: string;
   agreementVersionId: string;
-  services: { id: string; name: string }[];
+  services: Service[];
   vendors: { id: string; name: string }[];
   editingTerm: AgreementServiceTerm | null;
   defaultSignerEmail?: string | null;
@@ -317,6 +317,17 @@ export default function AddPricingTermWizard({
   const [stepError, setStepError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
+  const selectedService = services.find((service) => service.id === serviceId) ?? null;
+  const serviceVendor = selectedService?.vendor ?? null;
+  const serviceVendorId = selectedService?.vendorId ?? null;
+  const resolvedVendorId = editingTerm?.vendorId ?? serviceVendorId ?? vendorId;
+  const resolvedVendorName =
+    editingTerm?.vendor?.name ??
+    serviceVendor?.name ??
+    vendors.find((vendor) => vendor.id === resolvedVendorId)?.name ??
+    null;
+  const vendorSelectionLocked = Boolean(editingTerm?.vendorId || serviceVendorId);
+
   const setModel = (nextModel: PricingModel) => {
     setModelState(nextModel);
     setCfg(emptyConfig());
@@ -331,6 +342,19 @@ export default function AddPricingTermWizard({
       setVendorCfg(buildMirroredVendorPricing(model, cfg, null));
     }
   }, [hasVendor, model, cfg]);
+
+  useEffect(() => {
+    if (editingTerm) return;
+    if (serviceVendorId) {
+      setHasVendor(true);
+      setVId(serviceVendorId);
+      return;
+    }
+
+    if (!serviceId) {
+      setVId("");
+    }
+  }, [editingTerm, serviceId, serviceVendorId]);
 
   useEffect(() => {
     setVendorCfg((current) => buildMirroredVendorPricing(model, cfg, current));
@@ -459,7 +483,7 @@ export default function AddPricingTermWizard({
 
     if (!hasVendor) return { valid: true, errors };
 
-    if (!vendorId) {
+    if (!resolvedVendorId) {
       errors.vendor = "Vendor is required when a subcontractor is selected";
     }
 
@@ -929,6 +953,7 @@ export default function AddPricingTermWizard({
   };
 
   async function submit() {
+    setSaving(true);
     const validation = validateAll();
     if (!validation.valid) {
       setFieldErrors(validation.errors);
@@ -966,7 +991,7 @@ export default function AddPricingTermWizard({
         if (!t.isActive) return false;
         if (t.pricingModel !== model) return false;
         const tVendor = t.vendorId ?? null;
-        const vId = hasVendor && vendorId ? vendorId : null;
+        const vId = hasVendor ? resolvedVendorId ?? null : null;
         if ((tVendor ?? null) !== (vId ?? null)) return false;
         const s = t.effectiveDate ? new Date(t.effectiveDate) : null;
         const e = t.endDate ? new Date(t.endDate) : null;
@@ -996,7 +1021,7 @@ export default function AddPricingTermWizard({
       console.warn("Warning: unable to validate overlapping terms", err);
     }
 
-    setSaving(true);
+    
     try {
       const payload = {
         agreementId,
@@ -1004,7 +1029,7 @@ export default function AddPricingTermWizard({
         serviceId,
         pricingModel: model,
         pricingConfig: buildPricingConfigPayload() as Record<string, unknown>,
-        vendorId: hasVendor && vendorId ? vendorId : null,
+        vendorId: hasVendor ? resolvedVendorId ?? null : null,
         minimumFee: hasVendor ? (vendorAmount ?? 0) : null,
         effectiveDate: cfg.effectiveStartDate || undefined,
         endDate: cfg.effectiveEndDate || undefined,
@@ -1299,19 +1324,18 @@ export default function AddPricingTermWizard({
               </div>
               {hasVendor && (
                 <div className="space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4">
-                  <div>
-                    <label className="mb-1 block font-medium text-slate-700">
-                      Vendor <span className="text-red-500">*</span>
-                    </label>
-                    <Select
-                      value={vendorId}
-                      onChange={setVId}
-                      placeholder="Select Vendor"
-                      options={vendors.map((v) => ({
-                        label: v.name,
-                        value: v.id,
-                      }))}
-                    />
+                  <div className="rounded-xl border border-dashed border-[#d7d2cb] bg-white p-4">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                      Vendor
+                    </p>
+                    <p className="mt-1 text-[14px] font-medium text-slate-700">
+                      {resolvedVendorName ?? "Vendor not available"}
+                    </p>
+                    {!vendorSelectionLocked && (
+                      <p className="mt-1 text-[12px] text-slate-400">
+                        Add a vendor on the Service record to use vendor pricing here.
+                      </p>
+                    )}
                   </div>
                   <div className="rounded-xl border border-dashed border-[#d7d2cb] bg-white p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
@@ -1701,7 +1725,7 @@ export default function AddPricingTermWizard({
                         ? [
                             [
                               "Vendor",
-                              vendors.find((v) => v.id === vendorId)?.name ?? "-",
+                              resolvedVendorName ?? "Vendor not available",
                             ],
                             [
                               "Vendor Total",

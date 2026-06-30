@@ -915,7 +915,7 @@ export default function PricingEnginePage() {
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-slate-500">
-                          {term.vendor?.name ?? "-"}
+                          {term.vendor?.name ?? "Vendor not available"}
                         </td>
                         <td className="px-4 py-2.5">
                           <StatusBadge status={overallStatus} />
@@ -1227,7 +1227,10 @@ function TermDetailPanel({
             </span>
           </div>
 
-          <InfoRow label="Vendor" value={term.vendor?.name} />
+          <InfoRow
+            label="Vendor"
+            value={term.vendor?.name ?? "Vendor not available"}
+          />
 
           <ApprovalStatusBadge
             status={clientApprovalStatus}
