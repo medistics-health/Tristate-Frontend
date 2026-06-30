@@ -2,6 +2,7 @@ export type ServiceBody = {
   name: string;
   code?: string | null;
   category?: string | null;
+  vendorId?: string | null;
   isActive?: boolean;
   clientRate?: number;
   vendorRate?: number;
@@ -13,12 +14,14 @@ export type Service = {
   name: string;
   code: string | null;
   category: string | null;
+  vendorId: string | null;
   isActive: boolean;
   clientRate: string | null;
   vendorRate: string | null;
   margin: string | null;
   createdAt: string;
   updatedAt: string;
+  vendor?: { id: string; name: string } | null;
 };
 
 export type ServiceFieldType = 'text' | 'number';

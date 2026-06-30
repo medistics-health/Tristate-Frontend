@@ -27,6 +27,9 @@ import {
   updateServiceApi,
   type ServiceQueryParams,
 } from "../../services/operations/services";
+import { getAllVendorsApi } from "../../services/operations/vendors";
+import type { Vendor } from "../vendors/types";
+import Select from "../shared/Select";
 import toast from "react-hot-toast";
 import { canBusinessWrite, readStoredUser } from "../../utils/auth";
 
@@ -56,11 +59,13 @@ function AllServicesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
 
   const [formData, setFormData] = useState({
     name: "",
     code: "",
     category: "",
+    vendorId: "",
     isActive: true,
   });
 
@@ -68,6 +73,7 @@ function AllServicesPage() {
     name: "",
     code: "",
     category: "",
+    vendorId: "",
     isActive: true,
   });
 
@@ -101,6 +107,13 @@ function AllServicesPage() {
             String(row.original.values.category || "-"),
         },
         {
+          id: "vendorName",
+          accessorFn: (row: ServiceRow) => row.values.vendorName,
+          header: () => "Vendor",
+          cell: ({ row }: { row: { original: ServiceRow } }) =>
+            String(row.original.values.vendorName || "Vendor not available"),
+        },
+        {
           id: "isActive",
           accessorFn: (row: ServiceRow) => row.values.isActive,
           header: () => "Active",
@@ -128,6 +141,12 @@ function AllServicesPage() {
   });
 
   useEffect(() => {
+    getAllVendorsApi()
+      .then(setVendors)
+      .catch((err) => {
+        console.error("Failed to load vendors", err);
+      });
+
     const timer = setTimeout(() => {
       async function loadData() {
         try {
@@ -180,6 +199,7 @@ function AllServicesPage() {
         name: service.name,
         code: service.code ?? "",
         category: service.category ?? "",
+        vendorId: service.vendorId ?? "",
         isActive: service.isActive ?? true,
       });
     } catch (err) {
@@ -195,19 +215,19 @@ function AllServicesPage() {
     setShowDetailPanel(false);
     setSelectedRowId(null);
     setSelectedService(null);
-    setEditForm({ name: "", code: "", category: "", isActive: true });
+    setEditForm({ name: "", code: "", category: "", vendorId: "", isActive: true });
   }
 
   function openCreateForm() {
     if (!canManageServices) return;
-    setFormData({ name: "", code: "", category: "", isActive: true });
+    setFormData({ name: "", code: "", category: "", isActive: true , vendorId: ""});
     setShowCreateForm(true);
     setShowDetailPanel(false);
   }
 
   function closeCreateForm() {
     setShowCreateForm(false);
-    setFormData({ name: "", code: "", category: "", isActive: true });
+    setFormData({ name: "", code: "", category: "", vendorId: "", isActive: true });
   }
 
   async function handleCreateService(e: React.FormEvent) {
@@ -224,6 +244,7 @@ function AllServicesPage() {
         name: formData.name.trim(),
         ...(formData.code.trim() && { code: formData.code.trim() }),
         ...(formData.category.trim() && { category: formData.category.trim() }),
+        vendorId: formData.vendorId || null,
         isActive: formData.isActive,
       };
 
@@ -286,6 +307,7 @@ function AllServicesPage() {
         name: editForm.name.trim(),
         ...(editForm.code.trim() && { code: editForm.code.trim() }),
         ...(editForm.category.trim() && { category: editForm.category.trim() }),
+        vendorId: editForm.vendorId || null,
         isActive: editForm.isActive,
       };
 
@@ -580,6 +602,7 @@ function AllServicesPage() {
                     infoRows={[
                       ...(selectedService?.code ? [{ label: "Code", value: selectedService.code }] : []),
                       ...(selectedService?.category ? [{ label: "Category", value: selectedService.category }] : []),
+                      { label: "Vendor", value: selectedService?.vendor?.name ?? "Vendor not available" },
                     ]}
                   />
 
@@ -634,6 +657,28 @@ function AllServicesPage() {
                         readOnly={!canManageServices}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Vendor
+                      </label>
+                      <Select
+                        value={editForm.vendorId}
+                        onChange={(value) =>
+                          setEditForm((prev) => ({ ...prev, vendorId: value }))
+                        }
+                        placeholder="Select vendor"
+                        options={vendors.map((vendor) => ({
+                          label: vendor.name,
+                          value: vendor.id,
+                        }))}
+                      />
+                      <p className="mt-1 text-[12px] text-slate-400">
+                        {editForm.vendorId
+                          ? vendors.find((vendor) => vendor.id === editForm.vendorId)?.name
+                          : "Vendor not available"}
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -705,10 +750,10 @@ function AllServicesPage() {
               onSubmit={handleCreateService}
               className="flex-1 overflow-auto p-4"
             >
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Name <span className="text-red-500">*</span>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -740,10 +785,10 @@ function AllServicesPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Category
-                  </label>
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Category
+                      </label>
                   <input
                     type="text"
                     value={formData.category}
@@ -754,11 +799,28 @@ function AllServicesPage() {
                       }))
                     }
                     placeholder="Service category"
-                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                  />
-                </div>
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </div>
 
-                <div className="flex items-center gap-2">
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Vendor
+                      </label>
+                      <Select
+                        value={formData.vendorId}
+                        onChange={(value) =>
+                          setFormData((prev) => ({ ...prev, vendorId: value }))
+                        }
+                        placeholder="Select vendor"
+                        options={vendors.map((vendor) => ({
+                          label: vendor.name,
+                          value: vendor.id,
+                        }))}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     id="createIsActive"

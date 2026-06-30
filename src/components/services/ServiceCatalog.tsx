@@ -27,6 +27,9 @@ import {
 } from "../../services/operations/services";
 import type { ServiceRow } from "./types";
 import { canBusinessWrite, readStoredUser } from "../../utils/auth";
+import { getAllVendorsApi } from "../../services/operations/vendors";
+import type { Vendor } from "../vendors/types";
+import Select from "../shared/Select";
 
 function ServiceCatalogPage() {
   const currentRole = readStoredUser()?.role as string | undefined;
@@ -44,11 +47,13 @@ function ServiceCatalogPage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
 
   type EditForm = {
     name: string;
     code: string;
     category: string;
+    vendorId: string;
     isActive: boolean;
   };
 
@@ -56,12 +61,17 @@ function ServiceCatalogPage() {
     name: "",
     code: "",
     category: "",
+    vendorId: "",
     isActive: true,
   };
 
   const [editForm, setEditForm] = useState<EditForm>(initialForm);
 
   useEffect(() => {
+    getAllVendorsApi()
+      .then(setVendors)
+      .catch((err) => console.error("Failed to load vendors", err));
+
     async function load() {
       try {
         setIsLoading(true);
@@ -89,6 +99,7 @@ function ServiceCatalogPage() {
         name: service.name,
         code: service.code ?? "",
         category: service.category ?? "",
+        vendorId: service.vendorId ?? "",
         isActive: service.isActive,
       });
     } catch (err) {
@@ -110,6 +121,7 @@ function ServiceCatalogPage() {
     setShowDetailPanel(false);
     setSelectedRowId(null);
     setSelectedService(null);
+    setEditForm(initialForm);
   }
 
   async function handleUpdate(e: React.FormEvent) {
@@ -125,6 +137,7 @@ function ServiceCatalogPage() {
         name: editForm.name.trim(),
         code: editForm.code.trim() || null,
         category: editForm.category.trim() || null,
+        vendorId: editForm.vendorId || null,
         isActive: editForm.isActive,
       });
       const data = await getServicesView();
@@ -212,6 +225,18 @@ function ServiceCatalogPage() {
         ),
         cell: ({ row }) => String(row.original.values.category || "-"),
         size: 200,
+      },
+      {
+        id: "vendorName",
+        accessorFn: (row) => String(row.values.vendorName || ""),
+        header: () => (
+          <div className="flex items-center gap-2">
+            <Circle className="h-3.5 w-3.5 text-slate-400" />
+            <span>Vendor</span>
+          </div>
+        ),
+        cell: ({ row }) => String(row.original.values.vendorName || "Vendor not available"),
+        size: 220,
       },
       {
         id: "isActive",
@@ -472,6 +497,12 @@ function ServiceCatalogPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Vendor</span>
+                      <span className="text-right text-slate-700">
+                        {selectedService.vendor?.name || "Vendor not available"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
                       <span className="text-slate-400">Active</span>
                       <span className="text-right">
                         {selectedService.isActive ? (
@@ -556,6 +587,23 @@ function ServiceCatalogPage() {
                         }
                         readOnly={!canManageServices}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Vendor
+                      </label>
+                      <Select
+                        value={editForm.vendorId}
+                        onChange={(value) =>
+                          setEditForm((prev) => ({ ...prev, vendorId: value }))
+                        }
+                        placeholder="Select vendor"
+                        options={vendors.map((vendor) => ({
+                          label: vendor.name,
+                          value: vendor.id,
+                        }))}
                       />
                     </div>
 
