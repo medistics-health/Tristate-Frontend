@@ -92,7 +92,7 @@ export default function StripeInvoiceFlow({ invoice, onUpdate, canResend }: Prop
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-100">
             <ExternalLink className="h-4 w-4" />
           </div>
-          <span className="text-[12px] font-extrabold uppercase">View Invoice PDF</span>
+          <span className="text-[12px] font-extrabold uppercase">{invoice.status === "PAID" ? "View Receipt PDF" : "View Invoice PDF"}</span>
         </button>
 
         {invoice.status !== "PAID" && canResend && (
