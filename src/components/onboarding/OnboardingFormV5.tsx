@@ -332,12 +332,6 @@ function isDocumentReceivedAfterRequested(
   return received > requested;
 }
 
-const yesNoMaybeOptions: Option[] = [
-  { label: "Yes", value: "YES" },
-  { label: "No", value: "NO" },
-  { label: "Not Sure", value: "NOT_SURE" },
-];
-
 const centralizationOptions: Option[] = [
   { label: "Yes", value: "YES" },
   { label: "No", value: "NO" },
@@ -383,6 +377,15 @@ const ehrOptions: Option[] = [
   { label: "Other", value: "OTHER" },
 ];
 
+const clearinghouseOptions: Option[] = [
+  { label: "Availity", value: "AVAILITY" },
+  { label: "Change Healthcare", value: "CHANGE_HEALTHCARE" },
+  { label: "Office Ally", value: "OFFICE_ALLY" },
+  { label: "TriZetto", value: "TRIZETTO" },
+  { label: "Waystar", value: "WAYSTAR" },
+  { label: "Other", value: "OTHER" },
+];
+
 const reportingCadenceOptions: Option[] = [
   { label: "Weekly", value: "WEEKLY" },
   { label: "Biweekly", value: "BIWEEKLY" },
@@ -405,20 +408,6 @@ const billingPainPointOptions: Option[] = [
   { label: "Poor Reporting", value: "POOR_REPORTING" },
   { label: "Staff Shortage", value: "STAFF_SHORTAGE" },
   { label: "A/R Follow-Up", value: "AR_FOLLOW_UP" },
-  { label: "Other", value: "OTHER" },
-];
-
-const credentialingIssueOptions: Option[] = [
-  {
-    label: "Incorrect Specialty Enrollment",
-    value: "INCORRECT_SPECIALTY_ENROLLMENT",
-  },
-  { label: "Missing Payer Enrollment", value: "MISSING_PAYER_ENROLLMENT" },
-  { label: "Expired Enrollment", value: "EXPIRED_ENROLLMENT" },
-  { label: "Recredentialing Needed", value: "RECREDENTIALING_NEEDED" },
-  { label: "CAQH Not Updated", value: "CAQH_NOT_UPDATED" },
-  { label: "EFT / ERA Not Set Up", value: "EFT_ERA_NOT_SET_UP" },
-  { label: "Unknown Status", value: "UNKNOWN_STATUS" },
   { label: "Other", value: "OTHER" },
 ];
 
@@ -452,17 +441,6 @@ const languageOptions: Option[] = [
   { label: "Gujarati", value: "GUJARATI" },
   { label: "Portuguese", value: "PORTUGUESE" },
   { label: "Arabic", value: "ARABIC" },
-  { label: "Other", value: "OTHER" },
-];
-
-const complianceConcernOptions: Option[] = [
-  { label: "HIPAA", value: "HIPAA" },
-  { label: "Audit Risk", value: "AUDIT_RISK" },
-  { label: "Documentation", value: "DOCUMENTATION" },
-  { label: "Consent", value: "CONSENT" },
-  { label: "Billing Compliance", value: "BILLING_COMPLIANCE" },
-  { label: "State-Specific Rules", value: "STATE_SPECIFIC_RULES" },
-  { label: "None", value: "NONE" },
   { label: "Other", value: "OTHER" },
 ];
 
@@ -1714,10 +1692,14 @@ export default function OnboardingFormV5() {
     const providerType = provider.providerType?.trim() ?? "";
     const npi = provider.npi?.trim() ?? "";
     const ssnLastFour = provider.ssnFullDigits?.trim() ?? "";
+    const credentialingInterest = provider.credentialingNeeded?.trim() ?? "";
     const caqhId = provider.caqhId?.trim() ?? "";
     const caqhUsername = provider.caqhUsername?.trim() ?? "";
     const caqhPassword = provider.caqhPassword?.trim() ?? "";
     const validSsnLastFour = /^\d{4}$/.test(ssnLastFour);
+    const hasCredentialingChoice =
+      credentialingInterest === "YES" || credentialingInterest === "NO";
+    const requiresCaqhCredentials = credentialingInterest === "YES";
     const hasBoardCertificationFile = !!(
       provider.copyOfBoardCertification?.trim() ?? ""
     );
@@ -1727,9 +1709,9 @@ export default function OnboardingFormV5() {
       !!providerType &&
       !!npi &&
       validSsnLastFour &&
-      !!caqhId &&
-      !!caqhUsername &&
-      !!caqhPassword &&
+      hasCredentialingChoice &&
+      (!requiresCaqhCredentials ||
+        (!!caqhId && !!caqhUsername && !!caqhPassword)) &&
       (!provider.boardCertified || hasBoardCertificationFile)
     );
   }
@@ -2225,7 +2207,7 @@ export default function OnboardingFormV5() {
         )
       ) {
         errors.push(
-          "Every practice needs at least one provider with first name, last name, provider type, NPI, SSN last 4 digits, CAQH ID, CAQH username, and CAQH password (plus board certification file when board certified is Yes)",
+          "Every practice needs at least one provider with first name, last name, provider type, NPI, SSN last 4 digits, and credentialing/recredentialing interest selection (plus CAQH ID, username, and password when interested, and board certification file when board certified is Yes)",
         );
       }
     }
@@ -3861,6 +3843,20 @@ export default function OnboardingFormV5() {
                                 />
                               </Field>
 
+                              <Field label="Country of Birth">
+                                <TextInput
+                                  value={provider.countryOfBirth ?? ""}
+                                  onChange={(event) =>
+                                    updateProvider(
+                                      practiceIndex,
+                                      providerIndex,
+                                      "countryOfBirth",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </Field>
+
                               <Field label="Credentials">
                                 <SelectInput
                                   value={provider.credentials ?? ""}
@@ -3954,19 +3950,71 @@ export default function OnboardingFormV5() {
                                 />
                               </Field>
 
-                              <Field label="CAQH ID" required>
-                                <TextInput
-                                  value={provider.caqhId ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "caqhId",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
+                              <div className="lg:col-span-3">
+                                <Field
+                                  label="Are you interested in credentialing/recredentialing services through Tristate MSO?"
+                                  required
+                                >
+                                  <RadioGroup
+                                    name={`credentialing-interest-${practiceIndex}-${providerIndex}`}
+                                    value={provider.credentialingNeeded ?? ""}
+                                    options={[
+                                      { label: "Yes", value: "YES" },
+                                      { label: "No", value: "NO" },
+                                    ]}
+                                    onChange={(value) => {
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "credentialingNeeded",
+                                        value,
+                                      );
+                                      if (value === "NO") {
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "caqhId",
+                                          "",
+                                        );
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "caqhUsername",
+                                          "",
+                                        );
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "caqhPassword",
+                                          "",
+                                        );
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "caqhLastAttestationDate",
+                                          "",
+                                        );
+                                      }
+                                    }}
+                                  />
+                                </Field>
+                              </div>
+
+                              {provider.credentialingNeeded === "YES" ? (
+                                <Field label="CAQH ID" required>
+                                  <TextInput
+                                    value={provider.caqhId ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "caqhId",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+                              ) : null}
 
                               <Field label="CLIA Number">
                                 <TextInput
@@ -4096,49 +4144,55 @@ export default function OnboardingFormV5() {
                                 />
                               </Field>
 
-                              <Field label="CAQH Username" required>
-                                <TextInput
-                                  value={provider.caqhUsername ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "caqhUsername",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
+                              {provider.credentialingNeeded === "YES" ? (
+                                <Field label="CAQH Username" required>
+                                  <TextInput
+                                    value={provider.caqhUsername ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "caqhUsername",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+                              ) : null}
 
-                              <Field label="CAQH Password" required>
-                                <TextInput
-                                  type="password"
-                                  value={provider.caqhPassword ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "caqhPassword",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
+                              {provider.credentialingNeeded === "YES" ? (
+                                <Field label="CAQH Password" required>
+                                  <TextInput
+                                    type="password"
+                                    value={provider.caqhPassword ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "caqhPassword",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+                              ) : null}
 
-                              <Field label="CAQH Last Attestation Date">
-                                <TextInput
-                                  type="date"
-                                  value={provider.caqhLastAttestationDate ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "caqhLastAttestationDate",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
+                              {provider.credentialingNeeded === "YES" ? (
+                                <Field label="CAQH Last Attestation Date">
+                                  <TextInput
+                                    type="date"
+                                    value={provider.caqhLastAttestationDate ?? ""}
+                                    onChange={(event) =>
+                                      updateProvider(
+                                        practiceIndex,
+                                        providerIndex,
+                                        "caqhLastAttestationDate",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Field>
+                              ) : null}
 
                               <Field label="Languages Spoken">
                                 <TextArea
@@ -4271,88 +4325,55 @@ export default function OnboardingFormV5() {
                               </div>
 
                               <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
-                                <Field label="Board Certified?">
-                                  <BooleanRadioGroup
-                                    name={`board-certified-${practiceIndex}-${providerIndex}`}
-                                    value={provider.boardCertified ?? false}
-                                    onChange={(value) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "boardCertified",
-                                        value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Telehealth Available (Yes/No)">
-                                  <BooleanRadioGroup
-                                    name={`telehealth-${practiceIndex}-${providerIndex}`}
-                                    value={
-                                      provider.telehealthAvailable ?? false
-                                    }
-                                    onChange={(value) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "telehealthAvailable",
-                                        value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              </div>
-
-                              {provider.boardCertified ? (
-                                <div className="lg:col-span-3">
-                                  <Field
-                                    label="Board Certification"
-                                    required
-                                  >
-                                    <DocumentUploadField
-                                      value={
-                                        provider.copyOfBoardCertification ?? ""
-                                      }
-                                      isUploading={
-                                        uploadingFieldKey ===
-                                        `${practiceIndex}-${providerIndex}-copyOfBoardCertification`
-                                      }
-                                      onSelect={(file) =>
-                                        void uploadProviderDocument(
+                                <div className="space-y-4">
+                                  <Field label="Board Certified?">
+                                    <BooleanRadioGroup
+                                      name={`board-certified-${practiceIndex}-${providerIndex}`}
+                                      value={provider.boardCertified ?? false}
+                                      onChange={(value) =>
+                                        updateProvider(
                                           practiceIndex,
                                           providerIndex,
-                                          "copyOfBoardCertification",
-                                          file,
-                                        )
-                                      }
-                                      onClear={() =>
-                                        void removeProviderDocument(
-                                          practiceIndex,
-                                          providerIndex,
-                                          "copyOfBoardCertification",
+                                          "boardCertified",
+                                          value,
                                         )
                                       }
                                     />
                                   </Field>
-                                </div>
-                              ) : null}
 
-                              <div className="lg:col-span-3">
-                                <Field label="Notes">
-                                  <TextArea
-                                    rows={3}
-                                    value={provider.notes ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "notes",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
+                                  {provider.boardCertified ? (
+                                    <Field
+                                      label="Board Certification"
+                                      required
+                                    >
+                                      <DocumentUploadField
+                                        value={
+                                          provider.copyOfBoardCertification ?? ""
+                                        }
+                                        isUploading={
+                                          uploadingFieldKey ===
+                                          `${practiceIndex}-${providerIndex}-copyOfBoardCertification`
+                                        }
+                                        onSelect={(file) =>
+                                          void uploadProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "copyOfBoardCertification",
+                                            file,
+                                          )
+                                        }
+                                        onClear={() =>
+                                          void removeProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "copyOfBoardCertification",
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+                                </div>
+
                               </div>
 
                               <div className="lg:col-span-3 space-y-4">
@@ -4540,51 +4561,6 @@ export default function OnboardingFormV5() {
                                   />
                                 </Field>
 
-                                <Field label="Personal Cell Number">
-                                  <TextInput
-                                    type="tel"
-                                    value={provider.personalCellNumber ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "personalCellNumber",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Personal Email">
-                                  <TextInput
-                                    type="email"
-                                    value={provider.personalEmail ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "personalEmail",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Practice Email">
-                                  <TextInput
-                                    type="email"
-                                    value={provider.practiceEmail ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "practiceEmail",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
                                 <Field label="Provider Effective Date with the Group">
                                   <TextInput
                                     type="date"
@@ -4597,20 +4573,6 @@ export default function OnboardingFormV5() {
                                         practiceIndex,
                                         providerIndex,
                                         "providerEffectiveDateWithGroup",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Country of Birth">
-                                  <TextInput
-                                    value={provider.countryOfBirth ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "countryOfBirth",
                                         event.target.value,
                                       )
                                     }
@@ -5060,7 +5022,7 @@ export default function OnboardingFormV5() {
                 </Field>
 
                 <Field label="Clearinghouse">
-                  <TextInput
+                  <SelectInput
                     value={formData.technology?.clearinghouse ?? ""}
                     onChange={(event) =>
                       updateNestedField(
@@ -5069,6 +5031,7 @@ export default function OnboardingFormV5() {
                         event.target.value,
                       )
                     }
+                    options={clearinghouseOptions}
                   />
                 </Field>
 
@@ -5098,20 +5061,22 @@ export default function OnboardingFormV5() {
                   />
                 </Field>
 
-                <Field label="Current Care Management Platform">
-                  <TextInput
-                    value={
-                      formData.technology?.currentCareManagementPlatform ?? ""
-                    }
-                    onChange={(event) =>
-                      updateNestedField(
-                        "technology",
-                        "currentCareManagementPlatform",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </Field>
+                {hasCareProgramsSelected ? (
+                  <Field label="Current Care Management Platform">
+                    <TextInput
+                      value={
+                        formData.technology?.currentCareManagementPlatform ?? ""
+                      }
+                      onChange={(event) =>
+                        updateNestedField(
+                          "technology",
+                          "currentCareManagementPlatform",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </Field>
+                ) : null}
 
                 <Field label="IT / Integration Contact Name">
                   <TextInput
@@ -5543,83 +5508,6 @@ export default function OnboardingFormV5() {
                     />
                   </Field>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Field label="Medicare PTAN Available?">
-                      <SelectInput
-                        value={
-                          formData.credentialing?.medicarePtanAvailable ?? ""
-                        }
-                        onChange={(event) =>
-                          updateNestedField(
-                            "credentialing",
-                            "medicarePtanAvailable",
-                            event.target.value,
-                          )
-                        }
-                        options={yesNoMaybeOptions}
-                      />
-                    </Field>
-
-                    <Field label="Medicaid Enrollment Active?">
-                      <SelectInput
-                        value={
-                          formData.credentialing?.medicaidEnrollmentActive ?? ""
-                        }
-                        onChange={(event) =>
-                          updateNestedField(
-                            "credentialing",
-                            "medicaidEnrollmentActive",
-                            event.target.value,
-                          )
-                        }
-                        options={yesNoMaybeOptions}
-                      />
-                    </Field>
-
-                    <Field label="Is CAQH currently maintained?">
-                      <BooleanRadioGroup
-                        name="caqhMaintained"
-                        value={formData.credentialing?.caqhMaintained ?? false}
-                        onChange={(value) =>
-                          updateNestedField(
-                            "credentialing",
-                            "caqhMaintained",
-                            value,
-                          )
-                        }
-                      />
-                    </Field>
-                  </div>
-
-                  <Field label="Are there any current credentialing issues?">
-                    <CheckboxGroup
-                      options={credentialingIssueOptions}
-                      values={
-                        formData.credentialing?.currentCredentialingIssues ?? []
-                      }
-                      onToggle={(value) =>
-                        toggleNestedArrayValue(
-                          "credentialing",
-                          "currentCredentialingIssues",
-                          value,
-                        )
-                      }
-                    />
-                  </Field>
-
-                  <Field label="Additional Credentialing Notes">
-                    <TextArea
-                      value={formData.credentialing?.additionalNotes ?? ""}
-                      onChange={(event) =>
-                        updateNestedField(
-                          "credentialing",
-                          "additionalNotes",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
-
                   <Field label="Excel spreadsheet or tracker listing all approved and in-network insurances, including online portal login credentials (if available)">
                     <DocumentUploadField
                       value={
@@ -5646,55 +5534,92 @@ export default function OnboardingFormV5() {
                   </Field>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Field label="Designated contact person for all insurance portal setup, access, and maintenance matters">
-                      <TextInput
-                        value={
-                          formData.credentialing?.designatedPortalContactName ??
-                          ""
-                        }
-                        onChange={(event) =>
-                          updateNestedField(
-                            "credentialing",
-                            "designatedPortalContactName",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
+                    <div className="lg:col-span-3">
+                      <Field label="Do you have a designated contact person for insurance/credentialing?">
+                        <BooleanRadioGroup
+                          name="designated-credentialing-contact"
+                          value={formData.credentialing?.caqhMaintained ?? false}
+                          onChange={(value) => {
+                            updateNestedField(
+                              "credentialing",
+                              "caqhMaintained",
+                              value,
+                            );
+                            if (!value) {
+                              updateNestedField(
+                                "credentialing",
+                                "designatedPortalContactName",
+                                "",
+                              );
+                              updateNestedField(
+                                "credentialing",
+                                "designatedPortalContactEmail",
+                                "",
+                              );
+                              updateNestedField(
+                                "credentialing",
+                                "designatedPortalContactPhone",
+                                "",
+                              );
+                            }
+                          }}
+                        />
+                      </Field>
+                    </div>
 
-                    <Field label="Designated Contact Email">
-                      <TextInput
-                        type="email"
-                        value={
-                          formData.credentialing
-                            ?.designatedPortalContactEmail ?? ""
-                        }
-                        onChange={(event) =>
-                          updateNestedField(
-                            "credentialing",
-                            "designatedPortalContactEmail",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
+                    {formData.credentialing?.caqhMaintained ? (
+                      <>
+                        <Field label="Designated contact person for all insurance portal setup, access, and maintenance matters">
+                          <TextInput
+                            value={
+                              formData.credentialing
+                                ?.designatedPortalContactName ?? ""
+                            }
+                            onChange={(event) =>
+                              updateNestedField(
+                                "credentialing",
+                                "designatedPortalContactName",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </Field>
 
-                    <Field label="Designated Contact Phone">
-                      <TextInput
-                        type="tel"
-                        value={
-                          formData.credentialing
-                            ?.designatedPortalContactPhone ?? ""
-                        }
-                        onChange={(event) =>
-                          updateNestedField(
-                            "credentialing",
-                            "designatedPortalContactPhone",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
+                        <Field label="Designated Contact Email">
+                          <TextInput
+                            type="email"
+                            value={
+                              formData.credentialing
+                                ?.designatedPortalContactEmail ?? ""
+                            }
+                            onChange={(event) =>
+                              updateNestedField(
+                                "credentialing",
+                                "designatedPortalContactEmail",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </Field>
+
+                        <Field label="Designated Contact Phone">
+                          <TextInput
+                            type="tel"
+                            value={
+                              formData.credentialing
+                                ?.designatedPortalContactPhone ?? ""
+                            }
+                            onChange={(event) =>
+                              updateNestedField(
+                                "credentialing",
+                                "designatedPortalContactPhone",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </Field>
+                      </>
+                    ) : null}
 
                     <Field label="IRS Document – Letter 147C">
                       <DocumentUploadField
@@ -6336,93 +6261,6 @@ export default function OnboardingFormV5() {
               </SectionCard>
             ) : null}
 
-            <SectionCard title="Compliance / Legal">
-              <div className="grid gap-6">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Field label="HIPAA / Privacy Contact Name">
-                    <TextInput
-                      value={formData.compliance?.hipaaContactName ?? ""}
-                      onChange={(event) =>
-                        updateNestedField(
-                          "compliance",
-                          "hipaaContactName",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
-
-                  <Field label="HIPAA / Privacy Contact Email">
-                    <TextInput
-                      type="email"
-                      value={formData.compliance?.hipaaContactEmail ?? ""}
-                      onChange={(event) =>
-                        updateNestedField(
-                          "compliance",
-                          "hipaaContactEmail",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
-                </div>
-
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <Field label="Is a BAA required?">
-                    <BooleanRadioGroup
-                      name="baaRequired"
-                      value={formData.compliance?.baaRequired ?? false}
-                      onChange={(value) =>
-                        updateNestedField("compliance", "baaRequired", value)
-                      }
-                    />
-                  </Field>
-
-                  <Field label="Is a security questionnaire required?">
-                    <BooleanRadioGroup
-                      name="securityQuestionnaire"
-                      value={
-                        formData.compliance?.securityQuestionnaire ?? false
-                      }
-                      onChange={(value) =>
-                        updateNestedField(
-                          "compliance",
-                          "securityQuestionnaire",
-                          value,
-                        )
-                      }
-                    />
-                  </Field>
-                </div>
-
-                <Field label="Any current compliance concerns?">
-                  <CheckboxGroup
-                    options={complianceConcernOptions}
-                    values={formData.compliance?.currentConcerns ?? []}
-                    onToggle={(value) =>
-                      toggleNestedArrayValue(
-                        "compliance",
-                        "currentConcerns",
-                        value,
-                      )
-                    }
-                  />
-                </Field>
-
-                <Field label="Additional Compliance Notes">
-                  <TextArea
-                    value={formData.compliance?.additionalNotes ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "compliance",
-                        "additionalNotes",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </Field>
-              </div>
-            </SectionCard>
           </>
         ) : null}
 
