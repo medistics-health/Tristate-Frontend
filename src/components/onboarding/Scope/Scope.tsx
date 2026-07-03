@@ -80,6 +80,8 @@ export default function Scope() {
   const [isPracticeModalOpen, setIsPracticeModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [practices, setPractices] = useState<Practice[]>([]);
+  const [signedPracticeIds, setSignedPracticeIds] = useState<string[]>([]);
+  const [isLoadingSignedPractices, setIsLoadingSignedPractices] = useState(false);
   const [selectedPracticeId, setSelectedPracticeId] = useState("");
   const [selectedPersonId, setSelectedPersonId] = useState("");
   const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
@@ -113,7 +115,10 @@ export default function Scope() {
     pickerInput.click();
   }
 
-  const availableScopePractices = useMemo(() => practices, [practices]);
+  const availableScopePractices = useMemo(
+    () => practices.filter((practice) => signedPracticeIds.includes(practice.id)),
+    [practices, signedPracticeIds],
+  );
   const eligiblePracticePersons = useMemo(
     () =>
       (selectedPractice?.persons ?? []).filter((person) =>
@@ -157,6 +162,53 @@ export default function Scope() {
       active = false;
     };
   }, [practices.length]);
+
+  useEffect(() => {
+    if (!practices.length) {
+      setSignedPracticeIds([]);
+      return;
+    }
+
+    let active = true;
+    async function loadSignedPracticeIds() {
+      setIsLoadingSignedPractices(true);
+      try {
+        const signedIds = (
+          await Promise.all(
+            practices.map(async (practice) => {
+              try {
+                const agreements = await getAgreementsByPractice(practice.id);
+                return agreements.some((agreement) => agreement.status === "SIGNED")
+                  ? practice.id
+                  : null;
+              } catch {
+                return null;
+              }
+            }),
+          )
+        ).filter((id): id is string => Boolean(id));
+        if (!active) return;
+        setSignedPracticeIds(signedIds);
+      } finally {
+        if (active) setIsLoadingSignedPractices(false);
+      }
+    }
+
+    void loadSignedPracticeIds();
+    return () => {
+      active = false;
+    };
+  }, [practices]);
+
+  useEffect(() => {
+    if (!selectedPracticeId) return;
+    if (availableScopePractices.some((practice) => practice.id === selectedPracticeId)) {
+      return;
+    }
+    setSelectedPracticeId("");
+    setSelectedPersonId("");
+    setSelectedPractice(null);
+  }, [availableScopePractices, selectedPracticeId]);
 
   useEffect(() => {
     if (!selectedPracticeId) {
@@ -237,6 +289,10 @@ export default function Scope() {
 
   function openSendModal() {
     if (!validateScope()) return;
+    if (!availableScopePractices.length) {
+      toast.error("No practice has a signed agreement available for onboarding.");
+      return;
+    }
     setIsPracticeModalOpen(true);
   }
 
@@ -580,15 +636,23 @@ export default function Scope() {
                     setSelectedPracticeId(event.target.value);
                     setSelectedPersonId("");
                   }}
+                  disabled={isLoadingSignedPractices}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
-                  <option value="">Select practice</option>
+                  <option value="">
+                    {isLoadingSignedPractices ? "Loading practices..." : "Select practice"}
+                  </option>
                   {availableScopePractices.map((practice) => (
                     <option key={practice.id} value={practice.id}>
                       {practice.name}
                     </option>
                   ))}
                 </select>
+                {!isLoadingSignedPractices && !availableScopePractices.length ? (
+                  <p className="mt-2 text-xs text-amber-700">
+                    No practices found with a signed agreement.
+                  </p>
+                ) : null}
               </div>
 
               <div>

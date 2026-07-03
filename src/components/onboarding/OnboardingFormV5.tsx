@@ -261,7 +261,8 @@ type ProviderDocumentField =
   | "copyOfSocialSecurityCard"
   | "copyOfDriversLicense"
   | "passportSizedPhoto"
-  | "resume";
+  | "resume"
+  | "voidedCheck"
 
 const providerDocumentFieldOptions: Array<
   Option & { value: ProviderDocumentField }
@@ -294,6 +295,10 @@ const providerDocumentFieldOptions: Array<
     label: "Resume (with MM/DD/YYYY format)",
     value: "resume",
   },
+  {
+    label:"Voided Check",
+    value: "voidedCheck",
+  }
 ];
 
 function isValidCompanyEmail(value: string) {
