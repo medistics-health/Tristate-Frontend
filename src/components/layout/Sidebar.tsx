@@ -74,7 +74,7 @@ const sidebarSteps: SidebarItem[] = [
     label: "Practices",
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
-      { label: "All Practice", to: "/practice/all-practices" },
+      { label: "All Practices", to: "/practice/all-practices" },
       { label: "Pipeline Board", to: "/practice/pipeline" },
       { label: "Active Practices", to: "/practice/active-practice" },
       { label: "Prospects", to: "/practice/prospects" },

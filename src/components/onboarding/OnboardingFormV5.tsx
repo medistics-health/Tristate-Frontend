@@ -379,12 +379,24 @@ const ehrOptions: Option[] = [
 
 const clearinghouseOptions: Option[] = [
   { label: "Availity", value: "AVAILITY" },
-  { label: "Change Healthcare", value: "CHANGE_HEALTHCARE" },
+  { label: "Waystar/NextGen", value: "WAYSTAR/NEXTGEN" },
+  { label: "Optum / Change Healthcare", value: "OPTUM/CHANGE_HEALTHCARE" },
   { label: "Office Ally", value: "OFFICE_ALLY" },
   { label: "TriZetto", value: "TRIZETTO" },
   { label: "Waystar", value: "WAYSTAR" },
+  {label: "Claim.MD", value: "CLAIM.MD"},
+  {label:"Ensora Clearinghouse (formerly Apex EDI)", value: "ENSORA_CLEARINGHOUSE"},
+  {label:"Stedi", value: "STEDI"},
+  {label:"PracticeSuite", value: "PRACTICESUITE"},
+  {label:"ClaimRemed", value: "CLAIMREMED"},
+  {label:"Kareo / Tebra", value: "KAREO_TEBRA"},
+  {label:"RXNT", value: "RXNT"},
   { label: "Other", value: "OTHER" },
 ];
+
+function isPresetClearinghouse(value: string) {
+  return clearinghouseOptions.some((option) => option.value === value);
+}
 
 const reportingCadenceOptions: Option[] = [
   { label: "Weekly", value: "WEEKLY" },
@@ -2485,7 +2497,7 @@ export default function OnboardingFormV5() {
         onSelect={setCurrentStep}
       />
 
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-white px-5 py-4">
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white px-5 py-4 mb-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
@@ -4832,17 +4844,52 @@ export default function OnboardingFormV5() {
                 </Field>
 
                 <Field label="Clearinghouse">
-                  <SelectInput
-                    value={formData.technology?.clearinghouse ?? ""}
-                    onChange={(event) =>
-                      updateNestedField(
-                        "technology",
-                        "clearinghouse",
-                        event.target.value,
-                      )
-                    }
-                    options={clearinghouseOptions}
-                  />
+                  {(() => {
+                    const clearinghouseValue =
+                      formData.technology?.clearinghouse ?? "";
+                    const selectedClearinghouseValue = isPresetClearinghouse(
+                      clearinghouseValue,
+                    )
+                      ? clearinghouseValue
+                      : clearinghouseValue
+                        ? "OTHER"
+                        : "";
+                    const customClearinghouseValue =
+                      selectedClearinghouseValue === "OTHER" &&
+                      !isPresetClearinghouse(clearinghouseValue)
+                        ? clearinghouseValue
+                        : "";
+
+                    return (
+                      <div className="space-y-3">
+                        <SelectInput
+                          value={selectedClearinghouseValue}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            updateNestedField(
+                              "technology",
+                              "clearinghouse",
+                              nextValue === "OTHER" ? "" : nextValue,
+                            );
+                          }}
+                          options={clearinghouseOptions}
+                        />
+                        {selectedClearinghouseValue === "OTHER" ? (
+                          <TextInput
+                            placeholder="Type clearinghouse name"
+                            value={customClearinghouseValue}
+                            onChange={(event) =>
+                              updateNestedField(
+                                "technology",
+                                "clearinghouse",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })()}
                 </Field>
 
                 <Field label="Fax Platform">

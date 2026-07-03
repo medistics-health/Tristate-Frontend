@@ -114,6 +114,13 @@ export default function Scope() {
   }
 
   const availableScopePractices = useMemo(() => practices, [practices]);
+  const eligiblePracticePersons = useMemo(
+    () =>
+      (selectedPractice?.persons ?? []).filter((person) =>
+        ["ADMIN", "OWNER"].includes(person.role),
+      ),
+    [selectedPractice?.persons],
+  );
 
   useEffect(() => {
     setServiceVendors((prev) => {
@@ -281,6 +288,20 @@ export default function Scope() {
         .filter(Boolean)
         .join("\n\n");
 
+      const agreements = await getAgreementsByPractice(selectedPracticeId);
+      const agreementForOnboarding = [...agreements]
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        )
+        .find((agreement) => agreement.status === "SIGNED");
+
+      if (!agreementForOnboarding?.id) {
+        throw new Error(
+          "No agreement found for this practice with status signed.",
+        );
+      }
+
       await createExternalOnboardingFromForm({
         practiceId: selectedPracticeId,
         personId: selectedPersonId,
@@ -296,20 +317,6 @@ export default function Scope() {
       });
 
       const onboardingUrl = `${window.location.origin}/onboarding/${selectedPracticeId}`;
-
-      const agreements = await getAgreementsByPractice(selectedPracticeId);
-      const agreementForOnboarding = [...agreements]
-        .sort(
-          (a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-        )
-        .find((agreement) => agreement.status !== "INACTIVE");
-
-      if (!agreementForOnboarding?.id) {
-        throw new Error(
-          "No agreement found for this practice. Please create an agreement first.",
-        );
-      }
 
       await sendOnboardingFormApi({
         agreementId: agreementForOnboarding.id,
@@ -595,7 +602,7 @@ export default function Scope() {
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
                 >
                   <option value="">Select person</option>
-                  {(selectedPractice?.persons ?? []).map((person) => (
+                  {eligiblePracticePersons.map((person) => (
                     <option key={person.id} value={person.id}>
                       {[person.firstName, person.lastName]
                         .filter(Boolean)
@@ -605,10 +612,10 @@ export default function Scope() {
                 </select>
               </div>
 
-              {selectedPracticeId && !(selectedPractice?.persons ?? []).length ? (
+              {selectedPracticeId && !eligiblePracticePersons.length ? (
                 <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                  No person is linked to this practice yet. Add a practice person
-                  first, then send onboarding.
+                  No ADMIN or OWNER person is linked to this practice. Add an
+                  eligible contact first, then send onboarding.
                 </p>
               ) : null}
 
