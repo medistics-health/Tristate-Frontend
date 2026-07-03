@@ -1335,6 +1335,8 @@ export default function OnboardingFormV5() {
   );
   const [selectedProviderUploadField, setSelectedProviderUploadField] =
     useState<Record<string, ProviderDocumentField>>({});
+  const [copyCompanyInfoToPracticeOne, setCopyCompanyInfoToPracticeOne] =
+    useState(false);
 
   useEffect(() => {
     if (id) {
@@ -1425,6 +1427,101 @@ export default function OnboardingFormV5() {
       };
     });
   }, [formData.numberOfPractices, formData.onboardingType]);
+
+  useEffect(() => {
+    if (
+      formData.onboardingType === "SINGLE_PRACTICE_ORGANIZATION" ||
+      !copyCompanyInfoToPracticeOne
+    ) {
+      return;
+    }
+    setCopyCompanyInfoToPracticeOne(false);
+  }, [copyCompanyInfoToPracticeOne, formData.onboardingType]);
+
+  useEffect(() => {
+    if (
+      !copyCompanyInfoToPracticeOne ||
+      formData.onboardingType !== "SINGLE_PRACTICE_ORGANIZATION"
+    ) {
+      return;
+    }
+
+    setFormData((prev) => {
+      const practiceName = prev.legalCompanyName?.trim() || prev.dbaName || "";
+      const practiceDbaName = prev.dbaName ?? "";
+      const practiceTaxIdEin = prev.taxIdEin ?? "";
+      const locationName = prev.dbaName?.trim() || practiceName || "Primary Location";
+      const locationAddressLine1 = prev.companyAddressLine1 ?? "";
+      const locationAddressLine2 = prev.companyAddressLine2 ?? "";
+      const locationCity = prev.companyCity ?? "";
+      const locationState = prev.companyState ?? "";
+      const locationZipCode = prev.companyZip ?? "";
+      const locationMainPhoneNumber = prev.mainCompanyPhone ?? "";
+      const locationOfficeEmail = prev.mainCompanyEmail ?? "";
+
+      const practices = (prev.practices ?? []).slice();
+      const currentPractice = practices[0] ?? { ...initialPractice };
+      const locations = (currentPractice.locations ?? []).slice();
+      const currentLocation = locations[0] ?? { ...initialLocation };
+
+      const nextLocation: OnboardingLocation = {
+        ...currentLocation,
+        locationName,
+        addressLine1: locationAddressLine1,
+        addressLine2: locationAddressLine2,
+        city: locationCity,
+        state: locationState,
+        zipCode: locationZipCode,
+        mainPhoneNumber: locationMainPhoneNumber,
+        officeEmail: locationOfficeEmail,
+      };
+      const nextPractice: OnboardingPractice = {
+        ...currentPractice,
+        practiceName,
+        practiceDbaName,
+        taxIdEin: practiceTaxIdEin,
+        locations: [nextLocation, ...locations.slice(1)],
+      };
+
+      const hasPracticeChanges =
+        (currentPractice.practiceName ?? "") !== nextPractice.practiceName ||
+        (currentPractice.practiceDbaName ?? "") !== nextPractice.practiceDbaName ||
+        (currentPractice.taxIdEin ?? "") !== nextPractice.taxIdEin;
+      const hasLocationChanges =
+        (currentLocation.locationName ?? "") !== (nextLocation.locationName ?? "") ||
+        (currentLocation.addressLine1 ?? "") !== (nextLocation.addressLine1 ?? "") ||
+        (currentLocation.addressLine2 ?? "") !== (nextLocation.addressLine2 ?? "") ||
+        (currentLocation.city ?? "") !== (nextLocation.city ?? "") ||
+        (currentLocation.state ?? "") !== (nextLocation.state ?? "") ||
+        (currentLocation.zipCode ?? "") !== (nextLocation.zipCode ?? "") ||
+        (currentLocation.mainPhoneNumber ?? "") !==
+          (nextLocation.mainPhoneNumber ?? "") ||
+        (currentLocation.officeEmail ?? "") !== (nextLocation.officeEmail ?? "");
+
+      if (!hasPracticeChanges && !hasLocationChanges && practices[0]) {
+        return prev;
+      }
+
+      practices[0] = nextPractice;
+      return {
+        ...prev,
+        practices,
+      };
+    });
+  }, [
+    copyCompanyInfoToPracticeOne,
+    formData.companyAddressLine1,
+    formData.companyAddressLine2,
+    formData.companyCity,
+    formData.companyState,
+    formData.companyZip,
+    formData.dbaName,
+    formData.legalCompanyName,
+    formData.mainCompanyEmail,
+    formData.mainCompanyPhone,
+    formData.onboardingType,
+    formData.taxIdEin,
+  ]);
 
   const locationNames = (formData.practices ?? []).flatMap((practice) =>
     (practice.locations ?? [])
@@ -2848,12 +2945,13 @@ export default function OnboardingFormV5() {
 
                 <div className="md:col-span-2 lg:col-span-3">
                   <Field label="Additional Specialties">
-                    <CheckboxGroup
+                    <MultiSelectDropdown
                       options={specialtyOptions}
                       values={formData.additionalSpecialties ?? []}
                       onToggle={(value) =>
                         toggleArrayValue("additionalSpecialties", value)
                       }
+                      placeholder="Select additional specialties"
                     />
                   </Field>
                 </div>
@@ -3161,7 +3259,16 @@ export default function OnboardingFormV5() {
               />
             ) : null}
             <div className="space-y-6">
-              {(formData.practices ?? []).map((practice, practiceIndex) => (
+              {(formData.practices ?? []).map((practice, practiceIndex) => {
+                const shouldLockPracticeOneToCompanyInfo =
+                  copyCompanyInfoToPracticeOne &&
+                  formData.onboardingType === "SINGLE_PRACTICE_ORGANIZATION" &&
+                  practiceIndex === 0;
+                const isSinglePracticeOrgPracticeOne =
+                  formData.onboardingType === "SINGLE_PRACTICE_ORGANIZATION" &&
+                  practiceIndex === 0;
+
+                return (
                 <div
                   key={`practice-${practiceIndex}`}
                   className="space-y-6"
@@ -3194,10 +3301,33 @@ export default function OnboardingFormV5() {
                       ) : null}
                     </div>
 
+                    {isSinglePracticeOrgPracticeOne ? (
+                      <div className="mb-5 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                        <label className="flex items-start gap-3 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={copyCompanyInfoToPracticeOne}
+                            onChange={(event) =>
+                              setCopyCompanyInfoToPracticeOne(event.target.checked)
+                            }
+                          />
+                          <span>
+                            Use Company / Organization info for Practice 1
+                            <span className="mt-1 block text-xs text-slate-500">
+                              Copies company name, DBA, Tax ID, phone, email, and
+                              address to Practice 1 and its first location.
+                            </span>
+                          </span>
+                        </label>
+                      </div>
+                    ) : null}
+
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <Field label="Practice Name" required>
                       <TextInput
                         value={practice.practiceName ?? ""}
+                        disabled={shouldLockPracticeOneToCompanyInfo}
                         onChange={(event) =>
                           updatePractice(
                             practiceIndex,
@@ -3211,6 +3341,7 @@ export default function OnboardingFormV5() {
                     <Field label="Practice DBA Name">
                       <TextInput
                         value={practice.practiceDbaName ?? ""}
+                        disabled={shouldLockPracticeOneToCompanyInfo}
                         onChange={(event) =>
                           updatePractice(
                             practiceIndex,
@@ -3251,6 +3382,7 @@ export default function OnboardingFormV5() {
                     <Field label="Tax ID / EIN Used for This Practice" required>
                       <TextInput
                         value={practice.taxIdEin ?? ""}
+                        disabled={shouldLockPracticeOneToCompanyInfo}
                         onChange={(event) =>
                           updatePractice(
                             practiceIndex,
@@ -3543,6 +3675,10 @@ export default function OnboardingFormV5() {
                               <Field label="Location Name" required>
                                 <TextInput
                                   value={location.locationName ?? ""}
+                                  disabled={
+                                    shouldLockPracticeOneToCompanyInfo &&
+                                    locationIndex === 0
+                                  }
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
@@ -3576,6 +3712,10 @@ export default function OnboardingFormV5() {
                                 <Field label="Address Line 1">
                                   <TextInput
                                     value={location.addressLine1 ?? ""}
+                                    disabled={
+                                      shouldLockPracticeOneToCompanyInfo &&
+                                      locationIndex === 0
+                                    }
                                     onChange={(event) =>
                                       updateLocation(
                                         practiceIndex,
@@ -3592,6 +3732,10 @@ export default function OnboardingFormV5() {
                                 <Field label="Address Line 2">
                                   <TextInput
                                     value={location.addressLine2 ?? ""}
+                                    disabled={
+                                      shouldLockPracticeOneToCompanyInfo &&
+                                      locationIndex === 0
+                                    }
                                     onChange={(event) =>
                                       updateLocation(
                                         practiceIndex,
@@ -3607,6 +3751,10 @@ export default function OnboardingFormV5() {
                               <Field label="City">
                                 <TextInput
                                   value={location.city ?? ""}
+                                  disabled={
+                                    shouldLockPracticeOneToCompanyInfo &&
+                                    locationIndex === 0
+                                  }
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
@@ -3621,6 +3769,10 @@ export default function OnboardingFormV5() {
                               <Field label="State">
                                 <SelectInput
                                   value={location.state ?? ""}
+                                  disabled={
+                                    shouldLockPracticeOneToCompanyInfo &&
+                                    locationIndex === 0
+                                  }
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
@@ -3637,6 +3789,10 @@ export default function OnboardingFormV5() {
                               <Field label="ZIP Code">
                                 <TextInput
                                   value={location.zipCode ?? ""}
+                                  disabled={
+                                    shouldLockPracticeOneToCompanyInfo &&
+                                    locationIndex === 0
+                                  }
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
@@ -3652,6 +3808,10 @@ export default function OnboardingFormV5() {
                                 <TextInput
                                   type="tel"
                                   value={location.mainPhoneNumber ?? ""}
+                                  disabled={
+                                    shouldLockPracticeOneToCompanyInfo &&
+                                    locationIndex === 0
+                                  }
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
@@ -3682,6 +3842,10 @@ export default function OnboardingFormV5() {
                                 <TextInput
                                   type="email"
                                   value={location.officeEmail ?? ""}
+                                  disabled={
+                                    shouldLockPracticeOneToCompanyInfo &&
+                                    locationIndex === 0
+                                  }
                                   onChange={(event) =>
                                     updateLocation(
                                       practiceIndex,
@@ -4812,7 +4976,8 @@ export default function OnboardingFormV5() {
                     </div>
                   ) : null}
                 </div>
-              ))}
+              );
+              })}
             </div>
           </SectionCard>
         ) : null}

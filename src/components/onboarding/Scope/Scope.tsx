@@ -9,6 +9,8 @@ import {
 } from "../../../services/operations/agreements";
 import type { OnboardingBody } from "../../../services/operations/onboarding";
 import { getAllPractices, getPractice } from "../../../services/operations/practices";
+import { getAllVendorsApi } from "../../../services/operations/vendors";
+import type { Vendor } from "../../vendors/types";
 import AppLayout from "../../layout/AppLayout";
 import type { Practice } from "../../practices/types";
 
@@ -34,13 +36,14 @@ type ServiceVendorDetail = {
 const serviceOptions: Option[] = [
   { label: "Credentialing", value: "CREDENTIALING" },
   { label: "Billing / Revenue Cycle Management", value: "BILLING_RCM" },
-  { label: "APCM", value: "APCM" },
-  { label: "CCM", value: "CCM" },
-  { label: "RPM", value: "RPM" },
-  { label: "PCM", value: "PCM" },
-  { label: "RTM", value: "RTM" },
-  { label: "BHI", value: "BHI" },
-  { label: "TCM", value: "TCM" },
+  // { label: "APCM", value: "APCM" },
+  // { label: "CCM", value: "CCM" },
+  // { label: "RPM", value: "RPM" },
+  // { label: "PCM", value: "PCM" },
+  // { label: "RTM", value: "RTM" },
+  // { label: "BHI", value: "BHI" },
+  // { label: "TCM", value: "TCM" },
+  { label:"Care Management", value: "CARE_MANAGEMENT" },
   { label: "Lab Relationship Support", value: "LAB_RELATIONSHIP_SUPPORT" },
   { label: "Pharmacy Program Support", value: "PHARMACY_PROGRAM_SUPPORT" },
   { label: "Patient Acquisition", value: "PATIENT_ACQUISITION" },
@@ -75,6 +78,13 @@ function formatDateForDisplay(dateValue: string) {
   return `${month}/${day}/${year}`;
 }
 
+function formatDateShortForDisplay(dateValue: string) {
+  if (!dateValue) return "";
+  const [year, month, day] = dateValue.split("-");
+  if (!year || !month || !day) return dateValue;
+  return `${month}/${day}/${year.slice(-2)}`;
+}
+
 export default function Scope() {
   const [scope, setScope] = useState<ScopeFormState>(initialScopeState);
   const [isPracticeModalOpen, setIsPracticeModalOpen] = useState(false);
@@ -85,10 +95,14 @@ export default function Scope() {
   const [selectedPracticeId, setSelectedPracticeId] = useState("");
   const [selectedPersonId, setSelectedPersonId] = useState("");
   const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [serviceVendors, setServiceVendors] = useState<
     Record<string, ServiceVendorDetail>
   >({});
   const requestedGoLiveDatePickerRef = useRef<HTMLInputElement | null>(null);
+  const vendorEndDatePickerRefs = useRef<Record<string, HTMLInputElement | null>>(
+    {},
+  );
 
   const selectedServices = useMemo(
     () => scope.requestedServices ?? [],
@@ -106,6 +120,17 @@ export default function Scope() {
 
   function openRequestedGoLiveDatePicker() {
     const pickerInput = requestedGoLiveDatePickerRef.current;
+    if (!pickerInput) return;
+    if (typeof pickerInput.showPicker === "function") {
+      pickerInput.showPicker();
+      return;
+    }
+    pickerInput.focus();
+    pickerInput.click();
+  }
+
+  function openVendorEndDatePicker(service: string) {
+    const pickerInput = vendorEndDatePickerRefs.current[service];
     if (!pickerInput) return;
     if (typeof pickerInput.showPicker === "function") {
       pickerInput.showPicker();
@@ -162,6 +187,28 @@ export default function Scope() {
       active = false;
     };
   }, [practices.length]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadVendors() {
+      try {
+        const vendorList = await getAllVendorsApi();
+        if (!active) return;
+        setVendors(vendorList);
+      } catch (error) {
+        if (!active) return;
+        toast.error(
+          error instanceof Error ? error.message : "Unable to fetch vendors.",
+        );
+      }
+    }
+
+    void loadVendors();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!practices.length) {
@@ -551,27 +598,54 @@ export default function Scope() {
 
                         {detail.hasExistingVendor ? (
                           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <input
-                              type="text"
+                            <select
                               value={detail.vendorName}
                               onChange={(event) =>
                                 updateServiceVendor(service, {
                                   vendorName: event.target.value,
                                 })
                               }
-                              placeholder="Vendor name"
                               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
-                            />
-                            <input
-                              type="date"
-                              value={detail.vendorEndDate}
-                              onChange={(event) =>
-                                updateServiceVendor(service, {
-                                  vendorEndDate: event.target.value,
-                                })
-                              }
-                              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
-                            />
+                            >
+                              <option value="">Select vendor</option>
+                              {vendors.map((vendor) => (
+                                <option key={vendor.id} value={vendor.name}>
+                                  {vendor.name}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={formatDateShortForDisplay(detail.vendorEndDate)}
+                                readOnly
+                                onClick={() => openVendorEndDatePicker(service)}
+                                placeholder="MM/DD/YY"
+                                className="w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 pr-20 text-sm"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => openVendorEndDatePicker(service)}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                              >
+                                Pick
+                              </button>
+                              <input
+                                ref={(element) => {
+                                  vendorEndDatePickerRefs.current[service] = element;
+                                }}
+                                type="date"
+                                value={detail.vendorEndDate}
+                                onChange={(event) =>
+                                  updateServiceVendor(service, {
+                                    vendorEndDate: event.target.value,
+                                  })
+                                }
+                                tabIndex={-1}
+                                aria-hidden="true"
+                                className="pointer-events-none absolute h-0 w-0 opacity-0"
+                              />
+                            </div>
                           </div>
                         ) : null}
                       </div>
