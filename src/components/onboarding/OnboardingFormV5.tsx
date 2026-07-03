@@ -182,6 +182,7 @@ const specialtyOptions: Option[] = [
 const serviceOptions: Option[] = [
   { label: "Credentialing", value: "CREDENTIALING" },
   { label: "Billing / Revenue Cycle Management", value: "BILLING_RCM" },
+  { label: "Care Management", value: "CARE_MANAGEMENT" },
   { label: "APCM", value: "APCM" },
   { label: "CCM", value: "CCM" },
   { label: "RPM", value: "RPM" },
@@ -198,6 +199,7 @@ const serviceOptions: Option[] = [
 ];
 
 const careProgramServiceValues = [
+  "CARE_MANAGEMENT",
   "APCM",
   "CCM",
   "RPM",
@@ -549,7 +551,7 @@ const initialContact: OnboardingContact = {
 
 const initialLocation: OnboardingLocation = {
   locationName: "",
-  isPrimaryLocation: false,
+  isPrimaryLocation: true,
   addressLine1: "",
   addressLine2: "",
   city: "",
@@ -1337,6 +1339,8 @@ export default function OnboardingFormV5() {
     useState<Record<string, ProviderDocumentField>>({});
   const [copyCompanyInfoToPracticeOne, setCopyCompanyInfoToPracticeOne] =
     useState(false);
+  const [copyCompanyAddressToPrimaryLocation, setCopyCompanyAddressToPrimaryLocation] =
+    useState(false);
 
   useEffect(() => {
     if (id) {
@@ -1392,14 +1396,18 @@ export default function OnboardingFormV5() {
   }, [currentStep, formData.isIndividualPractice]);
 
   useEffect(() => {
-    if (formData.onboardingType !== "MULTI_PRACTICE_ORGANIZATION") {
+    const isMultiPracticeOrg =
+      formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION";
+    const isSinglePracticeOrg =
+      formData.onboardingType === "SINGLE_PRACTICE_ORGANIZATION";
+
+    if (!isMultiPracticeOrg && !isSinglePracticeOrg) {
       return;
     }
 
-    const practiceCount = Math.max(
-      2,
-      Number(formData.numberOfPractices ?? 0) || 0,
-    );
+    const practiceCount = isSinglePracticeOrg
+      ? 1
+      : Math.max(2, Number(formData.numberOfPractices ?? 0) || 0);
 
     setFormData((prev) => {
       const currentPractices = prev.practices ?? [];
@@ -1523,6 +1531,70 @@ export default function OnboardingFormV5() {
     formData.taxIdEin,
   ]);
 
+  useEffect(() => {
+    if (
+      formData.onboardingType === "SINGLE_PRACTICE_ORGANIZATION" ||
+      !copyCompanyAddressToPrimaryLocation
+    ) {
+      return;
+    }
+    setCopyCompanyAddressToPrimaryLocation(false);
+  }, [copyCompanyAddressToPrimaryLocation, formData.onboardingType]);
+
+  useEffect(() => {
+    if (
+      !copyCompanyAddressToPrimaryLocation ||
+      formData.onboardingType !== "SINGLE_PRACTICE_ORGANIZATION"
+    ) {
+      return;
+    }
+
+    setFormData((prev) => {
+      const practices = (prev.practices ?? []).slice();
+      const currentPractice = practices[0] ?? { ...initialPractice };
+      const locations = (currentPractice.locations ?? []).slice();
+      const currentLocation = locations[0] ?? { ...initialLocation };
+
+      const nextLocation: OnboardingLocation = {
+        ...currentLocation,
+        addressLine1: prev.companyAddressLine1 ?? "",
+        addressLine2: prev.companyAddressLine2 ?? "",
+        city: prev.companyCity ?? "",
+        state: prev.companyState ?? "",
+        zipCode: prev.companyZip ?? "",
+      };
+
+      const hasChanges =
+        (currentLocation.addressLine1 ?? "") !== (nextLocation.addressLine1 ?? "") ||
+        (currentLocation.addressLine2 ?? "") !== (nextLocation.addressLine2 ?? "") ||
+        (currentLocation.city ?? "") !== (nextLocation.city ?? "") ||
+        (currentLocation.state ?? "") !== (nextLocation.state ?? "") ||
+        (currentLocation.zipCode ?? "") !== (nextLocation.zipCode ?? "");
+
+      if (!hasChanges && practices[0]) {
+        return prev;
+      }
+
+      const nextPractice: OnboardingPractice = {
+        ...currentPractice,
+        locations: [nextLocation, ...locations.slice(1)],
+      };
+      practices[0] = nextPractice;
+      return {
+        ...prev,
+        practices,
+      };
+    });
+  }, [
+    copyCompanyAddressToPrimaryLocation,
+    formData.companyAddressLine1,
+    formData.companyAddressLine2,
+    formData.companyCity,
+    formData.companyState,
+    formData.companyZip,
+    formData.onboardingType,
+  ]);
+
   const locationNames = (formData.practices ?? []).flatMap((practice) =>
     (practice.locations ?? [])
       .map((location) => location.locationName?.trim() ?? "")
@@ -1571,7 +1643,8 @@ export default function OnboardingFormV5() {
       ),
   );
   const hasFixedPracticeCount =
-    formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION";
+    formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" ||
+    formData.onboardingType === "SINGLE_PRACTICE_ORGANIZATION";
   const requiredPracticeCount = Math.max(
     hasFixedPracticeCount ? 1 : 0,
     Number(formData.numberOfPractices ?? 0) || 0,
@@ -1773,7 +1846,7 @@ export default function OnboardingFormV5() {
               ...practice,
               locations: [
                 ...(practice.locations ?? []),
-                { ...initialLocation },
+                { ...initialLocation, isPrimaryLocation: false },
               ],
             }
           : practice,
@@ -1794,10 +1867,17 @@ export default function OnboardingFormV5() {
           ? {
               ...practice,
               locations: (practice.locations ?? []).map(
-                (location, innerIndex) =>
-                  innerIndex === locationIndex
+                (location, innerIndex) => {
+                  if (field === "isPrimaryLocation" && Boolean(value)) {
+                    return {
+                      ...location,
+                      isPrimaryLocation: innerIndex === locationIndex,
+                    };
+                  }
+                  return innerIndex === locationIndex
                     ? { ...location, [field]: value }
-                    : location,
+                    : location;
+                },
               ),
             }
           : practice,
@@ -3267,6 +3347,10 @@ export default function OnboardingFormV5() {
                 const isSinglePracticeOrgPracticeOne =
                   formData.onboardingType === "SINGLE_PRACTICE_ORGANIZATION" &&
                   practiceIndex === 0;
+                const shouldLockPrimaryLocationAddressToCompanyInfo =
+                  copyCompanyAddressToPrimaryLocation &&
+                  formData.onboardingType === "SINGLE_PRACTICE_ORGANIZATION" &&
+                  practiceIndex === 0;
 
                 return (
                 <div
@@ -3656,7 +3740,8 @@ export default function OnboardingFormV5() {
                           >
                             <div className="mb-4 flex items-center justify-between gap-4">
                               <p className="font-medium text-slate-800">
-                                Location {locationIndex + 1}
+                                Practice {practiceIndex + 1} - Location{" "}
+                                {locationIndex + 1}
                               </p>
                               {(practice.locations ?? []).length > 1 ? (
                                 <button
@@ -3708,6 +3793,34 @@ export default function OnboardingFormV5() {
                                 </Field>
                               )}
 
+                              {isSinglePracticeOrgPracticeOne &&
+                              locationIndex === 0 ? (
+                                <div className="md:col-span-2 lg:col-span-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                  <label className="flex items-start gap-3 text-sm text-slate-700">
+                                    <input
+                                      type="checkbox"
+                                      className="mt-0.5"
+                                      checked={
+                                        copyCompanyAddressToPrimaryLocation ||
+                                        shouldLockPracticeOneToCompanyInfo
+                                      }
+                                      disabled={shouldLockPracticeOneToCompanyInfo}
+                                      onChange={(event) =>
+                                        setCopyCompanyAddressToPrimaryLocation(
+                                          event.target.checked,
+                                        )
+                                      }
+                                    />
+                                    <span>
+                                      Use same address as Company / Organization
+                                      <span className="mt-1 block text-xs text-slate-500">
+                                        Copies company address fields to this location.
+                                      </span>
+                                    </span>
+                                  </label>
+                                </div>
+                              ) : null}
+
                               <div className="md:col-span-2 lg:col-span-3">
                                 <Field label="Address Line 1">
                                   <TextInput
@@ -3715,6 +3828,9 @@ export default function OnboardingFormV5() {
                                     disabled={
                                       shouldLockPracticeOneToCompanyInfo &&
                                       locationIndex === 0
+                                        ? true
+                                        : shouldLockPrimaryLocationAddressToCompanyInfo &&
+                                          locationIndex === 0
                                     }
                                     onChange={(event) =>
                                       updateLocation(
@@ -3735,6 +3851,9 @@ export default function OnboardingFormV5() {
                                     disabled={
                                       shouldLockPracticeOneToCompanyInfo &&
                                       locationIndex === 0
+                                        ? true
+                                        : shouldLockPrimaryLocationAddressToCompanyInfo &&
+                                          locationIndex === 0
                                     }
                                     onChange={(event) =>
                                       updateLocation(
@@ -3754,6 +3873,9 @@ export default function OnboardingFormV5() {
                                   disabled={
                                     shouldLockPracticeOneToCompanyInfo &&
                                     locationIndex === 0
+                                      ? true
+                                      : shouldLockPrimaryLocationAddressToCompanyInfo &&
+                                        locationIndex === 0
                                   }
                                   onChange={(event) =>
                                     updateLocation(
@@ -3772,6 +3894,9 @@ export default function OnboardingFormV5() {
                                   disabled={
                                     shouldLockPracticeOneToCompanyInfo &&
                                     locationIndex === 0
+                                      ? true
+                                      : shouldLockPrimaryLocationAddressToCompanyInfo &&
+                                        locationIndex === 0
                                   }
                                   onChange={(event) =>
                                     updateLocation(
@@ -3792,6 +3917,9 @@ export default function OnboardingFormV5() {
                                   disabled={
                                     shouldLockPracticeOneToCompanyInfo &&
                                     locationIndex === 0
+                                      ? true
+                                      : shouldLockPrimaryLocationAddressToCompanyInfo &&
+                                        locationIndex === 0
                                   }
                                   onChange={(event) =>
                                     updateLocation(
@@ -3900,7 +4028,8 @@ export default function OnboardingFormV5() {
                           >
                             <div className="mb-4 flex items-center justify-between gap-4">
                               <p className="font-medium text-slate-800">
-                                Provider {providerIndex + 1}
+                                Practice {practiceIndex + 1} - Provider{" "}
+                                {providerIndex + 1}
                               </p>
                               {(practice.providers ?? []).length > 1 ? (
                                 <button
