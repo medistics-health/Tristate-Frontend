@@ -458,18 +458,6 @@ const credentialingForOptions: Option[] = [
   { label: "Both", value: "BOTH" },
 ];
 
-const servicePracticeOptions: Option[] = [
-  { label: "All Practices", value: "ALL_PRACTICES" },
-  { label: "Selected Practices", value: "SELECTED_PRACTICES" },
-  { label: "Single Practice Only", value: "SINGLE_PRACTICE_ONLY" },
-];
-
-const priorityOptions: Option[] = [
-  { label: "High", value: "HIGH" },
-  { label: "Medium", value: "MEDIUM" },
-  { label: "Low", value: "LOW" },
-];
-
 const documentStatusOptions: Option[] = [
   { label: "Not Requested", value: "NOT_REQUESTED" },
   { label: "Requested", value: "REQUESTED" },
@@ -515,18 +503,17 @@ const steps: Step[] = [
     title: "Contacts",
     description: "Primary contacts and signers",
   },
-  { id: 6, title: "Scope", description: "Requested services and timeline" },
   {
-    id: 7,
+    id: 6,
     title: "Operations",
     description: "Technology, billing, and credentialing",
   },
   {
-    id: 8,
+    id: 7,
     title: "Outreach",
     description: "Programs, outreach, lab, and compliance",
   },
-  { id: 9, title: "Review", description: "Documents and final confirmation" },
+  { id: 8, title: "Review", description: "Documents and final confirmation" },
 ];
 
 const initialContact: OnboardingContact = {
@@ -1176,7 +1163,7 @@ function StepBar({
   onSelect: (step: number) => void;
 }) {
   return (
-    <div className="mb-6 grid gap-3 md:grid-cols-4 xl:grid-cols-9">
+    <div className="mb-6 grid gap-3 md:grid-cols-4 xl:grid-cols-8">
       {stepsToRender.map((step) => {
         const active = step.id === currentStep;
         const complete = step.id < currentStep;
@@ -1422,30 +1409,48 @@ export default function OnboardingFormV5() {
     });
   }, [formData.numberOfPractices, formData.onboardingType]);
 
-  const practiceNames = (formData.practices ?? [])
-    .map((practice) => practice.practiceName?.trim() ?? "")
-    .filter(Boolean);
-
   const locationNames = (formData.practices ?? []).flatMap((practice) =>
     (practice.locations ?? [])
       .map((location) => location.locationName?.trim() ?? "")
       .filter(Boolean),
   );
 
+  const scopeRequestedServices =
+    (formData.requestedServices ?? []).length > 0
+      ? (formData.requestedServices ?? [])
+      : (formData.serviceSetup?.requestedServices ?? []);
+  const scopeReplacingVendor =
+    formData.replacingExistingVendor ??
+    formData.serviceSetup?.replacingExistingVendor ??
+    false;
+  const scopeCurrentVendorName =
+    formData.currentVendorName ??
+    formData.serviceSetup?.currentVendorName ??
+    "";
+  const scopeCurrentVendorEndDate =
+    formData.currentVendorEndDate ??
+    formData.serviceSetup?.currentVendorEndDate ??
+    "";
+  const scopeEngagementGoals =
+    formData.engagementGoals ?? formData.serviceSetup?.engagementGoals ?? "";
+  const isScopeConfigured = scopeRequestedServices.length > 0;
+
+  const serviceLabelMap = new Map(
+    serviceOptions.map((option) => [option.value, option.label]),
+  );
+
   const hasCareProgramsSelected =
-    (formData.requestedServices ?? []).some((service) =>
+    scopeRequestedServices.some((service) =>
       careProgramServiceValues.includes(service),
     ) || (formData.careProgram?.programsPlanned ?? []).length > 0;
-  const hasCredentialingSelected = (formData.requestedServices ?? []).includes(
+  const hasCredentialingSelected = scopeRequestedServices.includes(
     "CREDENTIALING",
   );
-  const hasBillingRcmSelected = (formData.requestedServices ?? []).includes(
-    "BILLING_RCM",
-  );
-  const hasMarketingSelected = (formData.requestedServices ?? []).some(
+  const hasBillingRcmSelected = scopeRequestedServices.includes("BILLING_RCM");
+  const hasMarketingSelected = scopeRequestedServices.some(
     (service) => marketingServiceValues.includes(service),
   );
-  const hasLabPharmacySelected = (formData.requestedServices ?? []).some(
+  const hasLabPharmacySelected = scopeRequestedServices.some(
     (service) =>
       ["LAB_RELATIONSHIP_SUPPORT", "PHARMACY_PROGRAM_SUPPORT"].includes(
         service,
@@ -1535,77 +1540,6 @@ export default function OnboardingFormV5() {
           ...sectionData,
           [field]: nextValues as NonNullable<OnboardingBody[K]>[F],
         },
-      };
-    });
-  }
-
-  function updateServiceSetup(
-    field:
-      | "requestedServices"
-      | "primaryServiceToLaunch"
-      | "requestedGoLiveDate"
-      | "priorityLevel"
-      | "servicesForAllPractices"
-      | "selectedPractices"
-      | "replacingExistingVendor"
-      | "currentVendorName"
-      | "currentVendorEndDate"
-      | "engagementGoals",
-    value: string | string[] | boolean,
-  ) {
-    setFormData((prev) => ({
-      ...prev,
-      ...(field === "requestedServices"
-        ? { requestedServices: value as string[] }
-        : {}),
-      ...(field === "primaryServiceToLaunch"
-        ? { primaryServiceToLaunch: value as string }
-        : {}),
-      ...(field === "requestedGoLiveDate"
-        ? { requestedGoLiveDate: value as string }
-        : {}),
-      ...(field === "priorityLevel" ? { priorityLevel: value as string } : {}),
-      ...(field === "servicesForAllPractices"
-        ? {
-            servicesForAllPractices: value as string,
-            selectedPractices:
-              value === "SINGLE_PRACTICE_ONLY"
-                ? (prev.selectedPractices ?? []).slice(0, 1)
-                : (prev.selectedPractices ?? []),
-          }
-        : {}),
-      ...(field === "selectedPractices"
-        ? { selectedPractices: value as string[] }
-        : {}),
-      ...(field === "replacingExistingVendor"
-        ? { replacingExistingVendor: value as boolean }
-        : {}),
-      ...(field === "currentVendorName"
-        ? { currentVendorName: value as string }
-        : {}),
-      ...(field === "currentVendorEndDate"
-        ? { currentVendorEndDate: value as string }
-        : {}),
-      ...(field === "engagementGoals"
-        ? { engagementGoals: value as string }
-        : {}),
-      serviceSetup: {
-        ...(prev.serviceSetup ?? {}),
-        [field]: value,
-      },
-    }));
-  }
-
-  function toggleService(value: string) {
-    setFormData((prev) => {
-      const currentServices = prev.requestedServices ?? [];
-      const nextServices = currentServices.includes(value)
-        ? currentServices.filter((service) => service !== value)
-        : [...currentServices, value];
-
-      return {
-        ...prev,
-        requestedServices: nextServices,
       };
     });
   }
@@ -2045,22 +1979,6 @@ export default function OnboardingFormV5() {
     }));
   }
 
-  function toggleServiceSetupArrayValue(
-    field: "selectedPractices",
-    value: string,
-  ) {
-    setFormData((prev) => {
-      const values = (prev[field] ?? []).slice();
-      const nextValues = values.includes(value)
-        ? values.filter((entry) => entry !== value)
-        : [...values, value];
-      return {
-        ...prev,
-        [field]: nextValues,
-      };
-    });
-  }
-
   function toggleCareProgramArrayValue(
     field: "programsPlanned",
     value: string,
@@ -2240,31 +2158,6 @@ export default function OnboardingFormV5() {
     }
 
     if (currentStep === 6) {
-      if (!(formData.requestedServices ?? []).length)
-        errors.push("Requested services");
-      if (!formData.primaryServiceToLaunch)
-        errors.push("Primary service to launch");
-      if (
-        formData.servicesForAllPractices === "SELECTED_PRACTICES" &&
-        !(formData.selectedPractices ?? []).length
-      ) {
-        errors.push("Select at least one practice");
-      }
-      if (
-        formData.servicesForAllPractices === "SINGLE_PRACTICE_ONLY" &&
-        (formData.selectedPractices ?? []).length !== 1
-      ) {
-        errors.push("Which single practice");
-      }
-      if (
-        formData.replacingExistingVendor &&
-        !(formData.currentVendorName?.trim() ?? "")
-      ) {
-        errors.push("Current vendor name");
-      }
-    }
-
-    if (currentStep === 7) {
       if (!formData.technology?.ehrSystem) errors.push("EHR");
       if (hasBillingRcmSelected && !formData.billing?.currentBillingModel) {
         errors.push("Billing model");
@@ -2278,7 +2171,7 @@ export default function OnboardingFormV5() {
       }
     }
 
-    if (currentStep === 9) {
+    if (currentStep === 8) {
       const invalidDocumentIndexes = (formData.documents ?? [])
         .map((document, index) => {
           const documentType = document.documentType?.trim() ?? "";
@@ -2312,6 +2205,10 @@ export default function OnboardingFormV5() {
   }
 
   function isStepComplete(stepId: number) {
+    if (stepId >= 6 && !isScopeConfigured) {
+      return false;
+    }
+
     if (stepId === 1) {
       return (
         !!formData.onboardingType &&
@@ -2347,39 +2244,17 @@ export default function OnboardingFormV5() {
     }
 
     if (stepId === 5) {
-      return (formData.contacts ?? []).every((contact) => {
-        const fullName = contact.fullName?.trim() ?? "";
-        const contactRole = contact.contactRole?.trim() ?? "";
-        const email = contact.email?.trim() ?? "";
-        return !!fullName && !!contactRole && isValidCompanyEmail(email);
-      });
-    }
-
-    if (stepId === 6) {
-      if (
-        formData.servicesForAllPractices === "SELECTED_PRACTICES" &&
-        !(formData.selectedPractices ?? []).length
-      ) {
-        return false;
-      }
-      if (
-        formData.servicesForAllPractices === "SINGLE_PRACTICE_ONLY" &&
-        (formData.selectedPractices ?? []).length !== 1
-      ) {
-        return false;
-      }
-      if (
-        formData.replacingExistingVendor &&
-        !(formData.currentVendorName?.trim() ?? "")
-      ) {
-        return false;
-      }
-      return !!(
-        formData.requestedServices?.length && formData.primaryServiceToLaunch
+      return (
+        (formData.contacts ?? []).every((contact) => {
+          const fullName = contact.fullName?.trim() ?? "";
+          const contactRole = contact.contactRole?.trim() ?? "";
+          const email = contact.email?.trim() ?? "";
+          return !!fullName && !!contactRole && isValidCompanyEmail(email);
+        }) && isScopeConfigured
       );
     }
 
-    if (stepId === 7) {
+    if (stepId === 6) {
       if (!formData.technology?.ehrSystem) return false;
       if (hasBillingRcmSelected && !formData.billing?.currentBillingModel) {
         return false;
@@ -2394,7 +2269,7 @@ export default function OnboardingFormV5() {
       return true;
     }
 
-    if (stepId === 9) {
+    if (stepId === 8) {
       const allDocumentsValid = (formData.documents ?? []).every(
         (document) =>
           !!(document.documentType?.trim() ?? "") &&
@@ -2444,7 +2319,25 @@ export default function OnboardingFormV5() {
 
   const maxUnlockedStep = getMaxUnlockedStep();
 
+  function isScopeRequiredForStep(stepId: number) {
+    return stepId >= 6;
+  }
+
+  function notifyMissingScope() {
+    toast.error(
+      "Scope has not been configured by CRM yet. Please contact your onboarding coordinator before continuing.",
+    );
+  }
+
   function nextStep() {
+    const nextStepId = getNextVisibleStep(currentStep);
+    if (nextStepId !== currentStep && isScopeRequiredForStep(nextStepId)) {
+      if (!isScopeConfigured) {
+        notifyMissingScope();
+        return;
+      }
+    }
+
     if (!validateCurrentStep()) return;
     setCurrentStep((prev) => getNextVisibleStep(prev));
   }
@@ -2455,6 +2348,11 @@ export default function OnboardingFormV5() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!isScopeConfigured) {
+      notifyMissingScope();
+      return;
+    }
 
     if (!validateCurrentStep()) return;
 
@@ -2586,6 +2484,71 @@ export default function OnboardingFormV5() {
         maxUnlockedStep={maxUnlockedStep}
         onSelect={setCurrentStep}
       />
+
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+              Scope (Read-only)
+            </p>
+            <p className="mt-1 text-sm text-slate-700">
+              Configured by CRM before onboarding submission.
+            </p>
+          </div>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              isScopeConfigured
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-amber-100 text-amber-700"
+            }`}
+          >
+            {isScopeConfigured ? "Configured" : "Pending CRM configuration"}
+          </span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 text-sm text-slate-700 md:grid-cols-2">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+              Requested services
+            </p>
+            <p className="mt-1">
+              {scopeRequestedServices.length
+                ? scopeRequestedServices
+                    .map((service) => serviceLabelMap.get(service) ?? service)
+                    .join(", ")
+                : "Not configured"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+              Replacing existing vendor
+            </p>
+            <p className="mt-1">
+              {scopeReplacingVendor ? "Yes" : "No"}
+              {scopeReplacingVendor && scopeCurrentVendorName
+                ? ` - ${scopeCurrentVendorName}`
+                : ""}
+              {scopeReplacingVendor && scopeCurrentVendorEndDate
+                ? ` (${scopeCurrentVendorEndDate})`
+                : ""}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+              Engagement goals
+            </p>
+            <p className="mt-1">{scopeEngagementGoals || "Not provided"}</p>
+          </div>
+        </div>
+
+        {!isScopeConfigured ? (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Scope is not fully configured yet. You can review onboarding details,
+            but continuing into operations and final submission is blocked until
+            CRM completes Scope.
+          </div>
+        ) : null}
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {currentStep === 1 ? (
@@ -4839,159 +4802,6 @@ export default function OnboardingFormV5() {
 
         {currentStep === 6 ? (
           <>
-            <SectionCard title="Services Requested / Onboarding Scope">
-              <div className="grid gap-6">
-                <Field label="Which services are you requesting?" required>
-                  <CheckboxGroup
-                    options={serviceOptions}
-                    values={formData.requestedServices ?? []}
-                    onToggle={toggleService}
-                  />
-                </Field>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  <Field
-                    label="What is the primary service you want to launch first?"
-                    required
-                  >
-                    <SelectInput
-                      value={formData.primaryServiceToLaunch ?? ""}
-                      onChange={(event) =>
-                        updateServiceSetup(
-                          "primaryServiceToLaunch",
-                          event.target.value,
-                        )
-                      }
-                      options={serviceOptions}
-                    />
-                  </Field>
-
-                  <Field label="Requested Go-Live Date">
-                    <TextInput
-                      type="date"
-                      value={formData.requestedGoLiveDate ?? ""}
-                      onChange={(event) =>
-                        updateServiceSetup(
-                          "requestedGoLiveDate",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
-
-                  <Field label="Priority Level">
-                    <SelectInput
-                      value={formData.priorityLevel ?? ""}
-                      onChange={(event) =>
-                        updateServiceSetup("priorityLevel", event.target.value)
-                      }
-                      options={priorityOptions}
-                    />
-                  </Field>
-                </div>
-
-                <Field label="Are these services for all practices or only selected practices?">
-                  <RadioGroup
-                    name="servicesForAllPractices"
-                    value={formData.servicesForAllPractices ?? ""}
-                    options={servicePracticeOptions}
-                    onChange={(value) =>
-                      updateServiceSetup("servicesForAllPractices", value)
-                    }
-                  />
-                </Field>
-
-                {formData.servicesForAllPractices === "SELECTED_PRACTICES" ? (
-                  <Field
-                    label="If selected practices, which practices?"
-                    required
-                  >
-                    <CheckboxGroup
-                      options={practiceNames.map((name) => ({
-                        label: name,
-                        value: name,
-                      }))}
-                      values={formData.selectedPractices ?? []}
-                      onToggle={(value) =>
-                        toggleServiceSetupArrayValue("selectedPractices", value)
-                      }
-                    />
-                  </Field>
-                ) : formData.servicesForAllPractices ===
-                  "SINGLE_PRACTICE_ONLY" ? (
-                  <Field label="Which single practice?" required>
-                    <SelectInput
-                      value={formData.selectedPractices?.[0] ?? ""}
-                      onChange={(event) =>
-                        updateServiceSetup("selectedPractices", [
-                          event.target.value,
-                        ])
-                      }
-                      options={practiceNames.map((name) => ({
-                        label: name,
-                        value: name,
-                      }))}
-                    />
-                  </Field>
-                ) : null}
-
-                <Field label="Are we replacing an existing vendor?">
-                  <BooleanRadioGroup
-                    name="replacingExistingVendor"
-                    value={formData.replacingExistingVendor ?? false}
-                    onChange={(value) =>
-                      updateServiceSetup("replacingExistingVendor", value)
-                    }
-                  />
-                </Field>
-
-                {formData.replacingExistingVendor ? (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Field
-                      label="Current Vendor Name"
-                      required={!!formData.replacingExistingVendor}
-                    >
-                      <TextInput
-                        value={formData.currentVendorName ?? ""}
-                        onChange={(event) =>
-                          updateServiceSetup(
-                            "currentVendorName",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Expected Transition / End Date With Current Vendor">
-                      <TextInput
-                        type="date"
-                        value={formData.currentVendorEndDate ?? ""}
-                        onChange={(event) =>
-                          updateServiceSetup(
-                            "currentVendorEndDate",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
-                  </div>
-                ) : null}
-
-                <Field label="Describe your goals for this engagement">
-                  <TextArea
-                    value={formData.engagementGoals ?? ""}
-                    onChange={(event) =>
-                      updateServiceSetup("engagementGoals", event.target.value)
-                    }
-                  />
-                </Field>
-              </div>
-            </SectionCard>
-          </>
-        ) : null}
-
-        {currentStep === 7 ? (
-          <>
             <SectionCard title="EHR / Billing / Technology Stack">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Field label="EHR System" required>
@@ -5866,7 +5676,7 @@ export default function OnboardingFormV5() {
           </>
         ) : null}
 
-        {currentStep === 8 ? (
+        {currentStep === 7 ? (
           <>
             {hasCareProgramsSelected ? (
               <SectionCard title="Care Program Readiness">
@@ -6264,7 +6074,7 @@ export default function OnboardingFormV5() {
           </>
         ) : null}
 
-        {currentStep === 9 ? (
+        {currentStep === 8 ? (
           <>
             <SectionCard
               title="Additional Document Tracking"
@@ -6476,8 +6286,8 @@ export default function OnboardingFormV5() {
                       captured.
                     </li>
                     <li>
-                      {(formData.requestedServices ?? []).length} requested
-                      service(s) selected.
+                      {scopeRequestedServices.length} requested service(s)
+                      selected.
                     </li>
                   </ul>
                 </div>

@@ -355,6 +355,20 @@ export type OnboardingBody = {
   marketing?: OnboardingMarketing;
 };
 
+export type OnboardingScopeFields = Pick<
+  OnboardingBody,
+  | "requestedServices"
+  | "primaryServiceToLaunch"
+  | "requestedGoLiveDate"
+  | "priorityLevel"
+  | "servicesForAllPractices"
+  | "selectedPractices"
+  | "replacingExistingVendor"
+  | "currentVendorName"
+  | "currentVendorEndDate"
+  | "engagementGoals"
+>;
+
 export type Onboarding = {
   id: string;
   practiceId?: string | null;
@@ -597,6 +611,13 @@ export async function updateOnboarding(
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to update onboarding."));
   }
+}
+
+export async function updateOnboardingScope(
+  id: string,
+  scope: OnboardingScopeFields
+): Promise<Onboarding> {
+  return updateOnboarding(id, scope);
 }
 
 export async function deleteOnboarding(id: string): Promise<void> {

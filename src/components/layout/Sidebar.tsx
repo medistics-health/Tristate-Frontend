@@ -103,7 +103,10 @@ const sidebarSteps: SidebarItem[] = [
   {
     label: "Onboarding",
     requiredRoles: [...MODULE_ACCESS.CRM],
-    items: [{ label: "Review Submissions", to: "/onboarding/review" }],
+    items: [
+      { label: "Review Submissions", to: "/onboarding/review" },
+      { label: "Scope Setup", to: "/onboarding/scope" },
+    ],
   },
   {
     label: "Services",

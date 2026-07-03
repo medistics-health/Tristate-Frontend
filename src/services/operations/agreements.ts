@@ -15,6 +15,7 @@ const {
   GET_DOCUSEAL_TEMPLATES,
   GET_DOCUSEAL_FORM,
   SEND_AGREEMENT_EMAIL,
+  SEND_ONBOARDING_FORM,
   CREATE_DOCUSEAL_SUBMISSION,
   RESUBMIT_DOCUSEAL_SUBMISSION,
 } = agreementEndpoints;
@@ -566,6 +567,14 @@ export type SendAgreementEmailBody = {
   message?: string;
 };
 
+export type SendOnboardingFormBody = {
+  agreementId: string;
+  personId: string;
+  subject?: string;
+  message?: string;
+  formLink?: string;
+};
+
 export async function sendAgreementEmail(
   data: SendAgreementEmailBody,
 ): Promise<void> {
@@ -578,6 +587,23 @@ export async function sendAgreementEmail(
     });
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to send agreement email."));
+  }
+}
+
+export async function sendOnboardingFormApi(
+  data: SendOnboardingFormBody,
+): Promise<void> {
+  try {
+    await apiConnector({
+      method: "POST",
+      url: SEND_ONBOARDING_FORM,
+      body: data,
+      credentials: true,
+    });
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to send onboarding form email."),
+    );
   }
 }
 
