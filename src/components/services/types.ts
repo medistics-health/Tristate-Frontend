@@ -2,6 +2,7 @@ export type ServiceBody = {
   name: string;
   code?: string | null;
   category?: string | null;
+  stripeConnectedAccountId?: string | null;
   vendorId?: string | null;
   isActive?: boolean;
   clientRate?: number;
@@ -14,6 +15,7 @@ export type Service = {
   name: string;
   code: string | null;
   category: string | null;
+  stripeConnectedAccountId: string | null;
   vendorId: string | null;
   isActive: boolean;
   clientRate: string | null;
