@@ -102,12 +102,12 @@ const usStates: Option[] = [
 
 const onboardingTypeOptions: Option[] = [
   {
-    label: "Company / Organization with Multiple Practices",
-    value: "MULTI_PRACTICE_ORGANIZATION",
-  },
-  {
     label: "Company / Organization with One Practice Right Now",
     value: "SINGLE_PRACTICE_ORGANIZATION",
+  },
+  {
+    label: "Company / Organization with Multiple Practices",
+    value: "MULTI_PRACTICE_ORGANIZATION",
   },
 ];
 
@@ -264,7 +264,7 @@ type ProviderDocumentField =
   | "copyOfDriversLicense"
   | "passportSizedPhoto"
   | "resume"
-  | "voidedCheck"
+  | "voidedCheck";
 
 const providerDocumentFieldOptions: Array<
   Option & { value: ProviderDocumentField }
@@ -298,9 +298,9 @@ const providerDocumentFieldOptions: Array<
     value: "resume",
   },
   {
-    label:"Voided Check",
+    label: "Voided Check",
     value: "voidedCheck",
-  }
+  },
 ];
 
 function isValidCompanyEmail(value: string) {
@@ -391,13 +391,16 @@ const clearinghouseOptions: Option[] = [
   { label: "Office Ally", value: "OFFICE_ALLY" },
   { label: "TriZetto", value: "TRIZETTO" },
   { label: "Waystar", value: "WAYSTAR" },
-  {label: "Claim.MD", value: "CLAIM.MD"},
-  {label:"Ensora Clearinghouse (formerly Apex EDI)", value: "ENSORA_CLEARINGHOUSE"},
-  {label:"Stedi", value: "STEDI"},
-  {label:"PracticeSuite", value: "PRACTICESUITE"},
-  {label:"ClaimRemed", value: "CLAIMREMED"},
-  {label:"Kareo / Tebra", value: "KAREO_TEBRA"},
-  {label:"RXNT", value: "RXNT"},
+  { label: "Claim.MD", value: "CLAIM.MD" },
+  {
+    label: "Ensora Clearinghouse (formerly Apex EDI)",
+    value: "ENSORA_CLEARINGHOUSE",
+  },
+  { label: "Stedi", value: "STEDI" },
+  { label: "PracticeSuite", value: "PRACTICESUITE" },
+  { label: "ClaimRemed", value: "CLAIMREMED" },
+  { label: "Kareo / Tebra", value: "KAREO_TEBRA" },
+  { label: "RXNT", value: "RXNT" },
   { label: "Other", value: "OTHER" },
 ];
 
@@ -1131,11 +1134,7 @@ function MultiSelectDropdown({
       <summary
         className={`${baseInputClass()} flex cursor-pointer list-none items-center justify-between gap-3`}
       >
-        <span
-          className={
-            values.length ? "text-slate-800" : "text-slate-400"
-          }
-        >
+        <span className={values.length ? "text-slate-800" : "text-slate-400"}>
           {selectedPreview}
         </span>
         <span className="text-xs text-slate-500 transition group-open:rotate-180">
@@ -1339,8 +1338,10 @@ export default function OnboardingFormV5() {
     useState<Record<string, ProviderDocumentField>>({});
   const [copyCompanyInfoToPracticeOne, setCopyCompanyInfoToPracticeOne] =
     useState(false);
-  const [copyCompanyAddressToPrimaryLocation, setCopyCompanyAddressToPrimaryLocation] =
-    useState(false);
+  const [
+    copyCompanyAddressToPrimaryLocation,
+    setCopyCompanyAddressToPrimaryLocation,
+  ] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -1458,7 +1459,8 @@ export default function OnboardingFormV5() {
       const practiceName = prev.legalCompanyName?.trim() || prev.dbaName || "";
       const practiceDbaName = prev.dbaName ?? "";
       const practiceTaxIdEin = prev.taxIdEin ?? "";
-      const locationName = prev.dbaName?.trim() || practiceName || "Primary Location";
+      const locationName =
+        prev.dbaName?.trim() || practiceName || "Primary Location";
       const locationAddressLine1 = prev.companyAddressLine1 ?? "";
       const locationAddressLine2 = prev.companyAddressLine2 ?? "";
       const locationCity = prev.companyCity ?? "";
@@ -1493,18 +1495,23 @@ export default function OnboardingFormV5() {
 
       const hasPracticeChanges =
         (currentPractice.practiceName ?? "") !== nextPractice.practiceName ||
-        (currentPractice.practiceDbaName ?? "") !== nextPractice.practiceDbaName ||
+        (currentPractice.practiceDbaName ?? "") !==
+          nextPractice.practiceDbaName ||
         (currentPractice.taxIdEin ?? "") !== nextPractice.taxIdEin;
       const hasLocationChanges =
-        (currentLocation.locationName ?? "") !== (nextLocation.locationName ?? "") ||
-        (currentLocation.addressLine1 ?? "") !== (nextLocation.addressLine1 ?? "") ||
-        (currentLocation.addressLine2 ?? "") !== (nextLocation.addressLine2 ?? "") ||
+        (currentLocation.locationName ?? "") !==
+          (nextLocation.locationName ?? "") ||
+        (currentLocation.addressLine1 ?? "") !==
+          (nextLocation.addressLine1 ?? "") ||
+        (currentLocation.addressLine2 ?? "") !==
+          (nextLocation.addressLine2 ?? "") ||
         (currentLocation.city ?? "") !== (nextLocation.city ?? "") ||
         (currentLocation.state ?? "") !== (nextLocation.state ?? "") ||
         (currentLocation.zipCode ?? "") !== (nextLocation.zipCode ?? "") ||
         (currentLocation.mainPhoneNumber ?? "") !==
           (nextLocation.mainPhoneNumber ?? "") ||
-        (currentLocation.officeEmail ?? "") !== (nextLocation.officeEmail ?? "");
+        (currentLocation.officeEmail ?? "") !==
+          (nextLocation.officeEmail ?? "");
 
       if (!hasPracticeChanges && !hasLocationChanges && practices[0]) {
         return prev;
@@ -1565,8 +1572,10 @@ export default function OnboardingFormV5() {
       };
 
       const hasChanges =
-        (currentLocation.addressLine1 ?? "") !== (nextLocation.addressLine1 ?? "") ||
-        (currentLocation.addressLine2 ?? "") !== (nextLocation.addressLine2 ?? "") ||
+        (currentLocation.addressLine1 ?? "") !==
+          (nextLocation.addressLine1 ?? "") ||
+        (currentLocation.addressLine2 ?? "") !==
+          (nextLocation.addressLine2 ?? "") ||
         (currentLocation.city ?? "") !== (nextLocation.city ?? "") ||
         (currentLocation.state ?? "") !== (nextLocation.state ?? "") ||
         (currentLocation.zipCode ?? "") !== (nextLocation.zipCode ?? "");
@@ -1629,18 +1638,14 @@ export default function OnboardingFormV5() {
     scopeRequestedServices.some((service) =>
       careProgramServiceValues.includes(service),
     ) || (formData.careProgram?.programsPlanned ?? []).length > 0;
-  const hasCredentialingSelected = scopeRequestedServices.includes(
-    "CREDENTIALING",
-  );
+  const hasCredentialingSelected =
+    scopeRequestedServices.includes("CREDENTIALING");
   const hasBillingRcmSelected = scopeRequestedServices.includes("BILLING_RCM");
-  const hasMarketingSelected = scopeRequestedServices.some(
-    (service) => marketingServiceValues.includes(service),
+  const hasMarketingSelected = scopeRequestedServices.some((service) =>
+    marketingServiceValues.includes(service),
   );
-  const hasLabPharmacySelected = scopeRequestedServices.some(
-    (service) =>
-      ["LAB_RELATIONSHIP_SUPPORT", "PHARMACY_PROGRAM_SUPPORT"].includes(
-        service,
-      ),
+  const hasLabPharmacySelected = scopeRequestedServices.some((service) =>
+    ["LAB_RELATIONSHIP_SUPPORT", "PHARMACY_PROGRAM_SUPPORT"].includes(service),
   );
   const hasFixedPracticeCount =
     formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" ||
@@ -2315,7 +2320,9 @@ export default function OnboardingFormV5() {
     if (currentStep === 4) {
       if (
         !(formData.practices ?? []).every((practice) =>
-          (practice.providers ?? []).some((provider) => isValidProvider(provider)),
+          (practice.providers ?? []).some((provider) =>
+            isValidProvider(provider),
+          ),
         )
       ) {
         errors.push(
@@ -2433,7 +2440,9 @@ export default function OnboardingFormV5() {
 
     if (stepId === 4) {
       return (formData.practices ?? []).every((practice) =>
-        (practice.providers ?? []).some((provider) => isValidProvider(provider)),
+        (practice.providers ?? []).some((provider) =>
+          isValidProvider(provider),
+        ),
       );
     }
 
@@ -2737,9 +2746,9 @@ export default function OnboardingFormV5() {
 
         {!isScopeConfigured ? (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Scope is not fully configured yet. You can review onboarding details,
-            but continuing into operations and final submission is blocked until
-            CRM completes Scope.
+            Scope is not fully configured yet. You can review onboarding
+            details, but continuing into operations and final submission is
+            blocked until CRM completes Scope.
           </div>
         ) : null}
       </div>
@@ -3323,7 +3332,9 @@ export default function OnboardingFormV5() {
         {currentStep === 3 || currentStep === 4 ? (
           <SectionCard
             title={
-              currentStep === 3 ? "Practice Information" : "Provider Information"
+              currentStep === 3
+                ? "Practice Information"
+                : "Provider Information"
             }
             description={
               currentStep === 3
@@ -3334,7 +3345,9 @@ export default function OnboardingFormV5() {
             {currentStep === 3 ? (
               <RepeaterHeader
                 title="Practices"
-                actionLabel={hasFixedPracticeCount ? undefined : "+ Add Practice"}
+                actionLabel={
+                  hasFixedPracticeCount ? undefined : "+ Add Practice"
+                }
                 onAction={hasFixedPracticeCount ? undefined : addPractice}
               />
             ) : null}
@@ -3353,1275 +3366,1590 @@ export default function OnboardingFormV5() {
                   practiceIndex === 0;
 
                 return (
-                <div
-                  key={`practice-${practiceIndex}`}
-                  className="space-y-6"
-                >
-                  {currentStep === 3 ? (
-                    <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-5">
-                    <div className="mb-5 flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-base font-semibold text-slate-900">
-                          Practice {practiceIndex + 1}
-                        </p>
-                        <p className="text-sm text-slate-500">
-                          Capture practice demographics and locations.
-                        </p>
-                      </div>
-                      {!hasFixedPracticeCount &&
-                      (formData.practices ?? []).length > 1 ? (
-                        <button
-                          type="button"
-                          onClick={() => removePractice(practiceIndex)}
-                          className="text-sm text-red-500"
-                        >
-                          Remove
-                        </button>
-                      ) : hasFixedPracticeCount ? (
-                        <p className="text-xs text-slate-400">
-                          Locked to {requiredPracticeCount} practice
-                          {requiredPracticeCount === 1 ? "" : "s"}
-                        </p>
-                      ) : null}
-                    </div>
+                  <div key={`practice-${practiceIndex}`} className="space-y-6">
+                    {currentStep === 3 ? (
+                      <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-5">
+                        <div className="mb-5 flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-base font-semibold text-slate-900">
+                              Practice {practiceIndex + 1}
+                            </p>
+                            <p className="text-sm text-slate-500">
+                              Capture practice demographics and locations.
+                            </p>
+                          </div>
+                          {!hasFixedPracticeCount &&
+                          (formData.practices ?? []).length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => removePractice(practiceIndex)}
+                              className="text-sm text-red-500"
+                            >
+                              Remove
+                            </button>
+                          ) : hasFixedPracticeCount ? (
+                            <p className="text-xs text-slate-400">
+                              Locked to {requiredPracticeCount} practice
+                              {requiredPracticeCount === 1 ? "" : "s"}
+                            </p>
+                          ) : null}
+                        </div>
 
-                    {isSinglePracticeOrgPracticeOne ? (
-                      <div className="mb-5 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                        <label className="flex items-start gap-3 text-sm text-slate-700">
-                          <input
-                            type="checkbox"
-                            className="mt-0.5"
-                            checked={copyCompanyInfoToPracticeOne}
-                            onChange={(event) =>
-                              setCopyCompanyInfoToPracticeOne(event.target.checked)
-                            }
-                          />
-                          <span>
-                            Use Company / Organization info for Practice 1
-                            <span className="mt-1 block text-xs text-slate-500">
-                              Copies company name, DBA, Tax ID, phone, email, and
-                              address to Practice 1 and its first location.
-                            </span>
-                          </span>
-                        </label>
-                      </div>
-                    ) : null}
+                        {isSinglePracticeOrgPracticeOne ? (
+                          <div className="mb-5 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <label className="flex items-start gap-3 text-sm text-slate-700">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5"
+                                checked={copyCompanyInfoToPracticeOne}
+                                onChange={(event) =>
+                                  setCopyCompanyInfoToPracticeOne(
+                                    event.target.checked,
+                                  )
+                                }
+                              />
+                              <span>
+                                Use Company / Organization info for Practice 1
+                                <span className="mt-1 block text-xs text-slate-500">
+                                  Copies company name, DBA, Tax ID, phone,
+                                  email, and address to Practice 1 and its first
+                                  location.
+                                </span>
+                              </span>
+                            </label>
+                          </div>
+                        ) : null}
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Field label="Practice Name" required>
-                      <TextInput
-                        value={practice.practiceName ?? ""}
-                        disabled={shouldLockPracticeOneToCompanyInfo}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "practiceName",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                          <Field label="Practice Name" required>
+                            <TextInput
+                              value={practice.practiceName ?? ""}
+                              disabled={shouldLockPracticeOneToCompanyInfo}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "practiceName",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
 
-                    <Field label="Practice DBA Name">
-                      <TextInput
-                        value={practice.practiceDbaName ?? ""}
-                        disabled={shouldLockPracticeOneToCompanyInfo}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "practiceDbaName",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
+                          <Field label="Practice DBA Name">
+                            <TextInput
+                              value={practice.practiceDbaName ?? ""}
+                              disabled={shouldLockPracticeOneToCompanyInfo}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "practiceDbaName",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
 
-                    <Field label="Practice Type" required>
-                      <SelectInput
-                        value={practice.practiceType ?? ""}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "practiceType",
-                            event.target.value,
-                          )
-                        }
-                        options={specialtyOptions}
-                      />
-                    </Field>
+                          <Field label="Practice Type" required>
+                            <SelectInput
+                              value={practice.practiceType ?? ""}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "practiceType",
+                                  event.target.value,
+                                )
+                              }
+                              options={specialtyOptions}
+                            />
+                          </Field>
 
-                    <Field label="Group NPI">
-                      <TextInput
-                        value={practice.groupNpi ?? ""}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "groupNpi",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
+                          <Field label="Group NPI">
+                            <TextInput
+                              value={practice.groupNpi ?? ""}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "groupNpi",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
 
-                    <Field label="Tax ID / EIN Used for This Practice" required>
-                      <TextInput
-                        value={practice.taxIdEin ?? ""}
-                        disabled={shouldLockPracticeOneToCompanyInfo}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "taxIdEin",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Medicaid ID Number">
-                      <TextInput
-                        value={practice.medicaidIdNumber ?? ""}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "medicaidIdNumber",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Group Medicaid NPI">
-                      <TextInput
-                        value={practice.groupMedicaidNpi ?? ""}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "groupMedicaidNpi",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Group Medicare PTAN">
-                      <TextInput
-                        value={practice.groupMedicarePtan ?? ""}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "groupMedicarePtan",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Group Taxonomy">
-                      <TextInput
-                        value={practice.groupTaxonomy ?? ""}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "groupTaxonomy",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Is this practice part of a parent company?">
-                      <BooleanRadioGroup
-                        name={`parent-company-${practiceIndex}`}
-                        value={practice.isPartOfParentCompany ?? false}
-                        onChange={(value) =>
-                          updatePractice(
-                            practiceIndex,
-                            "isPartOfParentCompany",
-                            value,
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Approximate Number of Providers">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        value={practice.approximateNumberOfProviders ?? 0}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "approximateNumberOfProviders",
-                            parseNumber(event.target.value),
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Approximate Number of Locations">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        value={practice.approximateNumberOfLocations ?? 0}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "approximateNumberOfLocations",
-                            parseNumber(event.target.value),
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Approximate Monthly Patient Volume">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        value={practice.approximateMonthlyPatientVolume ?? 0}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "approximateMonthlyPatientVolume",
-                            parseNumber(event.target.value),
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Approximate Medicare Patient Volume">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        value={practice.approximateMedicarePatientVolume ?? 0}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "approximateMedicarePatientVolume",
-                            parseNumber(event.target.value),
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Approximate Medicaid Patient Volume">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        value={practice.approximateMedicaidPatientVolume ?? 0}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "approximateMedicaidPatientVolume",
-                            parseNumber(event.target.value),
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Approximate Commercial Patient Volume">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        value={practice.approximateCommercialPatientVolume ?? 0}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "approximateCommercialPatientVolume",
-                            parseNumber(event.target.value),
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Practice Work Start Date">
-                      <TextInput
-                        type="date"
-                        value={practice.practiceWorkStartDate ?? ""}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "practiceWorkStartDate",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Railroad Medicare (Group)">
-                      <TextInput
-                        value={practice.railroadMedicareGroup ?? ""}
-                        onChange={(event) =>
-                          updatePractice(
-                            practiceIndex,
-                            "railroadMedicareGroup",
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <div className="lg:col-span-3">
-                      <Field label="Additional Specialty Areas">
-                        <MultiSelectDropdown
-                          options={specialtyOptions}
-                          values={practice.additionalSpecialtyAreas ?? []}
-                          onToggle={(value) =>
-                            togglePracticeArrayValue(
-                              practiceIndex,
-                              "additionalSpecialtyAreas",
-                              value,
-                            )
-                          }
-                          placeholder="Select specialties"
-                        />
-                      </Field>
-                    </div>
-
-                    <div className="lg:col-span-3">
-                      <Field label="Does this practice currently offer care management services?">
-                        <BooleanRadioGroup
-                          name={`care-management-${practiceIndex}`}
-                          value={practice.offersCareManagementServices ?? false}
-                          onChange={(value) => {
-                            updatePractice(
-                              practiceIndex,
-                              "offersCareManagementServices",
-                              value,
-                            );
-                            if (!value) {
-                              updatePractice(
-                                practiceIndex,
-                                "currentServicesOffered",
-                                [],
-                              );
-                              updatePractice(
-                                practiceIndex,
-                                "operationalPainPoints",
-                                [],
-                              );
-                            }
-                          }}
-                        />
-                      </Field>
-                    </div>
-
-                    {practice.offersCareManagementServices ? (
-                      <div className="lg:col-span-3">
-                        <Field label="Which services are currently being offered?">
-                          <CheckboxGroup
-                            options={currentServiceOptions}
-                            values={practice.currentServicesOffered ?? []}
-                            onToggle={(value) =>
-                              togglePracticeArrayValue(
-                                practiceIndex,
-                                "currentServicesOffered",
-                                value,
-                              )
-                            }
-                          />
-                        </Field>
-                      </div>
-                    ) : null}
-
-                  </div>
-
-                  <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-4">
-                    <RepeaterHeader
-                      title="Practice Locations"
-                      actionLabel="+ Add Location"
-                      onAction={() => addLocation(practiceIndex)}
-                    />
-                    <div className="space-y-4">
-                      {(practice.locations ?? []).map(
-                        (location, locationIndex) => (
-                          <div
-                            key={`location-${practiceIndex}-${locationIndex}`}
-                            className="rounded-2xl border border-slate-200 p-4"
+                          <Field
+                            label="Tax ID / EIN Used for This Practice"
+                            required
                           >
-                            <div className="mb-4 flex items-center justify-between gap-4">
-                              <p className="font-medium text-slate-800">
-                                Practice {practiceIndex + 1} - Location{" "}
-                                {locationIndex + 1}
-                              </p>
-                              {(practice.locations ?? []).length > 1 ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    removeLocation(practiceIndex, locationIndex)
-                                  }
-                                  className="text-sm text-red-500"
-                                >
-                                  Remove
-                                </button>
-                              ) : null}
-                            </div>
+                            <TextInput
+                              value={practice.taxIdEin ?? ""}
+                              disabled={shouldLockPracticeOneToCompanyInfo}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "taxIdEin",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
 
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                              <Field label="Location Name" required>
-                                <TextInput
-                                  value={location.locationName ?? ""}
-                                  disabled={
-                                    shouldLockPracticeOneToCompanyInfo &&
-                                    locationIndex === 0
-                                  }
-                                  onChange={(event) =>
-                                    updateLocation(
+                          <Field label="Medicaid ID Number">
+                            <TextInput
+                              value={practice.medicaidIdNumber ?? ""}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "medicaidIdNumber",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Group Medicaid NPI">
+                            <TextInput
+                              value={practice.groupMedicaidNpi ?? ""}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "groupMedicaidNpi",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Group Medicare PTAN">
+                            <TextInput
+                              value={practice.groupMedicarePtan ?? ""}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "groupMedicarePtan",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Group Taxonomy">
+                            <TextInput
+                              value={practice.groupTaxonomy ?? ""}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "groupTaxonomy",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Is this practice part of a parent company?">
+                            <BooleanRadioGroup
+                              name={`parent-company-${practiceIndex}`}
+                              value={practice.isPartOfParentCompany ?? false}
+                              onChange={(value) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "isPartOfParentCompany",
+                                  value,
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Approximate Number of Providers">
+                            <TextInput
+                              type="number"
+                              min={0}
+                              value={practice.approximateNumberOfProviders ?? 0}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "approximateNumberOfProviders",
+                                  parseNumber(event.target.value),
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Approximate Number of Locations">
+                            <TextInput
+                              type="number"
+                              min={0}
+                              value={practice.approximateNumberOfLocations ?? 0}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "approximateNumberOfLocations",
+                                  parseNumber(event.target.value),
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Approximate Monthly Patient Volume">
+                            <TextInput
+                              type="number"
+                              min={0}
+                              value={
+                                practice.approximateMonthlyPatientVolume ?? 0
+                              }
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "approximateMonthlyPatientVolume",
+                                  parseNumber(event.target.value),
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Approximate Medicare Patient Volume">
+                            <TextInput
+                              type="number"
+                              min={0}
+                              value={
+                                practice.approximateMedicarePatientVolume ?? 0
+                              }
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "approximateMedicarePatientVolume",
+                                  parseNumber(event.target.value),
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Approximate Medicaid Patient Volume">
+                            <TextInput
+                              type="number"
+                              min={0}
+                              value={
+                                practice.approximateMedicaidPatientVolume ?? 0
+                              }
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "approximateMedicaidPatientVolume",
+                                  parseNumber(event.target.value),
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Approximate Commercial Patient Volume">
+                            <TextInput
+                              type="number"
+                              min={0}
+                              value={
+                                practice.approximateCommercialPatientVolume ?? 0
+                              }
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "approximateCommercialPatientVolume",
+                                  parseNumber(event.target.value),
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Practice Work Start Date">
+                            <TextInput
+                              type="date"
+                              value={practice.practiceWorkStartDate ?? ""}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "practiceWorkStartDate",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Railroad Medicare (Group)">
+                            <TextInput
+                              value={practice.railroadMedicareGroup ?? ""}
+                              onChange={(event) =>
+                                updatePractice(
+                                  practiceIndex,
+                                  "railroadMedicareGroup",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <div className="lg:col-span-3">
+                            <Field label="Additional Specialty Areas">
+                              <MultiSelectDropdown
+                                options={specialtyOptions}
+                                values={practice.additionalSpecialtyAreas ?? []}
+                                onToggle={(value) =>
+                                  togglePracticeArrayValue(
+                                    practiceIndex,
+                                    "additionalSpecialtyAreas",
+                                    value,
+                                  )
+                                }
+                                placeholder="Select specialties"
+                              />
+                            </Field>
+                          </div>
+
+                          <div className="lg:col-span-3">
+                            <Field label="Does this practice currently offer care management services?">
+                              <BooleanRadioGroup
+                                name={`care-management-${practiceIndex}`}
+                                value={
+                                  practice.offersCareManagementServices ?? false
+                                }
+                                onChange={(value) => {
+                                  updatePractice(
+                                    practiceIndex,
+                                    "offersCareManagementServices",
+                                    value,
+                                  );
+                                  if (!value) {
+                                    updatePractice(
                                       practiceIndex,
-                                      locationIndex,
-                                      "locationName",
-                                      event.target.value,
+                                      "currentServicesOffered",
+                                      [],
+                                    );
+                                    updatePractice(
+                                      practiceIndex,
+                                      "operationalPainPoints",
+                                      [],
+                                    );
+                                  }
+                                }}
+                              />
+                            </Field>
+                          </div>
+
+                          {practice.offersCareManagementServices ? (
+                            <div className="lg:col-span-3">
+                              <Field label="Which services are currently being offered?">
+                                <CheckboxGroup
+                                  options={currentServiceOptions}
+                                  values={practice.currentServicesOffered ?? []}
+                                  onToggle={(value) =>
+                                    togglePracticeArrayValue(
+                                      practiceIndex,
+                                      "currentServicesOffered",
+                                      value,
                                     )
                                   }
                                 />
                               </Field>
+                            </div>
+                          ) : null}
+                        </div>
 
-                              {(formData.practices ?? []).length === 1 &&
-                              (practice.locations ?? []).length === 1 ? null : (
-                                <Field label="Is this the primary location?">
-                                  <BooleanRadioGroup
-                                    name={`primary-location-${practiceIndex}-${locationIndex}`}
-                                    value={location.isPrimaryLocation ?? false}
-                                    onChange={(value) =>
-                                      updateLocation(
-                                        practiceIndex,
-                                        locationIndex,
-                                        "isPrimaryLocation",
-                                        value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              )}
+                        <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-4">
+                          <RepeaterHeader
+                            title="Practice Locations"
+                            actionLabel="+ Add Location"
+                            onAction={() => addLocation(practiceIndex)}
+                          />
+                          <div className="space-y-4">
+                            {(practice.locations ?? []).map(
+                              (location, locationIndex) => (
+                                <div
+                                  key={`location-${practiceIndex}-${locationIndex}`}
+                                  className="rounded-2xl border border-slate-200 p-4"
+                                >
+                                  <div className="mb-4 flex items-center justify-between gap-4">
+                                    <p className="font-medium text-slate-800">
+                                      Practice {practiceIndex + 1} - Location{" "}
+                                      {locationIndex + 1}
+                                    </p>
+                                    {(practice.locations ?? []).length > 1 ? (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          removeLocation(
+                                            practiceIndex,
+                                            locationIndex,
+                                          )
+                                        }
+                                        className="text-sm text-red-500"
+                                      >
+                                        Remove
+                                      </button>
+                                    ) : null}
+                                  </div>
 
-                              {isSinglePracticeOrgPracticeOne &&
-                              locationIndex === 0 ? (
-                                <div className="md:col-span-2 lg:col-span-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                                  <label className="flex items-start gap-3 text-sm text-slate-700">
-                                    <input
-                                      type="checkbox"
-                                      className="mt-0.5"
-                                      checked={
-                                        copyCompanyAddressToPrimaryLocation ||
-                                        shouldLockPracticeOneToCompanyInfo
-                                      }
-                                      disabled={shouldLockPracticeOneToCompanyInfo}
-                                      onChange={(event) =>
-                                        setCopyCompanyAddressToPrimaryLocation(
-                                          event.target.checked,
+                                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                    <Field label="Location Name" required>
+                                      <TextInput
+                                        value={location.locationName ?? ""}
+                                        disabled={
+                                          shouldLockPracticeOneToCompanyInfo &&
+                                          locationIndex === 0
+                                        }
+                                        onChange={(event) =>
+                                          updateLocation(
+                                            practiceIndex,
+                                            locationIndex,
+                                            "locationName",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    {(formData.practices ?? []).length === 1 &&
+                                    (practice.locations ?? []).length ===
+                                      1 ? null : (
+                                      <Field label="Is this the primary location?">
+                                        <BooleanRadioGroup
+                                          name={`primary-location-${practiceIndex}-${locationIndex}`}
+                                          value={
+                                            location.isPrimaryLocation ?? false
+                                          }
+                                          onChange={(value) =>
+                                            updateLocation(
+                                              practiceIndex,
+                                              locationIndex,
+                                              "isPrimaryLocation",
+                                              value,
+                                            )
+                                          }
+                                        />
+                                      </Field>
+                                    )}
+
+                                    {isSinglePracticeOrgPracticeOne &&
+                                    locationIndex === 0 ? (
+                                      <div className="md:col-span-2 lg:col-span-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                        <label className="flex items-start gap-3 text-sm text-slate-700">
+                                          <input
+                                            type="checkbox"
+                                            className="mt-0.5"
+                                            checked={
+                                              copyCompanyAddressToPrimaryLocation ||
+                                              shouldLockPracticeOneToCompanyInfo
+                                            }
+                                            disabled={
+                                              shouldLockPracticeOneToCompanyInfo
+                                            }
+                                            onChange={(event) =>
+                                              setCopyCompanyAddressToPrimaryLocation(
+                                                event.target.checked,
+                                              )
+                                            }
+                                          />
+                                          <span>
+                                            Use same address as Company /
+                                            Organization
+                                            <span className="mt-1 block text-xs text-slate-500">
+                                              Copies company address fields to
+                                              this location.
+                                            </span>
+                                          </span>
+                                        </label>
+                                      </div>
+                                    ) : null}
+
+                                    <div className="md:col-span-2 lg:col-span-3">
+                                      <Field label="Address Line 1">
+                                        <TextInput
+                                          value={location.addressLine1 ?? ""}
+                                          disabled={
+                                            shouldLockPracticeOneToCompanyInfo &&
+                                            locationIndex === 0
+                                              ? true
+                                              : shouldLockPrimaryLocationAddressToCompanyInfo &&
+                                                locationIndex === 0
+                                          }
+                                          onChange={(event) =>
+                                            updateLocation(
+                                              practiceIndex,
+                                              locationIndex,
+                                              "addressLine1",
+                                              event.target.value,
+                                            )
+                                          }
+                                        />
+                                      </Field>
+                                    </div>
+
+                                    <div className="md:col-span-2 lg:col-span-3">
+                                      <Field label="Address Line 2">
+                                        <TextInput
+                                          value={location.addressLine2 ?? ""}
+                                          disabled={
+                                            shouldLockPracticeOneToCompanyInfo &&
+                                            locationIndex === 0
+                                              ? true
+                                              : shouldLockPrimaryLocationAddressToCompanyInfo &&
+                                                locationIndex === 0
+                                          }
+                                          onChange={(event) =>
+                                            updateLocation(
+                                              practiceIndex,
+                                              locationIndex,
+                                              "addressLine2",
+                                              event.target.value,
+                                            )
+                                          }
+                                        />
+                                      </Field>
+                                    </div>
+
+                                    <Field label="City">
+                                      <TextInput
+                                        value={location.city ?? ""}
+                                        disabled={
+                                          shouldLockPracticeOneToCompanyInfo &&
+                                          locationIndex === 0
+                                            ? true
+                                            : shouldLockPrimaryLocationAddressToCompanyInfo &&
+                                              locationIndex === 0
+                                        }
+                                        onChange={(event) =>
+                                          updateLocation(
+                                            practiceIndex,
+                                            locationIndex,
+                                            "city",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="State">
+                                      <SelectInput
+                                        value={location.state ?? ""}
+                                        disabled={
+                                          shouldLockPracticeOneToCompanyInfo &&
+                                          locationIndex === 0
+                                            ? true
+                                            : shouldLockPrimaryLocationAddressToCompanyInfo &&
+                                              locationIndex === 0
+                                        }
+                                        onChange={(event) =>
+                                          updateLocation(
+                                            practiceIndex,
+                                            locationIndex,
+                                            "state",
+                                            event.target.value,
+                                          )
+                                        }
+                                        options={usStates}
+                                        placeholder="Select state"
+                                      />
+                                    </Field>
+
+                                    <Field label="ZIP Code">
+                                      <TextInput
+                                        value={location.zipCode ?? ""}
+                                        disabled={
+                                          shouldLockPracticeOneToCompanyInfo &&
+                                          locationIndex === 0
+                                            ? true
+                                            : shouldLockPrimaryLocationAddressToCompanyInfo &&
+                                              locationIndex === 0
+                                        }
+                                        onChange={(event) =>
+                                          updateLocation(
+                                            practiceIndex,
+                                            locationIndex,
+                                            "zipCode",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Main Phone Number">
+                                      <TextInput
+                                        type="tel"
+                                        value={location.mainPhoneNumber ?? ""}
+                                        disabled={
+                                          shouldLockPracticeOneToCompanyInfo &&
+                                          locationIndex === 0
+                                        }
+                                        onChange={(event) =>
+                                          updateLocation(
+                                            practiceIndex,
+                                            locationIndex,
+                                            "mainPhoneNumber",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Main Fax Number">
+                                      <TextInput
+                                        type="tel"
+                                        value={location.mainFaxNumber ?? ""}
+                                        onChange={(event) =>
+                                          updateLocation(
+                                            practiceIndex,
+                                            locationIndex,
+                                            "mainFaxNumber",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Office Email">
+                                      <TextInput
+                                        type="email"
+                                        value={location.officeEmail ?? ""}
+                                        disabled={
+                                          shouldLockPracticeOneToCompanyInfo &&
+                                          locationIndex === 0
+                                        }
+                                        onChange={(event) =>
+                                          updateLocation(
+                                            practiceIndex,
+                                            locationIndex,
+                                            "officeEmail",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <div className="lg:col-span-3">
+                                      <Field label="Hours of Operation">
+                                        <TextArea
+                                          rows={3}
+                                          value={
+                                            location.hoursOfOperation ?? ""
+                                          }
+                                          onChange={(event) =>
+                                            updateLocation(
+                                              practiceIndex,
+                                              locationIndex,
+                                              "hoursOfOperation",
+                                              event.target.value,
+                                            )
+                                          }
+                                        />
+                                      </Field>
+                                    </div>
+                                  </div>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {currentStep === 4 ? (
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <RepeaterHeader
+                          title="Providers"
+                          actionLabel="+ Add Provider"
+                          onAction={() => addProvider(practiceIndex)}
+                        />
+                        <div className="space-y-4">
+                          {(practice.providers ?? []).map(
+                            (provider, providerIndex) => (
+                              <div
+                                key={`provider-${practiceIndex}-${providerIndex}`}
+                                className="rounded-2xl border border-slate-200 p-4"
+                              >
+                                <div className="mb-4 flex items-center justify-between gap-4">
+                                  <p className="font-medium text-slate-800">
+                                    Practice {practiceIndex + 1} - Provider{" "}
+                                    {providerIndex + 1}
+                                  </p>
+                                  {(practice.providers ?? []).length > 1 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        removeProvider(
+                                          practiceIndex,
+                                          providerIndex,
                                         )
                                       }
-                                    />
-                                    <span>
-                                      Use same address as Company / Organization
-                                      <span className="mt-1 block text-xs text-slate-500">
-                                        Copies company address fields to this location.
-                                      </span>
-                                    </span>
-                                  </label>
+                                      className="text-sm text-red-500"
+                                    >
+                                      Remove
+                                    </button>
+                                  ) : null}
                                 </div>
-                              ) : null}
 
-                              <div className="md:col-span-2 lg:col-span-3">
-                                <Field label="Address Line 1">
-                                  <TextInput
-                                    value={location.addressLine1 ?? ""}
-                                    disabled={
-                                      shouldLockPracticeOneToCompanyInfo &&
-                                      locationIndex === 0
-                                        ? true
-                                        : shouldLockPrimaryLocationAddressToCompanyInfo &&
-                                          locationIndex === 0
-                                    }
-                                    onChange={(event) =>
-                                      updateLocation(
-                                        practiceIndex,
-                                        locationIndex,
-                                        "addressLine1",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              </div>
-
-                              <div className="md:col-span-2 lg:col-span-3">
-                                <Field label="Address Line 2">
-                                  <TextInput
-                                    value={location.addressLine2 ?? ""}
-                                    disabled={
-                                      shouldLockPracticeOneToCompanyInfo &&
-                                      locationIndex === 0
-                                        ? true
-                                        : shouldLockPrimaryLocationAddressToCompanyInfo &&
-                                          locationIndex === 0
-                                    }
-                                    onChange={(event) =>
-                                      updateLocation(
-                                        practiceIndex,
-                                        locationIndex,
-                                        "addressLine2",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              </div>
-
-                              <Field label="City">
-                                <TextInput
-                                  value={location.city ?? ""}
-                                  disabled={
-                                    shouldLockPracticeOneToCompanyInfo &&
-                                    locationIndex === 0
-                                      ? true
-                                      : shouldLockPrimaryLocationAddressToCompanyInfo &&
-                                        locationIndex === 0
-                                  }
-                                  onChange={(event) =>
-                                    updateLocation(
-                                      practiceIndex,
-                                      locationIndex,
-                                      "city",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="State">
-                                <SelectInput
-                                  value={location.state ?? ""}
-                                  disabled={
-                                    shouldLockPracticeOneToCompanyInfo &&
-                                    locationIndex === 0
-                                      ? true
-                                      : shouldLockPrimaryLocationAddressToCompanyInfo &&
-                                        locationIndex === 0
-                                  }
-                                  onChange={(event) =>
-                                    updateLocation(
-                                      practiceIndex,
-                                      locationIndex,
-                                      "state",
-                                      event.target.value,
-                                    )
-                                  }
-                                  options={usStates}
-                                  placeholder="Select state"
-                                />
-                              </Field>
-
-                              <Field label="ZIP Code">
-                                <TextInput
-                                  value={location.zipCode ?? ""}
-                                  disabled={
-                                    shouldLockPracticeOneToCompanyInfo &&
-                                    locationIndex === 0
-                                      ? true
-                                      : shouldLockPrimaryLocationAddressToCompanyInfo &&
-                                        locationIndex === 0
-                                  }
-                                  onChange={(event) =>
-                                    updateLocation(
-                                      practiceIndex,
-                                      locationIndex,
-                                      "zipCode",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Main Phone Number">
-                                <TextInput
-                                  type="tel"
-                                  value={location.mainPhoneNumber ?? ""}
-                                  disabled={
-                                    shouldLockPracticeOneToCompanyInfo &&
-                                    locationIndex === 0
-                                  }
-                                  onChange={(event) =>
-                                    updateLocation(
-                                      practiceIndex,
-                                      locationIndex,
-                                      "mainPhoneNumber",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Main Fax Number">
-                                <TextInput
-                                  type="tel"
-                                  value={location.mainFaxNumber ?? ""}
-                                  onChange={(event) =>
-                                    updateLocation(
-                                      practiceIndex,
-                                      locationIndex,
-                                      "mainFaxNumber",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Office Email">
-                                <TextInput
-                                  type="email"
-                                  value={location.officeEmail ?? ""}
-                                  disabled={
-                                    shouldLockPracticeOneToCompanyInfo &&
-                                    locationIndex === 0
-                                  }
-                                  onChange={(event) =>
-                                    updateLocation(
-                                      practiceIndex,
-                                      locationIndex,
-                                      "officeEmail",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <div className="lg:col-span-3">
-                                <Field label="Hours of Operation">
-                                  <TextArea
-                                    rows={3}
-                                    value={location.hoursOfOperation ?? ""}
-                                    onChange={(event) =>
-                                      updateLocation(
-                                        practiceIndex,
-                                        locationIndex,
-                                        "hoursOfOperation",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              </div>
-
-                            </div>
-                          </div>
-                        ),
-                      )}
-                    </div>
-                  </div>
-
-                    </div>
-                  ) : null}
-
-                  {currentStep === 4 ? (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <RepeaterHeader
-                      title="Providers"
-                      actionLabel="+ Add Provider"
-                      onAction={() => addProvider(practiceIndex)}
-                    />
-                    <div className="space-y-4">
-                      {(practice.providers ?? []).map(
-                        (provider, providerIndex) => (
-                          <div
-                            key={`provider-${practiceIndex}-${providerIndex}`}
-                            className="rounded-2xl border border-slate-200 p-4"
-                          >
-                            <div className="mb-4 flex items-center justify-between gap-4">
-                              <p className="font-medium text-slate-800">
-                                Practice {practiceIndex + 1} - Provider{" "}
-                                {providerIndex + 1}
-                              </p>
-                              {(practice.providers ?? []).length > 1 ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    removeProvider(practiceIndex, providerIndex)
-                                  }
-                                  className="text-sm text-red-500"
-                                >
-                                  Remove
-                                </button>
-                              ) : null}
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                              <Field label="Provider First Name" required>
-                                <TextInput
-                                  value={provider.firstName ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "firstName",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Provider Last Name" required>
-                                <TextInput
-                                  value={provider.lastName ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "lastName",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Date of Birth">
-                                <TextInput
-                                  type="date"
-                                  value={provider.dateOfBirth ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "dateOfBirth",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Gender">
-                                <TextInput
-                                  value={provider.gender ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "gender",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="State/Place of Birth">
-                                <TextInput
-                                  value={provider.statePlaceOfBirth ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "statePlaceOfBirth",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Country of Birth">
-                                <TextInput
-                                  value={provider.countryOfBirth ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "countryOfBirth",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Credentials">
-                                <SelectInput
-                                  value={provider.credentials ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "credentials",
-                                      event.target.value,
-                                    )
-                                  }
-                                  options={credentialOptions}
-                                />
-                              </Field>
-
-                              <Field label="Provider Type" required>
-                                <SelectInput
-                                  value={provider.providerType ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "providerType",
-                                      event.target.value,
-                                    )
-                                  }
-                                  options={providerTypeOptions}
-                                />
-                              </Field>
-
-                              <Field label="Specialty">
-                                <SelectInput
-                                  value={provider.specialty ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "specialty",
-                                      event.target.value,
-                                    )
-                                  }
-                                  options={specialtyOptions}
-                                />
-                              </Field>
-
-                              <Field label="Employment Status">
-                                <SelectInput
-                                  value={provider.employmentStatus ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "employmentStatus",
-                                      event.target.value,
-                                    )
-                                  }
-                                  options={employmentStatusOptions}
-                                />
-                              </Field>
-
-                              <Field label="NPI" required>
-                                <TextInput
-                                  value={provider.npi ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "npi",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="SSN (Last 4 Digits)" required>
-                                <TextInput
-                                  inputMode="numeric"
-                                  maxLength={4}
-                                  pattern="\d{4}"
-                                  title="Enter last 4 digits of SSN"
-                                  placeholder="1234"
-                                  value={provider.ssnFullDigits ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "ssnFullDigits",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <div className="lg:col-span-3">
-                                <Field
-                                  label="Are you interested in credentialing/recredentialing services through Tristate MSO?"
-                                  required
-                                >
-                                  <RadioGroup
-                                    name={`credentialing-interest-${practiceIndex}-${providerIndex}`}
-                                    value={provider.credentialingNeeded ?? ""}
-                                    options={[
-                                      { label: "Yes", value: "YES" },
-                                      { label: "No", value: "NO" },
-                                    ]}
-                                    onChange={(value) => {
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "credentialingNeeded",
-                                        value,
-                                      );
-                                      if (value === "NO") {
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                  <Field label="Provider First Name" required>
+                                    <TextInput
+                                      value={provider.firstName ?? ""}
+                                      onChange={(event) =>
                                         updateProvider(
                                           practiceIndex,
                                           providerIndex,
-                                          "caqhId",
-                                          "",
-                                        );
-                                        updateProvider(
-                                          practiceIndex,
-                                          providerIndex,
-                                          "caqhUsername",
-                                          "",
-                                        );
-                                        updateProvider(
-                                          practiceIndex,
-                                          providerIndex,
-                                          "caqhPassword",
-                                          "",
-                                        );
-                                        updateProvider(
-                                          practiceIndex,
-                                          providerIndex,
-                                          "caqhLastAttestationDate",
-                                          "",
-                                        );
-                                      }
-                                    }}
-                                  />
-                                </Field>
-                              </div>
-
-                              {provider.credentialingNeeded === "YES" ? (
-                                <Field label="CAQH ID" required>
-                                  <TextInput
-                                    value={provider.caqhId ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "caqhId",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              ) : null}
-
-                              <Field label="CLIA Number">
-                                <TextInput
-                                  value={provider.cliaNumber ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "cliaNumber",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="State License Number">
-                                <TextInput
-                                  value={provider.stateLicenseNumber ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "stateLicenseNumber",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="License Expiry Date">
-                                <TextInput
-                                  type="date"
-                                  value={provider.licenseExpiryDate ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "licenseExpiryDate",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="State of License">
-                                <TextInput
-                                  value={provider.stateOfLicense ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "stateOfLicense",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="License Type (MD, NP, etc.)">
-                                <TextInput
-                                  value={provider.licenseType ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "licenseType",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Taxonomy">
-                                <TextInput
-                                  value={provider.taxonomy ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "taxonomy",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Secondary Specialty">
-                                <TextInput
-                                  value={provider.secondarySpecialty ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "secondarySpecialty",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="DEA Number">
-                                <TextInput
-                                  value={provider.deaNumber ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "deaNumber",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <Field label="Board Certifications">
-                                <TextArea
-                                  rows={3}
-                                  value={provider.boardCertifications ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "boardCertifications",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              {provider.credentialingNeeded === "YES" ? (
-                                <Field label="CAQH Username" required>
-                                  <TextInput
-                                    value={provider.caqhUsername ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "caqhUsername",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              ) : null}
-
-                              {provider.credentialingNeeded === "YES" ? (
-                                <Field label="CAQH Password" required>
-                                  <TextInput
-                                    type="password"
-                                    value={provider.caqhPassword ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "caqhPassword",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              ) : null}
-
-                              {provider.credentialingNeeded === "YES" ? (
-                                <Field label="CAQH Last Attestation Date">
-                                  <TextInput
-                                    type="date"
-                                    value={provider.caqhLastAttestationDate ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "caqhLastAttestationDate",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              ) : null}
-
-                              <Field label="Languages Spoken">
-                                <TextArea
-                                  rows={3}
-                                  value={provider.languagesSpoken ?? ""}
-                                  onChange={(event) =>
-                                    updateProvider(
-                                      practiceIndex,
-                                      providerIndex,
-                                      "languagesSpoken",
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </Field>
-
-                              <div className="lg:col-span-3">
-                                <Field label="Participating Locations">
-                                  <CheckboxGroup
-                                    options={locationNames.map((name) => ({
-                                      label: name,
-                                      value: name,
-                                    }))}
-                                    values={
-                                      provider.participatingLocations ?? []
-                                    }
-                                    onToggle={(value) =>
-                                      toggleProviderArrayValue(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "participatingLocations",
-                                        value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Medicare PTAN (Individual)">
-                                  <TextInput
-                                    value={
-                                      provider.medicarePtanIndividual ?? ""
-                                    }
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "medicarePtanIndividual",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Medicaid ID (Individual)">
-                                  <TextInput
-                                    value={provider.medicaidIdIndividual ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "medicaidIdIndividual",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="IPA Affiliations (Provider Level)">
-                                  <TextArea
-                                    rows={3}
-                                    value={
-                                      provider.ipaAffiliationsProviderLevel ??
-                                      ""
-                                    }
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "ipaAffiliationsProviderLevel",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="NPPES Username">
-                                  <TextInput
-                                    value={provider.nppesUsername ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "nppesUsername",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="NPPES Password">
-                                  <TextInput
-                                    type="password"
-                                    value={provider.nppesPassword ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "nppesPassword",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Railroad Medicare (Individual)">
-                                  <TextInput
-                                    value={
-                                      provider.railroadMedicareIndividual ?? ""
-                                    }
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "railroadMedicareIndividual",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              </div>
-
-                              <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
-                                <div className="space-y-4">
-                                  <Field label="Board Certified?">
-                                    <BooleanRadioGroup
-                                      name={`board-certified-${practiceIndex}-${providerIndex}`}
-                                      value={provider.boardCertified ?? false}
-                                      onChange={(value) =>
-                                        updateProvider(
-                                          practiceIndex,
-                                          providerIndex,
-                                          "boardCertified",
-                                          value,
+                                          "firstName",
+                                          event.target.value,
                                         )
                                       }
                                     />
                                   </Field>
 
-                                  {provider.boardCertified ? (
+                                  <Field label="Provider Last Name" required>
+                                    <TextInput
+                                      value={provider.lastName ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "lastName",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="Date of Birth">
+                                    <TextInput
+                                      type="date"
+                                      value={provider.dateOfBirth ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "dateOfBirth",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="Gender">
+                                    <TextInput
+                                      value={provider.gender ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "gender",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="State/Place of Birth">
+                                    <TextInput
+                                      value={provider.statePlaceOfBirth ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "statePlaceOfBirth",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="Country of Birth">
+                                    <TextInput
+                                      value={provider.countryOfBirth ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "countryOfBirth",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="Credentials">
+                                    <SelectInput
+                                      value={provider.credentials ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "credentials",
+                                          event.target.value,
+                                        )
+                                      }
+                                      options={credentialOptions}
+                                    />
+                                  </Field>
+
+                                  <Field label="Provider Type" required>
+                                    <SelectInput
+                                      value={provider.providerType ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "providerType",
+                                          event.target.value,
+                                        )
+                                      }
+                                      options={providerTypeOptions}
+                                    />
+                                  </Field>
+
+                                  <Field label="Specialty">
+                                    <SelectInput
+                                      value={provider.specialty ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "specialty",
+                                          event.target.value,
+                                        )
+                                      }
+                                      options={specialtyOptions}
+                                    />
+                                  </Field>
+
+                                  <Field label="Employment Status">
+                                    <SelectInput
+                                      value={provider.employmentStatus ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "employmentStatus",
+                                          event.target.value,
+                                        )
+                                      }
+                                      options={employmentStatusOptions}
+                                    />
+                                  </Field>
+
+                                  <Field label="NPI" required>
+                                    <TextInput
+                                      value={provider.npi ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "npi",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="SSN (Last 4 Digits)" required>
+                                    <TextInput
+                                      inputMode="numeric"
+                                      maxLength={4}
+                                      pattern="\d{4}"
+                                      title="Enter last 4 digits of SSN"
+                                      placeholder="1234"
+                                      value={provider.ssnFullDigits ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "ssnFullDigits",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <div className="lg:col-span-3">
                                     <Field
-                                      label="Board Certification"
+                                      label="Are you interested in credentialing/recredentialing services through Tristate MSO?"
                                       required
                                     >
+                                      <RadioGroup
+                                        name={`credentialing-interest-${practiceIndex}-${providerIndex}`}
+                                        value={
+                                          provider.credentialingNeeded ?? ""
+                                        }
+                                        options={[
+                                          { label: "Yes", value: "YES" },
+                                          { label: "No", value: "NO" },
+                                        ]}
+                                        onChange={(value) => {
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "credentialingNeeded",
+                                            value,
+                                          );
+                                          if (value === "NO") {
+                                            updateProvider(
+                                              practiceIndex,
+                                              providerIndex,
+                                              "caqhId",
+                                              "",
+                                            );
+                                            updateProvider(
+                                              practiceIndex,
+                                              providerIndex,
+                                              "caqhUsername",
+                                              "",
+                                            );
+                                            updateProvider(
+                                              practiceIndex,
+                                              providerIndex,
+                                              "caqhPassword",
+                                              "",
+                                            );
+                                            updateProvider(
+                                              practiceIndex,
+                                              providerIndex,
+                                              "caqhLastAttestationDate",
+                                              "",
+                                            );
+                                          }
+                                        }}
+                                      />
+                                    </Field>
+                                  </div>
+
+                                  {provider.credentialingNeeded === "YES" ? (
+                                    <Field label="CAQH ID" required>
+                                      <TextInput
+                                        value={provider.caqhId ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "caqhId",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+
+                                  <Field label="CLIA Number">
+                                    <TextInput
+                                      value={provider.cliaNumber ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "cliaNumber",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="State License Number">
+                                    <TextInput
+                                      value={provider.stateLicenseNumber ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "stateLicenseNumber",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="License Expiry Date">
+                                    <TextInput
+                                      type="date"
+                                      value={provider.licenseExpiryDate ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "licenseExpiryDate",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="State of License">
+                                    <TextInput
+                                      value={provider.stateOfLicense ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "stateOfLicense",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="License Type (MD, NP, etc.)">
+                                    <TextInput
+                                      value={provider.licenseType ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "licenseType",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="Taxonomy">
+                                    <TextInput
+                                      value={provider.taxonomy ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "taxonomy",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="Secondary Specialty">
+                                    <TextInput
+                                      value={provider.secondarySpecialty ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "secondarySpecialty",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="DEA Number">
+                                    <TextInput
+                                      value={provider.deaNumber ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "deaNumber",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <Field label="Board Certifications">
+                                    <TextArea
+                                      rows={3}
+                                      value={provider.boardCertifications ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "boardCertifications",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  {provider.credentialingNeeded === "YES" ? (
+                                    <Field label="CAQH Username" required>
+                                      <TextInput
+                                        value={provider.caqhUsername ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "caqhUsername",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+
+                                  {provider.credentialingNeeded === "YES" ? (
+                                    <Field label="CAQH Password" required>
+                                      <TextInput
+                                        type="password"
+                                        value={provider.caqhPassword ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "caqhPassword",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+
+                                  {provider.credentialingNeeded === "YES" ? (
+                                    <Field label="CAQH Last Attestation Date">
+                                      <TextInput
+                                        type="date"
+                                        value={
+                                          provider.caqhLastAttestationDate ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "caqhLastAttestationDate",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+
+                                  <Field label="Languages Spoken">
+                                    <TextArea
+                                      rows={3}
+                                      value={provider.languagesSpoken ?? ""}
+                                      onChange={(event) =>
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "languagesSpoken",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Field>
+
+                                  <div className="lg:col-span-3">
+                                    <Field label="Participating Locations">
+                                      <CheckboxGroup
+                                        options={locationNames.map((name) => ({
+                                          label: name,
+                                          value: name,
+                                        }))}
+                                        values={
+                                          provider.participatingLocations ?? []
+                                        }
+                                        onToggle={(value) =>
+                                          toggleProviderArrayValue(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "participatingLocations",
+                                            value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Medicare PTAN (Individual)">
+                                      <TextInput
+                                        value={
+                                          provider.medicarePtanIndividual ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "medicarePtanIndividual",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Medicaid ID (Individual)">
+                                      <TextInput
+                                        value={
+                                          provider.medicaidIdIndividual ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "medicaidIdIndividual",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="IPA Affiliations (Provider Level)">
+                                      <TextArea
+                                        rows={3}
+                                        value={
+                                          provider.ipaAffiliationsProviderLevel ??
+                                          ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "ipaAffiliationsProviderLevel",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="NPPES Username">
+                                      <TextInput
+                                        value={provider.nppesUsername ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "nppesUsername",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="NPPES Password">
+                                      <TextInput
+                                        type="password"
+                                        value={provider.nppesPassword ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "nppesPassword",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Railroad Medicare (Individual)">
+                                      <TextInput
+                                        value={
+                                          provider.railroadMedicareIndividual ??
+                                          ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "railroadMedicareIndividual",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  </div>
+
+                                  <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
+                                    <div className="space-y-4">
+                                      <Field label="Board Certified?">
+                                        <BooleanRadioGroup
+                                          name={`board-certified-${practiceIndex}-${providerIndex}`}
+                                          value={
+                                            provider.boardCertified ?? false
+                                          }
+                                          onChange={(value) =>
+                                            updateProvider(
+                                              practiceIndex,
+                                              providerIndex,
+                                              "boardCertified",
+                                              value,
+                                            )
+                                          }
+                                        />
+                                      </Field>
+
+                                      {provider.boardCertified ? (
+                                        <Field
+                                          label="Board Certification"
+                                          required
+                                        >
+                                          <DocumentUploadField
+                                            value={
+                                              provider.copyOfBoardCertification ??
+                                              ""
+                                            }
+                                            isUploading={
+                                              uploadingFieldKey ===
+                                              `${practiceIndex}-${providerIndex}-copyOfBoardCertification`
+                                            }
+                                            onSelect={(file) =>
+                                              void uploadProviderDocument(
+                                                practiceIndex,
+                                                providerIndex,
+                                                "copyOfBoardCertification",
+                                                file,
+                                              )
+                                            }
+                                            onClear={() =>
+                                              void removeProviderDocument(
+                                                practiceIndex,
+                                                providerIndex,
+                                                "copyOfBoardCertification",
+                                              )
+                                            }
+                                          />
+                                        </Field>
+                                      ) : null}
+                                    </div>
+                                  </div>
+
+                                  <div className="lg:col-span-3 space-y-4">
+                                    <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                                      <Field label="Select Document Type">
+                                        <SelectInput
+                                          value={getSelectedProviderUploadField(
+                                            practiceIndex,
+                                            providerIndex,
+                                          )}
+                                          onChange={(event) =>
+                                            setSelectedProviderUploadField(
+                                              (prev) => ({
+                                                ...prev,
+                                                [getProviderUploadStateKey(
+                                                  practiceIndex,
+                                                  providerIndex,
+                                                )]: event.target
+                                                  .value as ProviderDocumentField,
+                                              }),
+                                            )
+                                          }
+                                          options={providerDocumentFieldOptions}
+                                          placeholder="Select document type"
+                                        />
+                                      </Field>
+
+                                      <Field label="Upload Selected Document">
+                                        <DocumentUploadField
+                                          value={
+                                            provider[
+                                              getSelectedProviderUploadField(
+                                                practiceIndex,
+                                                providerIndex,
+                                              )
+                                            ] ?? ""
+                                          }
+                                          accept={
+                                            getSelectedProviderUploadField(
+                                              practiceIndex,
+                                              providerIndex,
+                                            ) === "passportSizedPhoto"
+                                              ? ".png,.jpg,.jpeg"
+                                              : ".pdf,.png,.jpg,.jpeg,.doc,.docx,.csv,.xlsx"
+                                          }
+                                          isUploading={
+                                            uploadingFieldKey ===
+                                            `${practiceIndex}-${providerIndex}-${getSelectedProviderUploadField(
+                                              practiceIndex,
+                                              providerIndex,
+                                            )}`
+                                          }
+                                          onSelect={(file) =>
+                                            void uploadProviderDocument(
+                                              practiceIndex,
+                                              providerIndex,
+                                              getSelectedProviderUploadField(
+                                                practiceIndex,
+                                                providerIndex,
+                                              ),
+                                              file,
+                                            )
+                                          }
+                                          onClear={() =>
+                                            void removeProviderDocument(
+                                              practiceIndex,
+                                              providerIndex,
+                                              getSelectedProviderUploadField(
+                                                practiceIndex,
+                                                providerIndex,
+                                              ),
+                                            )
+                                          }
+                                        />
+                                      </Field>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                      <p className="text-sm font-medium text-slate-800">
+                                        Uploaded Documents
+                                      </p>
+                                      {providerDocumentFieldOptions.filter(
+                                        (documentOption) =>
+                                          Boolean(
+                                            provider[documentOption.value],
+                                          ),
+                                      ).length > 0 ? (
+                                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                          {providerDocumentFieldOptions
+                                            .filter((documentOption) =>
+                                              Boolean(
+                                                provider[documentOption.value],
+                                              ),
+                                            )
+                                            .map((documentOption) => {
+                                              const documentValue =
+                                                provider[
+                                                  documentOption.value
+                                                ] ?? "";
+
+                                              return (
+                                                <div
+                                                  key={documentOption.value}
+                                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                                                >
+                                                  <p className="text-xs font-medium text-slate-600">
+                                                    {documentOption.label}
+                                                  </p>
+                                                  <p className="mt-1 break-all text-xs text-slate-500">
+                                                    {documentValue
+                                                      .split("/")
+                                                      .pop()
+                                                      ?.split("?")[0] ??
+                                                      documentValue}
+                                                  </p>
+                                                </div>
+                                              );
+                                            })}
+                                        </div>
+                                      ) : (
+                                        <p className="mt-3 text-xs text-slate-500">
+                                          No documents uploaded yet.
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                    <Field label="Malpractice Carrier">
+                                      <TextInput
+                                        value={
+                                          provider.malpracticeCarrier ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "malpracticeCarrier",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Malpractice Policy #">
+                                      <TextInput
+                                        value={
+                                          provider.malpracticePolicyNumber ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "malpracticePolicyNumber",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Malpractice Effective Date">
+                                      <TextInput
+                                        type="date"
+                                        value={
+                                          provider.malpracticeEffectiveDate ??
+                                          ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "malpracticeEffectiveDate",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Malpractice Expiry Date">
+                                      <TextInput
+                                        type="date"
+                                        value={
+                                          provider.malpracticeExpiryDate ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "malpracticeExpiryDate",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Provider Effective Date with the Group">
+                                      <TextInput
+                                        type="date"
+                                        value={
+                                          provider.providerEffectiveDateWithGroup ??
+                                          ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "providerEffectiveDateWithGroup",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  </div>
+
+                                  <div className="lg:col-span-3">
+                                    <Field label="Hospital Affiliations">
+                                      <TextArea
+                                        rows={3}
+                                        value={
+                                          provider.hospitalAffiliations ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "hospitalAffiliations",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  </div>
+
+                                  <div className="lg:col-span-3">
+                                    <Field label="Home Address (for Medicaid applications)">
+                                      <TextArea
+                                        rows={3}
+                                        value={provider.homeAddress ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "homeAddress",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  </div>
+
+                                  <div className="hidden lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                    <Field label="Board Certification">
                                       <DocumentUploadField
                                         value={
-                                          provider.copyOfBoardCertification ?? ""
+                                          provider.copyOfBoardCertification ??
+                                          ""
                                         }
                                         isUploading={
                                           uploadingFieldKey ===
@@ -4644,468 +4972,206 @@ export default function OnboardingFormV5() {
                                         }
                                       />
                                     </Field>
-                                  ) : null}
-                                </div>
 
-                              </div>
-
-                              <div className="lg:col-span-3 space-y-4">
-                                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                                  <Field label="Select Document Type">
-                                    <SelectInput
-                                      value={getSelectedProviderUploadField(
-                                        practiceIndex,
-                                        providerIndex,
-                                      )}
-                                      onChange={(event) =>
-                                        setSelectedProviderUploadField(
-                                          (prev) => ({
-                                            ...prev,
-                                            [getProviderUploadStateKey(
-                                              practiceIndex,
-                                              providerIndex,
-                                            )]: event.target
-                                              .value as ProviderDocumentField,
-                                          }),
-                                        )
-                                      }
-                                      options={providerDocumentFieldOptions}
-                                      placeholder="Select document type"
-                                    />
-                                  </Field>
-
-                                  <Field label="Upload Selected Document">
-                                    <DocumentUploadField
-                                      value={
-                                        provider[
-                                          getSelectedProviderUploadField(
+                                    <Field label="Professional Liability Insurance (PLI)">
+                                      <DocumentUploadField
+                                        value={
+                                          provider.copyOfProfessionalLiabilityInsurance ??
+                                          ""
+                                        }
+                                        isUploading={
+                                          uploadingFieldKey ===
+                                          `${practiceIndex}-${providerIndex}-copyOfProfessionalLiabilityInsurance`
+                                        }
+                                        onSelect={(file) =>
+                                          void uploadProviderDocument(
                                             practiceIndex,
                                             providerIndex,
+                                            "copyOfProfessionalLiabilityInsurance",
+                                            file,
                                           )
-                                        ] ?? ""
-                                      }
-                                      accept={
-                                        getSelectedProviderUploadField(
-                                          practiceIndex,
-                                          providerIndex,
-                                        ) === "passportSizedPhoto"
-                                          ? ".png,.jpg,.jpeg"
-                                          : ".pdf,.png,.jpg,.jpeg,.doc,.docx,.csv,.xlsx"
-                                      }
-                                      isUploading={
-                                        uploadingFieldKey ===
-                                        `${practiceIndex}-${providerIndex}-${getSelectedProviderUploadField(
-                                          practiceIndex,
-                                          providerIndex,
-                                        )}`
-                                      }
-                                      onSelect={(file) =>
-                                        void uploadProviderDocument(
-                                          practiceIndex,
-                                          providerIndex,
-                                          getSelectedProviderUploadField(
+                                        }
+                                        onClear={() =>
+                                          void removeProviderDocument(
                                             practiceIndex,
                                             providerIndex,
-                                          ),
-                                          file,
-                                        )
-                                      }
-                                      onClear={() =>
-                                        void removeProviderDocument(
-                                          practiceIndex,
-                                          providerIndex,
-                                          getSelectedProviderUploadField(
+                                            "copyOfProfessionalLiabilityInsurance",
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Bachelor’s Degree">
+                                      <DocumentUploadField
+                                        value={
+                                          provider.copyOfBachelorsDegree ?? ""
+                                        }
+                                        isUploading={
+                                          uploadingFieldKey ===
+                                          `${practiceIndex}-${providerIndex}-copyOfBachelorsDegree`
+                                        }
+                                        onSelect={(file) =>
+                                          void uploadProviderDocument(
                                             practiceIndex,
                                             providerIndex,
-                                          ),
-                                        )
-                                      }
-                                    />
-                                  </Field>
+                                            "copyOfBachelorsDegree",
+                                            file,
+                                          )
+                                        }
+                                        onClear={() =>
+                                          void removeProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "copyOfBachelorsDegree",
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Master’s Degree">
+                                      <DocumentUploadField
+                                        value={
+                                          provider.copyOfMastersDegree ?? ""
+                                        }
+                                        isUploading={
+                                          uploadingFieldKey ===
+                                          `${practiceIndex}-${providerIndex}-copyOfMastersDegree`
+                                        }
+                                        onSelect={(file) =>
+                                          void uploadProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "copyOfMastersDegree",
+                                            file,
+                                          )
+                                        }
+                                        onClear={() =>
+                                          void removeProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "copyOfMastersDegree",
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Social Security Card (required for credentialing)">
+                                      <DocumentUploadField
+                                        value={
+                                          provider.copyOfSocialSecurityCard ??
+                                          ""
+                                        }
+                                        isUploading={
+                                          uploadingFieldKey ===
+                                          `${practiceIndex}-${providerIndex}-copyOfSocialSecurityCard`
+                                        }
+                                        onSelect={(file) =>
+                                          void uploadProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "copyOfSocialSecurityCard",
+                                            file,
+                                          )
+                                        }
+                                        onClear={() =>
+                                          void removeProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "copyOfSocialSecurityCard",
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Driver’s License">
+                                      <DocumentUploadField
+                                        value={
+                                          provider.copyOfDriversLicense ?? ""
+                                        }
+                                        isUploading={
+                                          uploadingFieldKey ===
+                                          `${practiceIndex}-${providerIndex}-copyOfDriversLicense`
+                                        }
+                                        onSelect={(file) =>
+                                          void uploadProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "copyOfDriversLicense",
+                                            file,
+                                          )
+                                        }
+                                        onClear={() =>
+                                          void removeProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "copyOfDriversLicense",
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Passport-sized Photo">
+                                      <DocumentUploadField
+                                        value={
+                                          provider.passportSizedPhoto ?? ""
+                                        }
+                                        accept=".png,.jpg,.jpeg"
+                                        isUploading={
+                                          uploadingFieldKey ===
+                                          `${practiceIndex}-${providerIndex}-passportSizedPhoto`
+                                        }
+                                        onSelect={(file) =>
+                                          void uploadProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "passportSizedPhoto",
+                                            file,
+                                          )
+                                        }
+                                        onClear={() =>
+                                          void removeProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "passportSizedPhoto",
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Resume (with MM/DD/YYYY format)">
+                                      <DocumentUploadField
+                                        value={provider.resume ?? ""}
+                                        isUploading={
+                                          uploadingFieldKey ===
+                                          `${practiceIndex}-${providerIndex}-resume`
+                                        }
+                                        onSelect={(file) =>
+                                          void uploadProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "resume",
+                                            file,
+                                          )
+                                        }
+                                        onClear={() =>
+                                          void removeProviderDocument(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "resume",
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  </div>
                                 </div>
-
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                  <p className="text-sm font-medium text-slate-800">
-                                    Uploaded Documents
-                                  </p>
-                                  {providerDocumentFieldOptions.filter(
-                                    (documentOption) =>
-                                      Boolean(provider[documentOption.value]),
-                                  ).length > 0 ? (
-                                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                      {providerDocumentFieldOptions
-                                        .filter((documentOption) =>
-                                          Boolean(
-                                            provider[documentOption.value],
-                                          ),
-                                        )
-                                        .map((documentOption) => {
-                                          const documentValue =
-                                            provider[documentOption.value] ??
-                                            "";
-
-                                          return (
-                                            <div
-                                              key={documentOption.value}
-                                              className="rounded-xl border border-slate-200 bg-white px-3 py-2"
-                                            >
-                                              <p className="text-xs font-medium text-slate-600">
-                                                {documentOption.label}
-                                              </p>
-                                              <p className="mt-1 break-all text-xs text-slate-500">
-                                                {documentValue
-                                                  .split("/")
-                                                  .pop()
-                                                  ?.split("?")[0] ??
-                                                  documentValue}
-                                              </p>
-                                            </div>
-                                          );
-                                        })}
-                                    </div>
-                                  ) : (
-                                    <p className="mt-3 text-xs text-slate-500">
-                                      No documents uploaded yet.
-                                    </p>
-                                  )}
-                                </div>
                               </div>
-
-                              <div className="lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                <Field label="Malpractice Carrier">
-                                  <TextInput
-                                    value={provider.malpracticeCarrier ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "malpracticeCarrier",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Malpractice Policy #">
-                                  <TextInput
-                                    value={
-                                      provider.malpracticePolicyNumber ?? ""
-                                    }
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "malpracticePolicyNumber",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Malpractice Effective Date">
-                                  <TextInput
-                                    type="date"
-                                    value={
-                                      provider.malpracticeEffectiveDate ?? ""
-                                    }
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "malpracticeEffectiveDate",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Malpractice Expiry Date">
-                                  <TextInput
-                                    type="date"
-                                    value={provider.malpracticeExpiryDate ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "malpracticeExpiryDate",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Provider Effective Date with the Group">
-                                  <TextInput
-                                    type="date"
-                                    value={
-                                      provider.providerEffectiveDateWithGroup ??
-                                      ""
-                                    }
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "providerEffectiveDateWithGroup",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                              </div>
-
-                              <div className="lg:col-span-3">
-                                <Field label="Hospital Affiliations">
-                                  <TextArea
-                                    rows={3}
-                                    value={provider.hospitalAffiliations ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "hospitalAffiliations",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              </div>
-
-                              <div className="lg:col-span-3">
-                                <Field label="Home Address (for Medicaid applications)">
-                                  <TextArea
-                                    rows={3}
-                                    value={provider.homeAddress ?? ""}
-                                    onChange={(event) =>
-                                      updateProvider(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "homeAddress",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              </div>
-
-                              <div className="hidden lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                <Field label="Board Certification">
-                                  <DocumentUploadField
-                                    value={
-                                      provider.copyOfBoardCertification ?? ""
-                                    }
-                                    isUploading={
-                                      uploadingFieldKey ===
-                                      `${practiceIndex}-${providerIndex}-copyOfBoardCertification`
-                                    }
-                                    onSelect={(file) =>
-                                      void uploadProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfBoardCertification",
-                                        file,
-                                      )
-                                    }
-                                    onClear={() =>
-                                      void removeProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfBoardCertification",
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Professional Liability Insurance (PLI)">
-                                  <DocumentUploadField
-                                    value={
-                                      provider.copyOfProfessionalLiabilityInsurance ??
-                                      ""
-                                    }
-                                    isUploading={
-                                      uploadingFieldKey ===
-                                      `${practiceIndex}-${providerIndex}-copyOfProfessionalLiabilityInsurance`
-                                    }
-                                    onSelect={(file) =>
-                                      void uploadProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfProfessionalLiabilityInsurance",
-                                        file,
-                                      )
-                                    }
-                                    onClear={() =>
-                                      void removeProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfProfessionalLiabilityInsurance",
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Bachelor’s Degree">
-                                  <DocumentUploadField
-                                    value={provider.copyOfBachelorsDegree ?? ""}
-                                    isUploading={
-                                      uploadingFieldKey ===
-                                      `${practiceIndex}-${providerIndex}-copyOfBachelorsDegree`
-                                    }
-                                    onSelect={(file) =>
-                                      void uploadProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfBachelorsDegree",
-                                        file,
-                                      )
-                                    }
-                                    onClear={() =>
-                                      void removeProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfBachelorsDegree",
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Master’s Degree">
-                                  <DocumentUploadField
-                                    value={provider.copyOfMastersDegree ?? ""}
-                                    isUploading={
-                                      uploadingFieldKey ===
-                                      `${practiceIndex}-${providerIndex}-copyOfMastersDegree`
-                                    }
-                                    onSelect={(file) =>
-                                      void uploadProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfMastersDegree",
-                                        file,
-                                      )
-                                    }
-                                    onClear={() =>
-                                      void removeProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfMastersDegree",
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Social Security Card (required for credentialing)">
-                                  <DocumentUploadField
-                                    value={
-                                      provider.copyOfSocialSecurityCard ?? ""
-                                    }
-                                    isUploading={
-                                      uploadingFieldKey ===
-                                      `${practiceIndex}-${providerIndex}-copyOfSocialSecurityCard`
-                                    }
-                                    onSelect={(file) =>
-                                      void uploadProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfSocialSecurityCard",
-                                        file,
-                                      )
-                                    }
-                                    onClear={() =>
-                                      void removeProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfSocialSecurityCard",
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Driver’s License">
-                                  <DocumentUploadField
-                                    value={provider.copyOfDriversLicense ?? ""}
-                                    isUploading={
-                                      uploadingFieldKey ===
-                                      `${practiceIndex}-${providerIndex}-copyOfDriversLicense`
-                                    }
-                                    onSelect={(file) =>
-                                      void uploadProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfDriversLicense",
-                                        file,
-                                      )
-                                    }
-                                    onClear={() =>
-                                      void removeProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "copyOfDriversLicense",
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Passport-sized Photo">
-                                  <DocumentUploadField
-                                    value={provider.passportSizedPhoto ?? ""}
-                                    accept=".png,.jpg,.jpeg"
-                                    isUploading={
-                                      uploadingFieldKey ===
-                                      `${practiceIndex}-${providerIndex}-passportSizedPhoto`
-                                    }
-                                    onSelect={(file) =>
-                                      void uploadProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "passportSizedPhoto",
-                                        file,
-                                      )
-                                    }
-                                    onClear={() =>
-                                      void removeProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "passportSizedPhoto",
-                                      )
-                                    }
-                                  />
-                                </Field>
-
-                                <Field label="Resume (with MM/DD/YYYY format)">
-                                  <DocumentUploadField
-                                    value={provider.resume ?? ""}
-                                    isUploading={
-                                      uploadingFieldKey ===
-                                      `${practiceIndex}-${providerIndex}-resume`
-                                    }
-                                    onSelect={(file) =>
-                                      void uploadProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "resume",
-                                        file,
-                                      )
-                                    }
-                                    onClear={() =>
-                                      void removeProviderDocument(
-                                        practiceIndex,
-                                        providerIndex,
-                                        "resume",
-                                      )
-                                    }
-                                  />
-                                </Field>
-                              </div>
-                            </div>
-                          </div>
-                        ),
-                      )}
-                    </div>
-                    </div>
-                  ) : null}
-                </div>
-              );
+                            ),
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
               })}
             </div>
           </SectionCard>
@@ -5694,7 +5760,9 @@ export default function OnboardingFormV5() {
                       <Field label="Do you have a designated contact person for insurance/credentialing?">
                         <BooleanRadioGroup
                           name="designated-credentialing-contact"
-                          value={formData.credentialing?.caqhMaintained ?? false}
+                          value={
+                            formData.credentialing?.caqhMaintained ?? false
+                          }
                           onChange={(value) => {
                             updateNestedField(
                               "credentialing",
@@ -6416,7 +6484,6 @@ export default function OnboardingFormV5() {
                 </div>
               </SectionCard>
             ) : null}
-
           </>
         ) : null}
 

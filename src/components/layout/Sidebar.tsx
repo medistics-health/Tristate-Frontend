@@ -62,9 +62,21 @@ const sidebarSteps: SidebarItem[] = [
   //   to: "/portal",
   //   requiredRoles: [...MODULE_ACCESS.DASHBOARD],
   // },
-  { label: "Lead", to: "/lead/create", requiredRoles: [...BUSINESS_WRITE_ROLES] },
-  { label: "Deal", to: "/deal/all-deals", requiredRoles: [...MODULE_ACCESS.CRM] },
-  { label: "Person", to: "/person/all-persons", requiredRoles: [...MODULE_ACCESS.CRM] },
+  {
+    label: "Lead",
+    to: "/lead/create",
+    requiredRoles: [...BUSINESS_WRITE_ROLES],
+  },
+  {
+    label: "Deal",
+    to: "/deal/all-deals",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+  },
+  {
+    label: "Person",
+    to: "/person/all-persons",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+  },
   {
     label: "Company",
     to: "/company/all-companies",
@@ -491,25 +503,15 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                     if (label.includes("security"))
                       CustomIcon = <Shield className="h-3.5 w-3.5" />;
                     if (label.includes("status board"))
-                      CustomIcon = (
-                        <LayoutDashboard className="h-3.5 w-3.5" />
-                      );
-                    if (
-                      label.includes("overdue") ||
-                      label.includes("pending")
-                    )
+                      CustomIcon = <LayoutDashboard className="h-3.5 w-3.5" />;
+                    if (label.includes("overdue") || label.includes("pending"))
                       CustomIcon = <BarChart3 className="h-3.5 w-3.5" />;
                     if (
                       label.includes("contracts") ||
                       label.includes("agreements")
                     )
-                      CustomIcon = (
-                        <FileSignature className="h-3.5 w-3.5" />
-                      );
-                    if (
-                      label.includes("payables") ||
-                      label.includes("billing")
-                    )
+                      CustomIcon = <FileSignature className="h-3.5 w-3.5" />;
+                    if (label.includes("payables") || label.includes("billing"))
                       CustomIcon = <CreditCard className="h-3.5 w-3.5" />;
                     if (label.includes("sync"))
                       CustomIcon = <Zap className="h-3.5 w-3.5" />;
