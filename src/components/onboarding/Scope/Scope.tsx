@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
   createExternalOnboardingFromForm,
@@ -86,6 +87,7 @@ function formatDateShortForDisplay(dateValue: string) {
 }
 
 export default function Scope() {
+  const navigate = useNavigate();
   const [scope, setScope] = useState<ScopeFormState>(initialScopeState);
   const [isPracticeModalOpen, setIsPracticeModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -755,6 +757,16 @@ export default function Scope() {
                   No ADMIN or OWNER person is linked to this practice. Add an
                   eligible contact first, then send onboarding.
                 </p>
+              ) : null}
+
+              {selectedPracticeId ? (
+                <button
+                  type="button"
+                  onClick={() => { setIsPracticeModalOpen(false); navigate("/person/all-persons"); }}
+                  className="text-sm font-medium text-slate-600 underline underline-offset-2 hover:text-slate-900"
+                >
+                  Manage / Add Contact
+                </button>
               ) : null}
 
               <p className="text-xs text-slate-500">
