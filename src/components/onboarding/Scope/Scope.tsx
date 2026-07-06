@@ -616,7 +616,7 @@ export default function Scope() {
                         </div>
 
                         {detail.hasExistingVendor ? (
-                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-1">
                             <select
                               value={detail.vendorName}
                               onChange={(event) =>
@@ -633,7 +633,7 @@ export default function Scope() {
                                 </option>
                               ))}
                             </select>
-                            <div className="relative">
+                            {/*<div className="relative">
                               <input
                                 type="text"
                                 value={formatDateShortForDisplay(
@@ -667,7 +667,7 @@ export default function Scope() {
                                 aria-hidden="true"
                                 className="pointer-events-none absolute h-0 w-0 opacity-0"
                               />
-                            </div>
+                            </div>*/}
                           </div>
                         ) : null}
                       </div>

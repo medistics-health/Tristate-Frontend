@@ -1337,6 +1337,7 @@ export default function OnboardingFormV5() {
   );
   const [selectedProviderUploadField, setSelectedProviderUploadField] =
     useState<Record<string, ProviderDocumentField>>({});
+  const [hasPracticeManager, setHasPracticeManager] = useState(false);
   const [copyCompanyInfoToPracticeOne, setCopyCompanyInfoToPracticeOne] =
     useState(false);
   const [
@@ -2337,7 +2338,9 @@ export default function OnboardingFormV5() {
     }
 
     if (currentStep === 5) {
-      if (!(formData.contacts ?? []).length) {
+      if (!hasPracticeManager) {
+        // no-op: no practice manager means no contacts required
+      } else if (!(formData.contacts ?? []).length) {
         errors.push("At least one contact");
       } else {
         const invalidContactIndexes = (formData.contacts ?? [])
@@ -2452,6 +2455,7 @@ export default function OnboardingFormV5() {
     }
 
     if (stepId === 5) {
+      if (!hasPracticeManager) return true;
       return (
         (formData.contacts ?? []).every((contact) => {
           const fullName = contact.fullName?.trim() ?? "";
@@ -3182,186 +3186,393 @@ export default function OnboardingFormV5() {
         {currentStep === 5 ? (
           <SectionCard
             title="Practice Manager & Additional Contacts"
-            description="Start with the Practice Manager, then add any additional contacts as needed."
+            description="Manage the practice manager and additional contacts for this onboarding."
           >
-            <RepeaterHeader
-              title="Practice Manager"
-              actionLabel="+ Add Additional Contact"
-              onAction={addContact}
-            />
-            <div className="space-y-4">
-              {(formData.contacts ?? []).map((contact, index) => (
-                <div
-                  key={`contact-${index}`}
-                  className="rounded-2xl border border-slate-200 p-4"
-                >
-                  <div className="mb-4 flex items-center justify-between gap-4">
-                    <p className="font-medium text-slate-800">
-                      {index === 0
-                        ? "Practice Manager"
-                        : `Additional Contact ${index}`}
-                    </p>
-                    {(formData.contacts ?? []).length > 1 ? (
-                      <button
-                        type="button"
-                        onClick={() => removeContact(index)}
-                        className="text-sm text-red-500"
-                      >
-                        Remove
-                      </button>
-                    ) : null}
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Field label="Full Name" required>
-                      <TextInput
-                        value={contact.fullName ?? ""}
-                        onChange={(event) =>
-                          updateContact(index, "fullName", event.target.value)
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Job Title">
-                      <TextInput
-                        value={contact.jobTitle ?? ""}
-                        onChange={(event) =>
-                          updateContact(index, "jobTitle", event.target.value)
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Contact Role" required>
-                      <SelectInput
-                        value={contact.contactRole ?? ""}
-                        onChange={(event) =>
-                          updateContact(
-                            index,
-                            "contactRole",
-                            event.target.value,
-                          )
-                        }
-                        options={contactRoleOptions}
-                      />
-                    </Field>
-
-                    <Field label="Email" required>
-                      <TextInput
-                        type="email"
-                        placeholder="name@company.com"
-                        value={contact.email ?? ""}
-                        onChange={(event) =>
-                          updateContact(index, "email", event.target.value)
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Phone">
-                      <TextInput
-                        type="tel"
-                        inputMode="numeric"
-                        maxLength={10}
-                        pattern="\d{10}"
-                        title="Contact phone must be exactly 10 digits"
-                        placeholder="1234567890"
-                        value={contact.phone ?? ""}
-                        onChange={(event) =>
-                          updateContact(
-                            index,
-                            "phone",
-                            event.target.value.replace(/\D/g, ""),
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Extension">
-                      <TextInput
-                        value={contact.extension ?? ""}
-                        onChange={(event) =>
-                          updateContact(
-                            index,
-                            "extension",
-                            event.target.value.replace(/\D/g, ""),
-                          )
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Preferred Contact Method">
-                      <SelectInput
-                        value={contact.preferredContactMethod ?? ""}
-                        onChange={(event) =>
-                          updateContact(
-                            index,
-                            "preferredContactMethod",
-                            event.target.value,
-                          )
-                        }
-                        options={preferredContactOptions}
-                      />
-                    </Field>
-
-                    <Field label="Best Time to Reach">
-                      <SelectInput
-                        value={contact.bestTimeToReach ?? ""}
-                        onChange={(event) =>
-                          updateContact(
-                            index,
-                            "bestTimeToReach",
-                            event.target.value,
-                          )
-                        }
-                        options={bestTimeOptions}
-                      />
-                    </Field>
-
-                    <div className="lg:col-span-3">
-                      <Field label="Additional Responsibilities">
-                        <MultiSelectDropdown
-                          options={responsibilityOptions}
-                          values={contact.additionalResponsibilities ?? []}
-                          onToggle={(value) =>
-                            toggleContactArrayValue(
-                              index,
-                              "additionalResponsibilities",
-                              value,
-                            )
-                          }
-                          placeholder="Select responsibilities"
-                        />
-                      </Field>
-                    </div>
-
-                    <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
-                      <Field label="Is this the primary decision maker?">
-                        <BooleanRadioGroup
-                          name={`primary-decision-maker-${index}`}
-                          value={contact.isPrimaryDecisionMaker ?? false}
-                          onChange={(value) =>
-                            updateContact(
-                              index,
-                              "isPrimaryDecisionMaker",
-                              value,
-                            )
-                          }
-                        />
-                      </Field>
-
-                      <Field label="Can this person sign agreements?">
-                        <BooleanRadioGroup
-                          name={`can-sign-${index}`}
-                          value={contact.canSignAgreements ?? false}
-                          onChange={(value) =>
-                            updateContact(index, "canSignAgreements", value)
-                          }
-                        />
-                      </Field>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="grid gap-6">
+              <Field label="Does this practice have a practice manager?">
+                <BooleanRadioGroup
+                  name="hasPracticeManager"
+                  value={hasPracticeManager}
+                  onChange={(value) => {
+                    setHasPracticeManager(value);
+                    if (value) {
+                      setFormData((prev) => ({
+                        ...prev,
+                        contacts:
+                          (prev.contacts ?? []).length > 0
+                            ? (prev.contacts ?? []).map((contact, index) =>
+                                index === 0
+                                  ? { ...contact, contactRole: "PRACTICE_MANAGER" }
+                                  : contact,
+                              )
+                            : [
+                                {
+                                  ...initialContact,
+                                  contactRole: "PRACTICE_MANAGER",
+                                },
+                              ],
+                      }));
+                    }
+                  }}
+                />
+              </Field>
             </div>
+
+            {hasPracticeManager ? (
+              <div className="mt-6 space-y-4">
+                {(formData.contacts ?? []).length > 0 ? (
+                  <div className="rounded-2xl border border-slate-200 p-4">
+                    <div className="mb-4 flex items-center justify-between gap-4">
+                      <p className="font-medium text-slate-800">
+                        Practice Manager
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      <Field label="Full Name" required>
+                        <TextInput
+                          value={formData.contacts?.[0]?.fullName ?? ""}
+                          onChange={(event) =>
+                            updateContact(0, "fullName", event.target.value)
+                          }
+                        />
+                      </Field>
+
+                      <Field label="Job Title">
+                        <TextInput
+                          value={formData.contacts?.[0]?.jobTitle ?? ""}
+                          onChange={(event) =>
+                            updateContact(0, "jobTitle", event.target.value)
+                          }
+                        />
+                      </Field>
+
+                      <Field label="Email" required>
+                        <TextInput
+                          type="email"
+                          placeholder="name@company.com"
+                          value={formData.contacts?.[0]?.email ?? ""}
+                          onChange={(event) =>
+                            updateContact(0, "email", event.target.value)
+                          }
+                        />
+                      </Field>
+
+                      <Field label="Phone">
+                        <TextInput
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={10}
+                          pattern="\d{10}"
+                          title="Contact phone must be exactly 10 digits"
+                          placeholder="1234567890"
+                          value={formData.contacts?.[0]?.phone ?? ""}
+                          onChange={(event) =>
+                            updateContact(
+                              0,
+                              "phone",
+                              event.target.value.replace(/\D/g, ""),
+                            )
+                          }
+                        />
+                      </Field>
+
+                      <Field label="Extension">
+                        <TextInput
+                          value={formData.contacts?.[0]?.extension ?? ""}
+                          onChange={(event) =>
+                            updateContact(
+                              0,
+                              "extension",
+                              event.target.value.replace(/\D/g, ""),
+                            )
+                          }
+                        />
+                      </Field>
+
+                      <Field label="Preferred Contact Method">
+                        <SelectInput
+                          value={
+                            formData.contacts?.[0]?.preferredContactMethod ?? ""
+                          }
+                          onChange={(event) =>
+                            updateContact(
+                              0,
+                              "preferredContactMethod",
+                              event.target.value,
+                            )
+                          }
+                          options={preferredContactOptions}
+                        />
+                      </Field>
+
+                      <Field label="Best Time to Reach">
+                        <SelectInput
+                          value={formData.contacts?.[0]?.bestTimeToReach ?? ""}
+                          onChange={(event) =>
+                            updateContact(
+                              0,
+                              "bestTimeToReach",
+                              event.target.value,
+                            )
+                          }
+                          options={bestTimeOptions}
+                        />
+                      </Field>
+
+                      <div className="lg:col-span-3">
+                        <Field label="Additional Responsibilities">
+                          <MultiSelectDropdown
+                            options={responsibilityOptions}
+                            values={
+                              formData.contacts?.[0]
+                                ?.additionalResponsibilities ?? []
+                            }
+                            onToggle={(value) =>
+                              toggleContactArrayValue(
+                                0,
+                                "additionalResponsibilities",
+                                value,
+                              )
+                            }
+                            placeholder="Select responsibilities"
+                          />
+                        </Field>
+                      </div>
+
+                      <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
+                        <Field label="Is this the primary decision maker?">
+                          <BooleanRadioGroup
+                            name="primary-decision-maker-0"
+                            value={
+                              formData.contacts?.[0]
+                                ?.isPrimaryDecisionMaker ?? false
+                            }
+                            onChange={(value) =>
+                              updateContact(
+                                0,
+                                "isPrimaryDecisionMaker",
+                                value,
+                              )
+                            }
+                          />
+                        </Field>
+
+                        <Field label="Can this person sign agreements?">
+                          <BooleanRadioGroup
+                            name="can-sign-0"
+                            value={
+                              formData.contacts?.[0]?.canSignAgreements ??
+                              false
+                            }
+                            onChange={(value) =>
+                              updateContact(0, "canSignAgreements", value)
+                            }
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <RepeaterHeader
+                  title="Additional Contacts"
+                  actionLabel="+ Add Another Contact"
+                  onAction={addContact}
+                />
+
+                {(formData.contacts ?? []).slice(1).map((contact, index) => {
+                  const actualIndex = index + 1;
+                  return (
+                    <div
+                      key={`contact-${actualIndex}`}
+                      className="rounded-2xl border border-slate-200 p-4"
+                    >
+                      <div className="mb-4 flex items-center justify-between gap-4">
+                        <p className="font-medium text-slate-800">
+                          Additional Contact {actualIndex}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => removeContact(actualIndex)}
+                          className="text-sm text-red-500"
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        <Field label="Full Name" required>
+                          <TextInput
+                            value={contact.fullName ?? ""}
+                            onChange={(event) =>
+                              updateContact(
+                                actualIndex,
+                                "fullName",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </Field>
+
+                        <Field label="Job Title">
+                          <TextInput
+                            value={contact.jobTitle ?? ""}
+                            onChange={(event) =>
+                              updateContact(
+                                actualIndex,
+                                "jobTitle",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </Field>
+
+                        <Field label="Contact Role" required>
+                          <SelectInput
+                            value={contact.contactRole ?? ""}
+                            onChange={(event) =>
+                              updateContact(
+                                actualIndex,
+                                "contactRole",
+                                event.target.value,
+                              )
+                            }
+                            options={contactRoleOptions}
+                          />
+                        </Field>
+
+                        <Field label="Email" required>
+                          <TextInput
+                            type="email"
+                            placeholder="name@company.com"
+                            value={contact.email ?? ""}
+                            onChange={(event) =>
+                              updateContact(
+                                actualIndex,
+                                "email",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </Field>
+
+                        <Field label="Phone">
+                          <TextInput
+                            type="tel"
+                            inputMode="numeric"
+                            maxLength={10}
+                            pattern="\d{10}"
+                            title="Contact phone must be exactly 10 digits"
+                            placeholder="1234567890"
+                            value={contact.phone ?? ""}
+                            onChange={(event) =>
+                              updateContact(
+                                actualIndex,
+                                "phone",
+                                event.target.value.replace(/\D/g, ""),
+                              )
+                            }
+                          />
+                        </Field>
+
+                        <Field label="Extension">
+                          <TextInput
+                            value={contact.extension ?? ""}
+                            onChange={(event) =>
+                              updateContact(
+                                actualIndex,
+                                "extension",
+                                event.target.value.replace(/\D/g, ""),
+                              )
+                            }
+                          />
+                        </Field>
+
+                        <Field label="Preferred Contact Method">
+                          <SelectInput
+                            value={contact.preferredContactMethod ?? ""}
+                            onChange={(event) =>
+                              updateContact(
+                                actualIndex,
+                                "preferredContactMethod",
+                                event.target.value,
+                              )
+                            }
+                            options={preferredContactOptions}
+                          />
+                        </Field>
+
+                        <Field label="Best Time to Reach">
+                          <SelectInput
+                            value={contact.bestTimeToReach ?? ""}
+                            onChange={(event) =>
+                              updateContact(
+                                actualIndex,
+                                "bestTimeToReach",
+                                event.target.value,
+                              )
+                            }
+                            options={bestTimeOptions}
+                          />
+                        </Field>
+
+                        <div className="lg:col-span-3">
+                          <Field label="Additional Responsibilities">
+                            <MultiSelectDropdown
+                              options={responsibilityOptions}
+                              values={
+                                contact.additionalResponsibilities ?? []
+                              }
+                              onToggle={(value) =>
+                                toggleContactArrayValue(
+                                  actualIndex,
+                                  "additionalResponsibilities",
+                                  value,
+                                )
+                              }
+                              placeholder="Select responsibilities"
+                            />
+                          </Field>
+                        </div>
+
+                        <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
+                          <Field label="Is this the primary decision maker?">
+                            <BooleanRadioGroup
+                              name={`primary-decision-maker-${actualIndex}`}
+                              value={
+                                contact.isPrimaryDecisionMaker ?? false
+                              }
+                              onChange={(value) =>
+                                updateContact(
+                                  actualIndex,
+                                  "isPrimaryDecisionMaker",
+                                  value,
+                                )
+                              }
+                            />
+                          </Field>
+
+                          <Field label="Can this person sign agreements?">
+                            <BooleanRadioGroup
+                              name={`can-sign-${actualIndex}`}
+                              value={contact.canSignAgreements ?? false}
+                              onChange={(value) =>
+                                updateContact(
+                                  actualIndex,
+                                  "canSignAgreements",
+                                  value,
+                                )
+                              }
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </SectionCard>
         ) : null}
 
