@@ -2815,8 +2815,7 @@ export default function OnboardingFormV5() {
                 ) : null}
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" ||
-                  formData.onboardingType === "SINGLE_PRACTICE_ORGANIZATION" ? (
+                  {formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" ? (
                     <Field
                       label="How many practices are being onboarded?"
                       required
@@ -2854,24 +2853,27 @@ export default function OnboardingFormV5() {
                     </Field>
                   ) : null}
 
-                  <Field label="How many locations total are being onboarded?">
-                    <TextInput
-                      type="number"
-                      min={0}
-                      value={formData.numberOfLocations ?? 0}
-                      onChange={(event) =>
-                        updateField(
-                          "numberOfLocations",
-                          parseNumber(event.target.value),
-                        )
-                      }
-                    />
-                  </Field>
+                  {formData.onboardingType !== "SINGLE_PRACTICE_ORGANIZATION" ? (
+                    <Field label="How many locations total are being onboarded?">
+                      <TextInput
+                        type="number"
+                        min={0}
+                        value={formData.numberOfLocations ?? 0}
+                        onChange={(event) =>
+                          updateField(
+                            "numberOfLocations",
+                            parseNumber(event.target.value),
+                          )
+                        }
+                      />
+                    </Field>
+                  ) : null}
                 </div>
               </div>
             </SectionCard>
 
-            {!formData.isIndividualPractice && (
+            {!formData.isIndividualPractice &&
+              formData.onboardingType !== "SINGLE_PRACTICE_ORGANIZATION" && (
               <SectionCard
                 title="Centralized Operations"
                 description="Use these settings to understand parent-level ownership and communication."
