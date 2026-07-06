@@ -2859,7 +2859,8 @@ export default function OnboardingFormV5() {
                     </Field>
                   ) : null}
 
-                  {formData.onboardingType !== "SINGLE_PRACTICE_ORGANIZATION" ? (
+                  {formData.onboardingType !==
+                  "SINGLE_PRACTICE_ORGANIZATION" ? (
                     <Field label="How many locations total are being onboarded?">
                       <TextInput
                         type="number"
@@ -2880,54 +2881,56 @@ export default function OnboardingFormV5() {
 
             {!formData.isIndividualPractice &&
               formData.onboardingType !== "SINGLE_PRACTICE_ORGANIZATION" && (
-              <SectionCard
-                title="Centralized Operations"
-                description="Use these settings to understand parent-level ownership and communication."
-              >
-                <div className="grid gap-6">
-                  <Field label="Is billing managed centrally for all practices?">
-                    <RadioGroup
-                      name="billingManagedCentrally"
-                      value={formData.billingManagedCentrally ?? ""}
-                      options={centralizationOptions}
-                      onChange={(value) =>
-                        updateField("billingManagedCentrally", value)
-                      }
-                    />
-                  </Field>
+                <SectionCard
+                  title="Centralized Operations"
+                  description="Use these settings to understand parent-level ownership and communication."
+                >
+                  <div className="grid gap-6">
+                    <Field label="Is billing managed centrally for all practices?">
+                      <RadioGroup
+                        name="billingManagedCentrally"
+                        value={formData.billingManagedCentrally ?? ""}
+                        options={centralizationOptions}
+                        onChange={(value) =>
+                          updateField("billingManagedCentrally", value)
+                        }
+                      />
+                    </Field>
 
-                  <Field label="Is credentialing managed centrally for all practices?">
-                    <RadioGroup
-                      name="credentialingManagedCentrally"
-                      value={formData.credentialingManagedCentrally ?? ""}
-                      options={centralizationOptions}
-                      onChange={(value) =>
-                        updateField("credentialingManagedCentrally", value)
-                      }
-                    />
-                  </Field>
+                    <Field label="Is credentialing managed centrally for all practices?">
+                      <RadioGroup
+                        name="credentialingManagedCentrally"
+                        value={formData.credentialingManagedCentrally ?? ""}
+                        options={centralizationOptions}
+                        onChange={(value) =>
+                          updateField("credentialingManagedCentrally", value)
+                        }
+                      />
+                    </Field>
 
-                  <Field label="Is contracting managed centrally for all practices?">
-                    <RadioGroup
-                      name="contractingManagedCentrally"
-                      value={formData.contractingManagedCentrally ?? ""}
-                      options={centralizationOptions}
-                      onChange={(value) =>
-                        updateField("contractingManagedCentrally", value)
-                      }
-                    />
-                  </Field>
+                    <Field label="Is contracting managed centrally for all practices?">
+                      <RadioGroup
+                        name="contractingManagedCentrally"
+                        value={formData.contractingManagedCentrally ?? ""}
+                        options={centralizationOptions}
+                        onChange={(value) =>
+                          updateField("contractingManagedCentrally", value)
+                        }
+                      />
+                    </Field>
 
-                  <Field label="Is there one main contact for all practices?">
-                    <BooleanRadioGroup
-                      name="oneMainContact"
-                      value={formData.oneMainContact ?? false}
-                      onChange={(value) => updateField("oneMainContact", value)}
-                    />
-                  </Field>
-                </div>
-              </SectionCard>
-            )}
+                    <Field label="Is there one main contact for all practices?">
+                      <BooleanRadioGroup
+                        name="oneMainContact"
+                        value={formData.oneMainContact ?? false}
+                        onChange={(value) =>
+                          updateField("oneMainContact", value)
+                        }
+                      />
+                    </Field>
+                  </div>
+                </SectionCard>
+              )}
           </>
         ) : null}
 
@@ -2967,7 +2970,10 @@ export default function OnboardingFormV5() {
                   <TextInput
                     value={formData.taxIdEin ?? ""}
                     onChange={(event) =>
-                      updateField("taxIdEin", event.target.value)
+                      updateField(
+                        "taxIdEin",
+                        event.target.value.replace(/\D/g, ""),
+                      )
                     }
                   />
                 </Field>
@@ -2978,7 +2984,10 @@ export default function OnboardingFormV5() {
                     placeholder="1234567890"
                     value={formData.mainCompanyPhone ?? ""}
                     onChange={(event) =>
-                      updateField("mainCompanyPhone", event.target.value)
+                      updateField(
+                        "mainCompanyPhone",
+                        event.target.value.replace(/\D/g, ""),
+                      )
                     }
                   />
                 </Field>
@@ -2989,7 +2998,10 @@ export default function OnboardingFormV5() {
                     placeholder="1234567890"
                     value={formData.mainCompanyFax ?? ""}
                     onChange={(event) =>
-                      updateField("mainCompanyFax", event.target.value)
+                      updateField(
+                        "mainCompanyFax",
+                        event.target.value.replace(/\D/g, ""),
+                      )
                     }
                     inputMode="numeric"
                     maxLength={10}
@@ -3495,7 +3507,7 @@ export default function OnboardingFormV5() {
                                 updatePractice(
                                   practiceIndex,
                                   "taxIdEin",
-                                  event.target.value,
+                                  event.target.value.replace(/\D/g, ""),
                                 )
                               }
                             />
