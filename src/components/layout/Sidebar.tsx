@@ -73,7 +73,7 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.CRM],
   },
   {
-    label: "Person",
+    label: "People",
     to: "/person/all-persons",
     requiredRoles: [...MODULE_ACCESS.CRM],
   },
@@ -326,7 +326,7 @@ function SidebarLeafItem({ item }: { item: SidebarItem }) {
       return <Target className="h-3.5 w-3.5 text-rose-500" />;
     if (label.includes("deal"))
       return <Backpack className="h-3.5 w-3.5 text-rose-500" />;
-    if (label.includes("person"))
+    if (label.includes("people"))
       return <Users className="h-3.5 w-3.5 text-blue-500" />;
     if (label.includes("company"))
       return <Building2 className="h-3.5 w-3.5 text-amber-500" />;
