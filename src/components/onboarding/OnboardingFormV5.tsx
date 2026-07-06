@@ -5966,37 +5966,28 @@ export default function OnboardingFormV5() {
             {hasCredentialingSelected ? (
               <SectionCard title="Credentialing / Payer Enrollment">
                 <div className="grid gap-6">
-                  <Field label="Is credentialing needed?">
-                    <BooleanRadioGroup
-                      name="credentialingNeeded"
-                      value={
-                        formData.credentialing?.credentialingNeeded ?? false
-                      }
-                      onChange={(value) =>
-                        updateNestedField(
-                          "credentialing",
-                          "credentialingNeeded",
-                          value,
-                        )
-                      }
-                    />
-                  </Field>
-
-                  {formData.credentialing?.credentialingNeeded ? (
-                    <Field label="Credentialing Needed For">
-                      <CheckboxGroup
-                        options={credentialingForOptions}
-                        values={formData.credentialing?.credentialingFor ?? []}
-                        onToggle={(value) =>
+                  <Field label="Credentialing Needed For">
+                    <CheckboxGroup
+                      options={credentialingForOptions}
+                      values={formData.credentialing?.credentialingFor ?? []}
+                      onToggle={(value) => {
+                        if (value === "BOTH") {
+                          updateNestedField("credentialing", "credentialingFor", [
+                            "BOTH",
+                          ]);
+                        } else {
+                          const current =
+                            formData.credentialing?.credentialingFor ?? [];
+                          if (current.includes("BOTH")) return;
                           toggleNestedArrayValue(
                             "credentialing",
                             "credentialingFor",
                             value,
-                          )
+                          );
                         }
-                      />
-                    </Field>
-                  ) : null}
+                      }}
+                    />
+                  </Field>
 
                   <Field label="List of Payers to Enroll / Update">
                     <TextArea
