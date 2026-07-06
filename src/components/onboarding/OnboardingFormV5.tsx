@@ -6366,11 +6366,7 @@ export default function OnboardingFormV5() {
                 </div>
               </SectionCard>
             ) : null}
-          </>
-        ) : null}
 
-        {currentStep === 7 ? (
-          <>
             {hasCareProgramsSelected ? (
               <SectionCard title="Care Program Readiness">
                 <div className="grid gap-6">
@@ -6538,7 +6534,11 @@ export default function OnboardingFormV5() {
                 </div>
               </SectionCard>
             ) : null}
+          </>
+        ) : null}
 
+        {currentStep === 7 ? (
+          <>
             <SectionCard title="Patient Communication / Outreach">
               <div className="grid gap-6">
                 <Field label="Preferred Outreach Channels">
