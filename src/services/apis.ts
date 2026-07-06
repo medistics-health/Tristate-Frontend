@@ -52,6 +52,11 @@ export const serviceEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/services/${id}`,
 };
 
+export const stripeEndpoints = {
+  ACCOUNTS: BACKEND_URL + "/api/v1/stripe/accounts",
+  ACCOUNT: (accountId: string) => BACKEND_URL + `/api/v1/stripe/accounts/${accountId}`,
+};
+
 export const purchaseOrderEndpoints = {
   BASE: BACKEND_URL + "/api/v1/purchase-orders",
   LIST: BACKEND_URL + "/api/v1/purchase-orders",

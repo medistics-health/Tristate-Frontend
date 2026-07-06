@@ -297,8 +297,6 @@ export default function AddPricingTermWizard({
       ? (editingTerm.pricingConfig as PricingConfigShape)
       : emptyConfig(),
   );
-  const [hasVendor, setHasVendor] = useState(!!editingTerm?.vendorId);
-  const [vendorId, setVId] = useState(editingTerm?.vendorId ?? "");
   const [vendorCfg, setVendorCfg] = useState<VendorPricingShape>(
     buildMirroredVendorPricing(
       editingTerm?.pricingModel ?? "FIXED_MONTHLY",
@@ -320,13 +318,13 @@ export default function AddPricingTermWizard({
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const serviceVendor = selectedService?.vendor ?? null;
   const serviceVendorId = selectedService?.vendorId ?? null;
-  const resolvedVendorId = editingTerm?.vendorId ?? serviceVendorId ?? vendorId;
+  const resolvedVendorId = editingTerm?.vendorId ?? serviceVendorId ?? null;
   const resolvedVendorName =
     editingTerm?.vendor?.name ??
     serviceVendor?.name ??
     vendors.find((vendor) => vendor.id === resolvedVendorId)?.name ??
     null;
-  const vendorSelectionLocked = Boolean(editingTerm?.vendorId || serviceVendorId);
+  const hasVendor = Boolean(resolvedVendorId);
 
   const setModel = (nextModel: PricingModel) => {
     setModelState(nextModel);
@@ -338,23 +336,9 @@ export default function AddPricingTermWizard({
 
   useEffect(() => {
     if (!hasVendor) {
-      setVId("");
       setVendorCfg(buildMirroredVendorPricing(model, cfg, null));
     }
   }, [hasVendor, model, cfg]);
-
-  useEffect(() => {
-    if (editingTerm) return;
-    if (serviceVendorId) {
-      setHasVendor(true);
-      setVId(serviceVendorId);
-      return;
-    }
-
-    if (!serviceId) {
-      setVId("");
-    }
-  }, [editingTerm, serviceId, serviceVendorId]);
 
   useEffect(() => {
     setVendorCfg((current) => buildMirroredVendorPricing(model, cfg, current));
@@ -991,8 +975,7 @@ export default function AddPricingTermWizard({
         if (!t.isActive) return false;
         if (t.pricingModel !== model) return false;
         const tVendor = t.vendorId ?? null;
-        const vId = hasVendor ? resolvedVendorId ?? null : null;
-        if ((tVendor ?? null) !== (vId ?? null)) return false;
+        if ((tVendor ?? null) !== (resolvedVendorId ?? null)) return false;
         const s = t.effectiveDate ? new Date(t.effectiveDate) : null;
         const e = t.endDate ? new Date(t.endDate) : null;
         const overlap = (
@@ -1029,7 +1012,7 @@ export default function AddPricingTermWizard({
         serviceId,
         pricingModel: model,
         pricingConfig: buildPricingConfigPayload() as Record<string, unknown>,
-        vendorId: hasVendor ? resolvedVendorId ?? null : null,
+        vendorId: hasVendor ? resolvedVendorId : null,
         minimumFee: hasVendor ? (vendorAmount ?? 0) : null,
         effectiveDate: cfg.effectiveStartDate || undefined,
         endDate: cfg.effectiveEndDate || undefined,
@@ -1303,40 +1286,29 @@ export default function AddPricingTermWizard({
               <h3 className="text-[15px] font-semibold text-slate-700">
                 Vendor Pricing
               </h3>
-              <p className="text-slate-500">
-                Does this service have a vendor / subcontractor?
-              </p>
-              <div className="flex gap-3">
-                {[true, false].map((v) => (
-                  <button
-                    key={String(v)}
-                    type="button"
-                    onClick={() => setHasVendor(v)}
-                    className={`flex-1 rounded-xl border py-3 text-[13px] font-medium transition-all ${
-                      hasVendor === v
-                        ? "border-[#4f63ea] bg-[#f0f2fe] text-[#4f63ea]"
-                        : "border-[#f0ece6] text-slate-500 hover:border-slate-300"
-                    }`}
-                  >
-                    {v ? "Yes" : "No"}
-                  </button>
-                ))}
-              </div>
-              {hasVendor && (
+              {hasVendor ? (
                 <div className="space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4">
-                  <div className="rounded-xl border border-dashed border-[#d7d2cb] bg-white p-4">
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-                      Vendor
-                    </p>
-                    <p className="mt-1 text-[14px] font-medium text-slate-700">
-                      {resolvedVendorName ?? "Vendor not available"}
-                    </p>
-                    {!vendorSelectionLocked && (
-                      <p className="mt-1 text-[12px] text-slate-400">
-                        Add a vendor on the Service record to use vendor pricing here.
+                  {resolvedVendorName ? (
+                    <div className="rounded-xl border border-dashed border-[#d7d2cb] bg-white p-4">
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                        Vendor
                       </p>
-                    )}
-                  </div>
+                      <p className="mt-1 text-[14px] font-medium text-slate-700">
+                        {resolvedVendorName}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-700">
+                      <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                      <div>
+                        <p className="font-semibold">Vendor not available</p>
+                        <p className="text-[12px] mt-0.5">
+                          No service-linked vendor was found. Add the vendor in
+                          Services before using vendor pricing here.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div className="rounded-xl border border-dashed border-[#d7d2cb] bg-white p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -1489,6 +1461,17 @@ export default function AddPricingTermWizard({
                       renderVendorTable(vendorCfg.cptCodes ?? [])}
                     {model === "HYBRID" &&
                       renderVendorComponents(vendorCfg.components ?? [])}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-700">
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                  <div>
+                    <p className="font-semibold">Vendor not available</p>
+                    <p className="text-[12px] mt-0.5">
+                      No vendor is linked to this service. Add the vendor in
+                      Services, then return here to enter vendor pricing.
+                    </p>
                   </div>
                 </div>
               )}

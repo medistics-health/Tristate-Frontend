@@ -29,6 +29,10 @@ import {
 } from "../../services/operations/services";
 import { getAllVendorsApi } from "../../services/operations/vendors";
 import type { Vendor } from "../vendors/types";
+import {
+  getStripeConnectedAccounts,
+  type StripeConnectedAccount,
+} from "../../services/operations/stripeAccounts";
 import Select from "../shared/Select";
 import toast from "react-hot-toast";
 import { canBusinessWrite, readStoredUser } from "../../utils/auth";
@@ -60,11 +64,13 @@ function AllServicesPage() {
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [stripeAccounts, setStripeAccounts] = useState<StripeConnectedAccount[]>([]);
 
   const [formData, setFormData] = useState({
     name: "",
     code: "",
     category: "",
+    stripeConnectedAccountId: "",
     vendorId: "",
     isActive: true,
   });
@@ -73,6 +79,7 @@ function AllServicesPage() {
     name: "",
     code: "",
     category: "",
+    stripeConnectedAccountId: "",
     vendorId: "",
     isActive: true,
   });
@@ -81,6 +88,14 @@ function AllServicesPage() {
     () => rows.find((row) => row.id === selectedRowId) || null,
     [rows, selectedRowId],
   );
+
+  function getStripeAccountLabel(accountId?: string | null) {
+    if (!accountId) return "Stripe account not available";
+    return (
+      stripeAccounts.find((account) => account.id === accountId)?.displayName ||
+      accountId
+    );
+  }
 
   const columns = useMemo(
     () =>
@@ -114,6 +129,19 @@ function AllServicesPage() {
             String(row.original.values.vendorName || "Vendor not available"),
         },
         {
+          id: "stripeAccount",
+          accessorFn: (row: ServiceRow) => row.values.stripeConnectedAccountId,
+          header: () => "Stripe Account",
+          cell: ({ row }: { row: { original: ServiceRow } }) =>
+            String(
+              row.original.values.stripeConnectedAccountId
+                ? getStripeAccountLabel(
+                    String(row.original.values.stripeConnectedAccountId),
+                  )
+                : "Stripe account not available",
+            ),
+        },
+        {
           id: "isActive",
           accessorFn: (row: ServiceRow) => row.values.isActive,
           header: () => "Active",
@@ -145,6 +173,12 @@ function AllServicesPage() {
       .then(setVendors)
       .catch((err) => {
         console.error("Failed to load vendors", err);
+      });
+
+    getStripeConnectedAccounts()
+      .then(setStripeAccounts)
+      .catch((err) => {
+        console.error("Failed to load Stripe accounts", err);
       });
 
     const timer = setTimeout(() => {
@@ -194,14 +228,15 @@ function AllServicesPage() {
 
     try {
       const service = await getService(rowId);
-      setSelectedService(service);
-      setEditForm({
-        name: service.name,
-        code: service.code ?? "",
-        category: service.category ?? "",
-        vendorId: service.vendorId ?? "",
-        isActive: service.isActive ?? true,
-      });
+        setSelectedService(service);
+        setEditForm({
+          name: service.name,
+          code: service.code ?? "",
+          category: service.category ?? "",
+          stripeConnectedAccountId: service.stripeConnectedAccountId ?? "",
+          vendorId: service.vendorId ?? "",
+          isActive: service.isActive ?? true,
+        });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to fetch service";
@@ -215,19 +250,40 @@ function AllServicesPage() {
     setShowDetailPanel(false);
     setSelectedRowId(null);
     setSelectedService(null);
-    setEditForm({ name: "", code: "", category: "", vendorId: "", isActive: true });
+    setEditForm({
+      name: "",
+      code: "",
+      category: "",
+      stripeConnectedAccountId: "",
+      vendorId: "",
+      isActive: true,
+    });
   }
 
   function openCreateForm() {
     if (!canManageServices) return;
-    setFormData({ name: "", code: "", category: "", isActive: true , vendorId: ""});
+    setFormData({
+      name: "",
+      code: "",
+      category: "",
+      stripeConnectedAccountId: "",
+      isActive: true,
+      vendorId: "",
+    });
     setShowCreateForm(true);
     setShowDetailPanel(false);
   }
 
   function closeCreateForm() {
     setShowCreateForm(false);
-    setFormData({ name: "", code: "", category: "", vendorId: "", isActive: true });
+    setFormData({
+      name: "",
+      code: "",
+      category: "",
+      stripeConnectedAccountId: "",
+      vendorId: "",
+      isActive: true,
+    });
   }
 
   async function handleCreateService(e: React.FormEvent) {
@@ -237,6 +293,10 @@ function AllServicesPage() {
       toast.error("Service name is required");
       return;
     }
+    if (!formData.stripeConnectedAccountId) {
+      toast.error("Stripe account is required");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -244,6 +304,7 @@ function AllServicesPage() {
         name: formData.name.trim(),
         ...(formData.code.trim() && { code: formData.code.trim() }),
         ...(formData.category.trim() && { category: formData.category.trim() }),
+        stripeConnectedAccountId: formData.stripeConnectedAccountId || null,
         vendorId: formData.vendorId || null,
         isActive: formData.isActive,
       };
@@ -300,6 +361,10 @@ function AllServicesPage() {
       toast.error("Service name is required");
       return;
     }
+    if (!editForm.stripeConnectedAccountId) {
+      toast.error("Stripe account is required");
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -307,6 +372,7 @@ function AllServicesPage() {
         name: editForm.name.trim(),
         ...(editForm.code.trim() && { code: editForm.code.trim() }),
         ...(editForm.category.trim() && { category: editForm.category.trim() }),
+        stripeConnectedAccountId: editForm.stripeConnectedAccountId || null,
         vendorId: editForm.vendorId || null,
         isActive: editForm.isActive,
       };
@@ -599,11 +665,21 @@ function AllServicesPage() {
                   <DetailCard
                     title={selectedService?.name || String(selectedRow.values.name)}
                     badge={selectedService ? { label: selectedService.isActive ? "Active" : "Inactive", className: selectedService.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700" } : null}
-                    infoRows={[
-                      ...(selectedService?.code ? [{ label: "Code", value: selectedService.code }] : []),
-                      ...(selectedService?.category ? [{ label: "Category", value: selectedService.category }] : []),
-                      { label: "Vendor", value: selectedService?.vendor?.name ?? "Vendor not available" },
-                    ]}
+                      infoRows={[
+                        ...(selectedService?.code ? [{ label: "Code", value: selectedService.code }] : []),
+                        ...(selectedService?.category ? [{ label: "Category", value: selectedService.category }] : []),
+                        {
+                          label: "Stripe Account",
+                          value: getStripeAccountLabel(
+                            selectedService?.stripeConnectedAccountId,
+                          ),
+                        },
+                        {
+                          label: "Stripe Account ID",
+                          value: selectedService?.stripeConnectedAccountId || "Not available",
+                        },
+                        { label: "Vendor", value: selectedService?.vendor?.name ?? "Vendor not available" },
+                      ]}
                   />
 
                   <div className="space-y-4">
@@ -657,6 +733,31 @@ function AllServicesPage() {
                         readOnly={!canManageServices}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Stripe Account <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        value={editForm.stripeConnectedAccountId}
+                        onChange={(value) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            stripeConnectedAccountId: value,
+                          }))
+                        }
+                        placeholder="Select Stripe account"
+                        options={stripeAccounts.map((account) => ({
+                          label: `${account.displayName} (${account.id})`,
+                          value: account.id,
+                        }))}
+                      />
+                      <p className="mt-1 text-[12px] text-slate-400">
+                        {editForm.stripeConnectedAccountId
+                          ? getStripeAccountLabel(editForm.stripeConnectedAccountId)
+                          : "Stripe account is required"}
+                      </p>
                     </div>
 
                     <div>
@@ -800,6 +901,26 @@ function AllServicesPage() {
                     }
                     placeholder="Service category"
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Stripe Account <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        value={formData.stripeConnectedAccountId}
+                        onChange={(value) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            stripeConnectedAccountId: value,
+                          }))
+                        }
+                        placeholder="Select Stripe account"
+                        options={stripeAccounts.map((account) => ({
+                          label: `${account.displayName} (${account.id})`,
+                          value: account.id,
+                        }))}
                       />
                     </div>
 

@@ -25,6 +25,10 @@ import {
   deleteServiceApi,
   type Service,
 } from "../../services/operations/services";
+import {
+  getStripeConnectedAccounts,
+  type StripeConnectedAccount,
+} from "../../services/operations/stripeAccounts";
 import type { ServiceRow } from "./types";
 import { canBusinessWrite, readStoredUser } from "../../utils/auth";
 import { getAllVendorsApi } from "../../services/operations/vendors";
@@ -48,11 +52,13 @@ function ServiceCatalogPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [stripeAccounts, setStripeAccounts] = useState<StripeConnectedAccount[]>([]);
 
   type EditForm = {
     name: string;
     code: string;
     category: string;
+    stripeConnectedAccountId: string;
     vendorId: string;
     isActive: boolean;
   };
@@ -61,6 +67,7 @@ function ServiceCatalogPage() {
     name: "",
     code: "",
     category: "",
+    stripeConnectedAccountId: "",
     vendorId: "",
     isActive: true,
   };
@@ -71,6 +78,9 @@ function ServiceCatalogPage() {
     getAllVendorsApi()
       .then(setVendors)
       .catch((err) => console.error("Failed to load vendors", err));
+    getStripeConnectedAccounts()
+      .then(setStripeAccounts)
+      .catch((err) => console.error("Failed to load Stripe accounts", err));
 
     async function load() {
       try {
@@ -99,6 +109,7 @@ function ServiceCatalogPage() {
         name: service.name,
         code: service.code ?? "",
         category: service.category ?? "",
+        stripeConnectedAccountId: service.stripeConnectedAccountId ?? "",
         vendorId: service.vendorId ?? "",
         isActive: service.isActive,
       });
@@ -124,11 +135,23 @@ function ServiceCatalogPage() {
     setEditForm(initialForm);
   }
 
+  function getStripeAccountLabel(accountId?: string | null) {
+    if (!accountId) return "Stripe account not available";
+    return (
+      stripeAccounts.find((account) => account.id === accountId)?.displayName ||
+      accountId
+    );
+  }
+
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault();
     if (!canManageServices) return;
     if (!selectedService || !editForm.name.trim()) {
       toast.error("Service name is required");
+      return;
+    }
+    if (!editForm.stripeConnectedAccountId) {
+      toast.error("Stripe account is required");
       return;
     }
     setIsSaving(true);
@@ -137,6 +160,7 @@ function ServiceCatalogPage() {
         name: editForm.name.trim(),
         code: editForm.code.trim() || null,
         category: editForm.category.trim() || null,
+        stripeConnectedAccountId: editForm.stripeConnectedAccountId || null,
         vendorId: editForm.vendorId || null,
         isActive: editForm.isActive,
       });
@@ -503,6 +527,14 @@ function ServiceCatalogPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Stripe Account</span>
+                      <span className="text-right text-slate-700">
+                        {getStripeAccountLabel(
+                          selectedService.stripeConnectedAccountId,
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
                       <span className="text-slate-400">Active</span>
                       <span className="text-right">
                         {selectedService.isActive ? (
@@ -587,6 +619,26 @@ function ServiceCatalogPage() {
                         }
                         readOnly={!canManageServices}
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Stripe Account <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        value={editForm.stripeConnectedAccountId}
+                        onChange={(value) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            stripeConnectedAccountId: value,
+                          }))
+                        }
+                        placeholder="Select Stripe account"
+                        options={stripeAccounts.map((account) => ({
+                          label: `${account.displayName} (${account.id})`,
+                          value: account.id,
+                        }))}
                       />
                     </div>
 
