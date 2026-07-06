@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams } from "react-router-dom";
 import type {
@@ -1331,6 +1331,7 @@ export default function OnboardingFormV5() {
   const [isLoadingRecord, setIsLoadingRecord] = useState(!!id);
   const [isAlreadySubmitted, setIsAlreadySubmitted] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const topRef = useRef<HTMLDivElement>(null);
   const [uploadingFieldKey, setUploadingFieldKey] = useState<string | null>(
     null,
   );
@@ -1395,6 +1396,10 @@ export default function OnboardingFormV5() {
       setCurrentStep(3);
     }
   }, [currentStep, formData.isIndividualPractice]);
+
+  useEffect(() => {
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [currentStep]);
 
   useEffect(() => {
     const isMultiPracticeOrg =
@@ -2754,6 +2759,7 @@ export default function OnboardingFormV5() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div ref={topRef} />
         {currentStep === 1 ? (
           <>
             <SectionCard
