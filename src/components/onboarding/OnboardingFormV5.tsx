@@ -5298,12 +5298,11 @@ export default function OnboardingFormV5() {
                       <div className="space-y-3">
                         <SelectInput
                           value={selectedClearinghouseValue}
-                          onChange={(event) => {
-                            const nextValue = event.target.value;
+                            onChange={(event) => {
                             updateNestedField(
                               "technology",
                               "clearinghouse",
-                              nextValue === "OTHER" ? "" : nextValue,
+                              event.target.value,
                             );
                           }}
                           options={clearinghouseOptions}
