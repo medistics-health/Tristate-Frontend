@@ -2727,7 +2727,7 @@ export default function OnboardingFormV5() {
                 : "Not configured"}
             </p>
           </div>
-          <div>
+          {/*<div>
             <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
               Replacing existing vendor
             </p>
@@ -2737,16 +2737,16 @@ export default function OnboardingFormV5() {
                 ? ` - ${scopeCurrentVendorName}`
                 : ""}
               {scopeReplacingVendor && scopeCurrentVendorEndDate
-                ? ` (${scopeCurrentVendorEndDate})`
+                ? ` (${scopeCurrentVendorEndDate.split("T")[0]})`
                 : ""}
             </p>
-          </div>
-          <div>
+          </div>*/}
+          {/*<div>
             <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
               Engagement goals
             </p>
             <p className="mt-1">{scopeEngagementGoals || "Not provided"}</p>
-          </div>
+          </div>*/}
         </div>
 
         {!isScopeConfigured ? (
@@ -2851,7 +2851,12 @@ export default function OnboardingFormV5() {
                             "numberOfPractices",
                             formData.onboardingType ===
                               "MULTI_PRACTICE_ORGANIZATION"
-                              ? Math.max(2, parseNumber(event.target.value.replace(/\D/g, "")))
+                              ? Math.max(
+                                  2,
+                                  parseNumber(
+                                    event.target.value.replace(/\D/g, ""),
+                                  ),
+                                )
                               : 1,
                           )
                         }
@@ -3117,7 +3122,10 @@ export default function OnboardingFormV5() {
                     placeholder="12345 or 12345-6789"
                     value={formData.companyZip ?? ""}
                     onChange={(event) =>
-                      updateField("companyZip", event.target.value.replace(/\D/g, ""))
+                      updateField(
+                        "companyZip",
+                        event.target.value.replace(/\D/g, ""),
+                      )
                     }
                   />
                 </Field>
@@ -3258,7 +3266,11 @@ export default function OnboardingFormV5() {
                         placeholder="1234567890"
                         value={contact.phone ?? ""}
                         onChange={(event) =>
-                          updateContact(index, "phone", event.target.value.replace(/\D/g, ""))
+                          updateContact(
+                            index,
+                            "phone",
+                            event.target.value.replace(/\D/g, ""),
+                          )
                         }
                       />
                     </Field>
@@ -3267,7 +3279,11 @@ export default function OnboardingFormV5() {
                       <TextInput
                         value={contact.extension ?? ""}
                         onChange={(event) =>
-                          updateContact(index, "extension", event.target.value.replace(/\D/g, ""))
+                          updateContact(
+                            index,
+                            "extension",
+                            event.target.value.replace(/\D/g, ""),
+                          )
                         }
                       />
                     </Field>
@@ -3588,7 +3604,9 @@ export default function OnboardingFormV5() {
                                 updatePractice(
                                   practiceIndex,
                                   "approximateNumberOfProviders",
-                                  parseNumber(event.target.value.replace(/\D/g, "")),
+                                  parseNumber(
+                                    event.target.value.replace(/\D/g, ""),
+                                  ),
                                 )
                               }
                             />
@@ -3603,7 +3621,9 @@ export default function OnboardingFormV5() {
                                 updatePractice(
                                   practiceIndex,
                                   "approximateNumberOfLocations",
-                                  parseNumber(event.target.value.replace(/\D/g, "")),
+                                  parseNumber(
+                                    event.target.value.replace(/\D/g, ""),
+                                  ),
                                 )
                               }
                             />
@@ -3620,7 +3640,9 @@ export default function OnboardingFormV5() {
                                 updatePractice(
                                   practiceIndex,
                                   "approximateMonthlyPatientVolume",
-                                  parseNumber(event.target.value.replace(/\D/g, "")),
+                                  parseNumber(
+                                    event.target.value.replace(/\D/g, ""),
+                                  ),
                                 )
                               }
                             />
@@ -3637,7 +3659,9 @@ export default function OnboardingFormV5() {
                                 updatePractice(
                                   practiceIndex,
                                   "approximateMedicarePatientVolume",
-                                  parseNumber(event.target.value.replace(/\D/g, "")),
+                                  parseNumber(
+                                    event.target.value.replace(/\D/g, ""),
+                                  ),
                                 )
                               }
                             />
@@ -3654,7 +3678,9 @@ export default function OnboardingFormV5() {
                                 updatePractice(
                                   practiceIndex,
                                   "approximateMedicaidPatientVolume",
-                                  parseNumber(event.target.value.replace(/\D/g, "")),
+                                  parseNumber(
+                                    event.target.value.replace(/\D/g, ""),
+                                  ),
                                 )
                               }
                             />
@@ -3671,7 +3697,9 @@ export default function OnboardingFormV5() {
                                 updatePractice(
                                   practiceIndex,
                                   "approximateCommercialPatientVolume",
-                                  parseNumber(event.target.value.replace(/\D/g, "")),
+                                  parseNumber(
+                                    event.target.value.replace(/\D/g, ""),
+                                  ),
                                 )
                               }
                             />
@@ -3981,7 +4009,10 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             locationIndex,
                                             "zipCode",
-                                            event.target.value.replace(/\D/g, ""),
+                                            event.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            ),
                                           )
                                         }
                                       />
@@ -4000,7 +4031,10 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             locationIndex,
                                             "mainPhoneNumber",
-                                            event.target.value.replace(/\D/g, ""),
+                                            event.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            ),
                                           )
                                         }
                                       />
@@ -4015,7 +4049,10 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             locationIndex,
                                             "mainFaxNumber",
-                                            event.target.value.replace(/\D/g, ""),
+                                            event.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            ),
                                           )
                                         }
                                       />
@@ -4342,7 +4379,10 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             providerIndex,
                                             "caqhId",
-                                            event.target.value.replace(/\D/g, ""),
+                                            event.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            ),
                                           )
                                         }
                                       />
@@ -4575,7 +4615,10 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             providerIndex,
                                             "medicarePtanIndividual",
-                                            event.target.value.replace(/\D/g, ""),
+                                            event.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            ),
                                           )
                                         }
                                       />
@@ -4591,7 +4634,10 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             providerIndex,
                                             "medicaidIdIndividual",
-                                            event.target.value.replace(/\D/g, ""),
+                                            event.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            ),
                                           )
                                         }
                                       />
@@ -4655,7 +4701,10 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             providerIndex,
                                             "railroadMedicareIndividual",
-                                            event.target.value.replace(/\D/g, ""),
+                                            event.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            ),
                                           )
                                         }
                                       />
