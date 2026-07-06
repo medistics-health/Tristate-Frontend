@@ -3281,16 +3281,16 @@ export default function OnboardingFormV5() {
                         <TextInput
                           value={formData.contacts?.[0]?.extension ?? ""}
                           onChange={(event) =>
-                            updateContact(
-                              0,
-                              "extension",
-                              event.target.value.replace(/\D/g, ""),
-                            )
-                          }
-                        />
-                      </Field>
+                                updateContact(
+                                  0,
+                                  "extension",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
 
-                      <Field label="Preferred Contact Method">
+                          <Field label="Preferred Contact Method">
                         <SelectInput
                           value={
                             formData.contacts?.[0]?.preferredContactMethod ?? ""
@@ -3483,7 +3483,7 @@ export default function OnboardingFormV5() {
                               updateContact(
                                 actualIndex,
                                 "extension",
-                                event.target.value.replace(/\D/g, ""),
+                                event.target.value,
                               )
                             }
                           />
@@ -3773,7 +3773,7 @@ export default function OnboardingFormV5() {
                                 updatePractice(
                                   practiceIndex,
                                   "groupMedicarePtan",
-                                  event.target.value.replace(/\D/g, ""),
+                                  event.target.value,
                                 )
                               }
                             />
@@ -3937,7 +3937,7 @@ export default function OnboardingFormV5() {
                                 updatePractice(
                                   practiceIndex,
                                   "railroadMedicareGroup",
-                                  event.target.value.replace(/\D/g, ""),
+                                  event.target.value,
                                 )
                               }
                             />
@@ -4826,10 +4826,7 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             providerIndex,
                                             "medicarePtanIndividual",
-                                            event.target.value.replace(
-                                              /\D/g,
-                                              "",
-                                            ),
+                                            event.target.value,
                                           )
                                         }
                                       />
@@ -4845,10 +4842,7 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             providerIndex,
                                             "medicaidIdIndividual",
-                                            event.target.value.replace(
-                                              /\D/g,
-                                              "",
-                                            ),
+                                            event.target.value,
                                           )
                                         }
                                       />
@@ -4912,10 +4906,7 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             providerIndex,
                                             "railroadMedicareIndividual",
-                                            event.target.value.replace(
-                                              /\D/g,
-                                              "",
-                                            ),
+                                            event.target.value,
                                           )
                                         }
                                       />
