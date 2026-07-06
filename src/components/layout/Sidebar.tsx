@@ -118,6 +118,7 @@ const sidebarSteps: SidebarItem[] = [
     items: [
       { label: "Review Submissions", to: "/onboarding/review" },
       { label: "Scope Setup", to: "/onboarding/scope" },
+      { label: "All Scopes", to: "/onboarding/scope-list" },
     ],
   },
   {

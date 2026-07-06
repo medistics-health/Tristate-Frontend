@@ -43,6 +43,7 @@ import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
 import AdminOnboardingReview from "./components/onboarding/AdminOnboardingReview";
+import AllScopeOnboardings from "./components/onboarding/Scope/AllScopeOnboardings";
 import Scope from "./components/onboarding/Scope/Scope";
 import MonthlyReportingDashboard from "./components/monthly-reporting/MonthlyReportingDashboard";
 import SubmitMonthlyReport from "./components/monthly-reporting/SubmitMonthlyReport";
@@ -140,6 +141,15 @@ function App() {
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <Scope />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding/scope-list"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <AllScopeOnboardings />
           </ModuleRoute>
         }
       />
