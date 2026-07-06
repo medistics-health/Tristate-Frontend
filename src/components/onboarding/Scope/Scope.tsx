@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import {
-  createExternalOnboardingFromForm,
-} from "../../../services/operations/createOnboardingForm";
+import { createExternalOnboardingFromForm } from "../../../services/operations/createOnboardingForm";
 import {
   getAgreementsByPractice,
   sendOnboardingFormApi,
 } from "../../../services/operations/agreements";
 import type { OnboardingBody } from "../../../services/operations/onboarding";
-import { getAllPractices, getPractice } from "../../../services/operations/practices";
+import {
+  getAllPractices,
+  getPractice,
+} from "../../../services/operations/practices";
 import { getAllVendorsApi } from "../../../services/operations/vendors";
 import type { Vendor } from "../../vendors/types";
 import AppLayout from "../../layout/AppLayout";
@@ -44,7 +45,7 @@ const serviceOptions: Option[] = [
   // { label: "RTM", value: "RTM" },
   // { label: "BHI", value: "BHI" },
   // { label: "TCM", value: "TCM" },
-  { label:"Care Management", value: "CARE_MANAGEMENT" },
+  { label: "Care Management", value: "CARE_MANAGEMENT" },
   { label: "Lab Relationship Support", value: "LAB_RELATIONSHIP_SUPPORT" },
   { label: "Pharmacy Program Support", value: "PHARMACY_PROGRAM_SUPPORT" },
   { label: "Patient Acquisition", value: "PATIENT_ACQUISITION" },
@@ -93,18 +94,21 @@ export default function Scope() {
   const [isSending, setIsSending] = useState(false);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [signedPracticeIds, setSignedPracticeIds] = useState<string[]>([]);
-  const [isLoadingSignedPractices, setIsLoadingSignedPractices] = useState(false);
+  const [isLoadingSignedPractices, setIsLoadingSignedPractices] =
+    useState(false);
   const [selectedPracticeId, setSelectedPracticeId] = useState("");
   const [selectedPersonId, setSelectedPersonId] = useState("");
-  const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
+  const [selectedPractice, setSelectedPractice] = useState<Practice | null>(
+    null,
+  );
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [serviceVendors, setServiceVendors] = useState<
     Record<string, ServiceVendorDetail>
   >({});
   const requestedGoLiveDatePickerRef = useRef<HTMLInputElement | null>(null);
-  const vendorEndDatePickerRefs = useRef<Record<string, HTMLInputElement | null>>(
-    {},
-  );
+  const vendorEndDatePickerRefs = useRef<
+    Record<string, HTMLInputElement | null>
+  >({});
 
   const selectedServices = useMemo(
     () => scope.requestedServices ?? [],
@@ -143,7 +147,8 @@ export default function Scope() {
   }
 
   const availableScopePractices = useMemo(
-    () => practices.filter((practice) => signedPracticeIds.includes(practice.id)),
+    () =>
+      practices.filter((practice) => signedPracticeIds.includes(practice.id)),
     [practices, signedPracticeIds],
   );
   const eligiblePracticePersons = useMemo(
@@ -227,7 +232,9 @@ export default function Scope() {
             practices.map(async (practice) => {
               try {
                 const agreements = await getAgreementsByPractice(practice.id);
-                return agreements.some((agreement) => agreement.status === "SIGNED")
+                return agreements.some(
+                  (agreement) => agreement.status === "SIGNED",
+                )
                   ? practice.id
                   : null;
               } catch {
@@ -251,7 +258,11 @@ export default function Scope() {
 
   useEffect(() => {
     if (!selectedPracticeId) return;
-    if (availableScopePractices.some((practice) => practice.id === selectedPracticeId)) {
+    if (
+      availableScopePractices.some(
+        (practice) => practice.id === selectedPracticeId,
+      )
+    ) {
       return;
     }
     setSelectedPracticeId("");
@@ -339,7 +350,9 @@ export default function Scope() {
   function openSendModal() {
     if (!validateScope()) return;
     if (!availableScopePractices.length) {
-      toast.error("No practice has a signed agreement available for onboarding.");
+      toast.error(
+        "No practice has a signed agreement available for onboarding.",
+      );
       return;
     }
     setIsPracticeModalOpen(true);
@@ -368,17 +381,19 @@ export default function Scope() {
       const replacingExistingVendor = selectedVendorEntries.length > 0;
       const currentVendorName = selectedVendorEntries
         .map((entry) => {
-          const serviceLabel = serviceLabelMap.get(entry.service) ?? entry.service;
+          const serviceLabel =
+            serviceLabelMap.get(entry.service) ?? entry.service;
           return `${serviceLabel}: ${entry.vendorName.trim()}`;
         })
         .join("; ");
       const currentVendorEndDate =
-        selectedVendorEntries.find((entry) => entry.vendorEndDate)?.vendorEndDate ??
-        "";
+        selectedVendorEntries.find((entry) => entry.vendorEndDate)
+          ?.vendorEndDate ?? "";
       const vendorSummary = selectedVendorEntries.length
         ? selectedVendorEntries
             .map((entry) => {
-              const serviceLabel = serviceLabelMap.get(entry.service) ?? entry.service;
+              const serviceLabel =
+                serviceLabelMap.get(entry.service) ?? entry.service;
               const datePart = entry.vendorEndDate
                 ? ` (end date: ${entry.vendorEndDate})`
                 : "";
@@ -416,7 +431,9 @@ export default function Scope() {
         selectedPractices: scope.selectedPractices ?? [],
         replacingExistingVendor,
         currentVendorName: replacingExistingVendor ? currentVendorName : "",
-        currentVendorEndDate: replacingExistingVendor ? currentVendorEndDate : "",
+        currentVendorEndDate: replacingExistingVendor
+          ? currentVendorEndDate
+          : "",
         engagementGoals: combinedEngagementGoals,
         status: "DRAFT",
       });
@@ -619,7 +636,9 @@ export default function Scope() {
                             <div className="relative">
                               <input
                                 type="text"
-                                value={formatDateShortForDisplay(detail.vendorEndDate)}
+                                value={formatDateShortForDisplay(
+                                  detail.vendorEndDate,
+                                )}
                                 readOnly
                                 onClick={() => openVendorEndDatePicker(service)}
                                 placeholder="MM/DD/YY"
@@ -634,7 +653,8 @@ export default function Scope() {
                               </button>
                               <input
                                 ref={(element) => {
-                                  vendorEndDatePickerRefs.current[service] = element;
+                                  vendorEndDatePickerRefs.current[service] =
+                                    element;
                                 }}
                                 type="date"
                                 value={detail.vendorEndDate}
@@ -716,7 +736,9 @@ export default function Scope() {
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
                   <option value="">
-                    {isLoadingSignedPractices ? "Loading practices..." : "Select practice"}
+                    {isLoadingSignedPractices
+                      ? "Loading practices..."
+                      : "Select practice"}
                   </option>
                   {availableScopePractices.map((practice) => (
                     <option key={practice.id} value={practice.id}>
@@ -724,7 +746,8 @@ export default function Scope() {
                     </option>
                   ))}
                 </select>
-                {!isLoadingSignedPractices && !availableScopePractices.length ? (
+                {!isLoadingSignedPractices &&
+                !availableScopePractices.length ? (
                   <p className="mt-2 text-xs text-amber-700">
                     No practices found with a signed agreement.
                   </p>
@@ -746,7 +769,9 @@ export default function Scope() {
                     <option key={person.id} value={person.id}>
                       {[person.firstName, person.lastName]
                         .filter(Boolean)
-                        .join(" ") || person.email || "Contact"}
+                        .join(" ") ||
+                        person.email ||
+                        "Contact"}
                     </option>
                   ))}
                 </select>
@@ -762,7 +787,10 @@ export default function Scope() {
               {selectedPracticeId ? (
                 <button
                   type="button"
-                  onClick={() => { setIsPracticeModalOpen(false); navigate("/person/all-persons"); }}
+                  onClick={() => {
+                    setIsPracticeModalOpen(false);
+                    navigate("/people/all-peoples");
+                  }}
                   className="text-sm font-medium text-slate-600 underline underline-offset-2 hover:text-slate-900"
                 >
                   Manage / Add Contact
@@ -770,8 +798,8 @@ export default function Scope() {
               ) : null}
 
               <p className="text-xs text-slate-500">
-                On send, onboarding is created/updated in draft and link is copied
-                to clipboard.
+                On send, onboarding is created/updated in draft and link is
+                copied to clipboard.
               </p>
             </div>
 

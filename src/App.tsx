@@ -65,12 +65,7 @@ function App() {
   }: {
     children: ReactNode;
     allowedRoles: readonly (
-      | "ADMIN"
-      | "SALES"
-      | "ACCOUNTMANAGER"
-      | "OPERATIONS"
-      | "FINANCE"
-      | "VIEWER"
+      "ADMIN" | "SALES" | "ACCOUNTMANAGER" | "OPERATIONS" | "FINANCE" | "VIEWER"
     )[];
   }) {
     return (
@@ -540,7 +535,7 @@ function App() {
         }
       />
       <Route
-        path="/person/all-persons"
+        path="/people/all-peoples"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <PersonsPage />

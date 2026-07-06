@@ -74,7 +74,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "People",
-    to: "/person/all-persons",
+    to: "/people/all-peoples",
     requiredRoles: [...MODULE_ACCESS.CRM],
   },
   {
