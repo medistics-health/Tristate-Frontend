@@ -23,7 +23,6 @@ type ScopeRow = {
   status: string;
   services: string[];
   createdAt: string;
-  priority: string;
   original: Onboarding;
 };
 
@@ -142,7 +141,6 @@ export default function AllScopeOnboardings() {
           createdAt: ob.createdAt
             ? new Date(ob.createdAt).toLocaleDateString()
             : "N/A",
-          priority: ob.priorityLevel || "MEDIUM",
           original: ob,
         }));
 
@@ -176,18 +174,18 @@ export default function AllScopeOnboardings() {
 
   return (
     <AppLayout
-      title="Scope Setup"
+      title="Pending Submissions"
       activeModule="Onboarding"
-      activeSubItem="Scope Setup"
+      activeSubItem="Pending Submissions"
     >
       <div className="flex h-full flex-col p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-slate-900">
-              Scope Setup
+              Pending Submissions
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Onboarding records with scopes created and email sent to practice
+              Onboarding records sent to practices that haven't been submitted yet
             </p>
           </div>
         </div>
@@ -232,9 +230,6 @@ export default function AllScopeOnboardings() {
                     <Calendar className="h-3.5 w-3.5" />
                     <span>Created</span>
                   </div>
-                </th>
-                <th className="border-b border-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">
-                  Priority
                 </th>
               </tr>
             </thead>
@@ -309,9 +304,6 @@ export default function AllScopeOnboardings() {
                   <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-500">
                     {row.createdAt}
                   </td>
-                  <td className="border-b border-slate-100 px-4 py-3 text-sm">
-                    <span className="text-slate-600">{row.priority}</span>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -322,12 +314,12 @@ export default function AllScopeOnboardings() {
               <div className="flex max-w-md flex-col items-center px-6 text-center">
                 <EmptyStateIllustration />
                 <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                  No draft onboardings found
+                  No pending submissions found
                 </h2>
                 <p className="mt-2 text-[14px] text-slate-400">
                   {search
                     ? "Try adjusting your search"
-                    : "No onboarding records with Draft status"}
+                    : "No sent onboardings pending submission"}
                 </p>
               </div>
             </div>

@@ -116,9 +116,9 @@ const sidebarSteps: SidebarItem[] = [
     label: "Onboarding",
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
-      { label: "Review Submissions", to: "/onboarding/review" },
-      { label: "Scope Setup", to: "/onboarding/scope" },
-      { label: "All Scopes", to: "/onboarding/scope-list" },
+      { label: "New Onboarding", to: "/onboarding/scope" },
+      { label: "Completed Submissions", to: "/onboarding/review" },
+      { label: "Pending Submissions", to: "/onboarding/scope-list" },
     ],
   },
   {
