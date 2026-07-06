@@ -421,17 +421,17 @@ const billingModelOptions: Option[] = [
   { label: "Hybrid", value: "HYBRID" },
 ];
 
-const billingPainPointOptions: Option[] = [
-  { label: "Denials", value: "DENIALS" },
-  { label: "Slow Payments", value: "SLOW_PAYMENTS" },
-  { label: "Coding Issues", value: "CODING_ISSUES" },
-  { label: "Credentialing Issues", value: "CREDENTIALING_ISSUES" },
-  { label: "Eligibility Issues", value: "ELIGIBILITY_ISSUES" },
-  { label: "Poor Reporting", value: "POOR_REPORTING" },
-  { label: "Staff Shortage", value: "STAFF_SHORTAGE" },
-  { label: "A/R Follow-Up", value: "AR_FOLLOW_UP" },
-  { label: "Other", value: "OTHER" },
-];
+// const billingPainPointOptions: Option[] = [
+//   { label: "Denials", value: "DENIALS" },
+//   { label: "Slow Payments", value: "SLOW_PAYMENTS" },
+//   { label: "Coding Issues", value: "CODING_ISSUES" },
+//   { label: "Credentialing Issues", value: "CREDENTIALING_ISSUES" },
+//   { label: "Eligibility Issues", value: "ELIGIBILITY_ISSUES" },
+//   { label: "Poor Reporting", value: "POOR_REPORTING" },
+//   { label: "Staff Shortage", value: "STAFF_SHORTAGE" },
+//   { label: "A/R Follow-Up", value: "AR_FOLLOW_UP" },
+//   { label: "Other", value: "OTHER" },
+// ];
 
 const careHandlerOptions: Option[] = [
   { label: "Practice Staff", value: "PRACTICE_STAFF" },
@@ -5660,7 +5660,7 @@ export default function OnboardingFormV5() {
                     />
                   </Field>
 
-                  <Field label="Current Billing Pain Points">
+                  {/* <Field label="Current Billing Pain Points">
                     <CheckboxGroup
                       options={billingPainPointOptions}
                       values={formData.billing?.billingPainPoints ?? []}
@@ -5672,7 +5672,7 @@ export default function OnboardingFormV5() {
                         )
                       }
                     />
-                  </Field>
+                  </Field> */}
 
                   <Field label="Additional Billing Notes">
                     <TextArea
