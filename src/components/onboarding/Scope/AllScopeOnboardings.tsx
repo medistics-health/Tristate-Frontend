@@ -266,15 +266,40 @@ export default function AllScopeOnboardings() {
                   </td>
                   <td className="border-b border-slate-100 px-4 py-3 text-sm">
                     <div className="flex flex-wrap gap-1">
-                      {row.services.slice(0, 2).map((s) => (
-                        <span
-                          key={s}
-                          className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-600"
-                        >
-                          {serviceLabelMap[s] || s}
-                        </span>
-                      ))}
-                      {row.services.length > 2 && (
+                      {row.services
+                        .filter(
+                          (s) =>
+                            !(
+                              row.services.includes("CARE_MANAGEMENT") &&
+                              s !== "CARE_MANAGEMENT" &&
+                              [
+                                "APCM",
+                                "CCM",
+                                "RPM",
+                                "PCM",
+                                "RTM",
+                                "BHI",
+                                "TCM",
+                              ].includes(s)
+                            ),
+                        )
+                        .slice(0, 2)
+                        .map((s) => (
+                          <span
+                            key={s}
+                            className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-600"
+                          >
+                            {serviceLabelMap[s] || s}
+                          </span>
+                        ))}
+                      {row.services.filter(
+                        (s) =>
+                          !(
+                            row.services.includes("CARE_MANAGEMENT") &&
+                            s !== "CARE_MANAGEMENT" &&
+                            ["APCM", "CCM", "RPM", "PCM", "RTM", "BHI", "TCM"].includes(s)
+                          ),
+                      ).length > 2 && (
                         <span className="text-[11px] text-slate-400">
                           +{row.services.length - 2}
                         </span>

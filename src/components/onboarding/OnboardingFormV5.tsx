@@ -209,6 +209,10 @@ const careProgramServiceValues = [
   "TCM",
 ];
 
+const subCareProgramValues = careProgramServiceValues.filter(
+  (v) => v !== "CARE_MANAGEMENT",
+);
+
 const marketingServiceValues = [
   "PATIENT_ACQUISITION",
   "BRAND_GROWTH",
@@ -2726,6 +2730,13 @@ export default function OnboardingFormV5() {
             <p className="mt-1">
               {scopeRequestedServices.length
                 ? scopeRequestedServices
+                    .filter(
+                      (service) =>
+                        !(
+                          scopeRequestedServices.includes("CARE_MANAGEMENT") &&
+                          subCareProgramValues.includes(service)
+                        ),
+                    )
                     .map((service) => serviceLabelMap.get(service) ?? service)
                     .join(", ")
                 : "Not configured"}
@@ -6364,7 +6375,7 @@ export default function OnboardingFormV5() {
                   <Field label="Which programs are you planning to implement?">
                     <CheckboxGroup
                       options={serviceOptions.filter((option) =>
-                        careProgramServiceValues.includes(option.value),
+                        subCareProgramValues.includes(option.value),
                       )}
                       values={formData.careProgram?.programsPlanned ?? []}
                       onToggle={(value) =>
