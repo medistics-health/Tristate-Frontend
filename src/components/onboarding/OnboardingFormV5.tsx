@@ -663,8 +663,8 @@ const initialContact: OnboardingContact = {
   extension: "",
   preferredContactMethod: "",
   bestTimeToReach: "",
-  isPrimaryDecisionMaker: false,
-  canSignAgreements: false,
+  isPrimaryDecisionMaker: undefined,
+  canSignAgreements: undefined,
   additionalResponsibilities: [],
 };
 
@@ -1457,6 +1457,8 @@ export default function OnboardingFormV5() {
   const [selectedProviderUploadField, setSelectedProviderUploadField] =
     useState<Record<string, ProviderDocumentField>>({});
   const [hasPracticeManager, setHasPracticeManager] = useState(false);
+  const [pmFirstName, setPmFirstName] = useState("");
+  const [pmLastName, setPmLastName] = useState("");
   const [copyCompanyInfoToPracticeOne, setCopyCompanyInfoToPracticeOne] =
     useState(false);
   const [
@@ -1469,6 +1471,18 @@ export default function OnboardingFormV5() {
       localStorage.setItem("onBoardingId", id);
     }
   }, [id]);
+
+  useEffect(() => {
+    const fullName = formData.contacts?.[0]?.fullName ?? "";
+    const spaceIndex = fullName.indexOf(" ");
+    if (spaceIndex === -1) {
+      setPmFirstName(fullName);
+      setPmLastName("");
+    } else {
+      setPmFirstName(fullName.slice(0, spaceIndex));
+      setPmLastName(fullName.slice(spaceIndex + 1));
+    }
+  }, [formData.contacts?.[0]?.fullName]);
 
   useEffect(() => {
     if (!id) return;
@@ -3361,12 +3375,31 @@ export default function OnboardingFormV5() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      <Field label="Full Name" required>
+                      <Field label="First Name" required>
                         <TextInput
-                          value={formData.contacts?.[0]?.fullName ?? ""}
-                          onChange={(event) =>
-                            updateContact(0, "fullName", event.target.value)
-                          }
+                          value={pmFirstName}
+                          onChange={(event) => {
+                            setPmFirstName(event.target.value);
+                            updateContact(
+                              0,
+                              "fullName",
+                              (event.target.value + " " + pmLastName).trim(),
+                            );
+                          }}
+                        />
+                      </Field>
+
+                      <Field label="Last Name" required>
+                        <TextInput
+                          value={pmLastName}
+                          onChange={(event) => {
+                            setPmLastName(event.target.value);
+                            updateContact(
+                              0,
+                              "fullName",
+                              (pmFirstName + " " + event.target.value).trim(),
+                            );
+                          }}
                         />
                       </Field>
 
@@ -3474,7 +3507,7 @@ export default function OnboardingFormV5() {
                             name="primary-decision-maker-0"
                             value={
                               formData.contacts?.[0]?.isPrimaryDecisionMaker ??
-                              false
+                              null
                             }
                             onChange={(value) =>
                               updateContact(0, "isPrimaryDecisionMaker", value)
@@ -3486,7 +3519,7 @@ export default function OnboardingFormV5() {
                           <BooleanRadioGroup
                             name="can-sign-0"
                             value={
-                              formData.contacts?.[0]?.canSignAgreements ?? false
+                              formData.contacts?.[0]?.canSignAgreements ?? null
                             }
                             onChange={(value) =>
                               updateContact(0, "canSignAgreements", value)
@@ -3661,7 +3694,7 @@ export default function OnboardingFormV5() {
                           <Field label="Is this the primary decision maker?">
                             <BooleanRadioGroup
                               name={`primary-decision-maker-${actualIndex}`}
-                              value={contact.isPrimaryDecisionMaker ?? false}
+                              value={contact.isPrimaryDecisionMaker ?? null}
                               onChange={(value) =>
                                 updateContact(
                                   actualIndex,
@@ -3675,7 +3708,7 @@ export default function OnboardingFormV5() {
                           <Field label="Can this person sign agreements?">
                             <BooleanRadioGroup
                               name={`can-sign-${actualIndex}`}
-                              value={contact.canSignAgreements ?? false}
+                              value={contact.canSignAgreements ?? null}
                               onChange={(value) =>
                                 updateContact(
                                   actualIndex,
