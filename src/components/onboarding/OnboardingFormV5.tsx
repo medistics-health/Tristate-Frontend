@@ -4869,19 +4869,23 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="DEA Number">
-                                    <TextInput
-                                      value={provider.deaNumber ?? ""}
-                                      onChange={(event) =>
-                                        updateProvider(
-                                          practiceIndex,
-                                          providerIndex,
-                                          "deaNumber",
-                                          event.target.value,
-                                        )
-                                      }
-                                    />
-                                  </Field>
+                                  {independentBillingProviderTypes.includes(
+                                    provider.providerType ?? "",
+                                  ) ? (
+                                    <Field label="DEA Number">
+                                      <TextInput
+                                        value={provider.deaNumber ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "deaNumber",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
 
                                   <Field label="Board Certifications">
                                     <TextArea
