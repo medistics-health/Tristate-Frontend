@@ -1938,19 +1938,19 @@ export default function OnboardingFormV5() {
   }
 
   function isValidProvider(provider: OnboardingProvider) {
+    const credentialingRequested = scopeRequestedServices.includes(
+      "CREDENTIALING",
+    );
     const firstName = provider.firstName?.trim() ?? "";
     const lastName = provider.lastName?.trim() ?? "";
     const providerType = provider.providerType?.trim() ?? "";
     const npi = provider.npi?.trim() ?? "";
     const ssnLastFour = provider.ssnFullDigits?.trim() ?? "";
-    const credentialingInterest = provider.credentialingNeeded?.trim() ?? "";
     const caqhId = provider.caqhId?.trim() ?? "";
     const caqhUsername = provider.caqhUsername?.trim() ?? "";
     const caqhPassword = provider.caqhPassword?.trim() ?? "";
     const validSsnLastFour = /^\d{4}$/.test(ssnLastFour);
-    const hasCredentialingChoice =
-      credentialingInterest === "YES" || credentialingInterest === "NO";
-    const requiresCaqhCredentials = credentialingInterest === "YES";
+    const requiresCaqhCredentials = credentialingRequested;
     const hasBoardCertificationFile = !!(
       provider.copyOfBoardCertification?.trim() ?? ""
     );
@@ -1960,7 +1960,6 @@ export default function OnboardingFormV5() {
       !!providerType &&
       !!npi &&
       validSsnLastFour &&
-      hasCredentialingChoice &&
       (!requiresCaqhCredentials ||
         (!!caqhId && !!caqhUsername && !!caqhPassword)) &&
       (!provider.boardCertified || hasBoardCertificationFile)
@@ -2451,7 +2450,7 @@ export default function OnboardingFormV5() {
         )
       ) {
         errors.push(
-          "Every practice needs at least one provider with first name, last name, provider type, NPI, SSN last 4 digits, and credentialing/recredentialing interest selection (plus CAQH ID, username, and password when interested, and board certification file when board certified is Yes)",
+          "Every practice needs at least one provider with first name, last name, provider type, NPI, and SSN last 4 digits. When credentialing is a selected service, CAQH ID, username, and password are also required.",
         );
       }
     }
@@ -4708,59 +4707,9 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <div className="lg:col-span-3">
-                                    <Field
-                                      label="Are you interested in credentialing/recredentialing services through Tristate MSO?"
-                                      required
-                                    >
-                                      <RadioGroup
-                                        name={`credentialing-interest-${practiceIndex}-${providerIndex}`}
-                                        value={
-                                          provider.credentialingNeeded ?? ""
-                                        }
-                                        options={[
-                                          { label: "Yes", value: "YES" },
-                                          { label: "No", value: "NO" },
-                                        ]}
-                                        onChange={(value) => {
-                                          updateProvider(
-                                            practiceIndex,
-                                            providerIndex,
-                                            "credentialingNeeded",
-                                            value,
-                                          );
-                                          if (value === "NO") {
-                                            updateProvider(
-                                              practiceIndex,
-                                              providerIndex,
-                                              "caqhId",
-                                              "",
-                                            );
-                                            updateProvider(
-                                              practiceIndex,
-                                              providerIndex,
-                                              "caqhUsername",
-                                              "",
-                                            );
-                                            updateProvider(
-                                              practiceIndex,
-                                              providerIndex,
-                                              "caqhPassword",
-                                              "",
-                                            );
-                                            updateProvider(
-                                              practiceIndex,
-                                              providerIndex,
-                                              "caqhLastAttestationDate",
-                                              "",
-                                            );
-                                          }
-                                        }}
-                                      />
-                                    </Field>
-                                  </div>
-
-                                  {provider.credentialingNeeded === "YES" ? (
+                                  {scopeRequestedServices.includes(
+                                    "CREDENTIALING",
+                                  ) ? (
                                     <Field label="CAQH ID" required>
                                       <TextInput
                                         value={provider.caqhId ?? ""}
@@ -4907,7 +4856,9 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  {provider.credentialingNeeded === "YES" ? (
+                                  {scopeRequestedServices.includes(
+                                    "CREDENTIALING",
+                                  ) ? (
                                     <Field label="CAQH Username" required>
                                       <TextInput
                                         value={provider.caqhUsername ?? ""}
@@ -4923,7 +4874,9 @@ export default function OnboardingFormV5() {
                                     </Field>
                                   ) : null}
 
-                                  {provider.credentialingNeeded === "YES" ? (
+                                  {scopeRequestedServices.includes(
+                                    "CREDENTIALING",
+                                  ) ? (
                                     <Field label="CAQH Password" required>
                                       <TextInput
                                         type="password"
@@ -4940,7 +4893,9 @@ export default function OnboardingFormV5() {
                                     </Field>
                                   ) : null}
 
-                                  {provider.credentialingNeeded === "YES" ? (
+                                  {scopeRequestedServices.includes(
+                                    "CREDENTIALING",
+                                  ) ? (
                                     <Field label="CAQH Last Attestation Date">
                                       <TextInput
                                         type="date"
