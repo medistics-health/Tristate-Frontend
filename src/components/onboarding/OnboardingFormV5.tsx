@@ -740,7 +740,7 @@ const initialProvider: OnboardingProvider = {
   homeAddress: "",
   stateLicenseNumber: "",
   deaNumber: "",
-  boardCertified: false,
+  boardCertified: undefined,
   employmentStatus: "",
   participatingLocations: [],
   credentialingNeeded: "",
@@ -751,7 +751,7 @@ const initialProvider: OnboardingProvider = {
 const initialPractice: OnboardingPractice = {
   practiceName: "",
   practiceDbaName: "",
-  isPartOfParentCompany: true,
+  isPartOfParentCompany: undefined,
   practiceType: "",
   additionalSpecialtyAreas: [],
   groupNpi: "",
@@ -774,7 +774,7 @@ const initialPractice: OnboardingPractice = {
   approximateMedicarePatientVolume: 0,
   approximateMedicaidPatientVolume: 0,
   approximateCommercialPatientVolume: 0,
-  offersCareManagementServices: false,
+  offersCareManagementServices: undefined,
   currentServicesOffered: [],
   operationalPainPoints: [],
   additionalNotes: "",
@@ -3947,7 +3947,7 @@ export default function OnboardingFormV5() {
                           <Field label="Is this practice part of a parent company?">
                             <BooleanRadioGroup
                               name={`parent-company-${practiceIndex}`}
-                              value={practice.isPartOfParentCompany ?? false}
+                              value={practice.isPartOfParentCompany ?? null}
                               onChange={(value) =>
                                 updatePractice(
                                   practiceIndex,
@@ -4117,7 +4117,7 @@ export default function OnboardingFormV5() {
                               <BooleanRadioGroup
                                 name={`care-management-${practiceIndex}`}
                                 value={
-                                  practice.offersCareManagementServices ?? false
+                                  practice.offersCareManagementServices ?? null
                                 }
                                 onChange={(value) => {
                                   updatePractice(
@@ -4846,7 +4846,7 @@ export default function OnboardingFormV5() {
                                   </Field>
 
                                   <Field label="Secondary Specialty">
-                                    <TextInput
+                                    <SelectInput
                                       value={provider.secondarySpecialty ?? ""}
                                       onChange={(event) =>
                                         updateProvider(
@@ -4855,6 +4855,11 @@ export default function OnboardingFormV5() {
                                           "secondarySpecialty",
                                           event.target.value,
                                         )
+                                      }
+                                      options={
+                                        specialtyByProviderType[
+                                          provider.providerType ?? "OTHER"
+                                        ] ?? specialtyByProviderType["OTHER"]
                                       }
                                     />
                                   </Field>
@@ -5085,7 +5090,7 @@ export default function OnboardingFormV5() {
                                         <BooleanRadioGroup
                                           name={`board-certified-${practiceIndex}-${providerIndex}`}
                                           value={
-                                            provider.boardCertified ?? false
+                                            provider.boardCertified ?? null
                                           }
                                           onChange={(value) =>
                                             updateProvider(
