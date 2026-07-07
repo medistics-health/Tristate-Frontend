@@ -1055,15 +1055,16 @@ function BooleanRadioGroup({
   falseLabel = "No",
 }: {
   name: string;
-  value: boolean;
+  value: boolean | null;
   onChange: (value: boolean) => void;
   trueLabel?: string;
   falseLabel?: string;
 }) {
+  const radioValue = value === true ? "yes" : value === false ? "no" : "";
   return (
     <RadioGroup
       name={name}
-      value={value ? "yes" : "no"}
+      value={radioValue}
       options={[
         { label: trueLabel, value: "yes" },
         { label: falseLabel, value: "no" },
@@ -2273,9 +2274,9 @@ export default function OnboardingFormV5() {
       ) {
         errors.push("How many practices are being onboarded (must be 1)");
       }
-      if (!formData.isAuthorizedPerson && !formData.nonAuthorizedRole) {
-        errors.push("Role in onboarding");
-      }
+      // if (!formData.isAuthorizedPerson && !formData.nonAuthorizedRole) {
+      //   errors.push("Role in onboarding");
+      // }
     }
 
     if (currentStep === 2) {
@@ -2423,10 +2424,9 @@ export default function OnboardingFormV5() {
     }
 
     if (stepId === 1) {
-      return (
-        !!formData.onboardingType &&
-        (!!formData.isAuthorizedPerson || !!formData.nonAuthorizedRole)
-      );
+      return !!formData.onboardingType;
+      // &&
+      // (!!formData.isAuthorizedPerson || !!formData.nonAuthorizedRole)
     }
 
     if (stepId === 2) {
@@ -2884,8 +2884,8 @@ export default function OnboardingFormV5() {
                     </Field>
                   ) : null}
 
-                  {formData.onboardingType !==
-                  "SINGLE_PRACTICE_ORGANIZATION" ? (
+                  {formData.onboardingType !== "SINGLE_PRACTICE_ORGANIZATION" &&
+                  formData.onboardingType?.length ? (
                     <Field label="How many locations total are being onboarded?">
                       <TextInput
                         type="number"
@@ -3171,7 +3171,7 @@ export default function OnboardingFormV5() {
                 <Field label="Is this the legal contracting entity?">
                   <BooleanRadioGroup
                     name="isLegalContractingEntity"
-                    value={formData.isLegalContractingEntity ?? false}
+                    value={formData.isLegalContractingEntity ?? null}
                     onChange={(value) =>
                       updateField("isLegalContractingEntity", value)
                     }
@@ -3181,7 +3181,7 @@ export default function OnboardingFormV5() {
                 <Field label="Is this the billing entity?">
                   <BooleanRadioGroup
                     name="isBillingEntity"
-                    value={formData.isBillingEntity ?? false}
+                    value={formData.isBillingEntity ?? null}
                     onChange={(value) => updateField("isBillingEntity", value)}
                   />
                 </Field>
@@ -3189,7 +3189,7 @@ export default function OnboardingFormV5() {
                 <Field label="Is this the credentialing entity?">
                   <BooleanRadioGroup
                     name="isCredentialingEntity"
-                    value={formData.isCredentialingEntity ?? false}
+                    value={formData.isCredentialingEntity ?? null}
                     onChange={(value) =>
                       updateField("isCredentialingEntity", value)
                     }
@@ -3813,7 +3813,7 @@ export default function OnboardingFormV5() {
                             />
                           </Field>
 
-                          <Field label="Approximate Number of Providers">
+                          {/* <Field label="Approximate Number of Providers">
                             <TextInput
                               type="number"
                               min={0}
@@ -3921,7 +3921,7 @@ export default function OnboardingFormV5() {
                                 )
                               }
                             />
-                          </Field>
+                          </Field> */}
 
                           <Field label="Practice Work Start Date">
                             <TextInput
