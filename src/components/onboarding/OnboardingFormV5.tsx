@@ -5084,59 +5084,63 @@ export default function OnboardingFormV5() {
                                     </Field>
                                   </div>
 
-                                  <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
-                                    <div className="space-y-4">
-                                      <Field label="Board Certified?">
-                                        <BooleanRadioGroup
-                                          name={`board-certified-${practiceIndex}-${providerIndex}`}
-                                          value={
-                                            provider.boardCertified ?? null
-                                          }
-                                          onChange={(value) =>
-                                            updateProvider(
-                                              practiceIndex,
-                                              providerIndex,
-                                              "boardCertified",
-                                              value,
-                                            )
-                                          }
-                                        />
-                                      </Field>
-
-                                      {provider.boardCertified ? (
-                                        <Field
-                                          label="Board Certification"
-                                          required
-                                        >
-                                          <DocumentUploadField
+                                  {["PHYSICIAN", "NURSE_PRACTITIONER", "PHYSICIAN_ASSISTANT"].includes(
+                                    provider.providerType ?? "",
+                                  ) ? (
+                                    <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
+                                      <div className="space-y-4">
+                                        <Field label="Board Certified?">
+                                          <BooleanRadioGroup
+                                            name={`board-certified-${practiceIndex}-${providerIndex}`}
                                             value={
-                                              provider.copyOfBoardCertification ??
-                                              ""
+                                              provider.boardCertified ?? null
                                             }
-                                            isUploading={
-                                              uploadingFieldKey ===
-                                              `${practiceIndex}-${providerIndex}-copyOfBoardCertification`
-                                            }
-                                            onSelect={(file) =>
-                                              void uploadProviderDocument(
+                                            onChange={(value) =>
+                                              updateProvider(
                                                 practiceIndex,
                                                 providerIndex,
-                                                "copyOfBoardCertification",
-                                                file,
-                                              )
-                                            }
-                                            onClear={() =>
-                                              void removeProviderDocument(
-                                                practiceIndex,
-                                                providerIndex,
-                                                "copyOfBoardCertification",
+                                                "boardCertified",
+                                                value,
                                               )
                                             }
                                           />
                                         </Field>
-                                      ) : null}
+
+                                        {provider.boardCertified ? (
+                                          <Field
+                                            label="Board Certification"
+                                            required
+                                          >
+                                            <DocumentUploadField
+                                              value={
+                                                provider.copyOfBoardCertification ??
+                                                ""
+                                              }
+                                              isUploading={
+                                                uploadingFieldKey ===
+                                                `${practiceIndex}-${providerIndex}-copyOfBoardCertification`
+                                              }
+                                              onSelect={(file) =>
+                                                void uploadProviderDocument(
+                                                  practiceIndex,
+                                                  providerIndex,
+                                                  "copyOfBoardCertification",
+                                                  file,
+                                                )
+                                              }
+                                              onClear={() =>
+                                                void removeProviderDocument(
+                                                  practiceIndex,
+                                                  providerIndex,
+                                                  "copyOfBoardCertification",
+                                                )
+                                              }
+                                            />
+                                          </Field>
+                                        ) : null}
+                                      </div>
                                     </div>
-                                  </div>
+                                  ) : null}
 
                                   <div className="lg:col-span-3 space-y-4">
                                     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
