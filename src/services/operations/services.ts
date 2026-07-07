@@ -32,6 +32,7 @@ function serviceToRow(service: Service): ServiceRow {
       code: service.code ?? "",
       category: service.category ?? "",
       stripeConnectedAccountId: service.stripeConnectedAccountId ?? "",
+      stripeConnectedAccountName: service.stripeConnectedAccountName ?? "",
       vendorName: service.vendor?.name ?? "",
       isActive: service.isActive,
       creationDate: new Date(service.createdAt).toLocaleString(),

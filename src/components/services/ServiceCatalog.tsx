@@ -529,9 +529,10 @@ function ServiceCatalogPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Stripe Account</span>
                       <span className="text-right text-slate-700">
-                        {getStripeAccountLabel(
-                          selectedService.stripeConnectedAccountId,
-                        )}
+                        {selectedService.stripeConnectedAccountName ||
+                          getStripeAccountLabel(
+                            selectedService.stripeConnectedAccountId,
+                          )}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">

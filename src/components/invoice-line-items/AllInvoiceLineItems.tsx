@@ -129,6 +129,13 @@ function AllInvoiceLineItems() {
             String(row.original.values.serviceName || "-"),
         },
         {
+          id: "description",
+          accessorFn: (row: InvoiceLineItemRow) => row.values.description,
+          header: () => "Description",
+          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
+            String(row.original.values.description || "-"),
+        },
+        {
           id: "quantity",
           accessorFn: (row: InvoiceLineItemRow) => row.values.quantity,
           header: () => "Quantity",
@@ -657,9 +664,10 @@ function AllInvoiceLineItems() {
               >
                 <div className="flex-1 overflow-auto p-4">
                   <DetailCard
-                    title={selectedLineItem?.service?.name || "Invoice Line Item"}
-                    infoRows={[
+                  title={selectedLineItem?.service?.name || "Invoice Line Item"}
+                  infoRows={[
                       ...(selectedLineItem?.invoice ? [{ label: "Invoice", value: getInvoiceLabel(selectedLineItem.invoice) }] : []),
+                      ...(selectedLineItem?.description ? [{ label: "Description", value: selectedLineItem.description }] : []),
                       ...(selectedLineItem?.quantity ? [{ label: "Quantity", value: String(selectedLineItem.quantity) }] : []),
                       ...(selectedLineItem?.unitPrice ? [{ label: "Unit Price", value: String(selectedLineItem.unitPrice) }] : []),
                       ...(selectedLineItem?.totalPrice ? [{ label: "Total Price", value: String(selectedLineItem.totalPrice) }] : []),

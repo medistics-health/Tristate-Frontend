@@ -16,6 +16,7 @@ export type Service = {
   code: string | null;
   category: string | null;
   stripeConnectedAccountId: string | null;
+  stripeConnectedAccountName?: string | null;
   vendorId: string | null;
   isActive: boolean;
   clientRate: string | null;
