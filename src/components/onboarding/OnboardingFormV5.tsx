@@ -688,6 +688,7 @@ const initialLocation: OnboardingLocation = {
   officeManagerName: "",
   patientOutreachManaged: "",
   billingManaged: "",
+  cliaNumber: "",
   notes: "",
 };
 
@@ -700,7 +701,6 @@ const initialProvider: OnboardingProvider = {
   credentials: "",
   providerType: "",
   specialty: "",
-  cliaNumber: "",
   npi: "",
   caqhId: "",
   ssnFullDigits: "",
@@ -4462,6 +4462,20 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
+                                    <Field label="CLIA Number">
+                                      <TextInput
+                                        value={location.cliaNumber ?? ""}
+                                        onChange={(event) =>
+                                          updateLocation(
+                                            practiceIndex,
+                                            locationIndex,
+                                            "cliaNumber",
+                                            event.target.value.replace(/\D/g, ""),
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
                                     <div className="lg:col-span-3">
                                       <Field label="Hours of Operation">
                                         <TextArea
@@ -4777,20 +4791,6 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
                                   ) : null}
-
-                                  <Field label="CLIA Number">
-                                    <TextInput
-                                      value={provider.cliaNumber ?? ""}
-                                      onChange={(event) =>
-                                        updateProvider(
-                                          practiceIndex,
-                                          providerIndex,
-                                          "cliaNumber",
-                                          event.target.value.replace(/\D/g, ""),
-                                        )
-                                      }
-                                    />
-                                  </Field>
 
                                   <Field label="State License Number">
                                     <TextInput

@@ -59,6 +59,7 @@ export type OnboardingLocation = {
   officeManagerName?: string;
   patientOutreachManaged?: string;
   billingManaged?: string;
+  cliaNumber?: string;
   notes?: string;
 };
 
@@ -72,7 +73,6 @@ export type OnboardingProvider = {
   credentials?: string;
   providerType?: string;
   specialty?: string;
-  cliaNumber?: string;
   npi?: string;
   caqhId?: string;
   ssnFullDigits?: string;
