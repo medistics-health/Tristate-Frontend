@@ -24,6 +24,7 @@ import AllPartnersPage from "./components/channel-partners/AllPartners";
 import AssessmentProgressPage from "./components/assessments/AssessmentProgress";
 import InvoiceStatusBoardPage from "./components/invoices/InvoiceStatusBoard";
 import AllInvoicePage from "./components/invoices/AllInvoices";
+import StripePayoutTracker from "./components/invoices/StripePayoutTracker";
 import AgreementPendingSignaturesPage from "./components/agreements/pending-signatures/PendingSignatures";
 import AgreementPendingSubmissionChangesPage from "./components/agreements/pending-submission-changes/AgreementPendingSubmissionChangesPage";
 import VendorContractPage from "./components/vendors/VendorContracts";
@@ -421,6 +422,15 @@ function App() {
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
             <InvoiceStatusBoardPage />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/invoice/stripe-payouts"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
+            <StripePayoutTracker />
           </ModuleRoute>
         }
       />

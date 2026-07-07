@@ -1904,6 +1904,7 @@ function BillingRunsPage() {
                                 </span>
                               </span>
                             )}
+                            
                             {config.vendorPricing?.minimumFee && (
                               <span className="text-slate-500">
                                 Vendor min fee:{" "}
