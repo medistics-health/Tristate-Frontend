@@ -832,10 +832,10 @@ const initialCredentialing: OnboardingCredentialing = {
 const initialTechnology: OnboardingTechnology = {
   ehrSystem: "",
   practiceManagementSystem: "",
-  patientPortalAvailable: false,
-  patientListExportable: false,
-  appointmentListExportable: false,
-  apiAccessAvailable: false,
+  patientPortalAvailable: undefined,
+  patientListExportable: undefined,
+  appointmentListExportable: undefined,
+  apiAccessAvailable: undefined,
   clearinghouse: "",
   faxPlatform: "",
   phonePlatform: "",
@@ -5735,7 +5735,7 @@ export default function OnboardingFormV5() {
                     <BooleanRadioGroup
                       name="patientPortalAvailable"
                       value={
-                        formData.technology?.patientPortalAvailable ?? false
+                        formData.technology?.patientPortalAvailable ?? null
                       }
                       onChange={(value) =>
                         updateNestedField(
@@ -5751,7 +5751,7 @@ export default function OnboardingFormV5() {
                     <BooleanRadioGroup
                       name="patientListExportable"
                       value={
-                        formData.technology?.patientListExportable ?? false
+                        formData.technology?.patientListExportable ?? null
                       }
                       onChange={(value) =>
                         updateNestedField(
@@ -5767,7 +5767,7 @@ export default function OnboardingFormV5() {
                     <BooleanRadioGroup
                       name="appointmentListExportable"
                       value={
-                        formData.technology?.appointmentListExportable ?? false
+                        formData.technology?.appointmentListExportable ?? null
                       }
                       onChange={(value) =>
                         updateNestedField(
@@ -5782,7 +5782,7 @@ export default function OnboardingFormV5() {
                   <Field label="API Access Available?">
                     <BooleanRadioGroup
                       name="apiAccessAvailable"
-                      value={formData.technology?.apiAccessAvailable ?? false}
+                      value={formData.technology?.apiAccessAvailable ?? null}
                       onChange={(value) =>
                         updateNestedField(
                           "technology",
@@ -5973,11 +5973,31 @@ export default function OnboardingFormV5() {
                       ]}
                       values={formData.billing?.currentlyBilledServices ?? []}
                       onToggle={(value) =>
-                        toggleNestedArrayValue(
-                          "billing",
-                          "currentlyBilledServices",
-                          value,
-                        )
+                        setFormData((prev) => {
+                          const programValues = ["APCM", "CCM", "RPM", "PCM", "BHI", "RTM"];
+                          const specialValues = ["NONE", "NOT_SURE"];
+                          const current = prev.billing?.currentlyBilledServices ?? [];
+                          let next: string[];
+                          if (specialValues.includes(value)) {
+                            if (current.includes(value)) {
+                              next = current.filter((v) => v !== value);
+                            } else {
+                              next = [value];
+                            }
+                          } else {
+                            next = current.includes(value)
+                              ? current.filter((v) => v !== value)
+                              : [...current, value];
+                            next = next.filter((v) => !specialValues.includes(v));
+                          }
+                          return {
+                            ...prev,
+                            billing: {
+                              ...(prev.billing ?? {}),
+                              currentlyBilledServices: next,
+                            },
+                          };
+                        })
                       }
                     />
                   </Field>
@@ -6474,173 +6494,175 @@ export default function OnboardingFormV5() {
             ) : null}
 
             {hasCareProgramsSelected ? (
-              {/* Care Program Readiness section - commented out per removal request
-              <SectionCard title="Care Program Readiness">
-                <div className="grid gap-6">
-                  <Field label="Which programs are you planning to implement?">
-                    <CheckboxGroup
-                      options={serviceOptions.filter((option) =>
-                        subCareProgramValues.includes(option.value),
-                      )}
-                      values={formData.careProgram?.programsPlanned ?? []}
-                      onToggle={(value) =>
-                        toggleCareProgramArrayValue("programsPlanned", value)
-                      }
-                    />
-                  </Field>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Field label="Estimated Eligible Patient Count">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        value={
-                          formData.careProgram?.estimatedEligiblePatients ?? 0
+              <>
+                {/* Care Program Readiness section - commented out per removal request
+                <SectionCard title="Care Program Readiness">
+                  <div className="grid gap-6">
+                    <Field label="Which programs are you planning to implement?">
+                      <CheckboxGroup
+                        options={serviceOptions.filter((option) =>
+                          subCareProgramValues.includes(option.value),
+                        )}
+                        values={formData.careProgram?.programsPlanned ?? []}
+                        onToggle={(value) =>
+                          toggleCareProgramArrayValue("programsPlanned", value)
                         }
+                      />
+                    </Field>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      <Field label="Estimated Eligible Patient Count">
+                        <TextInput
+                          type="number"
+                          min={0}
+                          value={
+                            formData.careProgram?.estimatedEligiblePatients ?? 0
+                          }
+                          onChange={(event) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              careProgram: {
+                                ...(prev.careProgram ?? {}),
+                                estimatedEligiblePatients: parseNumber(
+                                  event.target.value.replace(/\D/g, ""),
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </Field>
+
+                      <Field label="Current Enrolled Patient Count">
+                        <TextInput
+                          type="number"
+                          min={0}
+                          value={
+                            formData.careProgram?.currentEnrolledPatients ?? 0
+                          }
+                          onChange={(event) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              careProgram: {
+                                ...(prev.careProgram ?? {}),
+                                currentEnrolledPatients: parseNumber(
+                                  event.target.value.replace(/\D/g, ""),
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </Field>
+
+                      <Field label="How are patient minutes tracked today?">
+                        <SelectInput
+                          value={
+                            formData.careProgram?.patientMinutesTracker ?? ""
+                          }
+                          onChange={(event) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              careProgram: {
+                                ...(prev.careProgram ?? {}),
+                                patientMinutesTracker: event.target.value,
+                              },
+                            }))
+                          }
+                          options={minutesTrackerOptions}
+                        />
+                      </Field>
+
+                      <Field label="Who currently handles patient enrollment?">
+                        <SelectInput
+                          value={
+                            formData.careProgram?.patientEnrollmentHandler ?? ""
+                          }
+                          onChange={(event) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              careProgram: {
+                                ...(prev.careProgram ?? {}),
+                                patientEnrollmentHandler: event.target.value,
+                              },
+                            }))
+                          }
+                          options={careHandlerOptions}
+                        />
+                      </Field>
+
+                      <Field label="Who currently handles monthly follow-up?">
+                        <SelectInput
+                          value={
+                            formData.careProgram?.monthlyFollowUpHandler ?? ""
+                          }
+                          onChange={(event) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              careProgram: {
+                                ...(prev.careProgram ?? {}),
+                                monthlyFollowUpHandler: event.target.value,
+                              },
+                            }))
+                          }
+                          options={careHandlerOptions}
+                        />
+                      </Field>
+
+                      <Field label="Are consent forms already in place?">
+                        <BooleanRadioGroup
+                          name="consentFormsInPlace"
+                          value={
+                            formData.careProgram?.consentFormsInPlace ?? false
+                          }
+                          onChange={(value) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              careProgram: {
+                                ...(prev.careProgram ?? {}),
+                                consentFormsInPlace: value,
+                              },
+                            }))
+                          }
+                        />
+                      </Field>
+
+                      <Field label="Is there an existing care plan workflow?">
+                        <BooleanRadioGroup
+                          name="existingCarePlanWorkflow"
+                          value={
+                            formData.careProgram?.existingCarePlanWorkflow ??
+                            false
+                          }
+                          onChange={(value) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              careProgram: {
+                                ...(prev.careProgram ?? {}),
+                                existingCarePlanWorkflow: value,
+                              },
+                            }))
+                          }
+                        />
+                      </Field>
+                    </div>
+
+                    <Field label="Any compliance or operational concerns?">
+                      <TextArea
+                        value={formData.careProgram?.complianceConcerns ?? ""}
                         onChange={(event) =>
                           setFormData((prev) => ({
                             ...prev,
                             careProgram: {
                               ...(prev.careProgram ?? {}),
-                              estimatedEligiblePatients: parseNumber(
-                                event.target.value.replace(/\D/g, ""),
-                              ),
-                            },
-                          }))
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Current Enrolled Patient Count">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        value={
-                          formData.careProgram?.currentEnrolledPatients ?? 0
-                        }
-                        onChange={(event) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            careProgram: {
-                              ...(prev.careProgram ?? {}),
-                              currentEnrolledPatients: parseNumber(
-                                event.target.value.replace(/\D/g, ""),
-                              ),
-                            },
-                          }))
-                        }
-                      />
-                    </Field>
-
-                    <Field label="How are patient minutes tracked today?">
-                      <SelectInput
-                        value={
-                          formData.careProgram?.patientMinutesTracker ?? ""
-                        }
-                        onChange={(event) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            careProgram: {
-                              ...(prev.careProgram ?? {}),
-                              patientMinutesTracker: event.target.value,
-                            },
-                          }))
-                        }
-                        options={minutesTrackerOptions}
-                      />
-                    </Field>
-
-                    <Field label="Who currently handles patient enrollment?">
-                      <SelectInput
-                        value={
-                          formData.careProgram?.patientEnrollmentHandler ?? ""
-                        }
-                        onChange={(event) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            careProgram: {
-                              ...(prev.careProgram ?? {}),
-                              patientEnrollmentHandler: event.target.value,
-                            },
-                          }))
-                        }
-                        options={careHandlerOptions}
-                      />
-                    </Field>
-
-                    <Field label="Who currently handles monthly follow-up?">
-                      <SelectInput
-                        value={
-                          formData.careProgram?.monthlyFollowUpHandler ?? ""
-                        }
-                        onChange={(event) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            careProgram: {
-                              ...(prev.careProgram ?? {}),
-                              monthlyFollowUpHandler: event.target.value,
-                            },
-                          }))
-                        }
-                        options={careHandlerOptions}
-                      />
-                    </Field>
-
-                    <Field label="Are consent forms already in place?">
-                      <BooleanRadioGroup
-                        name="consentFormsInPlace"
-                        value={
-                          formData.careProgram?.consentFormsInPlace ?? false
-                        }
-                        onChange={(value) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            careProgram: {
-                              ...(prev.careProgram ?? {}),
-                              consentFormsInPlace: value,
-                            },
-                          }))
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Is there an existing care plan workflow?">
-                      <BooleanRadioGroup
-                        name="existingCarePlanWorkflow"
-                        value={
-                          formData.careProgram?.existingCarePlanWorkflow ??
-                          false
-                        }
-                        onChange={(value) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            careProgram: {
-                              ...(prev.careProgram ?? {}),
-                              existingCarePlanWorkflow: value,
+                              complianceConcerns: event.target.value,
                             },
                           }))
                         }
                       />
                     </Field>
                   </div>
-
-                  <Field label="Any compliance or operational concerns?">
-                    <TextArea
-                      value={formData.careProgram?.complianceConcerns ?? ""}
-                      onChange={(event) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          careProgram: {
-                            ...(prev.careProgram ?? {}),
-                            complianceConcerns: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </Field>
-                </div>
-              </SectionCard>
-              */}
+                </SectionCard>
+                */}
+              </>
             ) : null}
           </>
         ) : null}
