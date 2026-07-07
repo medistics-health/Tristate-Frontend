@@ -47,9 +47,13 @@ const serviceOptions: Option[] = [
   // { label: "TCM", value: "TCM" },
   { label: "Care Management", value: "CARE_MANAGEMENT" },
   { label: "Lab Relationship Support", value: "LAB_RELATIONSHIP_SUPPORT" },
-  { label: "Pharmacy Program Support", value: "PHARMACY_PROGRAM_SUPPORT" },
-  { label: "Patient Acquisition", value: "PATIENT_ACQUISITION" },
-  { label: "Brand Growth", value: "BRAND_GROWTH" },
+  // { label: "Pharmacy Program Support", value: "PHARMACY_PROGRAM_SUPPORT" },
+  {
+    label: "Patient Acquisition/Brand Growth",
+    value: "PATIENT_ACQUISITION/BRAND_GROWTH",
+  },
+  // { label: "Brand Growth", value: "BRAND_GROWTH" },
+  { label: "MSP/Tech Support", value: "MSP/TECH_SUPPORT" },
   { label: "AI Visibility", value: "AI_VISIBILITY" },
   { label: "Other", value: "OTHER" },
 ];
@@ -682,7 +686,7 @@ export default function Scope() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
+              {/*<label className="mb-2 block text-sm font-medium text-slate-700">
                 Engagement goals
               </label>
               <textarea
@@ -695,7 +699,7 @@ export default function Scope() {
                 }
                 rows={4}
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
-              />
+              />*/}
             </div>
           </div>
         </section>

@@ -40,6 +40,21 @@ const statusLabels: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
+const careProgramServiceValues = [
+  "CARE_MANAGEMENT",
+  "APCM",
+  "CCM",
+  "RPM",
+  "PCM",
+  "RTM",
+  "BHI",
+  "TCM",
+];
+
+const subCareProgramValues = careProgramServiceValues.filter(
+  (v) => v !== "CARE_MANAGEMENT",
+);
+
 const serviceLabelMap: Record<string, string> = {
   CREDENTIALING: "Credentialing",
   BILLING_RCM: "Billing / RCM",
@@ -234,82 +249,84 @@ export default function AllScopeOnboardings() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="bg-white hover:bg-slate-50">
-                  <td className="border-b border-slate-100 px-4 py-3 text-sm">
-                    <span className="font-medium text-slate-800">
-                      {row.practiceName}
-                    </span>
-                  </td>
-                  <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
-                    {row.type === "MULTI_PRACTICE_ORGANIZATION"
-                      ? "Multi Practice"
-                      : row.type === "SINGLE_PRACTICE_ORGANIZATION"
-                        ? "Single Practice Org"
-                        : row.type === "SINGLE_PRACTICE"
-                          ? "Single Practice"
-                          : row.type}
-                  </td>
-                  <td className="border-b border-slate-100 px-4 py-3 text-sm">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                        statusColors[row.status] || "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {statusLabels[row.status] || row.status}
-                    </span>
-                  </td>
-                  <td className="border-b border-slate-100 px-4 py-3 text-sm">
-                    <div className="flex flex-wrap gap-1">
-                      {row.services
-                        .filter(
-                          (s) =>
-                            !(
-                              row.services.includes("CARE_MANAGEMENT") &&
-                              s !== "CARE_MANAGEMENT" &&
-                              [
-                                "APCM",
-                                "CCM",
-                                "RPM",
-                                "PCM",
-                                "RTM",
-                                "BHI",
-                                "TCM",
-                              ].includes(s)
-                            ),
-                        )
-                        .slice(0, 2)
-                        .map((s) => (
-                          <span
-                            key={s}
-                            className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-600"
-                          >
-                            {serviceLabelMap[s] || s}
-                          </span>
-                        ))}
-                      {row.services.filter(
-                        (s) =>
-                          !(
-                            row.services.includes("CARE_MANAGEMENT") &&
-                            s !== "CARE_MANAGEMENT" &&
-                            ["APCM", "CCM", "RPM", "PCM", "RTM", "BHI", "TCM"].includes(s)
-                          ),
-                      ).length > 2 && (
-                        <span className="text-[11px] text-slate-400">
-                          +{row.services.length - 2}
-                        </span>
-                      )}
+              {isLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-20 text-center">
+                    <div className="flex items-center justify-center gap-2 text-slate-400">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                      <span className="text-sm">Loading...</span>
                     </div>
                   </td>
-                  <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-500">
-                    {row.createdAt}
-                  </td>
                 </tr>
-              ))}
+              ) : (
+                rows.map((row) => (
+                  <tr key={row.id} className="bg-white hover:bg-slate-50">
+                    <td className="border-b border-slate-100 px-4 py-3 text-sm">
+                      <span className="font-medium text-slate-800">
+                        {row.practiceName}
+                      </span>
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
+                      {row.type === "MULTI_PRACTICE_ORGANIZATION"
+                        ? "Multi Practice"
+                        : row.type === "SINGLE_PRACTICE_ORGANIZATION"
+                          ? "Single Practice Org"
+                          : row.type === "SINGLE_PRACTICE"
+                            ? "Single Practice"
+                            : row.type}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-3 text-sm">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          statusColors[row.status] || "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {statusLabels[row.status] || row.status}
+                      </span>
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-3 text-sm">
+                      {(() => {
+                        const raw = row.services;
+                        const hasSubProgram = raw.some((s) =>
+                          subCareProgramValues.includes(s),
+                        );
+                        const displayServices = hasSubProgram
+                          ? [
+                              "CARE_MANAGEMENT",
+                              ...raw.filter(
+                                (s) => !careProgramServiceValues.includes(s),
+                              ),
+                            ]
+                          : raw;
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {displayServices.slice(0, 2).map((s) => (
+                              <span
+                                key={s}
+                                className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-600"
+                              >
+                                {serviceLabelMap[s] || s}
+                              </span>
+                            ))}
+                            {displayServices.length > 2 && (
+                              <span className="text-[11px] text-slate-400">
+                                +{displayServices.length - 2}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-500">
+                      {row.createdAt}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
 
-          {rows.length === 0 && !isLoading && (
+          {!isLoading && rows.length === 0 && (
             <div className="flex min-h-[400px] items-center justify-center">
               <div className="flex max-w-md flex-col items-center px-6 text-center">
                 <EmptyStateIllustration />

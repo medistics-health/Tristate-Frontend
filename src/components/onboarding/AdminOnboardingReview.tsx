@@ -4219,33 +4219,44 @@ export default function AdminOnboardingReview() {
                 ))}
               </thead>
               <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    onClick={() => handleRowClick(row.original.id)}
-                    className={`cursor-pointer ${
-                      selectedRowId === row.original.id
-                        ? "bg-[#fcfbf9]"
-                        : "bg-white hover:bg-[#faf9f7]"
-                    }`}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </td>
-                    ))}
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-20 text-center">
+                      <div className="flex items-center justify-center gap-2 text-slate-400">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                        <span className="text-[13px]">Loading...</span>
+                      </div>
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => handleRowClick(row.original.id)}
+                      className={`cursor-pointer ${
+                        selectedRowId === row.original.id
+                          ? "bg-[#fcfbf9]"
+                          : "bg-white hover:bg-[#faf9f7]"
+                      }`}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td
+                          key={cell.id}
+                          className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
 
-            {rows.length === 0 && !isLoading && (
+            {!isLoading && rows.length === 0 && (
               <div className="relative flex min-h-[520px] items-center justify-center">
                 <div className="flex max-w-md flex-col items-center px-6 text-center">
                   <EmptyStateIllustration />

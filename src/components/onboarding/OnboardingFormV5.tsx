@@ -2728,18 +2728,25 @@ export default function OnboardingFormV5() {
               Requested services
             </p>
             <p className="mt-1">
-              {scopeRequestedServices.length
-                ? scopeRequestedServices
-                    .filter(
-                      (service) =>
-                        !(
-                          scopeRequestedServices.includes("CARE_MANAGEMENT") &&
-                          subCareProgramValues.includes(service)
-                        ),
-                    )
-                    .map((service) => serviceLabelMap.get(service) ?? service)
-                    .join(", ")
-                : "Not configured"}
+              {(() => {
+                const raw = scopeRequestedServices;
+                const hasSubProgram = raw.some((s) =>
+                  subCareProgramValues.includes(s),
+                );
+                const display = hasSubProgram
+                  ? [
+                      "CARE_MANAGEMENT",
+                      ...raw.filter(
+                        (s) => !careProgramServiceValues.includes(s),
+                      ),
+                    ]
+                  : raw;
+                return display.length
+                  ? display
+                      .map((s) => serviceLabelMap.get(s) ?? s)
+                      .join(", ")
+                  : "Not configured";
+              })()}
             </p>
           </div>
           {/*<div>
