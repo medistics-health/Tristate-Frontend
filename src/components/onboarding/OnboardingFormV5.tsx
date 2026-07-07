@@ -848,9 +848,9 @@ const initialTechnology: OnboardingTechnology = {
 
 const initialOutreach: OnboardingOutreach = {
   preferredChannels: [],
-  patientTextConsent: false,
+  patientTextConsent: undefined,
   preferredLanguages: [],
-  interpreterServices: false,
+  interpreterServices: undefined,
   outreachFromPractice: true,
   approvedOutreachHours: "",
   messagingRequirements: "",
@@ -6691,7 +6691,7 @@ export default function OnboardingFormV5() {
                   <Field label="Is patient text consent available?">
                     <BooleanRadioGroup
                       name="patientTextConsent"
-                      value={formData.outreach?.patientTextConsent ?? false}
+                      value={formData.outreach?.patientTextConsent ?? null}
                       onChange={(value) =>
                         updateNestedField(
                           "outreach",
@@ -6705,7 +6705,7 @@ export default function OnboardingFormV5() {
                   <Field label="Are interpreter services needed?">
                     <BooleanRadioGroup
                       name="interpreterServices"
-                      value={formData.outreach?.interpreterServices ?? false}
+                      value={formData.outreach?.interpreterServices ?? null}
                       onChange={(value) =>
                         updateNestedField(
                           "outreach",
