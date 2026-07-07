@@ -594,7 +594,6 @@ const labStatusOptions: Option[] = [
 const credentialingForOptions: Option[] = [
   { label: "Group / Practice", value: "GROUP_PRACTICE" },
   { label: "Individual Providers", value: "INDIVIDUAL_PROVIDERS" },
-  { label: "Both", value: "BOTH" },
 ];
 
 const documentStatusOptions: Option[] = [
@@ -823,7 +822,7 @@ const initialCredentialing: OnboardingCredentialing = {
   designatedPortalContactPhone: "",
   irsDocument147c: "",
   desiredInsurancePlans: "",
-  caqhMaintained: false,
+  caqhMaintained: undefined,
   currentCredentialingIssues: [],
   medicarePtanAvailable: "",
   medicaidEnrollmentActive: "",
@@ -6093,24 +6092,13 @@ export default function OnboardingFormV5() {
                     <CheckboxGroup
                       options={credentialingForOptions}
                       values={formData.credentialing?.credentialingFor ?? []}
-                      onToggle={(value) => {
-                        if (value === "BOTH") {
-                          updateNestedField(
-                            "credentialing",
-                            "credentialingFor",
-                            ["BOTH"],
-                          );
-                        } else {
-                          const current =
-                            formData.credentialing?.credentialingFor ?? [];
-                          if (current.includes("BOTH")) return;
-                          toggleNestedArrayValue(
-                            "credentialing",
-                            "credentialingFor",
-                            value,
-                          );
-                        }
-                      }}
+                      onToggle={(value) =>
+                        toggleNestedArrayValue(
+                          "credentialing",
+                          "credentialingFor",
+                          value,
+                        )
+                      }
                     />
                   </Field>
 
@@ -6158,7 +6146,7 @@ export default function OnboardingFormV5() {
                         <BooleanRadioGroup
                           name="designated-credentialing-contact"
                           value={
-                            formData.credentialing?.caqhMaintained ?? false
+                            formData.credentialing?.caqhMaintained ?? null
                           }
                           onChange={(value) => {
                             updateNestedField(
@@ -6486,6 +6474,7 @@ export default function OnboardingFormV5() {
             ) : null}
 
             {hasCareProgramsSelected ? (
+              {/* Care Program Readiness section - commented out per removal request
               <SectionCard title="Care Program Readiness">
                 <div className="grid gap-6">
                   <Field label="Which programs are you planning to implement?">
@@ -6651,6 +6640,7 @@ export default function OnboardingFormV5() {
                   </Field>
                 </div>
               </SectionCard>
+              */}
             ) : null}
           </>
         ) : null}
