@@ -155,6 +155,7 @@ const sidebarSteps: SidebarItem[] = [
       { label: "All Invoices", to: "/invoice/all-invoices" },
       { label: "Invoice Status Board", to: "/invoice/status-board" },
       { label: "Overdue Invoices", to: "/invoice/overdue" },
+      // { label: "Stripe Transfer Center", to: "/invoice/stripe-payouts" },
     ],
   },
   {

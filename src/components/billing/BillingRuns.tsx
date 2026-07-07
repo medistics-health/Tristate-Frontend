@@ -93,6 +93,45 @@ type CreateRunFormState = {
   termInputs: Record<string, TermInputValues>;
 };
 
+type AutoDerivedField = "baseAmount" | "collectionsBase";
+type AutoDerivedFieldState = Record<
+  string,
+  Partial<Record<AutoDerivedField, boolean>>
+>;
+
+const AUTO_DERIVED_TERM_NAMES = new Set([
+  "credit card charges",
+  "percent of collections",
+]);
+
+function normalizeTermName(value?: string | null) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isAutoDerivedTerm(term: AgreementServiceTerm) {
+  return AUTO_DERIVED_TERM_NAMES.has(
+    normalizeTermName(term.service?.name || term.externalReference),
+  );
+}
+
+function getAutoDerivedField(term: AgreementServiceTerm): AutoDerivedField | null {
+  const config = (term.pricingConfig || {}) as Record<string, any>;
+  const hasCollectionsComponent =
+    term.pricingModel === "HYBRID" &&
+    Array.isArray(config.components) &&
+    config.components.some((component: any) => component?.type === "% Collections");
+
+  if (term.pricingModel === "HYBRID") {
+    return hasCollectionsComponent ? "collectionsBase" : null;
+  }
+
+  if (term.pricingModel === "PERCENT_COLLECTIONS") {
+    return "baseAmount";
+  }
+
+  return "baseAmount";
+}
+
 type PaymentAllocationRow = {
   invoiceId: string;
   allocatedAmount: string;
@@ -185,6 +224,8 @@ function BillingRunsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [createForm, setCreateForm] =
     useState<CreateRunFormState>(initialCreateRunForm);
+  const [manualDerivedFields, setManualDerivedFields] =
+    useState<AutoDerivedFieldState>({});
   const [paymentForm, setPaymentForm] =
     useState<PaymentFormState>(initialPaymentForm);
   const [pagination, setPagination] = useState({
@@ -241,6 +282,60 @@ function BillingRunsPage() {
     createForm.agreementIds,
     createForm.periodStart,
     createForm.periodEnd,
+  ]);
+
+  const autoDerivedBaseTotal = useMemo(() => {
+    if (activePricingTerms.length === 0) return 0;
+
+    let total = 0;
+    for (const term of activePricingTerms) {
+      if (isAutoDerivedTerm(term)) {
+        continue;
+      }
+
+      const preview = computeTermPreview(
+        term,
+        createForm.termInputs[term.id] || {},
+      );
+      total += preview.clientAmount;
+    }
+
+    return roundMoneyClient(total);
+  }, [activePricingTerms, createForm.termInputs]);
+
+  useEffect(() => {
+    if (!showCreateForm || activePricingTerms.length === 0) return;
+
+    const autoValue = autoDerivedBaseTotal.toFixed(2);
+
+    setCreateForm((prev) => {
+      let changed = false;
+      const nextTermInputs = { ...prev.termInputs };
+
+      for (const term of activePricingTerms) {
+        if (!isAutoDerivedTerm(term)) continue;
+
+        const current = nextTermInputs[term.id] || {};
+        const targetField = getAutoDerivedField(term);
+        if (!targetField) continue;
+
+        const isManuallySet = manualDerivedFields[term.id]?.[targetField];
+        if (!isManuallySet && current[targetField] !== autoValue) {
+          nextTermInputs[term.id] = {
+            ...current,
+            [targetField]: autoValue,
+          };
+          changed = true;
+        }
+      }
+
+      return changed ? { ...prev, termInputs: nextTermInputs } : prev;
+    });
+  }, [
+    activePricingTerms,
+    autoDerivedBaseTotal,
+    manualDerivedFields,
+    showCreateForm,
   ]);
 
   const previewTotals = useMemo(() => {
@@ -434,10 +529,11 @@ function BillingRunsPage() {
       return;
     }
     setIsLoadingAgreements(true);
-    getAgreementsByPractice(createForm.practiceId)
+      getAgreementsByPractice(createForm.practiceId)
       .then((agreements) => {
         const active = agreements.filter((a) => a.status === "ACTIVE");
         setPracticeAgreements(active);
+        setManualDerivedFields({});
         setCreateForm((prev) => ({
           ...prev,
           agreementIds: active.map((a) => a.id),
@@ -493,13 +589,14 @@ function BillingRunsPage() {
     setProfileCreateHandled(true);
     setShowCreateForm(true);
     setShowDetailPanel(false);
-    setShowPaymentForm(false);
-    setSelectedRowId(null);
-    setSelectedRun(null);
-    setCreateForm({
-      ...initialCreateRunForm,
-      practiceId,
-    });
+      setShowPaymentForm(false);
+      setSelectedRowId(null);
+      setSelectedRun(null);
+      setManualDerivedFields({});
+      setCreateForm({
+        ...initialCreateRunForm,
+        practiceId,
+      });
     setReadiness(null);
 
     if (practices.length === 0) {
@@ -562,6 +659,7 @@ function BillingRunsPage() {
   }
 
   function resetCreateForm() {
+    setManualDerivedFields({});
     setCreateForm(initialCreateRunForm);
     setReadiness(null);
     setPracticeAgreements([]);
@@ -585,6 +683,7 @@ function BillingRunsPage() {
     setShowPaymentForm(false);
     setSelectedRowId(null);
     setSelectedRun(null);
+    setManualDerivedFields({});
     setCreateForm({
       ...initialCreateRunForm,
       practiceId: preselectedPracticeId,
@@ -1448,12 +1547,15 @@ function BillingRunsPage() {
             <select
               value={createForm.practiceId}
               onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  practiceId: event.target.value,
-                  agreementIds: [],
-                  termInputs: {},
-                }))
+                {
+                  setManualDerivedFields({});
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    practiceId: event.target.value,
+                    agreementIds: [],
+                    termInputs: {},
+                  }));
+                }
               }
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
               required
@@ -1904,6 +2006,7 @@ function BillingRunsPage() {
                                 </span>
                               </span>
                             )}
+                            
                             {config.vendorPricing?.minimumFee && (
                               <span className="text-slate-500">
                                 Vendor min fee:{" "}
@@ -1999,19 +2102,31 @@ function BillingRunsPage() {
                                               ?.collectionsBase || ""
                                           }
                                           onChange={(event) =>
-                                            setCreateForm((prev) => ({
-                                              ...prev,
-                                              termInputs: {
-                                                ...prev.termInputs,
+                                            {
+                                              const nextValue =
+                                                event.target.value;
+                                              setManualDerivedFields((prev) => ({
+                                                ...prev,
                                                 [term.id]: {
-                                                  ...prev.termInputs[term.id],
+                                                  ...prev[term.id],
                                                   collectionsBase:
-                                                    event.target.value,
+                                                    nextValue.trim() !== "",
                                                 },
-                                              },
-                                            }))
+                                              }));
+                                              setCreateForm((prev) => ({
+                                                ...prev,
+                                                termInputs: {
+                                                  ...prev.termInputs,
+                                                  [term.id]: {
+                                                    ...prev.termInputs[term.id],
+                                                    collectionsBase: nextValue,
+                                                  },
+                                                },
+                                              }));
+                                            }
                                           }
                                           placeholder="0.00"
+                                          title="Auto-fills from the other line items, but you can override it."
                                           className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
                                         />
                                       </div>
@@ -2160,12 +2275,12 @@ function BillingRunsPage() {
                                   const isPercentCollections =
                                     term.pricingModel === "PERCENT_COLLECTIONS";
                                   if (isPercentCollections) {
-                                    const currentLines = createForm.termInputs[
+                                      const currentLines = createForm.termInputs[
                                       term.id
                                     ]?.collectionsLines || [
                                       {
                                         id: "1",
-                                        label: "Collection 1",
+                                        label: "Credit card charges",
                                         amount:
                                           createForm.termInputs[term.id]
                                             ?.baseAmount || "",
@@ -2180,6 +2295,13 @@ function BillingRunsPage() {
                                           sum + (parseFloat(line.amount) || 0),
                                         0,
                                       );
+                                      setManualDerivedFields((prev) => ({
+                                        ...prev,
+                                        [term.id]: {
+                                          ...prev[term.id],
+                                          baseAmount: true,
+                                        },
+                                      }));
                                       setCreateForm((prev) => ({
                                         ...prev,
                                         termInputs: {
@@ -2298,18 +2420,31 @@ function BillingRunsPage() {
                                             ?.baseAmount || ""
                                         }
                                         onChange={(event) =>
-                                          setCreateForm((prev) => ({
-                                            ...prev,
-                                            termInputs: {
-                                              ...prev.termInputs,
+                                          {
+                                            const nextValue =
+                                              event.target.value;
+                                            setManualDerivedFields((prev) => ({
+                                              ...prev,
                                               [term.id]: {
-                                                ...prev.termInputs[term.id],
-                                                baseAmount: event.target.value,
+                                                ...prev[term.id],
+                                                baseAmount:
+                                                  nextValue.trim() !== "",
                                               },
-                                            },
-                                          }))
+                                            }));
+                                            setCreateForm((prev) => ({
+                                              ...prev,
+                                              termInputs: {
+                                                ...prev.termInputs,
+                                                [term.id]: {
+                                                  ...prev.termInputs[term.id],
+                                                  baseAmount: nextValue,
+                                                },
+                                              },
+                                            }));
+                                          }
                                         }
                                         placeholder="0.00"
+                                        title="Auto-fills from the other line items, but you can override it."
                                         className="app-control w-full rounded-md px-3 py-1.5 text-[12px]"
                                       />
                                     </div>
@@ -2329,7 +2464,7 @@ function BillingRunsPage() {
                                     createForm.termInputs[term.id]?.quantity ||
                                     ""
                                   }
-                                  onChange={(event) =>
+              onChange={(event) =>
                                     setCreateForm((prev) => ({
                                       ...prev,
                                       termInputs: {

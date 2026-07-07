@@ -41,6 +41,7 @@ export type InvoiceLineItem = {
   quantity: number;
   unitPrice: string;
   totalPrice: string;
+  description?: string | null;
   createdAt: string;
   updatedAt: string;
   invoice?: Invoice;
@@ -52,6 +53,7 @@ export type InvoiceLineItemRow = {
   values: {
     id: string;
     invoiceLabel: string;
+    description: string;
     serviceName: string;
     quantity: number;
     unitPrice: string;
@@ -111,6 +113,7 @@ function lineItemToRow(lineItem: InvoiceLineItem): InvoiceLineItemRow {
     values: {
       id: lineItem.id,
       invoiceLabel: getInvoiceLabel(lineItem.invoice, lineItem.invoiceId),
+      description: lineItem.description || lineItem.service?.name || "-",
       serviceName: lineItem.service?.name || "-",
       quantity: lineItem.quantity,
       unitPrice: formatCurrency(lineItem.unitPrice),

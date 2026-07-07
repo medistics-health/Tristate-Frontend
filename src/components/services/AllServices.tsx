@@ -134,11 +134,12 @@ function AllServicesPage() {
           header: () => "Stripe Account",
           cell: ({ row }: { row: { original: ServiceRow } }) =>
             String(
-              row.original.values.stripeConnectedAccountId
-                ? getStripeAccountLabel(
-                    String(row.original.values.stripeConnectedAccountId),
-                  )
-                : "Stripe account not available",
+              row.original.values.stripeConnectedAccountName ||
+                (row.original.values.stripeConnectedAccountId
+                  ? getStripeAccountLabel(
+                      String(row.original.values.stripeConnectedAccountId),
+                    )
+                  : "Stripe account not available"),
             ),
         },
         {
@@ -668,12 +669,14 @@ function AllServicesPage() {
                       infoRows={[
                         ...(selectedService?.code ? [{ label: "Code", value: selectedService.code }] : []),
                         ...(selectedService?.category ? [{ label: "Category", value: selectedService.category }] : []),
-                        {
-                          label: "Stripe Account",
-                          value: getStripeAccountLabel(
-                            selectedService?.stripeConnectedAccountId,
-                          ),
-                        },
+                          {
+                            label: "Stripe Account",
+                            value:
+                              selectedService?.stripeConnectedAccountName ||
+                              getStripeAccountLabel(
+                                selectedService?.stripeConnectedAccountId,
+                              ),
+                          },
                         {
                           label: "Stripe Account ID",
                           value: selectedService?.stripeConnectedAccountId || "Not available",
