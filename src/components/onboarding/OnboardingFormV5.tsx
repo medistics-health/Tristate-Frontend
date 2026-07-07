@@ -259,6 +259,12 @@ const employmentStatusOptions: Option[] = [
   { label: "Other", value: "OTHER" },
 ];
 
+const genderOptions: Option[] = [
+  { label: "Male", value: "MALE" },
+  { label: "Female", value: "FEMALE" },
+  { label: "Other", value: "OTHER" },
+];
+
 type ProviderDocumentField =
   | "copyOfBoardCertification"
   | "copyOfProfessionalLiabilityInsurance"
@@ -4418,7 +4424,7 @@ export default function OnboardingFormV5() {
                                   </Field>
 
                                   <Field label="Gender">
-                                    <TextInput
+                                    <SelectInput
                                       value={provider.gender ?? ""}
                                       onChange={(event) =>
                                         updateProvider(
@@ -4428,6 +4434,7 @@ export default function OnboardingFormV5() {
                                           event.target.value,
                                         )
                                       }
+                                      options={genderOptions}
                                     />
                                   </Field>
 
