@@ -102,11 +102,11 @@ const usStates: Option[] = [
 
 const onboardingTypeOptions: Option[] = [
   {
-    label: "Company / Organization with One Practice Right Now",
+    label: "Company / Organization with single practice ",
     value: "SINGLE_PRACTICE_ORGANIZATION",
   },
   {
-    label: "Company / Organization with Multiple Practices",
+    label: "Company / Organization with multiple practices",
     value: "MULTI_PRACTICE_ORGANIZATION",
   },
 ];
@@ -263,6 +263,7 @@ const genderOptions: Option[] = [
   { label: "Male", value: "MALE" },
   { label: "Female", value: "FEMALE" },
   { label: "Other", value: "OTHER" },
+  { label: "Prefer not to say", value: "PREFER_NOT_TO_SAY" },
 ];
 
 const credentialsByProviderType: Record<string, Option[]> = {
@@ -1938,9 +1939,8 @@ export default function OnboardingFormV5() {
   }
 
   function isValidProvider(provider: OnboardingProvider) {
-    const credentialingRequested = scopeRequestedServices.includes(
-      "CREDENTIALING",
-    );
+    const credentialingRequested =
+      scopeRequestedServices.includes("CREDENTIALING");
     const firstName = provider.firstName?.trim() ?? "";
     const lastName = provider.lastName?.trim() ?? "";
     const providerType = provider.providerType?.trim() ?? "";
