@@ -265,6 +265,112 @@ const genderOptions: Option[] = [
   { label: "Other", value: "OTHER" },
 ];
 
+const credentialsByProviderType: Record<string, Option[]> = {
+  PHYSICIAN: [
+    { label: "MD", value: "MD" },
+    { label: "DO", value: "DO" },
+    { label: "Other", value: "OTHER" },
+  ],
+  NURSE_PRACTITIONER: [
+    { label: "NP", value: "NP" },
+    { label: "Other", value: "OTHER" },
+  ],
+  PHYSICIAN_ASSISTANT: [
+    { label: "PA", value: "PA" },
+    { label: "Other", value: "OTHER" },
+  ],
+  BEHAVIORAL_HEALTH_PROVIDER: [
+    { label: "LCSW", value: "LCSW" },
+    { label: "Psychologist", value: "PSYCHOLOGIST" },
+    { label: "RN", value: "RN" },
+    { label: "Other", value: "OTHER" },
+  ],
+  CARE_MANAGER: [
+    { label: "RN", value: "RN" },
+    { label: "Other", value: "OTHER" },
+  ],
+  OTHER: [
+    { label: "MD", value: "MD" },
+    { label: "DO", value: "DO" },
+    { label: "NP", value: "NP" },
+    { label: "PA", value: "PA" },
+    { label: "RN", value: "RN" },
+    { label: "LCSW", value: "LCSW" },
+    { label: "Psychologist", value: "PSYCHOLOGIST" },
+    { label: "Other", value: "OTHER" },
+  ],
+};
+
+const specialtyByProviderType: Record<string, Option[]> = {
+  PHYSICIAN: [
+    { label: "Family Medicine", value: "FAMILY_MEDICINE" },
+    { label: "Internal Medicine", value: "INTERNAL_MEDICINE" },
+    { label: "Primary Care", value: "PRIMARY_CARE" },
+    { label: "Pediatrics", value: "PEDIATRICS" },
+    { label: "Cardiology", value: "CARDIOLOGY" },
+    { label: "Gastroenterology", value: "GASTROENTEROLOGY" },
+    { label: "Endocrinology", value: "ENDOCRINOLOGY" },
+    { label: "Pulmonology", value: "PULMONOLOGY" },
+    { label: "Nephrology", value: "NEPHROLOGY" },
+    { label: "Neurology", value: "NEUROLOGY" },
+    {
+      label: "Psychiatry / Behavioral Health",
+      value: "PSYCHIATRY_BEHAVIORAL_HEALTH",
+    },
+    { label: "Other", value: "OTHER" },
+  ],
+  NURSE_PRACTITIONER: [
+    { label: "Family Medicine", value: "FAMILY_MEDICINE" },
+    { label: "Internal Medicine", value: "INTERNAL_MEDICINE" },
+    { label: "Primary Care", value: "PRIMARY_CARE" },
+    { label: "Pediatrics", value: "PEDIATRICS" },
+    {
+      label: "Psychiatry / Behavioral Health",
+      value: "PSYCHIATRY_BEHAVIORAL_HEALTH",
+    },
+    { label: "Other", value: "OTHER" },
+  ],
+  PHYSICIAN_ASSISTANT: [
+    { label: "Family Medicine", value: "FAMILY_MEDICINE" },
+    { label: "Internal Medicine", value: "INTERNAL_MEDICINE" },
+    { label: "Primary Care", value: "PRIMARY_CARE" },
+    { label: "Pediatrics", value: "PEDIATRICS" },
+    {
+      label: "Psychiatry / Behavioral Health",
+      value: "PSYCHIATRY_BEHAVIORAL_HEALTH",
+    },
+    { label: "Other", value: "OTHER" },
+  ],
+  BEHAVIORAL_HEALTH_PROVIDER: [
+    {
+      label: "Psychiatry / Behavioral Health",
+      value: "PSYCHIATRY_BEHAVIORAL_HEALTH",
+    },
+    { label: "Other", value: "OTHER" },
+  ],
+  CARE_MANAGER: [
+    { label: "Primary Care", value: "PRIMARY_CARE" },
+    { label: "Other", value: "OTHER" },
+  ],
+  OTHER: [
+    { label: "Family Medicine", value: "FAMILY_MEDICINE" },
+    { label: "Internal Medicine", value: "INTERNAL_MEDICINE" },
+    { label: "Primary Care", value: "PRIMARY_CARE" },
+    { label: "Pediatrics", value: "PEDIATRICS" },
+    { label: "Cardiology", value: "CARDIOLOGY" },
+    { label: "Gastroenterology", value: "GASTROENTEROLOGY" },
+    { label: "Endocrinology", value: "ENDOCRINOLOGY" },
+    { label: "Pulmonology", value: "PULMONOLOGY" },
+    { label: "Nephrology", value: "NEPHROLOGY" },
+    { label: "Neurology", value: "NEUROLOGY" },
+    {
+      label: "Psychiatry / Behavioral Health",
+      value: "PSYCHIATRY_BEHAVIORAL_HEALTH",
+    },
+    { label: "Other", value: "OTHER" },
+  ],
+};
+
 type ProviderDocumentField =
   | "copyOfBoardCertification"
   | "copyOfProfessionalLiabilityInsurance"
@@ -4466,6 +4572,56 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
+                                  <Field label="Provider Type" required>
+                                    <SelectInput
+                                      value={provider.providerType ?? ""}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        updateProvider(
+                                          practiceIndex,
+                                          providerIndex,
+                                          "providerType",
+                                          value,
+                                        );
+                                        const validCredentials = (
+                                          credentialsByProviderType[value] ??
+                                          credentialsByProviderType["OTHER"]
+                                        ).map((o) => o.value);
+                                        if (
+                                          provider.credentials &&
+                                          !validCredentials.includes(
+                                            provider.credentials,
+                                          )
+                                        ) {
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "credentials",
+                                            "",
+                                          );
+                                        }
+                                        const validSpecialties = (
+                                          specialtyByProviderType[value] ??
+                                          specialtyByProviderType["OTHER"]
+                                        ).map((o) => o.value);
+                                        if (
+                                          provider.specialty &&
+                                          !validSpecialties.includes(
+                                            provider.specialty,
+                                          )
+                                        ) {
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "specialty",
+                                            "",
+                                          );
+                                        }
+                                      }}
+                                      options={providerTypeOptions}
+                                    />
+                                  </Field>
+
                                   <Field label="Credentials">
                                     <SelectInput
                                       value={provider.credentials ?? ""}
@@ -4477,22 +4633,11 @@ export default function OnboardingFormV5() {
                                           event.target.value,
                                         )
                                       }
-                                      options={credentialOptions}
-                                    />
-                                  </Field>
-
-                                  <Field label="Provider Type" required>
-                                    <SelectInput
-                                      value={provider.providerType ?? ""}
-                                      onChange={(event) =>
-                                        updateProvider(
-                                          practiceIndex,
-                                          providerIndex,
-                                          "providerType",
-                                          event.target.value,
-                                        )
+                                      options={
+                                        credentialsByProviderType[
+                                          provider.providerType ?? "OTHER"
+                                        ] ?? credentialsByProviderType["OTHER"]
                                       }
-                                      options={providerTypeOptions}
                                     />
                                   </Field>
 
@@ -4507,7 +4652,11 @@ export default function OnboardingFormV5() {
                                           event.target.value,
                                         )
                                       }
-                                      options={specialtyOptions}
+                                      options={
+                                        specialtyByProviderType[
+                                          provider.providerType ?? "OTHER"
+                                        ] ?? specialtyByProviderType["OTHER"]
+                                      }
                                     />
                                   </Field>
 
