@@ -1307,19 +1307,21 @@ function RepeaterHeader({
   onAction,
 }: {
   title: string;
-  actionLabel: string;
-  onAction: () => void;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   return (
     <div className="mb-4 flex items-center justify-between gap-4">
       <h4 className="text-base font-semibold text-slate-900">{title}</h4>
-      <button
-        type="button"
-        onClick={onAction}
-        className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-      >
-        {actionLabel}
-      </button>
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+        >
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -4019,8 +4021,22 @@ export default function OnboardingFormV5() {
                         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-4">
                           <RepeaterHeader
                             title="Practice Locations"
-                            actionLabel="+ Add Location"
-                            onAction={() => addLocation(practiceIndex)}
+                            actionLabel={
+                              formData.onboardingType ===
+                                "SINGLE_PRACTICE_ORGANIZATION" ||
+                              formData.onboardingType === "SINGLE_PRACTICE" ||
+                              formData.onboardingType === "SINGLE_PRACTICE_NOW"
+                                ? undefined
+                                : "+ Add Location"
+                            }
+                            onAction={
+                              formData.onboardingType ===
+                                "SINGLE_PRACTICE_ORGANIZATION" ||
+                              formData.onboardingType === "SINGLE_PRACTICE" ||
+                              formData.onboardingType === "SINGLE_PRACTICE_NOW"
+                                ? undefined
+                                : () => addLocation(practiceIndex)
+                            }
                           />
                           <div className="space-y-4">
                             {(practice.locations ?? []).map(
