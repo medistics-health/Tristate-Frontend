@@ -1972,12 +1972,15 @@ export default function OnboardingFormV5() {
     const hasBoardCertificationFile = !!(
       provider.copyOfBoardCertification?.trim() ?? ""
     );
+    const isIndependentBilling = independentBillingProviderTypes.includes(
+      providerType,
+    );
     return (
       !!firstName &&
       !!lastName &&
       !!providerType &&
-      !!npi &&
-      validSsnLastFour &&
+      (!isIndependentBilling || !!npi) &&
+      (!isIndependentBilling || validSsnLastFour) &&
       (!requiresCaqhCredentials ||
         (!!caqhId && !!caqhUsername && !!caqhPassword)) &&
       (!provider.boardCertified || hasBoardCertificationFile)
@@ -4711,7 +4714,12 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="NPI" required>
+                                  <Field
+                                    label="NPI"
+                                    required={independentBillingProviderTypes.includes(
+                                      provider.providerType ?? "",
+                                    )}
+                                  >
                                     <TextInput
                                       value={provider.npi ?? ""}
                                       onChange={(event) =>
@@ -4725,7 +4733,12 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="SSN (Last 4 Digits)" required>
+                                  <Field
+                                    label="SSN (Last 4 Digits)"
+                                    required={independentBillingProviderTypes.includes(
+                                      provider.providerType ?? "",
+                                    )}
+                                  >
                                     <TextInput
                                       inputMode="numeric"
                                       maxLength={4}
