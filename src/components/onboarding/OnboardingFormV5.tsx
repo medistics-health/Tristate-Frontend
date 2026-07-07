@@ -263,7 +263,12 @@ const genderOptions: Option[] = [
   { label: "Male", value: "MALE" },
   { label: "Female", value: "FEMALE" },
   { label: "Other", value: "OTHER" },
-  { label: "Prefer not to say", value: "PREFER_NOT_TO_SAY" },
+];
+
+const independentBillingProviderTypes = [
+  "PHYSICIAN",
+  "NURSE_PRACTITIONER",
+  "PHYSICIAN_ASSISTANT",
 ];
 
 const credentialsByProviderType: Record<string, Option[]> = {
@@ -4987,37 +4992,45 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    <Field label="Medicare PTAN (Individual)">
-                                      <TextInput
-                                        value={
-                                          provider.medicarePtanIndividual ?? ""
-                                        }
-                                        onChange={(event) =>
-                                          updateProvider(
-                                            practiceIndex,
-                                            providerIndex,
-                                            "medicarePtanIndividual",
-                                            event.target.value,
-                                          )
-                                        }
-                                      />
-                                    </Field>
+                                    {independentBillingProviderTypes.includes(
+                                      provider.providerType ?? "",
+                                    ) ? (
+                                      <>
+                                        <Field label="Medicare PTAN (Individual)">
+                                          <TextInput
+                                            value={
+                                              provider.medicarePtanIndividual ??
+                                              ""
+                                            }
+                                            onChange={(event) =>
+                                              updateProvider(
+                                                practiceIndex,
+                                                providerIndex,
+                                                "medicarePtanIndividual",
+                                                event.target.value,
+                                              )
+                                            }
+                                          />
+                                        </Field>
 
-                                    <Field label="Medicaid ID (Individual)">
-                                      <TextInput
-                                        value={
-                                          provider.medicaidIdIndividual ?? ""
-                                        }
-                                        onChange={(event) =>
-                                          updateProvider(
-                                            practiceIndex,
-                                            providerIndex,
-                                            "medicaidIdIndividual",
-                                            event.target.value,
-                                          )
-                                        }
-                                      />
-                                    </Field>
+                                        <Field label="Medicaid ID (Individual)">
+                                          <TextInput
+                                            value={
+                                              provider.medicaidIdIndividual ??
+                                              ""
+                                            }
+                                            onChange={(event) =>
+                                              updateProvider(
+                                                practiceIndex,
+                                                providerIndex,
+                                                "medicaidIdIndividual",
+                                                event.target.value,
+                                              )
+                                            }
+                                          />
+                                        </Field>
+                                      </>
+                                    ) : null}
 
                                     <Field label="IPA Affiliations (Provider Level)">
                                       <TextArea
@@ -5066,25 +5079,29 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    <Field label="Railroad Medicare (Individual)">
-                                      <TextInput
-                                        value={
-                                          provider.railroadMedicareIndividual ??
-                                          ""
-                                        }
-                                        onChange={(event) =>
-                                          updateProvider(
-                                            practiceIndex,
-                                            providerIndex,
-                                            "railroadMedicareIndividual",
-                                            event.target.value,
-                                          )
-                                        }
-                                      />
-                                    </Field>
+                                    {independentBillingProviderTypes.includes(
+                                      provider.providerType ?? "",
+                                    ) ? (
+                                      <Field label="Railroad Medicare (Individual)">
+                                        <TextInput
+                                          value={
+                                            provider.railroadMedicareIndividual ??
+                                            ""
+                                          }
+                                          onChange={(event) =>
+                                            updateProvider(
+                                              practiceIndex,
+                                              providerIndex,
+                                              "railroadMedicareIndividual",
+                                              event.target.value,
+                                            )
+                                          }
+                                        />
+                                      </Field>
+                                    ) : null}
                                   </div>
 
-                                  {["PHYSICIAN", "NURSE_PRACTITIONER", "PHYSICIAN_ASSISTANT"].includes(
+                                  {independentBillingProviderTypes.includes(
                                     provider.providerType ?? "",
                                   ) ? (
                                     <div className="lg:col-span-3 grid gap-6 lg:grid-cols-2">
