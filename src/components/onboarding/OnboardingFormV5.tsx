@@ -2742,9 +2742,7 @@ export default function OnboardingFormV5() {
                     ]
                   : raw;
                 return display.length
-                  ? display
-                      .map((s) => serviceLabelMap.get(s) ?? s)
-                      .join(", ")
+                  ? display.map((s) => serviceLabelMap.get(s) ?? s).join(", ")
                   : "Not configured";
               })()}
             </p>
@@ -2815,7 +2813,7 @@ export default function OnboardingFormV5() {
                   />
                 </Field>
 
-                <Field label="Are you the authorized person completing this onboarding?">
+                {/*<Field label="Are you the authorized person completing this onboarding?">
                   <BooleanRadioGroup
                     name="isAuthorizedPerson"
                     value={formData.isAuthorizedPerson ?? false}
@@ -2823,9 +2821,9 @@ export default function OnboardingFormV5() {
                       updateField("isAuthorizedPerson", value)
                     }
                   />
-                </Field>
+                </Field>*/}
 
-                {!formData.isAuthorizedPerson ? (
+                {/*{!formData.isAuthorizedPerson ? (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Field
                       label="If no, what is your role in this onboarding?"
@@ -2840,7 +2838,7 @@ export default function OnboardingFormV5() {
                       />
                     </Field>
                   </div>
-                ) : null}
+                ) : null}*/}
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" ? (
@@ -2907,7 +2905,8 @@ export default function OnboardingFormV5() {
             </SectionCard>
 
             {!formData.isIndividualPractice &&
-              formData.onboardingType !== "SINGLE_PRACTICE_ORGANIZATION" && (
+              formData.onboardingType !== "SINGLE_PRACTICE_ORGANIZATION" &&
+              formData.onboardingType?.length && (
                 <SectionCard
                   title="Centralized Operations"
                   description="Use these settings to understand parent-level ownership and communication."
@@ -3220,7 +3219,10 @@ export default function OnboardingFormV5() {
                           (prev.contacts ?? []).length > 0
                             ? (prev.contacts ?? []).map((contact, index) =>
                                 index === 0
-                                  ? { ...contact, contactRole: "PRACTICE_MANAGER" }
+                                  ? {
+                                      ...contact,
+                                      contactRole: "PRACTICE_MANAGER",
+                                    }
                                   : contact,
                               )
                             : [
@@ -3299,16 +3301,12 @@ export default function OnboardingFormV5() {
                         <TextInput
                           value={formData.contacts?.[0]?.extension ?? ""}
                           onChange={(event) =>
-                                updateContact(
-                                  0,
-                                  "extension",
-                                  event.target.value,
-                                )
-                              }
-                            />
-                          </Field>
+                            updateContact(0, "extension", event.target.value)
+                          }
+                        />
+                      </Field>
 
-                          <Field label="Preferred Contact Method">
+                      <Field label="Preferred Contact Method">
                         <SelectInput
                           value={
                             formData.contacts?.[0]?.preferredContactMethod ?? ""
@@ -3363,15 +3361,11 @@ export default function OnboardingFormV5() {
                           <BooleanRadioGroup
                             name="primary-decision-maker-0"
                             value={
-                              formData.contacts?.[0]
-                                ?.isPrimaryDecisionMaker ?? false
+                              formData.contacts?.[0]?.isPrimaryDecisionMaker ??
+                              false
                             }
                             onChange={(value) =>
-                              updateContact(
-                                0,
-                                "isPrimaryDecisionMaker",
-                                value,
-                              )
+                              updateContact(0, "isPrimaryDecisionMaker", value)
                             }
                           />
                         </Field>
@@ -3380,8 +3374,7 @@ export default function OnboardingFormV5() {
                           <BooleanRadioGroup
                             name="can-sign-0"
                             value={
-                              formData.contacts?.[0]?.canSignAgreements ??
-                              false
+                              formData.contacts?.[0]?.canSignAgreements ?? false
                             }
                             onChange={(value) =>
                               updateContact(0, "canSignAgreements", value)
@@ -3539,9 +3532,7 @@ export default function OnboardingFormV5() {
                           <Field label="Additional Responsibilities">
                             <MultiSelectDropdown
                               options={responsibilityOptions}
-                              values={
-                                contact.additionalResponsibilities ?? []
-                              }
+                              values={contact.additionalResponsibilities ?? []}
                               onToggle={(value) =>
                                 toggleContactArrayValue(
                                   actualIndex,
@@ -3558,9 +3549,7 @@ export default function OnboardingFormV5() {
                           <Field label="Is this the primary decision maker?">
                             <BooleanRadioGroup
                               name={`primary-decision-maker-${actualIndex}`}
-                              value={
-                                contact.isPrimaryDecisionMaker ?? false
-                              }
+                              value={contact.isPrimaryDecisionMaker ?? false}
                               onChange={(value) =>
                                 updateContact(
                                   actualIndex,
@@ -5518,7 +5507,7 @@ export default function OnboardingFormV5() {
                       <div className="space-y-3">
                         <SelectInput
                           value={selectedClearinghouseValue}
-                            onChange={(event) => {
+                          onChange={(event) => {
                             updateNestedField(
                               "technology",
                               "clearinghouse",
@@ -5979,9 +5968,11 @@ export default function OnboardingFormV5() {
                       values={formData.credentialing?.credentialingFor ?? []}
                       onToggle={(value) => {
                         if (value === "BOTH") {
-                          updateNestedField("credentialing", "credentialingFor", [
-                            "BOTH",
-                          ]);
+                          updateNestedField(
+                            "credentialing",
+                            "credentialingFor",
+                            ["BOTH"],
+                          );
                         } else {
                           const current =
                             formData.credentialing?.credentialingFor ?? [];
