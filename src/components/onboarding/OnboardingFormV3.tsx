@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams } from "react-router-dom";
 import type {
@@ -989,7 +989,7 @@ function CheckboxGroup({
   values,
   onToggle,
 }: {
-  options: Option[];
+  options: (Option & { key?: string })[];
   values: string[];
   onToggle: (value: string) => void;
 }) {
@@ -999,7 +999,7 @@ function CheckboxGroup({
         const checked = values.includes(option.value);
         return (
           <label
-            key={option.value}
+            key={option.key ?? option.value}
             className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 text-sm transition ${
               checked
                 ? "border-slate-900 bg-slate-50 text-slate-900"
@@ -1189,11 +1189,15 @@ export default function OnboardingFormV3() {
     .map((practice) => practice.practiceName?.trim() ?? "")
     .filter(Boolean);
 
-  const locationNames = (formData.practices ?? []).flatMap((practice) =>
-    (practice.locations ?? [])
-      .map((location) => location.locationName?.trim() ?? "")
-      .filter(Boolean),
-  );
+  const locationOptions: (Option & { key: string })[] = useMemo(() => {
+    return (formData.practices ?? []).flatMap((practice, practiceIndex) =>
+      (practice.locations ?? []).flatMap((location, locationIndex) => {
+        const name = location.locationName?.trim() ?? "";
+        if (!name) return [];
+        return [{ label: name, value: name, key: `${practiceIndex}-${locationIndex}` }];
+      }),
+    );
+  }, [formData.practices]);
 
   const hasCareProgramsSelected =
     (formData.requestedServices ?? []).some((service) =>
@@ -3417,10 +3421,7 @@ export default function OnboardingFormV3() {
                               <div className="lg:col-span-3">
                                 <Field label="Participating Locations">
                                   <CheckboxGroup
-                                    options={locationNames.map((name) => ({
-                                      label: name,
-                                      value: name,
-                                    }))}
+                                    options={locationOptions}
                                     values={
                                       provider.participatingLocations ?? []
                                     }

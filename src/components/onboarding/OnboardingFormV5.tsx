@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useParams } from "react-router-dom";
 import type {
@@ -194,7 +194,10 @@ const serviceOptions: Option[] = [
   { label: "Pharmacy Program Support", value: "PHARMACY_PROGRAM_SUPPORT" },
   { label: "Patient Acquisition", value: "PATIENT_ACQUISITION" },
   { label: "Brand Growth", value: "BRAND_GROWTH" },
-  { label: "Patient Acquisition/Brand Growth", value: "PATIENT_ACQUISITION_BRAND_GROWTH" },
+  {
+    label: "Patient Acquisition/Brand Growth",
+    value: "PATIENT_ACQUISITION_BRAND_GROWTH",
+  },
   { label: "MSP/Tech Support", value: "MSP_TECH_SUPPORT" },
   { label: "AI Visibility", value: "AI_VISIBILITY" },
   { label: "Other", value: "OTHER" },
@@ -1199,7 +1202,7 @@ function CheckboxGroup({
   values,
   onToggle,
 }: {
-  options: Option[];
+  options: (Option & { key?: string })[];
   values: string[];
   onToggle: (value: string) => void;
 }) {
@@ -1209,7 +1212,7 @@ function CheckboxGroup({
         const checked = values.includes(option.value);
         return (
           <label
-            key={option.value}
+            key={option.key ?? option.value}
             className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 text-sm transition ${
               checked
                 ? "border-slate-900 bg-slate-50 text-slate-900"
@@ -1751,11 +1754,23 @@ export default function OnboardingFormV5() {
     formData.onboardingType,
   ]);
 
-  const locationNames = (formData.practices ?? []).flatMap((practice) =>
-    (practice.locations ?? [])
-      .map((location) => location.locationName?.trim() ?? "")
-      .filter(Boolean),
-  );
+  type LocationOption = { label: string; value: string; key: string };
+
+  const locationOptions = useMemo(() => {
+    return (formData.practices ?? []).flatMap((practice, practiceIndex) =>
+      (practice.locations ?? []).flatMap((location, locationIndex) => {
+        const name = location.locationName?.trim() ?? "";
+        if (!name) return [];
+        return [
+          {
+            label: name,
+            value: name,
+            key: `${practiceIndex}-${locationIndex}`,
+          },
+        ];
+      }),
+    );
+  }, [formData.practices]);
 
   const scopeRequestedServices =
     (formData.requestedServices ?? []).length > 0
@@ -1975,9 +1990,8 @@ export default function OnboardingFormV5() {
     const hasBoardCertificationFile = !!(
       provider.copyOfBoardCertification?.trim() ?? ""
     );
-    const isIndependentBilling = independentBillingProviderTypes.includes(
-      providerType,
-    );
+    const isIndependentBilling =
+      independentBillingProviderTypes.includes(providerType);
     return (
       !!firstName &&
       !!lastName &&
@@ -4484,7 +4498,10 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             locationIndex,
                                             "cliaNumber",
-                                            event.target.value.replace(/\D/g, ""),
+                                            event.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            ),
                                           )
                                         }
                                       />
@@ -5005,10 +5022,7 @@ export default function OnboardingFormV5() {
                                   <div className="lg:col-span-3">
                                     <Field label="Participating Locations">
                                       <CheckboxGroup
-                                        options={locationNames.map((name) => ({
-                                          label: name,
-                                          value: name,
-                                        }))}
+                                        options={locationOptions}
                                         values={
                                           provider.participatingLocations ?? []
                                         }
@@ -5840,9 +5854,7 @@ export default function OnboardingFormV5() {
                   <Field label="Can patient lists be exported?">
                     <BooleanRadioGroup
                       name="patientListExportable"
-                      value={
-                        formData.technology?.patientListExportable ?? null
-                      }
+                      value={formData.technology?.patientListExportable ?? null}
                       onChange={(value) =>
                         updateNestedField(
                           "technology",
@@ -6064,9 +6076,17 @@ export default function OnboardingFormV5() {
                       values={formData.billing?.currentlyBilledServices ?? []}
                       onToggle={(value) =>
                         setFormData((prev) => {
-                          const programValues = ["APCM", "CCM", "RPM", "PCM", "BHI", "RTM"];
+                          const programValues = [
+                            "APCM",
+                            "CCM",
+                            "RPM",
+                            "PCM",
+                            "BHI",
+                            "RTM",
+                          ];
                           const specialValues = ["NONE", "NOT_SURE"];
-                          const current = prev.billing?.currentlyBilledServices ?? [];
+                          const current =
+                            prev.billing?.currentlyBilledServices ?? [];
                           let next: string[];
                           if (specialValues.includes(value)) {
                             if (current.includes(value)) {
@@ -6078,7 +6098,9 @@ export default function OnboardingFormV5() {
                             next = current.includes(value)
                               ? current.filter((v) => v !== value)
                               : [...current, value];
-                            next = next.filter((v) => !specialValues.includes(v));
+                            next = next.filter(
+                              (v) => !specialValues.includes(v),
+                            );
                           }
                           return {
                             ...prev,
@@ -6255,9 +6277,7 @@ export default function OnboardingFormV5() {
                       <Field label="Do you have a designated contact person for insurance/credentialing?">
                         <BooleanRadioGroup
                           name="designated-credentialing-contact"
-                          value={
-                            formData.credentialing?.caqhMaintained ?? null
-                          }
+                          value={formData.credentialing?.caqhMaintained ?? null}
                           onChange={(value) => {
                             updateNestedField(
                               "credentialing",
