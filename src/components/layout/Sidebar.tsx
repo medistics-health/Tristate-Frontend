@@ -230,6 +230,7 @@ const sidebarSteps: SidebarItem[] = [
     items: [
       { label: "Dashboard", to: "/credentialing/dashboard" },
       { label: "Credentialing List", to: "/credentialing/list" },
+      { label: "Insurance", to: "/credentialing/insurance" },
     ],
   },
   {
