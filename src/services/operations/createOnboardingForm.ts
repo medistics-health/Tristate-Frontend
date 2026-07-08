@@ -81,8 +81,28 @@ const credentialingIssueMap: Record<string, string> = {
   OTHER: "OTHER",
 };
 
+const careManagementExpandedServices = [
+  "APCM",
+  "CCM",
+  "RPM",
+  "PCM",
+  "RTM",
+  "BHI",
+  "TCM",
+];
+
 function unique(values: string[]) {
   return Array.from(new Set(values));
+}
+
+function normalizeRequestedServices(values: string[]) {
+  if (!values.includes("CARE_MANAGEMENT")) {
+    return unique(values);
+  }
+  return unique([
+    ...values.filter((value) => value !== "CARE_MANAGEMENT"),
+    ...careManagementExpandedServices,
+  ]);
 }
 
 function mapValue(value: string | undefined, mapping: Record<string, string>) {
@@ -125,10 +145,11 @@ export function buildOnboardingPayload(
     isCredentialingEntity: formData.isCredentialingEntity,
     primarySpecialty: formData.primarySpecialty,
     additionalSpecialties: formData.additionalSpecialties,
-    requestedServices:
+    requestedServices: normalizeRequestedServices(
       formData.requestedServices ??
-      formData.serviceSetup?.requestedServices ??
-      [],
+        formData.serviceSetup?.requestedServices ??
+        [],
+    ),
     primaryServiceToLaunch:
       formData.primaryServiceToLaunch ??
       formData.serviceSetup?.primaryServiceToLaunch,

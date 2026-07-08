@@ -116,6 +116,8 @@ export const agreementEndpoints = {
   GET_DOCUSEAL_FORM: (slug: string) =>
     BACKEND_URL + `/api/v1/agreements/docuseal/forms/${slug}`,
   SEND_AGREEMENT_EMAIL: BACKEND_URL + "/api/v1/agreements/send-email",
+  SEND_ONBOARDING_FORM:
+    BACKEND_URL + "/api/v1/agreements/send-onboarding-form",
   CREATE_DOCUSEAL_SUBMISSION:
     BACKEND_URL + "/api/v1/agreements/docuseal/submission",
   RESUBMIT_DOCUSEAL_SUBMISSION:
