@@ -50,10 +50,15 @@ const serviceOptions: Option[] = [
   // { label: "Pharmacy Program Support", value: "PHARMACY_PROGRAM_SUPPORT" },
   {
     label: "Patient Acquisition/Brand Growth",
-    value: "PATIENT_ACQUISITION/BRAND_GROWTH",
+    // value: "PATIENT_ACQUISITION/BRAND_GROWTH",
+    value: "PATIENT_ACQUISITION_BRAND_GROWTH",
   },
   // { label: "Brand Growth", value: "BRAND_GROWTH" },
-  { label: "MSP/Tech Support", value: "MSP/TECH_SUPPORT" },
+  {
+    label: "MSP/Tech Support",
+    // value: "MSP/TECH_SUPPORT"
+    value: "MSP_TECH_SUPPORT",
+  },
   { label: "AI Visibility", value: "AI_VISIBILITY" },
   { label: "Other", value: "OTHER" },
 ];
