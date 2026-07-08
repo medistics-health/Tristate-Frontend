@@ -299,7 +299,7 @@ function isDocumentReceivedAfterRequested(
 
   if (!requested || !received) return true;
 
-  return received > requested;
+  return received >= requested;
 }
 
 const yesNoMaybeOptions: Option[] = [
@@ -1801,20 +1801,29 @@ export default function OnboardingFormV3() {
     }
 
     if (currentStep === 8) {
-      const invalidDocumentIndexes = (formData.documents ?? [])
-        .map((document, index) => {
-          const documentType = document.documentType?.trim() ?? "";
-          const validDateOrder = isDocumentReceivedAfterRequested(
-            document.dateRequested,
-            document.dateReceived,
-          );
-          return documentType && validDateOrder ? null : index + 1;
-        })
-        .filter((index): index is number => index !== null);
+      const missingTypeIndexes: number[] = [];
+      const invalidDateIndexes: number[] = [];
 
-      if (invalidDocumentIndexes.length) {
+      (formData.documents ?? []).forEach((document, index) => {
+        const documentType = document.documentType?.trim() ?? "";
+        if (!documentType) missingTypeIndexes.push(index + 1);
+
+        const validDateOrder = isDocumentReceivedAfterRequested(
+          document.dateRequested,
+          document.dateReceived,
+        );
+        if (!validDateOrder) invalidDateIndexes.push(index + 1);
+      });
+
+      if (missingTypeIndexes.length) {
         errors.push(
-          `Document ${invalidDocumentIndexes.join(", ")} type`,
+          `Document ${missingTypeIndexes.join(", ")} type is required`,
+        );
+      }
+
+      if (invalidDateIndexes.length) {
+        errors.push(
+          `Document ${invalidDateIndexes.join(", ")} date order (received must be on or after requested)`,
         );
       }
 
