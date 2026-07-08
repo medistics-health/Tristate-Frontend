@@ -61,7 +61,7 @@ function AppLayout({
             onMenuClick={() => setIsMobileMenuOpen(true)}
           />
 
-          <div className="min-h-0 flex-1 bg-[#f7f5f1] p-2 overflow-auto">
+          <div className="min-h-0 flex flex-1 overflow-hidden bg-[#f7f5f1] p-2">
             {children}
           </div>
         </section>
