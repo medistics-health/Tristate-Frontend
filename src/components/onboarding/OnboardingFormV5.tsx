@@ -194,6 +194,8 @@ const serviceOptions: Option[] = [
   { label: "Pharmacy Program Support", value: "PHARMACY_PROGRAM_SUPPORT" },
   { label: "Patient Acquisition", value: "PATIENT_ACQUISITION" },
   { label: "Brand Growth", value: "BRAND_GROWTH" },
+  { label: "Patient Acquisition/Brand Growth", value: "PATIENT_ACQUISITION_BRAND_GROWTH" },
+  { label: "MSP/Tech Support", value: "MSP_TECH_SUPPORT" },
   { label: "AI Visibility", value: "AI_VISIBILITY" },
   { label: "Other", value: "OTHER" },
 ];
@@ -216,6 +218,7 @@ const subCareProgramValues = careProgramServiceValues.filter(
 const marketingServiceValues = [
   "PATIENT_ACQUISITION",
   "BRAND_GROWTH",
+  "PATIENT_ACQUISITION_BRAND_GROWTH",
   "AI_VISIBILITY",
 ];
 
