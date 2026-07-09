@@ -908,7 +908,7 @@ const initialFormData: OnboardingBody = {
   billingManagedCentrally: "NO",
   credentialingManagedCentrally: "NO",
   contractingManagedCentrally: "NO",
-  oneMainContact: true,
+  oneMainContact: undefined,
   legalCompanyName: "",
   dbaName: "",
   organizationType: "",
@@ -1558,7 +1558,7 @@ export default function OnboardingFormV5() {
 
     const practiceCount = isSinglePracticeOrg
       ? 1
-      : Math.max(2, Number(formData.numberOfPractices ?? 0) || 0);
+      : Math.max(1, Number(formData.numberOfPractices ?? 0) || 0);
 
     setFormData((prev) => {
       const currentPractices = prev.practices ?? [];
@@ -2413,10 +2413,10 @@ export default function OnboardingFormV5() {
       if (!formData.onboardingType) errors.push("Onboarding type");
       if (
         formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" &&
-        (Number(formData.numberOfPractices ?? 0) || 0) < 2
+        (Number(formData.numberOfPractices ?? 0) || 0) < 1
       ) {
         errors.push(
-          "How many practices are being onboarded (must be 2 or more)",
+          "How many practices are being onboarded (must be 1 or more)",
         );
       }
       if (
@@ -2964,7 +2964,7 @@ export default function OnboardingFormV5() {
                         updateField(
                           "numberOfPractices",
                           Math.max(
-                            2,
+                            1,
                             Number(formData.numberOfPractices ?? 0) || 0,
                           ),
                         );
@@ -3013,7 +3013,7 @@ export default function OnboardingFormV5() {
                         min={
                           formData.onboardingType ===
                           "MULTI_PRACTICE_ORGANIZATION"
-                            ? 2
+                            ? 1
                             : 1
                         }
                         max={
@@ -3034,7 +3034,7 @@ export default function OnboardingFormV5() {
                             formData.onboardingType ===
                               "MULTI_PRACTICE_ORGANIZATION"
                               ? Math.max(
-                                  2,
+                                  1,
                                   parseNumber(
                                     event.target.value.replace(/\D/g, ""),
                                   ),
@@ -3051,8 +3051,8 @@ export default function OnboardingFormV5() {
                     <Field label="How many locations total are being onboarded?">
                       <TextInput
                         type="number"
-                        min={0}
-                        value={formData.numberOfLocations ?? 0}
+                        min={1}
+                        value={formData.numberOfLocations ?? 1}
                         onChange={(event) =>
                           updateField(
                             "numberOfLocations",
@@ -3110,7 +3110,7 @@ export default function OnboardingFormV5() {
                     <Field label="Is there one main contact for all practices?">
                       <BooleanRadioGroup
                         name="oneMainContact"
-                        value={formData.oneMainContact ?? false}
+                        value={formData.oneMainContact ?? null}
                         onChange={(value) =>
                           updateField("oneMainContact", value)
                         }
