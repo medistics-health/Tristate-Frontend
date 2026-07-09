@@ -617,6 +617,7 @@ function CreateLeadPage() {
               : undefined,
             docusealSubmissions:
               submissions.length > 0 ? submissions : undefined,
+            serviceIds: form.interestedServiceIds,
           };
           const agreementRow = await createAgreementApi(
             agreementPayload as any,
@@ -1019,12 +1020,18 @@ function CreateLeadPage() {
   };
 
   const toggleService = (serviceId: string) => {
-    setForm((current) => ({
-      ...current,
-      interestedServiceIds: current.interestedServiceIds.includes(serviceId)
-        ? current.interestedServiceIds.filter((id) => id !== serviceId)
-        : [...current.interestedServiceIds, serviceId],
-    }));
+    setForm((current) => {
+      const isAdding = !current.interestedServiceIds.includes(serviceId);
+      return {
+        ...current,
+        interestedServiceIds: isAdding
+          ? [...current.interestedServiceIds, serviceId]
+          : current.interestedServiceIds.filter((id) => id !== serviceId),
+        ...(isAdding && current.agreement.action === "none"
+          ? { agreement: { ...current.agreement, action: "create" } }
+          : {}),
+      };
+    });
   };
 
   const resetForm = () => {
@@ -2222,7 +2229,10 @@ function CreateLeadPage() {
                       )}
                       <button
                         type="button"
-                        onClick={() => updateAgreementField("action", "none")}
+                        onClick={() => {
+                          updateAgreementField("action", "none");
+                          setForm((prev) => ({ ...prev, interestedServiceIds: [] }));
+                        }}
                         className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
                           form.agreement.action === "none"
                             ? "bg-white text-indigo-600 shadow-sm"
