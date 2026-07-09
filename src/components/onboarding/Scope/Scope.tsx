@@ -103,6 +103,11 @@ export default function Scope() {
     null,
   );
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [practiceAgreementServiceValues, setPracticeAgreementServiceValues] =
+    useState<string[]>([]);
+  const [practiceServiceVendors, setPracticeServiceVendors] = useState<
+    Record<string, { vendorId: string | null }>
+  >({});
   const [serviceVendors, setServiceVendors] = useState<
     Record<string, ServiceVendorDetail>
   >({});
@@ -261,23 +266,73 @@ export default function Scope() {
     if (!selectedPracticeId) {
       setSelectedPractice(null);
       setSelectedPersonId("");
+      setPracticeAgreementServiceValues([]);
+      setPracticeServiceVendors({});
       return;
     }
 
     let active = true;
-    async function loadPracticeContacts() {
+    async function loadPracticeData() {
       try {
-        const practice = await getPractice(selectedPracticeId);
+        const [practice, agreements] = await Promise.all([
+          getPractice(selectedPracticeId),
+          getAgreementsByPractice(selectedPracticeId),
+        ]);
         if (!active) return;
         setSelectedPractice(practice);
+
+        const signedAgreement = [...agreements]
+          .sort(
+            (a, b) =>
+              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+          )
+          .find((agreement) => agreement.status === "SIGNED");
+
+        if (signedAgreement?.services?.length) {
+          const serviceNames = signedAgreement.services.map((s) =>
+            s.name.toLowerCase(),
+          );
+          const matchedValues = serviceOptions
+            .filter((opt) => serviceNames.includes(opt.label.toLowerCase()))
+            .map((opt) => opt.value);
+
+          const vendorMap: Record<string, { vendorId: string | null }> = {};
+          for (const svc of signedAgreement.services) {
+            const lowerName = svc.name.toLowerCase();
+            const matchedOpt = serviceOptions.find(
+              (opt) => opt.label.toLowerCase() === lowerName,
+            );
+            if (matchedOpt) {
+              vendorMap[matchedOpt.value] = {
+                vendorId: (svc as any).vendorId ?? null,
+              };
+            }
+          }
+
+          setPracticeAgreementServiceValues(matchedValues);
+          setPracticeServiceVendors(vendorMap);
+          setScope((prev) => ({
+            ...prev,
+            requestedServices: matchedValues,
+          }));
+        } else {
+          setPracticeAgreementServiceValues([]);
+          setPracticeServiceVendors({});
+          setScope((prev) => ({
+            ...prev,
+            requestedServices: [],
+          }));
+        }
       } catch (error) {
         if (!active) return;
         toast.error(
-          error instanceof Error ? error.message : "Unable to load practice.",
+          error instanceof Error
+            ? error.message
+            : "Unable to load practice data.",
         );
       }
     }
-    void loadPracticeContacts();
+    void loadPracticeData();
     return () => {
       active = false;
     };
@@ -315,22 +370,6 @@ export default function Scope() {
   }
 
   function validateScope() {
-    if (!selectedServices.length) {
-      toast.error("Select at least one requested service.");
-      return false;
-    }
-    // Scope coverage and practices-in-scope checks removed by request.
-    const invalidVendorEntry = selectedServices.find((service) => {
-      const detail = serviceVendors[service];
-      return detail?.hasExistingVendor && !detail.vendorName.trim();
-    });
-    if (invalidVendorEntry) {
-      toast.error(
-        `Vendor name is required for ${serviceLabelMap.get(invalidVendorEntry) ?? invalidVendorEntry}.`,
-      );
-      return false;
-    }
-    // Scope coverage removed by request; no longer required.
     return true;
   }
 
@@ -540,8 +579,29 @@ export default function Scope() {
           {/* Services Requested / Scope */}
           <div className="mt-8 space-y-6">
             <h3 className="text-md font-semibold text-slate-800">
-              Services Requested / Scope
+              Services in Scope
             </h3>
+
+            {selectedPracticeId && practiceAgreementServiceValues.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {practiceAgreementServiceValues.map((value) => (
+                  <span
+                    key={value}
+                    className="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700"
+                  >
+                    {serviceLabelMap.get(value) ?? value}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">
+                {selectedPracticeId
+                  ? "No services found in the practice's signed agreement."
+                  : "Select a practice above to see its agreement services."}
+              </p>
+            )}
+
+            {/* Commented out: manual service selection — services are auto-populated from the practice's signed agreement
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Which services are requested? *
@@ -562,6 +622,7 @@ export default function Scope() {
                 ))}
               </div>
             </div>
+            */}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
@@ -607,80 +668,38 @@ export default function Scope() {
                 Vendor by requested service
               </label>
               <div className="space-y-3">
-                {selectedServices.length ? (
-                  selectedServices.map((service) => {
-                    const detail = serviceVendors[service] ?? {
-                      hasExistingVendor: false,
-                      vendorName: "",
-                      vendorEndDate: "",
-                    };
+                {practiceAgreementServiceValues.length ? (
+                  practiceAgreementServiceValues.map((service) => {
+                    const svcVendor = practiceServiceVendors[service];
+                    const vendorName = svcVendor?.vendorId
+                      ? (vendors.find((v) => v.id === svcVendor.vendorId)
+                          ?.name ?? "Unknown vendor")
+                      : null;
                     return (
                       <div
                         key={service}
-                        className="rounded-xl border border-slate-200 p-3"
+                        // className="rounded-xl border border-slate-200 p-3"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <p className="text-sm font-medium text-slate-800">
+                          {/*<p className="text-sm font-medium text-slate-800">
                             {serviceLabelMap.get(service) ?? service}
-                          </p>
-                          <div className="flex items-center gap-4 text-sm">
-                            <label className="flex items-center gap-2 text-slate-700">
-                              <input
-                                type="radio"
-                                name={`vendor-${service}`}
-                                checked={detail.hasExistingVendor === true}
-                                onChange={() =>
-                                  updateServiceVendor(service, {
-                                    hasExistingVendor: true,
-                                  })
-                                }
-                              />
-                              <span>Existing vendor</span>
-                            </label>
-                            <label className="flex items-center gap-2 text-slate-700">
-                              <input
-                                type="radio"
-                                name={`vendor-${service}`}
-                                checked={detail.hasExistingVendor === false}
-                                onChange={() =>
-                                  updateServiceVendor(service, {
-                                    hasExistingVendor: false,
-                                    vendorName: "",
-                                    vendorEndDate: "",
-                                  })
-                                }
-                              />
-                              <span>None</span>
-                            </label>
-                          </div>
+                          </p>*/}
+                          {vendorName ? (
+                            <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
+                              {vendorName}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-slate-50 px-3 py-1 text-sm font-medium text-slate-400">
+                              No vendor
+                            </span>
+                          )}
                         </div>
-
-                        {detail.hasExistingVendor ? (
-                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-1">
-                            <select
-                              value={detail.vendorName}
-                              onChange={(event) =>
-                                updateServiceVendor(service, {
-                                  vendorName: event.target.value,
-                                })
-                              }
-                              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
-                            >
-                              <option value="">Select vendor</option>
-                              {vendors.map((vendor) => (
-                                <option key={vendor.id} value={vendor.name}>
-                                  {vendor.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        ) : null}
                       </div>
                     );
                   })
                 ) : (
                   <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                    Select requested services first to configure vendor details.
+                    Select a practice above to see vendor details.
                   </p>
                 )}
               </div>
