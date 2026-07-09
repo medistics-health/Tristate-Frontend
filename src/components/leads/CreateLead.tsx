@@ -209,7 +209,8 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   "Master Service Agreement",
   "BAA",
   "Credentialing Exhibit",
-  "Exhibit P",
+  "Mutual NDA",
+  // "Exhibit P",
 ];
 
 const personRoleOptions: PersonRole[] = [

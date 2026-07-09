@@ -111,7 +111,8 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   "Master Service Agreement",
   "BAA",
   "Credentialing Exhibit",
-  "Exhibit P",
+  "Mutual NDA",
+  // "Exhibit P",
 ];
 
 function isClientNameField(field: DocusealField) {
@@ -601,7 +602,10 @@ function AllAgreementsPage() {
         // limit: 50,
       );
       const loadedVersions = data as AgreementVersion[];
-      if (loadedVersions.length > 0 && !loadedVersions.some((version) => version.isCurrent)) {
+      if (
+        loadedVersions.length > 0 &&
+        !loadedVersions.some((version) => version.isCurrent)
+      ) {
         const nextCurrentVersion = [...loadedVersions].sort(
           (a, b) => b.versionNumber - a.versionNumber,
         )[0];
@@ -1115,10 +1119,10 @@ function AllAgreementsPage() {
   }) {
     const rawValue = submission.signedDocUrl || submission.signedDocUrls;
     if (!rawValue) return [];
-  
+
     const trimmed = rawValue.trim();
     if (!trimmed) return [];
-  
+
     try {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed)) {
@@ -1129,13 +1133,13 @@ function AllAgreementsPage() {
     } catch {
       // Support plain string and comma-separated URL formats.
     }
-  
+
     return trimmed
       .split(",")
       .map((url) => url.trim())
       .filter(Boolean);
   }
-  
+
   function getDocumentLabel(url: string, fallback: string) {
     try {
       const pathname = new URL(url).pathname;
@@ -1482,15 +1486,19 @@ function AllAgreementsPage() {
                   onSubmit={async (e) => {
                     e.preventDefault();
                     if (!canWriteAgreements) {
-                      toast.error("You do not have permission to update agreement versions.");
+                      toast.error(
+                        "You do not have permission to update agreement versions.",
+                      );
                       return;
                     }
                     if (!selectedRowId) return;
                     const isOnlyCurrentVersion =
                       editingVersionId &&
-                      versions.find((version) => version.id === editingVersionId)
-                        ?.isCurrent &&
-                      versions.filter((version) => version.isCurrent).length === 1;
+                      versions.find(
+                        (version) => version.id === editingVersionId,
+                      )?.isCurrent &&
+                      versions.filter((version) => version.isCurrent).length ===
+                        1;
 
                     if (isOnlyCurrentVersion && !versionForm.isCurrent) {
                       toast.error(
@@ -1737,7 +1745,10 @@ function AllAgreementsPage() {
                                 if (!window.confirm("Delete this version?"))
                                   return;
                                 try {
-                                  if (version.isCurrent && versions.length > 1) {
+                                  if (
+                                    version.isCurrent &&
+                                    versions.length > 1
+                                  ) {
                                     const nextCurrentVersion = versions
                                       .filter((item) => item.id !== version.id)
                                       .sort(
@@ -1751,7 +1762,8 @@ function AllAgreementsPage() {
                                   }
                                   await deleteAgreementVersionApi(version.id);
                                   toast.success("Version deleted");
-                                  if (selectedRowId) loadVersions(selectedRowId);
+                                  if (selectedRowId)
+                                    loadVersions(selectedRowId);
                                 } catch (err) {
                                   toast.error(
                                     err instanceof Error
