@@ -398,6 +398,13 @@ function AllAgreementsPage() {
           String(row.original.values.practiceName || "-"),
       },
       {
+        id: "services",
+        accessorFn: (row: AgreementRow) => row.values.services,
+        header: () => "Services",
+        cell: ({ row }: { row: { original: AgreementRow } }) =>
+          String(row.original.values.services || "-"),
+      },
+      {
         id: "value",
         accessorFn: (row: AgreementRow) => row.values.value,
         header: () => "Value",

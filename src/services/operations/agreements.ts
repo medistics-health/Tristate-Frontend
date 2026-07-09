@@ -120,6 +120,10 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
       docusealId: agreement.docusealId?.toString() || "",
       docusealUrl: agreement.docusealUrl || "",
       signingStatus: signingStatus,
+      services:
+        agreement.services
+          ?.map((s) => s.name)
+          .join(", ") || "",
     },
   };
 }
@@ -211,6 +215,12 @@ const fields = [
     label: "Termination Date",
     type: "date" as const,
     visible: false,
+  },
+  {
+    id: "services",
+    label: "Services",
+    type: "text" as const,
+    visible: true,
   },
   {
     id: "creationDate",
