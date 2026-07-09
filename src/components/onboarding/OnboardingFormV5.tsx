@@ -4148,7 +4148,7 @@ export default function OnboardingFormV5() {
                             </Field>
                           </div>
 
-                          <div className="lg:col-span-3">
+                          {/* <div className="lg:col-span-3">
                             <Field label="Does this practice currently offer care management services?">
                               <BooleanRadioGroup
                                 name={`care-management-${practiceIndex}`}
@@ -4176,9 +4176,9 @@ export default function OnboardingFormV5() {
                                 }}
                               />
                             </Field>
-                          </div>
+                          </div> */}
 
-                          {practice.offersCareManagementServices ? (
+                          {/* {practice.offersCareManagementServices ? (
                             <div className="lg:col-span-3">
                               <Field label="Which services are currently being offered?">
                                 <CheckboxGroup
@@ -4194,7 +4194,7 @@ export default function OnboardingFormV5() {
                                 />
                               </Field>
                             </div>
-                          ) : null}
+                          ) : null} */}
                         </div>
 
                         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-4">
