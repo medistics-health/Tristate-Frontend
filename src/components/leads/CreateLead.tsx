@@ -102,15 +102,14 @@ type LeadFormState = {
   companyRelation: RelationType;
   selectedCompanyId: string;
   companyName: string;
-  companyIndustry: string;
-  companySize: string;
+
   companyPhone: string;
   companyEmail: string;
   companyWebsite: string;
   companyStreet: string;
   companyCity: string;
   companyState: string;
-  companyCountry: string;
+
   companyZip: string;
   taxIds: TaxIdFormState[];
 
@@ -119,7 +118,7 @@ type LeadFormState = {
   selectedPracticeId: string;
   practiceName: string;
   practiceNpi: string;
-  practiceRegion: string;
+
   practiceSource: PracticeSource;
   practiceBucket: string;
   practiceTaxIdKey: string;
@@ -168,15 +167,14 @@ const initialFormState: LeadFormState = {
   companyRelation: "new",
   selectedCompanyId: "",
   companyName: "",
-  companyIndustry: "",
-  companySize: "",
+
   companyPhone: "",
   companyEmail: "",
   companyWebsite: "",
   companyStreet: "",
   companyCity: "",
   companyState: "",
-  companyCountry: "",
+
   companyZip: "",
   taxIds: [initialTaxId],
 
@@ -184,7 +182,7 @@ const initialFormState: LeadFormState = {
   selectedPracticeId: "",
   practiceName: "",
   practiceNpi: "",
-  practiceRegion: "",
+
   practiceSource: "DIRECT",
   practiceBucket: "",
   practiceTaxIdKey: "",
@@ -447,8 +445,6 @@ function CreateLeadPage() {
         );
         const companyPayload: CompanyBody = {
           name: form.companyName.trim(),
-          industry: form.companyIndustry.trim(),
-          size: Number(form.companySize) || undefined,
           phone: form.companyPhone.trim() || undefined,
           email: form.companyEmail.trim() || undefined,
           website: form.companyWebsite.trim() || undefined,
@@ -457,7 +453,6 @@ function CreateLeadPage() {
             street: form.companyStreet.trim() || undefined,
             city: form.companyCity.trim() || undefined,
             state: form.companyState.trim() || undefined,
-            country: form.companyCountry.trim() || undefined,
             zip: form.companyZip.trim() || undefined,
           },
           taxIds:
@@ -510,7 +505,6 @@ function CreateLeadPage() {
           name: form.practiceName.trim(),
           npi: form.practiceNpi.trim(),
           status: "LEAD",
-          region: form.practiceRegion.trim(),
           source: form.practiceSource,
           bucket: form.practiceBucket
             .split(",")
@@ -1275,10 +1269,6 @@ function CreateLeadPage() {
 
     // Validations
     if (form.companyRelation === "new" && form.companyName.trim()) {
-      if (!form.companyIndustry.trim()) {
-        toast.error("Company industry is required.");
-        return;
-      }
       if (
         form.companyEmail.trim() &&
         !/^[^\s@]+@[^\s@]+\.com$/i.test(form.companyEmail.trim())
@@ -1300,10 +1290,6 @@ function CreateLeadPage() {
       }
       if (!/^\d{10}$/.test(form.practiceNpi.trim())) {
         toast.error("Practice NPI must be exactly 10 digits.");
-        return;
-      }
-      if (!form.practiceRegion.trim()) {
-        toast.error("Practice region is required.");
         return;
       }
     } else {
@@ -1531,7 +1517,7 @@ function CreateLeadPage() {
                     </label>
                   </div>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 p-4 rounded-xl border border-[#f0ece6] bg-[#fafafa] animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="grid gap-4 md:grid-cols-1 p-4 rounded-xl border border-[#f0ece6] bg-[#fafafa] animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="block">
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
                         Company Name *
@@ -1546,34 +1532,7 @@ function CreateLeadPage() {
                         placeholder="e.g. Acme Medical Group"
                       />
                     </label>
-                    <label className="block">
-                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Industry *
-                      </span>
-                      <input
-                        type="text"
-                        value={form.companyIndustry}
-                        onChange={(e) =>
-                          updateField("companyIndustry", e.target.value)
-                        }
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                        placeholder="e.g. Healthcare Services"
-                      />
-                    </label>
-                    <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
-                      <label className="block">
-                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                          Size
-                        </span>
-                        <input
-                          type="number"
-                          value={form.companySize}
-                          onChange={(e) =>
-                            updateField("companySize", e.target.value)
-                          }
-                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                        />
-                      </label>
+                    <div className="md:col-span-2 grid gap-4 md:grid-cols-2">
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
                           Phone
@@ -1682,19 +1641,6 @@ function CreateLeadPage() {
                                 "companyZip",
                                 e.target.value.replace(/\D/g, "").slice(0, 9),
                               )
-                            }
-                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                          />
-                        </label>
-                        <label className="block md:col-span-2">
-                          <span className="mb-1 block text-[12px] text-slate-500">
-                            Country
-                          </span>
-                          <input
-                            type="text"
-                            value={form.companyCountry}
-                            onChange={(e) =>
-                              updateField("companyCountry", e.target.value)
                             }
                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                           />
@@ -1871,7 +1817,7 @@ function CreateLeadPage() {
                     <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                          Tax ID - Legal Entity Name
+                          Tax ID
                         </span>
                         {companyTaxIdOptions.length > 1 ? (
                           <select
@@ -1901,20 +1847,6 @@ function CreateLeadPage() {
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                          Region *
-                        </span>
-                        <input
-                          type="text"
-                          value={form.practiceRegion}
-                          onChange={(e) =>
-                            updateField("practiceRegion", e.target.value)
-                          }
-                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                          placeholder="e.g. Northeast"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
                           Lead Source
                         </span>
                         <select
@@ -1936,7 +1868,7 @@ function CreateLeadPage() {
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                          Bucket / Specialty
+                          Specialty
                         </span>
                         <input
                           type="text"
@@ -2161,7 +2093,7 @@ function CreateLeadPage() {
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Designation
+                        Title
                       </span>
                       <input
                         type="text"

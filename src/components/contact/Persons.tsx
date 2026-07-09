@@ -987,7 +987,7 @@ export default function PersonsPage() {
 
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
-            Designation
+            Title
           </label>
           <input
             type="text"
@@ -1700,7 +1700,7 @@ export default function PersonsPage() {
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Designation
+                    Title
                   </label>
                   <input
                     type="text"

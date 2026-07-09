@@ -524,7 +524,7 @@ function ActivePracticesPage() {
 
                     <div>
                       <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Region <span className="text-red-500">*</span>
+                        Region
                       </label>
                       <input
                         type="text"

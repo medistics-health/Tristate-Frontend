@@ -341,8 +341,7 @@ export default function AllPracticePage() {
 
     rows.forEach((row) => {
       const groupNpis = row.values.groupNpis as
-        | { groupNpiNumber: string; groupName: string }[]
-        | undefined;
+        { groupNpiNumber: string; groupName: string }[] | undefined;
       if (groupNpis && groupNpis.length > 0) {
         const key = groupNpis[0].groupNpiNumber;
         if (!groups[key]) {
@@ -703,11 +702,7 @@ export default function AllPracticePage() {
           taxId: formData.taxIdId || entry.taxId || "",
         })),
         source: formData.source as
-          | "DIRECT"
-          | "REFERRAL"
-          | "CHANNEL_PARTNER"
-          | "OUTBOUND"
-          | "INBOUND",
+          "DIRECT" | "REFERRAL" | "CHANNEL_PARTNER" | "OUTBOUND" | "INBOUND",
         bucket: formData.bucket
           ? formData.bucket
               .split(",")
@@ -863,11 +858,7 @@ export default function AllPracticePage() {
             taxId: formData.taxIdId || entry.taxId || "",
           })),
           source: formData.source as
-            | "DIRECT"
-            | "REFERRAL"
-            | "CHANNEL_PARTNER"
-            | "OUTBOUND"
-            | "INBOUND",
+            "DIRECT" | "REFERRAL" | "CHANNEL_PARTNER" | "OUTBOUND" | "INBOUND",
           bucket: formData.bucket
             ? formData.bucket
                 .split(",")
@@ -905,11 +896,7 @@ export default function AllPracticePage() {
           taxId: formData.taxIdId || entry.taxId || "",
         })),
         source: formData.source as
-          | "DIRECT"
-          | "REFERRAL"
-          | "CHANNEL_PARTNER"
-          | "OUTBOUND"
-          | "INBOUND",
+          "DIRECT" | "REFERRAL" | "CHANNEL_PARTNER" | "OUTBOUND" | "INBOUND",
         bucket: formData.bucket
           ? formData.bucket
               .split(",")
@@ -1241,11 +1228,11 @@ export default function AllPracticePage() {
           </div>
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Region <span className="text-red-500">*</span>
+              Region
             </label>
             <input
               type="text"
-              required
+              // required
               value={formData.region}
               onChange={(e) => handleFormChange("region", e.target.value)}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
@@ -1272,7 +1259,7 @@ export default function AllPracticePage() {
           </div>
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Bucket
+              Specialty
             </label>
             <input
               type="text"
@@ -1482,7 +1469,9 @@ export default function AllPracticePage() {
       activeModule="Practices"
       activeSubItem="All Practices"
       navbarIcon={<Building2 className="h-4 w-4 text-slate-500" />}
-      navbarActions={canWritePractices ? getStandardNavbarActions(openCreateForm) : []}
+      navbarActions={
+        canWritePractices ? getStandardNavbarActions(openCreateForm) : []
+      }
     >
       <div className="flex h-full gap-2">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
@@ -2017,7 +2006,7 @@ export default function AllPracticePage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Region <span className="text-red-500">*</span>
+                      Region
                     </label>
                     <input
                       type="text"
@@ -2052,7 +2041,7 @@ export default function AllPracticePage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Bucket
+                      Specialty
                     </label>
                     <input
                       type="text"
