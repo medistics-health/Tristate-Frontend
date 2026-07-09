@@ -23,14 +23,12 @@ import AppLayout from "../layout/AppLayout";
 import { LOGOUT_ACTION, type NavbarAction } from "../layout/Navbar";
 import type { CompanyBody, Company } from "../companies/types";
 import type { PersonBody, PersonRole } from "../contact/types";
-import type { DealApiError, DealBody } from "../../services/operations/deals";
 import {
   createCompanyApi,
   deleteCompanyApi,
   getCompany,
   getCompaniesView,
 } from "../../services/operations/companies";
-import { createDealApi, deleteDealApi } from "../../services/operations/deals";
 import {
   createPersonApi,
   deletePersonApi,
@@ -143,14 +141,7 @@ type LeadFormState = {
     notes: string;
   }[];
 
-  // Deal
   interestedServiceIds: string[];
-  estimatedValue: string;
-  probability: string;
-  followUpTaskTitle: string;
-  followUpTaskDueAt: string;
-  assignedOwnerId: string;
-  channelPartnerId: string;
   notes: string;
 
   // Integrated Agreement
@@ -200,12 +191,6 @@ const initialFormState: LeadFormState = {
   practiceGroupNpis: [],
 
   interestedServiceIds: [],
-  estimatedValue: "",
-  probability: "10",
-  followUpTaskTitle: "",
-  followUpTaskDueAt: "",
-  assignedOwnerId: "",
-  channelPartnerId: "",
   notes: "",
 
   agreement: {
@@ -253,14 +238,6 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
 }
 
-function defaultFollowUpTitle(contactName: string, practiceName: string) {
-  const firstName = contactName.trim().split(/\s+/)[0];
-  if (firstName) {
-    return `Follow up with ${firstName} about ${practiceName}`;
-  }
-  return `Follow up on ${practiceName}`;
-}
-
 function getPrimaryContactName(form: LeadFormState) {
   return [form.primaryContactFirstName, form.primaryContactLastName]
     .map((part) => part.trim())
@@ -269,12 +246,7 @@ function getPrimaryContactName(form: LeadFormState) {
 }
 
 function buildErrorMessage(error: unknown) {
-  const message =
-    error instanceof Error ? error.message : "Unable to save lead.";
-  const missingRequirements = (error as DealApiError | undefined)
-    ?.missingRequirements;
-  if (!missingRequirements?.length) return message;
-  return `${message} Missing: ${missingRequirements.join(", ")}.`;
+  return error instanceof Error ? error.message : "Unable to save lead.";
 }
 
 function buildLeadAgreementDocusealPrefillValues(
@@ -429,7 +401,6 @@ function CreateLeadPage() {
     let createdCompanyId: string | undefined;
     let createdPracticeId: string | undefined;
     let createdContactId: string | undefined;
-    let createdDealId: string | undefined;
     let createdAgreementId: string | undefined;
     let agreementSendWarning: string | null = null;
 
@@ -592,36 +563,7 @@ function CreateLeadPage() {
         }
       }
 
-      // 4. Handle Deal
-      const activityTimestamp = new Date().toISOString();
-      const contactName =
-        form.contactRelation === "new"
-          ? getPrimaryContactName(form)
-          : "Selected Contact";
-      const pName =
-        form.practiceRelation === "new"
-          ? form.practiceName
-          : "Selected Practice";
-
-      const dealPayload: DealBody = {
-        practiceId: practiceId,
-        companyId: companyId || null,
-        primaryContactId: contactId,
-        stage: "PROSPECTING",
-        value: Number(form.estimatedValue),
-        probability: Number(form.probability),
-        selectedServiceIds: form.interestedServiceIds,
-        nextTaskTitle:
-          form.followUpTaskTitle.trim() ||
-          defaultFollowUpTitle(contactName, pName),
-        nextTaskDueAt: new Date(form.followUpTaskDueAt).toISOString(),
-        lastActivityAt: activityTimestamp,
-        activityCount: 1,
-      };
-      const dealRow = await createDealApi(dealPayload);
-      createdDealId = dealRow.id;
-
-      // 5. Handle Agreement (if requested)
+      // 4. Handle Agreement (if requested)
       let agreementId: string | undefined = undefined;
       if (withAgreement && form.agreement.action !== "none") {
         if (form.agreement.action === "create") {
@@ -663,7 +605,6 @@ function CreateLeadPage() {
             : "PENDING_APPROVAL";
           const agreementPayload = {
             practiceId: practiceId,
-            dealId: dealRow.id,
             type: form.agreement.type,
             status: "DRAFT",
             approvalStatus: agreementApprovalStatus,
@@ -721,12 +662,6 @@ function CreateLeadPage() {
                   : "Lead was created, but practice activation or company status update could not be completed.";
             }
           }
-
-          // Potentially update dealId on existing agreement if needed
-          // await createAgreementApi({
-          //   id: agreementId,
-          //   dealId: dealRow.id,
-          // } as any);
         }
       }
 
@@ -754,7 +689,6 @@ function CreateLeadPage() {
       const cleanupTasks: Array<Promise<unknown>> = [];
       if (createdAgreementId)
         cleanupTasks.push(deleteAgreementApi(createdAgreementId));
-      if (createdDealId) cleanupTasks.push(deleteDealApi(createdDealId));
       if (createdContactId)
         cleanupTasks.push(deletePersonApi(createdContactId));
       if (createdPracticeId)
@@ -1249,21 +1183,6 @@ function CreateLeadPage() {
     }));
   };
 
-  const handleSearchChannelPartners = async (
-    query: string,
-  ): Promise<SearchSelectOption[]> => {
-    const view = await getCompaniesView({
-      search: query || undefined,
-      limit: 10,
-      status: "PARTNER",
-    });
-    return view.rows.map((row) => ({
-      label: row.values.name as string,
-      value: row.id,
-      subLabel: row.values.industry as string,
-    }));
-  };
-
   async function handleSaveLead(event: React.FormEvent) {
     event.preventDefault();
 
@@ -1377,15 +1296,6 @@ function CreateLeadPage() {
 
     if (form.contactRelation !== "new" && !form.selectedContactId) {
       toast.error("Please select an existing contact.");
-      return;
-    }
-
-    if (!form.estimatedValue) {
-      toast.error("Estimated deal value is required.");
-      return;
-    }
-    if (!form.followUpTaskDueAt) {
-      toast.error("Follow-up due date is required.");
       return;
     }
 
@@ -2206,143 +2116,60 @@ function CreateLeadPage() {
                 </div>
               </div>
 
-              {/* Deal Section */}
-              <div className="space-y-6 pt-6 border-t border-slate-200">
+              {/* Interested Services */}
+              <div className="space-y-3 pt-6 border-t border-slate-200">
                 <div className="flex items-center gap-2">
                   <Target className="h-5 w-5 text-[#4f63ea]" />
                   <h2 className="text-[16px] font-semibold text-slate-800">
-                    Deal / Opportunity Setup
+                    Interested Services
                   </h2>
                 </div>
-
-                <div className="grid gap-6 md:grid-cols-3">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Estimated Value *
-                    </span>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-medium">
-                        $
-                      </span>
-                      <input
-                        type="number"
-                        value={form.estimatedValue}
-                        onChange={(e) =>
-                          updateField("estimatedValue", e.target.value)
-                        }
-                        className="app-control w-full rounded-md pl-7 pr-3 py-2 text-[13px]"
-                        placeholder="0"
-                      />
-                    </div>
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Probability (%)
-                    </span>
-                    <input
-                      type="number"
-                      value={form.probability}
-                      onChange={(e) =>
-                        updateField("probability", e.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Follow-Up Due *
-                    </span>
-                    <input
-                      type="date"
-                      value={form.followUpTaskDueAt}
-                      onChange={(e) =>
-                        updateField("followUpTaskDueAt", e.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid gap-6 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Assigned Owner
-                    </span>
-                    <select
-                      value={form.assignedOwnerId}
-                      onChange={(e) =>
-                        updateField("assignedOwnerId", e.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    >
-                      <option value="">Select Owner</option>
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.firstName} {u.lastName}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Channel Partner (if applicable)
-                    </span>
-                    <SearchSelect
-                      value={form.channelPartnerId}
-                      onChange={(val) => updateField("channelPartnerId", val)}
-                      onSearch={handleSearchChannelPartners}
-                      placeholder="Search channel partners..."
-                    />
-                  </label>
-                </div>
-
-                <div className="space-y-3">
-                  <span className="text-[13px] font-medium text-slate-700">
-                    Interested Services
-                  </span>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {services.map((service) => {
-                      const isSelected = form.interestedServiceIds.includes(
-                        service.id,
-                      );
-                      return (
-                        <button
-                          key={service.id}
-                          type="button"
-                          onClick={() => toggleService(service.id)}
-                          className={`flex items-start gap-3 p-3 text-left rounded-xl border transition-all ${
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {services.map((service) => {
+                    const isSelected = form.interestedServiceIds.includes(
+                      service.id,
+                    );
+                    return (
+                      <button
+                        key={service.id}
+                        type="button"
+                        onClick={() => toggleService(service.id)}
+                        className={`flex items-start gap-3 p-3 text-left rounded-xl border transition-all ${
+                          isSelected
+                            ? "border-[#4f63ea] bg-[#4f63ea]/5 shadow-sm"
+                            : "border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200"
+                        }`}
+                      >
+                        <div
+                          className={`mt-0.5 h-4 w-4 shrink-0 rounded border flex items-center justify-center ${
                             isSelected
-                              ? "border-[#4f63ea] bg-[#4f63ea]/5 shadow-sm"
-                              : "border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200"
+                              ? "bg-[#4f63ea] border-[#4f63ea]"
+                              : "bg-white border-slate-300"
                           }`}
                         >
+                          {isSelected && (
+                            <CheckCircle2 className="h-3 w-3 text-white" />
+                          )}
+                        </div>
+                        <div>
                           <div
-                            className={`mt-0.5 h-4 w-4 shrink-0 rounded border flex items-center justify-center ${
-                              isSelected
-                                ? "bg-[#4f63ea] border-[#4f63ea]"
-                                : "bg-white border-slate-300"
-                            }`}
+                            className={`text-[13px] font-semibold ${isSelected ? "text-[#4f63ea]" : "text-slate-700"}`}
                           >
-                            {isSelected && (
-                              <CheckCircle2 className="h-3 w-3 text-white" />
-                            )}
+                            {service.name}
                           </div>
-                          <div>
-                            <div
-                              className={`text-[13px] font-semibold ${isSelected ? "text-[#4f63ea]" : "text-slate-700"}`}
-                            >
-                              {service.name}
-                            </div>
-                            <div className="text-[11px] text-slate-400 mt-0.5">
-                              {service.category || "General Service"}
-                            </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {service.category || "General Service"}
                           </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
+              </div>
 
+              {/* Internal Notes */}
+              {/* Commented out: no target field to save notes to after Deal module removal */}
+              {/* <div className="space-y-3 pt-6 border-t border-slate-200">
                 <label className="block">
                   <span className="mb-1 block text-[13px] font-medium text-slate-700">
                     Internal Notes
@@ -2355,7 +2182,7 @@ function CreateLeadPage() {
                     placeholder="Enter lead context, timeline, or specific requirements..."
                   />
                 </label>
-              </div>
+              </div> */}
 
               {/* Integrated Agreement Section */}
               {form.interestedServiceIds.length > 0 && (
