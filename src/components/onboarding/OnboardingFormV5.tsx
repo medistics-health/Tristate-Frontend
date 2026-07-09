@@ -1473,7 +1473,7 @@ export default function OnboardingFormV5() {
   );
   const [selectedProviderUploadField, setSelectedProviderUploadField] =
     useState<Record<string, ProviderDocumentField>>({});
-  const [hasPracticeManager, setHasPracticeManager] = useState(false);
+  const [hasPracticeManager, setHasPracticeManager] = useState<boolean | null>(null);
   const [pmFirstName, setPmFirstName] = useState("");
   const [pmLastName, setPmLastName] = useState("");
   const [copyCompanyInfoToPracticeOne, setCopyCompanyInfoToPracticeOne] =
@@ -2502,7 +2502,9 @@ export default function OnboardingFormV5() {
     }
 
     if (currentStep === 5) {
-      if (!hasPracticeManager) {
+      if (hasPracticeManager === null) {
+        errors.push("Does this practice have a practice manager");
+      } else if (!hasPracticeManager) {
         // no-op: no practice manager means no contacts required
       } else if (!(formData.contacts ?? []).length) {
         errors.push("At least one contact");
@@ -2629,6 +2631,7 @@ export default function OnboardingFormV5() {
     }
 
     if (stepId === 5) {
+      if (hasPracticeManager === null) return false;
       if (!hasPracticeManager) return true;
       return (
         (formData.contacts ?? []).every((contact) => {
