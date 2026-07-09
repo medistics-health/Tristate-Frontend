@@ -13,6 +13,7 @@ import {
   readStoredUser,
 } from "../../../utils/auth";
 import {
+  ChevronDown,
   ChevronLeft,
   Circle,
   LayoutList,
@@ -130,6 +131,7 @@ type AgreementFormState = {
   terminationDate: string;
   docusealTemplates: string[];
   docusealFieldValues: Record<string, Record<string, string>>;
+  serviceIds: string[];
 };
 
 const initialFormState: AgreementFormState = {
@@ -143,6 +145,7 @@ const initialFormState: AgreementFormState = {
   terminationDate: "",
   docusealTemplates: [],
   docusealFieldValues: {},
+  serviceIds: [],
 };
 
 function formatStatusLabel(status: string) {
@@ -234,6 +237,7 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
       .filter((templateId): templateId is number => templateId !== null)
       .map((templateId) => String(templateId)),
     docusealFieldValues,
+    serviceIds: agreement.services?.map((s) => s.id) || [],
   };
 }
 
@@ -491,11 +495,15 @@ function AllAgreementsPage() {
   useEffect(() => {
     if ((showCreateForm || showDetailPanel) && practices.length === 0) {
       setOptionsLoading(true);
-      getAllPractices()
-        .then((practiceList) => {
+      Promise.all([
+        getAllPractices(),
+        getAllServices(),
+      ])
+        .then(([practiceList, serviceList]) => {
           setPractices(practiceList);
+          setServices(serviceList);
         })
-        .catch((err) => console.error("Failed to load practices:", err))
+        .catch((err) => console.error("Failed to load options:", err))
         .finally(() => setOptionsLoading(false));
     }
   }, [showCreateForm, showDetailPanel, practices.length]);
@@ -831,6 +839,9 @@ function AllAgreementsPage() {
               };
             }),
           }
+        : {}),
+      ...(form.serviceIds?.length > 0
+        ? { serviceIds: form.serviceIds }
         : {}),
     };
   }
@@ -1875,6 +1886,93 @@ function AllAgreementsPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Services
+            </label>
+            <div className="relative">
+              {optionsLoading ? (
+                <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
+                  Loading...
+                </div>
+              ) : (
+                <>
+                  {createForm.serviceIds.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {createForm.serviceIds.map((serviceId) => {
+                        const service = services.find((s) => s.id === serviceId);
+                        return (
+                          <span
+                            key={serviceId}
+                            className="inline-flex items-center gap-1 rounded-md bg-[#f0f2fe] px-2 py-1 text-[12px] text-[#4f63ea]"
+                          >
+                            {service?.name || serviceId}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  serviceIds: prev.serviceIds.filter(
+                                    (id) => id !== serviceId,
+                                  ),
+                                }))
+                              }
+                              className="hover:text-red-500"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <details className="relative">
+                    <summary className="app-control flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-[13px] text-slate-600">
+                      <span className={createForm.serviceIds.length === 0 ? "text-slate-400" : ""}>
+                        {createForm.serviceIds.length === 0
+                          ? "Select services..."
+                          : `${createForm.serviceIds.length} service${createForm.serviceIds.length === 1 ? "" : "s"} selected`}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </summary>
+                    <div className="absolute z-10 mt-1 max-h-[200px] w-full overflow-y-auto rounded-md border border-[#ece8e1] bg-white shadow-lg">
+                      {services.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-[13px] text-slate-400">
+                          No services available
+                        </div>
+                      ) : (
+                        services.map((service) => {
+                          const isSelected = createForm.serviceIds.includes(service.id);
+                          return (
+                            <label
+                              key={service.id}
+                              className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-[#faf9f7]"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() =>
+                                  setCreateForm((prev) => ({
+                                    ...prev,
+                                    serviceIds: isSelected
+                                      ? prev.serviceIds.filter((id) => id !== service.id)
+                                      : [...prev.serviceIds, service.id],
+                                  }))
+                                }
+                                className="h-4 w-4 rounded border-[#cec8bf]"
+                              />
+                              {service.name}
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </details>
+                </>
+              )}
+            </div>
           </div>
 
           <div>

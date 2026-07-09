@@ -166,6 +166,7 @@ export type Agreement = {
   docusealSubmissions?: DocusealSubmission[];
   versions?: AgreementVersion[];
   serviceTerms?: AgreementServiceTerm[];
+  services?: { id: string; name: string }[];
 };
 
 export function getAgreementDocusealId(agreement: Agreement): number[] | null {
