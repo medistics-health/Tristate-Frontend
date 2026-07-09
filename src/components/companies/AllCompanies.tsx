@@ -92,7 +92,6 @@ type TaxIdFormData = {
 type CompanyFormData = {
   name: string;
   domain: string;
-  industry: string;
   size: string;
   revenue: string;
   phone: string;
@@ -110,7 +109,6 @@ type CompanyFormData = {
 const initialFormData: CompanyFormData = {
   name: "",
   domain: "",
-  industry: "",
   size: "",
   revenue: "",
   phone: "",
@@ -132,7 +130,6 @@ function companyToPanelRow(company: Company): CompanyRow {
       id: company.id,
       name: company.name,
       domain: company.domain || "",
-      industry: company.industry || "",
       size: company.size || 0,
       revenue: company.revenue || 0,
       phone: company.phone || "",
@@ -158,7 +155,6 @@ function companyToFormData(company: Company): CompanyFormData {
   return {
     name: company.name || "",
     domain: company.domain || "",
-    industry: company.industry || "",
     size: company.size ? String(company.size) : "",
     revenue: company.revenue ? String(company.revenue) : "",
     phone: company.phone || "",
@@ -216,7 +212,6 @@ export default function AllCompaniesPage() {
   const [filters, setFilters] = useState({
     search: "",
     status: "",
-    industry: "",
   });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [profileActionHandled, setProfileActionHandled] = useState(false);
@@ -226,10 +221,8 @@ export default function AllCompaniesPage() {
     [rows, selectedRowId],
   );
   const whenToSearch = filters.search.length > 3 || filters.search.length === 0;
-  const whenToSearchIndustry =
-    filters.industry.length > 3 || filters.industry.length === 0;
 
-  const disableMe = !filters.search && !filters.status && !filters.industry;
+  const disableMe = !filters.search && !filters.status;
   useEffect(() => {
     async function loadData() {
       try {
@@ -240,7 +233,6 @@ export default function AllCompaniesPage() {
           limit: pagination.limit,
           ...(filters.search && { search: filters.search }),
           ...(filters.status && { status: filters.status }),
-          ...(filters.industry && { industry: filters.industry }),
           sortBy: sorting[0]?.id || "createdAt",
           sortOrder: sorting[0]?.desc ? "desc" : "asc",
         };
@@ -262,7 +254,7 @@ export default function AllCompaniesPage() {
         setIsLoading(false);
       }
     }
-    if (whenToSearch && whenToSearchIndustry) {
+    if (whenToSearch) {
       loadData();
     }
   }, [pagination.page, pagination.limit, sorting, filters]);
@@ -331,7 +323,6 @@ export default function AllCompaniesPage() {
         const iconMap: Record<string, React.ReactNode> = {
           name: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           domain: <Globe className="h-3.5 w-3.5 text-slate-400" />,
-          industry: <Tag className="h-3.5 w-3.5 text-slate-400" />,
           size: <Users className="h-3.5 w-3.5 text-slate-400" />,
           revenue: <DollarSign className="h-3.5 w-3.5 text-slate-400" />,
           phone: <Phone className="h-3.5 w-3.5 text-slate-400" />,
@@ -558,7 +549,6 @@ export default function AllCompaniesPage() {
       const companyData = {
         name: formData.name.trim(),
         domain: formData.domain.trim() || undefined,
-        industry: formData.industry.trim() || undefined,
         size: formData.size ? parseInt(formData.size, 10) : undefined,
         revenue: formData.revenue ? parseInt(formData.revenue, 10) : undefined,
         phone: trimmedPhone || undefined,
@@ -634,7 +624,6 @@ export default function AllCompaniesPage() {
       const companyData = {
         name: formData.name.trim(),
         domain: formData.domain.trim() || undefined,
-        industry: formData.industry.trim() || undefined,
         size: formData.size ? parseInt(formData.size, 10) : undefined,
         revenue: formData.revenue ? parseInt(formData.revenue, 10) : undefined,
         phone: trimmedPhone || undefined,
@@ -901,8 +890,7 @@ export default function AllCompaniesPage() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
               Domain
             </label>
@@ -913,18 +901,6 @@ export default function AllCompaniesPage() {
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
-          <div>
-            <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Industry
-            </label>
-            <input
-              type="text"
-              value={formData.industry}
-              onChange={(e) => handleFormChange("industry", e.target.value)}
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            />
-          </div>
-        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -1297,20 +1273,10 @@ export default function AllCompaniesPage() {
                 <option value="PARTNER">Partner</option>
                 <option value="INACTIVE">Inactive</option>
               </select>
-              <input
-                type="text"
-                placeholder="Industry..."
-                value={filters.industry}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, industry: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              />
               <button
                 type="button"
                 onClick={() => {
-                  setFilters({ search: "", status: "", industry: "" });
+                  setFilters({ search: "", status: "" });
                   setPagination((prev) => ({ ...prev, page: 1 }));
                 }}
                 disabled={disableMe}
@@ -1525,14 +1491,6 @@ export default function AllCompaniesPage() {
                             },
                           ]
                         : []),
-                      ...(selectedRow.values.industry
-                        ? [
-                            {
-                              label: "Industry",
-                              value: String(selectedRow.values.industry),
-                            },
-                          ]
-                        : []),
                       ...(selectedRow.values.revenue
                         ? [
                             {
@@ -1593,8 +1551,7 @@ export default function AllCompaniesPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
+                <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
                       Domain
                     </label>
@@ -1608,21 +1565,6 @@ export default function AllCompaniesPage() {
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>
-                  <div>
-                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Industry
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.industry}
-                      onChange={(e) =>
-                        handleFormChange("industry", e.target.value)
-                      }
-                      placeholder="Technology"
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </div>
-                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
