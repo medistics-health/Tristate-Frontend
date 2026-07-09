@@ -4176,9 +4176,9 @@ export default function OnboardingFormV5() {
                                 }}
                               />
                             </Field>
-                          </div> */}
+                          </div>
 
-                          {/* {practice.offersCareManagementServices ? (
+                          {practice.offersCareManagementServices ? (
                             <div className="lg:col-span-3">
                               <Field label="Which services are currently being offered?">
                                 <CheckboxGroup
