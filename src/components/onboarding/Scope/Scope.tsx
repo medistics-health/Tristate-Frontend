@@ -89,17 +89,9 @@ function formatDateForDisplay(dateValue: string) {
   return `${month}/${day}/${year}`;
 }
 
-function formatDateShortForDisplay(dateValue: string) {
-  if (!dateValue) return "";
-  const [year, month, day] = dateValue.split("-");
-  if (!year || !month || !day) return dateValue;
-  return `${month}/${day}/${year.slice(-2)}`;
-}
-
 export default function Scope() {
   const navigate = useNavigate();
   const [scope, setScope] = useState<ScopeFormState>(initialScopeState);
-  const [isPracticeModalOpen, setIsPracticeModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [signedPracticeIds, setSignedPracticeIds] = useState<string[]>([]);
@@ -115,9 +107,6 @@ export default function Scope() {
     Record<string, ServiceVendorDetail>
   >({});
   const requestedGoLiveDatePickerRef = useRef<HTMLInputElement | null>(null);
-  const vendorEndDatePickerRefs = useRef<
-    Record<string, HTMLInputElement | null>
-  >({});
 
   const selectedServices = useMemo(
     () => scope.requestedServices ?? [],
@@ -135,17 +124,6 @@ export default function Scope() {
 
   function openRequestedGoLiveDatePicker() {
     const pickerInput = requestedGoLiveDatePickerRef.current;
-    if (!pickerInput) return;
-    if (typeof pickerInput.showPicker === "function") {
-      pickerInput.showPicker();
-      return;
-    }
-    pickerInput.focus();
-    pickerInput.click();
-  }
-
-  function openVendorEndDatePicker(service: string) {
-    const pickerInput = vendorEndDatePickerRefs.current[service];
     if (!pickerInput) return;
     if (typeof pickerInput.showPicker === "function") {
       pickerInput.showPicker();
@@ -356,18 +334,8 @@ export default function Scope() {
     return true;
   }
 
-  function openSendModal() {
-    if (!validateScope()) return;
-    if (!availableScopePractices.length) {
-      toast.error(
-        "No practice has a signed agreement available for onboarding.",
-      );
-      return;
-    }
-    setIsPracticeModalOpen(true);
-  }
-
   async function handleSendToPracticePerson() {
+    if (!validateScope()) return;
     if (!selectedPracticeId) {
       toast.error("Select a practice.");
       return;
@@ -462,7 +430,6 @@ export default function Scope() {
       toast.success("Onboarding sent. Link copied to clipboard.", {
         id: loadingToast,
       });
-      setIsPracticeModalOpen(false);
       setSelectedPersonId("");
       setSelectedPracticeId("");
       setSelectedPractice(null);
@@ -493,10 +460,88 @@ export default function Scope() {
         </div>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Services Requested / Scope
-          </h2>
-          <div className="mt-4 space-y-6">
+          <h2 className="text-lg font-semibold text-slate-900">Scope Setup</h2>
+
+          {/* Select Practice */}
+          <div className="mt-6 space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Practice *
+              </label>
+              <select
+                value={selectedPracticeId}
+                onChange={(event) => {
+                  setSelectedPracticeId(event.target.value);
+                  setSelectedPersonId("");
+                }}
+                disabled={isLoadingSignedPractices}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">
+                  {isLoadingSignedPractices
+                    ? "Loading practices..."
+                    : "Select practice"}
+                </option>
+                {availableScopePractices.map((practice) => (
+                  <option key={practice.id} value={practice.id}>
+                    {practice.name}
+                  </option>
+                ))}
+              </select>
+              {!isLoadingSignedPractices && !availableScopePractices.length ? (
+                <p className="mt-2 text-xs text-amber-700">
+                  No practices found with a signed agreement.
+                </p>
+              ) : null}
+            </div>
+
+            {/* Practice Person */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Practice person *
+              </label>
+              <select
+                value={selectedPersonId}
+                onChange={(event) => setSelectedPersonId(event.target.value)}
+                disabled={!selectedPracticeId}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+              >
+                <option value="">Select person</option>
+                {eligiblePracticePersons.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {[person.firstName, person.lastName]
+                      .filter(Boolean)
+                      .join(" ") ||
+                      person.email ||
+                      "Contact"}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedPracticeId && !eligiblePracticePersons.length ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                No ADMIN or OWNER person is linked to this practice. Add an
+                eligible contact first, then send onboarding.
+              </p>
+            ) : null}
+
+            {selectedPracticeId ? (
+              <button
+                type="button"
+                onClick={() => navigate("/people/all-peoples")}
+                className="text-sm font-medium text-slate-600 underline underline-offset-2 hover:text-slate-900"
+              >
+                Manage / Add Contact
+              </button>
+            ) : null}
+          </div>
+
+          {/* Services Requested / Scope */}
+          <div className="mt-8 space-y-6">
+            <h3 className="text-md font-semibold text-slate-800">
+              Services Requested / Scope
+            </h3>
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Which services are requested? *
@@ -556,20 +601,6 @@ export default function Scope() {
                 </div>
               </div>
             </div>
-
-            {/* Scope coverage and practices in scope are intentionally removed.
-                Keeping this commented block for future reference.
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Scope coverage *
-              </label>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Practices in scope *
-              </label>
-            </div>
-            */}
 
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -642,41 +673,6 @@ export default function Scope() {
                                 </option>
                               ))}
                             </select>
-                            {/*<div className="relative">
-                              <input
-                                type="text"
-                                value={formatDateShortForDisplay(
-                                  detail.vendorEndDate,
-                                )}
-                                readOnly
-                                onClick={() => openVendorEndDatePicker(service)}
-                                placeholder="MM/DD/YY"
-                                className="w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 pr-20 text-sm"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => openVendorEndDatePicker(service)}
-                                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
-                              >
-                                Pick
-                              </button>
-                              <input
-                                ref={(element) => {
-                                  vendorEndDatePickerRefs.current[service] =
-                                    element;
-                                }}
-                                type="date"
-                                value={detail.vendorEndDate}
-                                onChange={(event) =>
-                                  updateServiceVendor(service, {
-                                    vendorEndDate: event.target.value,
-                                  })
-                                }
-                                tabIndex={-1}
-                                aria-hidden="true"
-                                className="pointer-events-none absolute h-0 w-0 opacity-0"
-                              />
-                            </div>*/}
                           </div>
                         ) : null}
                       </div>
@@ -689,149 +685,20 @@ export default function Scope() {
                 )}
               </div>
             </div>
-
-            <div>
-              {/*<label className="mb-2 block text-sm font-medium text-slate-700">
-                Engagement goals
-              </label>
-              <textarea
-                value={scope.engagementGoals ?? ""}
-                onChange={(event) =>
-                  setScope((prev) => ({
-                    ...prev,
-                    engagementGoals: event.target.value,
-                  }))
-                }
-                rows={4}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
-              />*/}
-            </div>
           </div>
         </section>
 
         <div className="flex justify-end">
           <button
             type="button"
-            onClick={openSendModal}
-            className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+            onClick={() => void handleSendToPracticePerson()}
+            disabled={isSending}
+            className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-70"
           >
-            Create Scope & Select Practice
+            {isSending ? "Sending..." : "Send Onboarding"}
           </button>
         </div>
       </div>
-
-      {isPracticeModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4">
-          <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-slate-900">
-              Send onboarding form
-            </h3>
-            <p className="mt-1 text-sm text-slate-600">
-              Choose practice and contact person to send this scoped onboarding.
-            </p>
-
-            <div className="mt-4 space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Practice *
-                </label>
-                <select
-                  value={selectedPracticeId}
-                  onChange={(event) => {
-                    setSelectedPracticeId(event.target.value);
-                    setSelectedPersonId("");
-                  }}
-                  disabled={isLoadingSignedPractices}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  <option value="">
-                    {isLoadingSignedPractices
-                      ? "Loading practices..."
-                      : "Select practice"}
-                  </option>
-                  {availableScopePractices.map((practice) => (
-                    <option key={practice.id} value={practice.id}>
-                      {practice.name}
-                    </option>
-                  ))}
-                </select>
-                {!isLoadingSignedPractices &&
-                !availableScopePractices.length ? (
-                  <p className="mt-2 text-xs text-amber-700">
-                    No practices found with a signed agreement.
-                  </p>
-                ) : null}
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Practice person *
-                </label>
-                <select
-                  value={selectedPersonId}
-                  onChange={(event) => setSelectedPersonId(event.target.value)}
-                  disabled={!selectedPracticeId}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
-                >
-                  <option value="">Select person</option>
-                  {eligiblePracticePersons.map((person) => (
-                    <option key={person.id} value={person.id}>
-                      {[person.firstName, person.lastName]
-                        .filter(Boolean)
-                        .join(" ") ||
-                        person.email ||
-                        "Contact"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedPracticeId && !eligiblePracticePersons.length ? (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                  No ADMIN or OWNER person is linked to this practice. Add an
-                  eligible contact first, then send onboarding.
-                </p>
-              ) : null}
-
-              {selectedPracticeId ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsPracticeModalOpen(false);
-                    navigate("/people/all-peoples");
-                  }}
-                  className="text-sm font-medium text-slate-600 underline underline-offset-2 hover:text-slate-900"
-                >
-                  Manage / Add Contact
-                </button>
-              ) : null}
-
-              <p className="text-xs text-slate-500">
-                On send, onboarding is created/updated in draft and link is
-                copied to clipboard.
-              </p>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setIsPracticeModalOpen(false)}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSendToPracticePerson()}
-                disabled={isSending}
-                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-70"
-              >
-                {isSending ? "Sending..." : "Send Onboarding"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </AppLayout>
   );
 }
