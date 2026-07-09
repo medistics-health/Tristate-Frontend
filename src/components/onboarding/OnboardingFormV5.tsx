@@ -271,6 +271,12 @@ const genderOptions: Option[] = [
   { label: "Other", value: "OTHER" },
 ];
 
+const caqhExemptProviderTypes = [
+  "BEHAVIORAL_HEALTH_PROVIDER",
+  "CARE_MANAGER",
+  "OTHER",
+];
+
 const independentBillingProviderTypes = [
   "PHYSICIAN",
   "NURSE_PRACTITIONER",
@@ -1986,7 +1992,9 @@ export default function OnboardingFormV5() {
     const caqhUsername = provider.caqhUsername?.trim() ?? "";
     const caqhPassword = provider.caqhPassword?.trim() ?? "";
     const validSsnLastFour = /^\d{4}$/.test(ssnLastFour);
-    const requiresCaqhCredentials = credentialingRequested;
+    const isCaqhExempt = caqhExemptProviderTypes.includes(providerType);
+    const requiresCaqhCredentials =
+      credentialingRequested && !isCaqhExempt;
     const hasBoardCertificationFile = !!(
       provider.copyOfBoardCertification?.trim() ?? ""
     );
@@ -4805,7 +4813,12 @@ export default function OnboardingFormV5() {
                                   {scopeRequestedServices.includes(
                                     "CREDENTIALING",
                                   ) ? (
-                                    <Field label="CAQH ID" required>
+                                    <Field
+                                      label="CAQH ID"
+                                      required={!caqhExemptProviderTypes.includes(
+                                        provider.providerType ?? "",
+                                      )}
+                                    >
                                       <TextInput
                                         value={provider.caqhId ?? ""}
                                         onChange={(event) =>
@@ -4949,7 +4962,12 @@ export default function OnboardingFormV5() {
                                   {scopeRequestedServices.includes(
                                     "CREDENTIALING",
                                   ) ? (
-                                    <Field label="CAQH Username" required>
+                                    <Field
+                                      label="CAQH Username"
+                                      required={!caqhExemptProviderTypes.includes(
+                                        provider.providerType ?? "",
+                                      )}
+                                    >
                                       <TextInput
                                         value={provider.caqhUsername ?? ""}
                                         onChange={(event) =>
@@ -4967,7 +4985,11 @@ export default function OnboardingFormV5() {
                                   {scopeRequestedServices.includes(
                                     "CREDENTIALING",
                                   ) ? (
-                                    <Field label="CAQH Password" required>
+                                    <Field
+                                      label="CAQH Password"
+                                      required={!caqhExemptProviderTypes.includes(
+                                        provider.providerType ?? "",
+                                      )}>
                                       <TextInput
                                         type="password"
                                         value={provider.caqhPassword ?? ""}
