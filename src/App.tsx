@@ -44,6 +44,8 @@ import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
 import AdminOnboardingReview from "./components/onboarding/AdminOnboardingReview";
+import AllScopeOnboardings from "./components/onboarding/Scope/AllScopeOnboardings";
+import Scope from "./components/onboarding/Scope/Scope";
 import MonthlyReportingDashboard from "./components/monthly-reporting/MonthlyReportingDashboard";
 import SubmitMonthlyReport from "./components/monthly-reporting/SubmitMonthlyReport";
 import PricingEnginePage from "./components/pricing-terms/PricingEngine";
@@ -55,7 +57,7 @@ import ClientPortalDashboard from "./components/portal/ClientPortalDashboard";
 import SettingsPage from "./components/settings/Settings";
 import CreateLeadPage from "./components/leads/CreateLead";
 import type { JSX, ReactNode } from "react";
-import OnboardingFormV4 from "./components/onboarding/OnboardingFormV4";
+import OnboardingFormV5 from "./components/onboarding/OnboardingFormV5";
 import { BUSINESS_WRITE_ROLES, MODULE_ACCESS } from "./utils/auth";
 import CredentialingDashboardPage from "./components/credentialing/CredentialingDashboard";
 import CredentialingListPage from "./components/credentialing/CredentialingList";
@@ -67,12 +69,7 @@ function App() {
   }: {
     children: ReactNode;
     allowedRoles: readonly (
-      | "ADMIN"
-      | "SALES"
-      | "ACCOUNTMANAGER"
-      | "OPERATIONS"
-      | "FINANCE"
-      | "VIEWER"
+      "ADMIN" | "SALES" | "ACCOUNTMANAGER" | "OPERATIONS" | "FINANCE" | "VIEWER"
     )[];
   }) {
     return (
@@ -128,7 +125,7 @@ function App() {
         element={
           <UUIDProtectedRoute>
             {/*<OnboardingForm />*/}
-            <OnboardingFormV4 />
+            <OnboardingFormV5 />
           </UUIDProtectedRoute>
         }
       />
@@ -138,6 +135,24 @@ function App() {
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AdminOnboardingReview />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding/scope"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <Scope />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding/scope-list"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <AllScopeOnboardings />
           </ModuleRoute>
         }
       />
@@ -558,7 +573,7 @@ function App() {
         }
       />
       <Route
-        path="/person/all-persons"
+        path="/people/all-peoples"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <PersonsPage />

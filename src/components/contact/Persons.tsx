@@ -1091,28 +1091,28 @@ export default function PersonsPage() {
                       status: string;
                       updatedAt: string;
                     }) => (
-                    <div
-                      key={document.id}
-                      className="flex items-start justify-between gap-3 rounded px-2 py-2 hover:bg-[#f7f5f1]"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-medium text-slate-700 break-words">
-                          {document.label}
-                        </span>
-                        <span className="text-[11px] text-slate-500">
-                          {document.status} •{" "}
-                          {new Date(document.updatedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <a
-                        href={document.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 whitespace-nowrap text-[11px] text-blue-600 hover:underline"
+                      <div
+                        key={document.id}
+                        className="flex items-start justify-between gap-3 rounded px-2 py-2 hover:bg-[#f7f5f1]"
                       >
-                        View PDF
-                      </a>
-                    </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-[13px] font-medium text-slate-700 break-words">
+                            {document.label}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {document.status} •{" "}
+                            {new Date(document.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <a
+                          href={document.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 whitespace-nowrap text-[11px] text-blue-600 hover:underline"
+                        >
+                          View PDF
+                        </a>
+                      </div>
                     ),
                   )}
               </div>
@@ -1147,7 +1147,7 @@ export default function PersonsPage() {
   if (isLoading) {
     return (
       <AppLayout
-        title="Persons"
+        title="Peoples"
         activeModule="Persons"
         activeSubItem="All Persons"
       >
@@ -1161,7 +1161,7 @@ export default function PersonsPage() {
   if (error && rows.length === 0) {
     return (
       <AppLayout
-        title="Persons"
+        title="Peoples"
         activeModule="Persons"
         activeSubItem="All Persons"
       >
@@ -1181,11 +1181,13 @@ export default function PersonsPage() {
 
   return (
     <AppLayout
-      title="Persons"
+      title="Peoples"
       activeModule="Persons"
       activeSubItem="All Persons"
       navbarIcon={<UserCircle className="h-4 w-4 text-slate-500" />}
-      navbarActions={canWritePersons ? getStandardNavbarActions(openCreateForm) : []}
+      navbarActions={
+        canWritePersons ? getStandardNavbarActions(openCreateForm) : []
+      }
     >
       <div className="flex h-full gap-2">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
@@ -1194,7 +1196,7 @@ export default function PersonsPage() {
               <LayoutGrid className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
               {/*<ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />*/}
               <div className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none">
-                All Persons
+                All Peoples
               </div>
               {/*<select
                 value={viewId}

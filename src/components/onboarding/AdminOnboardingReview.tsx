@@ -329,11 +329,20 @@ const providerAdditionalFieldConfigs: Array<{
   { label: "Practice Email", key: "practiceEmail" },
   { label: "Medicare PTAN (Individual)", key: "medicarePtanIndividual" },
   { label: "Medicaid ID (Individual)", key: "medicaidIdIndividual" },
-  { label: "IPA Affiliations (Provider Level)", key: "ipaAffiliationsProviderLevel" },
+  {
+    label: "IPA Affiliations (Provider Level)",
+    key: "ipaAffiliationsProviderLevel",
+  },
   { label: "NPPES Username", key: "nppesUsername" },
   { label: "NPPES Password", key: "nppesPassword" },
-  { label: "Railroad Medicare (Individual)", key: "railroadMedicareIndividual" },
-  { label: "Provider Effective Date with the Group", key: "providerEffectiveDateWithGroup" },
+  {
+    label: "Railroad Medicare (Individual)",
+    key: "railroadMedicareIndividual",
+  },
+  {
+    label: "Provider Effective Date with the Group",
+    key: "providerEffectiveDateWithGroup",
+  },
   { label: "Country of Birth", key: "countryOfBirth" },
   { label: "State/Place of Birth", key: "statePlaceOfBirth" },
   { label: "Home Address", key: "homeAddress" },
@@ -437,8 +446,7 @@ export default function AdminOnboardingReview() {
     Record<string, string>
   >({});
   const [showEmptyFields, setShowEmptyFields] = useState(true);
-  const [openedTargetOnboardingId, setOpenedTargetOnboardingId] =
-    useState("");
+  const [openedTargetOnboardingId, setOpenedTargetOnboardingId] = useState("");
 
   const parseNumericInput = (value: string) =>
     value.trim() === "" ? undefined : Number(value);
@@ -480,7 +488,9 @@ export default function AdminOnboardingReview() {
         label: config.label,
         url: source[config.key],
       }))
-      .filter((entry) => typeof entry.url === "string" && entry.url.trim() !== "")
+      .filter(
+        (entry) => typeof entry.url === "string" && entry.url.trim() !== "",
+      )
       .map((entry) => ({ ...entry, url: entry.url as string }));
   };
 
@@ -496,7 +506,10 @@ export default function AdminOnboardingReview() {
       if (filters.status) params.status = filters.status;
 
       const response = await getOnboardings(params);
-      const onboardings = response.onboardings || [];
+      const filtering = response.onboardings.filter(
+        (init: any) => init.status !== "DRAFT",
+      );
+      const onboardings = filtering || [];
       const practiceIds = Array.from(
         new Set(
           onboardings
@@ -525,8 +538,9 @@ export default function AdminOnboardingReview() {
               .filter(
                 (
                   result,
-                ): result is PromiseFulfilledResult<readonly [string, string]> =>
-                  result.status === "fulfilled",
+                ): result is PromiseFulfilledResult<
+                  readonly [string, string]
+                > => result.status === "fulfilled",
               )
               .map((result) => result.value),
           ),
@@ -534,26 +548,24 @@ export default function AdminOnboardingReview() {
         setPracticeNamesById(nextPracticeNamesById);
       }
 
-      const mappedRows: OnboardingRow[] = onboardings.map(
-        (ob: Onboarding) => ({
-          id: ob.id,
-          practiceName:
-            (ob.practiceId && nextPracticeNamesById[ob.practiceId]) ||
-            ob.practices?.[0]?.practiceName ||
-            "N/A",
-          submittedBy: ob.submittedByName || "Unknown",
-          type: ob.onboardingType || "N/A",
-          status: ob.status || "DRAFT",
-          priority: ob.priorityLevel || "MEDIUM",
-          services: ob.requestedServices || [],
-          submissionDate: ob.submissionDate
-            ? new Date(ob.submissionDate).toLocaleDateString()
-            : "N/A",
-          contacts: ob.contacts?.length || 0,
-          practices: ob.practices?.length || 0,
-          original: ob,
-        }),
-      );
+      const mappedRows: OnboardingRow[] = onboardings.map((ob: Onboarding) => ({
+        id: ob.id,
+        practiceName:
+          (ob.practiceId && nextPracticeNamesById[ob.practiceId]) ||
+          ob.practices?.[0]?.practiceName ||
+          "N/A",
+        submittedBy: ob.submittedByName || "Unknown",
+        type: ob.onboardingType || "N/A",
+        status: ob.status || "DRAFT",
+        priority: ob.priorityLevel || "MEDIUM",
+        services: ob.requestedServices || [],
+        submissionDate: ob.submissionDate
+          ? new Date(ob.submissionDate).toLocaleDateString()
+          : "N/A",
+        contacts: ob.contacts?.length || 0,
+        practices: ob.practices?.length || 0,
+        original: ob,
+      }));
       setRows(mappedRows);
       setPagination((prev) => ({
         ...prev,
@@ -574,35 +586,32 @@ export default function AdminOnboardingReview() {
     loadData();
   }, [pagination.page, filters.status, filters.search]);
 
-  const selectedRow = useMemo(
-    () => {
-      const row = rows.find((item) => item.id === selectedRowId);
-      if (row || !selectedOnboarding || selectedOnboarding.id !== selectedRowId) {
-        return row || null;
-      }
+  const selectedRow = useMemo(() => {
+    const row = rows.find((item) => item.id === selectedRowId);
+    if (row || !selectedOnboarding || selectedOnboarding.id !== selectedRowId) {
+      return row || null;
+    }
 
-      return {
-        id: selectedOnboarding.id,
-        practiceName:
-          (selectedOnboarding.practiceId &&
-            practiceNamesById[selectedOnboarding.practiceId]) ||
-          selectedOnboarding.practices?.[0]?.practiceName ||
-          "N/A",
-        submittedBy: selectedOnboarding.submittedByName || "Unknown",
-        type: selectedOnboarding.onboardingType || "N/A",
-        status: selectedOnboarding.status || "DRAFT",
-        priority: selectedOnboarding.priorityLevel || "MEDIUM",
-        services: selectedOnboarding.requestedServices || [],
-        submissionDate: selectedOnboarding.submissionDate
-          ? new Date(selectedOnboarding.submissionDate).toLocaleDateString()
-          : "N/A",
-        contacts: selectedOnboarding.contacts?.length || 0,
-        practices: selectedOnboarding.practices?.length || 0,
-        original: selectedOnboarding,
-      };
-    },
-    [practiceNamesById, rows, selectedOnboarding, selectedRowId],
-  );
+    return {
+      id: selectedOnboarding.id,
+      practiceName:
+        (selectedOnboarding.practiceId &&
+          practiceNamesById[selectedOnboarding.practiceId]) ||
+        selectedOnboarding.practices?.[0]?.practiceName ||
+        "N/A",
+      submittedBy: selectedOnboarding.submittedByName || "Unknown",
+      type: selectedOnboarding.onboardingType || "N/A",
+      status: selectedOnboarding.status || "DRAFT",
+      priority: selectedOnboarding.priorityLevel || "MEDIUM",
+      services: selectedOnboarding.requestedServices || [],
+      submissionDate: selectedOnboarding.submissionDate
+        ? new Date(selectedOnboarding.submissionDate).toLocaleDateString()
+        : "N/A",
+      contacts: selectedOnboarding.contacts?.length || 0,
+      practices: selectedOnboarding.practices?.length || 0,
+      original: selectedOnboarding,
+    };
+  }, [practiceNamesById, rows, selectedOnboarding, selectedRowId]);
   const canonicalSelectedOnboarding =
     selectedOnboarding ?? selectedRow?.original ?? null;
   const detailData = canonicalSelectedOnboarding;
@@ -753,7 +762,10 @@ export default function AdminOnboardingReview() {
   };
 
   useEffect(() => {
-    if (!targetOnboardingId || openedTargetOnboardingId === targetOnboardingId) {
+    if (
+      !targetOnboardingId ||
+      openedTargetOnboardingId === targetOnboardingId
+    ) {
       return;
     }
 
@@ -901,7 +913,8 @@ export default function AdminOnboardingReview() {
                 ...r,
                 status: updated.status || r.status,
                 practiceName:
-                  (updated.practiceId && practiceNamesById[updated.practiceId]) ||
+                  (updated.practiceId &&
+                    practiceNamesById[updated.practiceId]) ||
                   updated.practices?.[0]?.practiceName ||
                   r.practiceName,
                 original: updated,
@@ -1017,9 +1030,7 @@ export default function AdminOnboardingReview() {
       "servicesForAllPractices",
       "replacingExistingVendor",
     ]);
-    const lockedNestedFields = new Set([
-      "credentialing.credentialingNeeded",
-    ]);
+    const lockedNestedFields = new Set(["credentialing.credentialingNeeded"]);
     const completedSectionCount = [
       reviewingData.legalCompanyName || reviewingData.dbaName,
       reviewingData.contacts?.length,
@@ -2137,7 +2148,10 @@ export default function AdminOnboardingReview() {
                           "Operational Pain Points",
                           practice.operationalPainPoints,
                         )}
-                        {renderDetailField("Additional Notes", practice.additionalNotes)}
+                        {renderDetailField(
+                          "Additional Notes",
+                          practice.additionalNotes,
+                        )}
                       </div>
 
                       {getFilledFieldEntries(
@@ -2179,63 +2193,68 @@ export default function AdminOnboardingReview() {
                             Location Details
                           </p>
                           <div className="grid gap-4">
-                            {practice.locations.map((location, locationIndex) => (
-                              <div
-                                key={location.id || locationIndex}
-                                className="rounded-2xl border border-slate-200 bg-white p-5"
-                              >
-                                <div className="mb-3 flex items-center justify-between gap-3">
-                                  <h5 className="text-[13px] font-bold text-slate-700">
-                                    {location.locationName ||
-                                      `Location ${locationIndex + 1}`}
-                                  </h5>
-                                  {location.isPrimaryLocation && (
-                                    <span className="rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-indigo-700">
-                                      Primary
-                                    </span>
-                                  )}
+                            {practice.locations.map(
+                              (location, locationIndex) => (
+                                <div
+                                  key={location.id || locationIndex}
+                                  className="rounded-2xl border border-slate-200 bg-white p-5"
+                                >
+                                  <div className="mb-3 flex items-center justify-between gap-3">
+                                    <h5 className="text-[13px] font-bold text-slate-700">
+                                      {location.locationName ||
+                                        `Location ${locationIndex + 1}`}
+                                    </h5>
+                                    {location.isPrimaryLocation && (
+                                      <span className="rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-indigo-700">
+                                        Primary
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                    {[
+                                      [
+                                        "Address",
+                                        `${location.addressLine1 || ""} ${location.addressLine2 || ""}`.trim(),
+                                      ],
+                                      ["City", location.city],
+                                      ["State", location.state],
+                                      ["ZIP", location.zipCode],
+                                      ["Phone", location.mainPhoneNumber],
+                                      ["Fax", location.mainFaxNumber],
+                                      ["Email", location.officeEmail],
+                                      ["Hours", location.hoursOfOperation],
+                                      [
+                                        "Office Manager",
+                                        location.officeManagerName,
+                                      ],
+                                      [
+                                        "Patient Outreach Managed",
+                                        location.patientOutreachManaged,
+                                      ],
+                                      [
+                                        "Billing Managed",
+                                        location.billingManaged,
+                                      ],
+                                      ["Notes", location.notes],
+                                    ].map(([label, value]) =>
+                                      hasValue(value) ? (
+                                        <div
+                                          key={label}
+                                          className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2"
+                                        >
+                                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                            {label}
+                                          </p>
+                                          <p className="mt-1 break-words text-[12px] text-slate-700">
+                                            {value}
+                                          </p>
+                                        </div>
+                                      ) : null,
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                                  {[
-                                    [
-                                      "Address",
-                                      `${location.addressLine1 || ""} ${location.addressLine2 || ""}`.trim(),
-                                    ],
-                                    ["City", location.city],
-                                    ["State", location.state],
-                                    ["ZIP", location.zipCode],
-                                    ["Phone", location.mainPhoneNumber],
-                                    ["Fax", location.mainFaxNumber],
-                                    ["Email", location.officeEmail],
-                                    ["Hours", location.hoursOfOperation],
-                                    [
-                                      "Office Manager",
-                                      location.officeManagerName,
-                                    ],
-                                    [
-                                      "Patient Outreach Managed",
-                                      location.patientOutreachManaged,
-                                    ],
-                                    ["Billing Managed", location.billingManaged],
-                                    ["Notes", location.notes],
-                                  ].map(([label, value]) =>
-                                    hasValue(value) ? (
-                                      <div
-                                        key={label}
-                                        className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2"
-                                      >
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                          {label}
-                                        </p>
-                                        <p className="mt-1 break-words text-[12px] text-slate-700">
-                                          {value}
-                                        </p>
-                                      </div>
-                                    ) : null,
-                                  )}
-                                </div>
-                              </div>
-                            ))}
+                              ),
+                            )}
                           </div>
                         </div>
                       )}
@@ -2246,83 +2265,92 @@ export default function AdminOnboardingReview() {
                             Provider Details
                           </p>
                           <div className="grid gap-4">
-                            {practice.providers.map((provider, providerIndex) => {
-                              const filledProviderFields = getFilledFieldEntries(
-                                provider,
-                                providerAdditionalFieldConfigs,
-                              );
-                              const uploadedProviderDocs =
-                                getUploadedDocumentEntries(
-                                  provider,
-                                  providerDocumentFieldConfigs,
-                                );
+                            {practice.providers.map(
+                              (provider, providerIndex) => {
+                                const filledProviderFields =
+                                  getFilledFieldEntries(
+                                    provider,
+                                    providerAdditionalFieldConfigs,
+                                  );
+                                const uploadedProviderDocs =
+                                  getUploadedDocumentEntries(
+                                    provider,
+                                    providerDocumentFieldConfigs,
+                                  );
 
-                              return (
-                                <div
-                                  key={provider.id || providerIndex}
-                                  className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4"
-                                >
-                                  <div className="flex items-center justify-between gap-3">
-                                    <h5 className="text-[13px] font-bold text-slate-700">
-                                      {provider.fullName ||
-                                        `${provider.firstName || ""} ${provider.lastName || ""}`.trim() ||
-                                        `Provider ${providerIndex + 1}`}
-                                    </h5>
-                                    <span className="text-[11px] font-medium text-slate-400">
-                                      {provider.specialty || provider.primarySpecialty || "No specialty"}
-                                    </span>
-                                  </div>
-
-                                  {filledProviderFields.length > 0 && (
-                                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                                      {filledProviderFields.map((entry) => (
-                                        <div
-                                          key={entry.label}
-                                          className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3"
-                                        >
-                                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                            {entry.label}
-                                          </p>
-                                          <p className="mt-1 text-[13px] text-slate-700 break-words">
-                                            {typeof entry.value === "boolean"
-                                              ? entry.value
-                                                ? "Yes"
-                                                : "No"
-                                              : String(entry.value)}
-                                          </p>
-                                        </div>
-                                      ))}
+                                return (
+                                  <div
+                                    key={provider.id || providerIndex}
+                                    className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4"
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <h5 className="text-[13px] font-bold text-slate-700">
+                                        {provider.fullName ||
+                                          `${provider.firstName || ""} ${provider.lastName || ""}`.trim() ||
+                                          `Provider ${providerIndex + 1}`}
+                                      </h5>
+                                      <span className="text-[11px] font-medium text-slate-400">
+                                        {provider.specialty ||
+                                          provider.primarySpecialty ||
+                                          "No specialty"}
+                                      </span>
                                     </div>
-                                  )}
 
-                                  {uploadedProviderDocs.length > 0 && (
-                                    <div className="space-y-2">
-                                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                        Uploaded Documents
-                                      </p>
-                                      <div className="grid gap-3 md:grid-cols-2">
-                                        {uploadedProviderDocs.map((document) => (
-                                          <a
-                                            key={document.label}
-                                            href={document.url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-[13px] text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50/60"
+                                    {filledProviderFields.length > 0 && (
+                                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                        {filledProviderFields.map((entry) => (
+                                          <div
+                                            key={entry.label}
+                                            className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3"
                                           >
                                             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                              {document.label}
+                                              {entry.label}
                                             </p>
-                                            <p className="mt-1 break-all text-indigo-600">
-                                              {getUploadedFileName(document.url)}
+                                            <p className="mt-1 text-[13px] text-slate-700 break-words">
+                                              {typeof entry.value === "boolean"
+                                                ? entry.value
+                                                  ? "Yes"
+                                                  : "No"
+                                                : String(entry.value)}
                                             </p>
-                                          </a>
+                                          </div>
                                         ))}
                                       </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                    )}
+
+                                    {uploadedProviderDocs.length > 0 && (
+                                      <div className="space-y-2">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                          Uploaded Documents
+                                        </p>
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                          {uploadedProviderDocs.map(
+                                            (document) => (
+                                              <a
+                                                key={document.label}
+                                                href={document.url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-[13px] text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50/60"
+                                              >
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                  {document.label}
+                                                </p>
+                                                <p className="mt-1 break-all text-indigo-600">
+                                                  {getUploadedFileName(
+                                                    document.url,
+                                                  )}
+                                                </p>
+                                              </a>
+                                            ),
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              },
+                            )}
                           </div>
                         </div>
                       )}
@@ -2533,92 +2561,103 @@ export default function AdminOnboardingReview() {
             {reviewStep === 5 && (
               <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 {hasCareProgramsSelected && (
-                <section>
-                  <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                      <Plus className="h-4.5 w-4.5" />
+                  <section>
+                    <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                        <Plus className="h-4.5 w-4.5" />
+                      </div>
+                      Care Programs & Outreach
+                    </h3>
+                    <div className="grid gap-6 md:grid-cols-2">
+                      {renderNestedMultiSelect(
+                        "careProgram",
+                        "Programs Planned",
+                        "programsPlanned",
+                        [
+                          { label: "APCM", value: "APCM" },
+                          { label: "CCM", value: "CCM" },
+                          { label: "RPM", value: "RPM" },
+                        ],
+                      )}
+                      {renderNestedField(
+                        "careProgram",
+                        "Eligible Patients",
+                        "estimatedEligiblePatients",
+                        "number",
+                      )}
+                      {renderNestedField(
+                        "careProgram",
+                        "Current Enrolled",
+                        "currentEnrolledPatients",
+                        "number",
+                      )}
+                      {renderNestedField(
+                        "careProgram",
+                        "Minutes Tracker",
+                        "patientMinutesTracker",
+                        "select",
+                        minutesTrackerOptions,
+                      )}
+                      {renderNestedField(
+                        "careProgram",
+                        "Enrollment Handler",
+                        "patientEnrollmentHandler",
+                        "select",
+                        [
+                          { label: "Practice Staff", value: "PRACTICE_STAFF" },
+                          { label: "Vendor", value: "VENDOR" },
+                          { label: "Provider", value: "PROVIDER" },
+                          {
+                            label: "Nobody Currently",
+                            value: "NOBODY_CURRENTLY",
+                          },
+                          { label: "Other", value: "OTHER" },
+                        ],
+                      )}
+                      {renderNestedField(
+                        "careProgram",
+                        "Monthly Follow-up Handler",
+                        "monthlyFollowUpHandler",
+                        "select",
+                        [
+                          { label: "Practice Staff", value: "PRACTICE_STAFF" },
+                          { label: "Vendor", value: "VENDOR" },
+                          { label: "Provider", value: "PROVIDER" },
+                          {
+                            label: "Nobody Currently",
+                            value: "NOBODY_CURRENTLY",
+                          },
+                          { label: "Other", value: "OTHER" },
+                        ],
+                      )}
+                      {renderNestedField(
+                        "careProgram",
+                        "Consent Forms In Place",
+                        "consentFormsInPlace",
+                        "select",
+                        [
+                          { label: "Yes", value: "true" },
+                          { label: "No", value: "false" },
+                        ],
+                      )}
+                      {renderNestedField(
+                        "careProgram",
+                        "Existing Care Plan Workflow",
+                        "existingCarePlanWorkflow",
+                        "select",
+                        [
+                          { label: "Yes", value: "true" },
+                          { label: "No", value: "false" },
+                        ],
+                      )}
+                      {renderNestedField(
+                        "careProgram",
+                        "Compliance Concerns",
+                        "complianceConcerns",
+                        "textarea",
+                      )}
                     </div>
-                    Care Programs & Outreach
-                  </h3>
-                  <div className="grid gap-6 md:grid-cols-2">
-                    {renderNestedMultiSelect("careProgram", "Programs Planned", "programsPlanned", [
-                      { label: "APCM", value: "APCM" },
-                      { label: "CCM", value: "CCM" },
-                      { label: "RPM", value: "RPM" },
-                    ])}
-                    {renderNestedField(
-                      "careProgram",
-                      "Eligible Patients",
-                      "estimatedEligiblePatients",
-                      "number",
-                    )}
-                    {renderNestedField(
-                      "careProgram",
-                      "Current Enrolled",
-                      "currentEnrolledPatients",
-                      "number",
-                    )}
-                    {renderNestedField(
-                      "careProgram",
-                      "Minutes Tracker",
-                      "patientMinutesTracker",
-                      "select",
-                      minutesTrackerOptions,
-                    )}
-                    {renderNestedField(
-                      "careProgram",
-                      "Enrollment Handler",
-                      "patientEnrollmentHandler",
-                      "select",
-                      [
-                        { label: "Practice Staff", value: "PRACTICE_STAFF" },
-                        { label: "Vendor", value: "VENDOR" },
-                        { label: "Provider", value: "PROVIDER" },
-                        { label: "Nobody Currently", value: "NOBODY_CURRENTLY" },
-                        { label: "Other", value: "OTHER" },
-                      ],
-                    )}
-                    {renderNestedField(
-                      "careProgram",
-                      "Monthly Follow-up Handler",
-                      "monthlyFollowUpHandler",
-                      "select",
-                      [
-                        { label: "Practice Staff", value: "PRACTICE_STAFF" },
-                        { label: "Vendor", value: "VENDOR" },
-                        { label: "Provider", value: "PROVIDER" },
-                        { label: "Nobody Currently", value: "NOBODY_CURRENTLY" },
-                        { label: "Other", value: "OTHER" },
-                      ],
-                    )}
-                    {renderNestedField(
-                      "careProgram",
-                      "Consent Forms In Place",
-                      "consentFormsInPlace",
-                      "select",
-                      [
-                        { label: "Yes", value: "true" },
-                        { label: "No", value: "false" },
-                      ],
-                    )}
-                    {renderNestedField(
-                      "careProgram",
-                      "Existing Care Plan Workflow",
-                      "existingCarePlanWorkflow",
-                      "select",
-                      [
-                        { label: "Yes", value: "true" },
-                        { label: "No", value: "false" },
-                      ],
-                    )}
-                    {renderNestedField(
-                      "careProgram",
-                      "Compliance Concerns",
-                      "complianceConcerns",
-                      "textarea",
-                    )}
-                  </div>
-                </section>
+                  </section>
                 )}
                 <section>
                   <h3 className="mb-6 text-[15px] font-bold text-slate-800 flex items-center gap-3">
@@ -3097,12 +3136,12 @@ export default function AdminOnboardingReview() {
                         ],
                       )}
                     {hasMarketingSelected &&
-                    renderNestedField(
-                      "marketing",
-                      "Patient Acquisition Goals",
-                      "patientAcquisitionGoals",
-                      "textarea",
-                    )}
+                      renderNestedField(
+                        "marketing",
+                        "Patient Acquisition Goals",
+                        "patientAcquisitionGoals",
+                        "textarea",
+                      )}
                     {hasMarketingSelected &&
                       renderNestedField(
                         "marketing",
@@ -3265,7 +3304,9 @@ export default function AdminOnboardingReview() {
                           <XCircle className="h-6 w-6" />
                         </div>
                         <div className="text-left">
-                          <p className="font-bold text-[15px]">Reject / Cancel</p>
+                          <p className="font-bold text-[15px]">
+                            Reject / Cancel
+                          </p>
                           <p className="text-[12px] opacity-70">
                             Stops the onboarding and marks it as cancelled.
                           </p>
@@ -3434,10 +3475,7 @@ export default function AdminOnboardingReview() {
           {renderDetailArray("Requested Services", ob.requestedServices)}
           {renderDetailField("Primary Service", ob.primaryServiceToLaunch)}
           {renderDetailField("Priority", ob.priorityLevel)}
-          {renderDetailField(
-            "Go-Live Date",
-            ob.requestedGoLiveDate,
-          )}
+          {renderDetailField("Go-Live Date", ob.requestedGoLiveDate)}
           {renderDetailField("Services For", ob.servicesForAllPractices)}
           {(ob.servicesForAllPractices === "SELECTED_PRACTICES" ||
             ob.servicesForAllPractices === "SINGLE_PRACTICE_ONLY") &&
@@ -3475,10 +3513,7 @@ export default function AdminOnboardingReview() {
         <div className="space-y-2">
           {renderDetailField("Submitted By", ob.submittedByName)}
           {renderDetailField("Title", ob.submittedByTitle)}
-          {renderDetailField(
-            "Date",
-            ob.submissionDate,
-          )}
+          {renderDetailField("Date", ob.submissionDate)}
           {renderDetailField("Type", ob.onboardingType)}
         </div>
         <div className="mt-2 flex gap-2">
@@ -3688,10 +3723,7 @@ export default function AdminOnboardingReview() {
                                 ? "Yes"
                                 : "No"
                               : (entry.value as
-                                  | string
-                                  | number
-                                  | undefined
-                                  | null),
+                                  string | number | undefined | null),
                           ),
                         )}
                       </div>
@@ -3749,8 +3781,8 @@ export default function AdminOnboardingReview() {
         {renderDetailField("Reporting Cadence", b.preferredReportingCadence)}
         {renderDetailArray("Billed Services", b.currentlyBilledServices)}
         {renderDetailArray("Pain Points", b.billingPainPoints)}
-        {getUploadedDocumentEntries(b, billingDocumentFieldConfigs).map((entry) =>
-          renderDetailLinkField(entry.label, entry.url),
+        {getUploadedDocumentEntries(b, billingDocumentFieldConfigs).map(
+          (entry) => renderDetailLinkField(entry.label, entry.url),
         )}
         {renderDetailField("Notes", b.additionalNotes)}
       </div>
@@ -3790,10 +3822,9 @@ export default function AdminOnboardingReview() {
           c.designatedPortalContactPhone,
         )}
         {renderDetailField("Desired Insurance Plans", c.desiredInsurancePlans)}
-        {getUploadedDocumentEntries(
-          c,
-          credentialingDocumentFieldConfigs,
-        ).map((entry) => renderDetailLinkField(entry.label, entry.url))}
+        {getUploadedDocumentEntries(c, credentialingDocumentFieldConfigs).map(
+          (entry) => renderDetailLinkField(entry.label, entry.url),
+        )}
         {renderDetailField("Notes", c.additionalNotes)}
       </div>
     );
@@ -4188,33 +4219,44 @@ export default function AdminOnboardingReview() {
                 ))}
               </thead>
               <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    onClick={() => handleRowClick(row.original.id)}
-                    className={`cursor-pointer ${
-                      selectedRowId === row.original.id
-                        ? "bg-[#fcfbf9]"
-                        : "bg-white hover:bg-[#faf9f7]"
-                    }`}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </td>
-                    ))}
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-20 text-center">
+                      <div className="flex items-center justify-center gap-2 text-slate-400">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                        <span className="text-[13px]">Loading...</span>
+                      </div>
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => handleRowClick(row.original.id)}
+                      className={`cursor-pointer ${
+                        selectedRowId === row.original.id
+                          ? "bg-[#fcfbf9]"
+                          : "bg-white hover:bg-[#faf9f7]"
+                      }`}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td
+                          key={cell.id}
+                          className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
 
-            {rows.length === 0 && !isLoading && (
+            {!isLoading && rows.length === 0 && (
               <div className="relative flex min-h-[520px] items-center justify-center">
                 <div className="flex max-w-md flex-col items-center px-6 text-center">
                   <EmptyStateIllustration />
@@ -4348,11 +4390,13 @@ export default function AdminOnboardingReview() {
                     type="button"
                     disabled={
                       isUpdating ||
-                      (detailData?.status ?? selectedRow.status) === "IN_PROGRESS"
+                      (detailData?.status ?? selectedRow.status) ===
+                        "IN_PROGRESS"
                     }
                     onClick={() => handleStatusUpdate("IN_PROGRESS")}
                     className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition ${
-                      (detailData?.status ?? selectedRow.status) === "IN_PROGRESS"
+                      (detailData?.status ?? selectedRow.status) ===
+                      "IN_PROGRESS"
                         ? "bg-blue-100 text-blue-700"
                         : "border border-[#ece8e1] text-blue-600 hover:bg-blue-50"
                     } disabled:opacity-40`}

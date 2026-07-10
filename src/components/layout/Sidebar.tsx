@@ -63,9 +63,21 @@ const sidebarSteps: SidebarItem[] = [
   //   to: "/portal",
   //   requiredRoles: [...MODULE_ACCESS.DASHBOARD],
   // },
-  { label: "Lead", to: "/lead/create", requiredRoles: [...BUSINESS_WRITE_ROLES] },
-  { label: "Deal", to: "/deal/all-deals", requiredRoles: [...MODULE_ACCESS.CRM] },
-  { label: "Person", to: "/person/all-persons", requiredRoles: [...MODULE_ACCESS.CRM] },
+  {
+    label: "Lead",
+    to: "/lead/create",
+    requiredRoles: [...BUSINESS_WRITE_ROLES],
+  },
+  {
+    label: "Deal",
+    to: "/deal/all-deals",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+  },
+  {
+    label: "People",
+    to: "/people/all-peoples",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+  },
   {
     label: "Company",
     to: "/company/all-companies",
@@ -75,7 +87,7 @@ const sidebarSteps: SidebarItem[] = [
     label: "Practices",
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
-      { label: "All Practice", to: "/practice/all-practices" },
+      { label: "All Practices", to: "/practice/all-practices" },
       { label: "Pipeline Board", to: "/practice/pipeline" },
       { label: "Active Practices", to: "/practice/active-practice" },
       { label: "Prospects", to: "/practice/prospects" },
@@ -104,7 +116,11 @@ const sidebarSteps: SidebarItem[] = [
   {
     label: "Onboarding",
     requiredRoles: [...MODULE_ACCESS.CRM],
-    items: [{ label: "Review Submissions", to: "/onboarding/review" }],
+    items: [
+      { label: "New Onboarding", to: "/onboarding/scope" },
+      { label: "Completed Submissions", to: "/onboarding/review" },
+      { label: "Pending Submissions", to: "/onboarding/scope-list" },
+    ],
   },
   {
     label: "Services",
@@ -321,7 +337,7 @@ function SidebarLeafItem({ item }: { item: SidebarItem }) {
       return <Target className="h-3.5 w-3.5 text-rose-500" />;
     if (label.includes("deal"))
       return <Backpack className="h-3.5 w-3.5 text-rose-500" />;
-    if (label.includes("person"))
+    if (label.includes("people"))
       return <Users className="h-3.5 w-3.5 text-blue-500" />;
     if (label.includes("company"))
       return <Building2 className="h-3.5 w-3.5 text-amber-500" />;
@@ -504,25 +520,15 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                     if (label.includes("All Credentialing"))
                       CustomIcon = <ListChecks className="h-3.5 w-3.5" />;
                     if (label.includes("status board"))
-                      CustomIcon = (
-                        <LayoutDashboard className="h-3.5 w-3.5" />
-                      );
-                    if (
-                      label.includes("overdue") ||
-                      label.includes("pending")
-                    )
+                      CustomIcon = <LayoutDashboard className="h-3.5 w-3.5" />;
+                    if (label.includes("overdue") || label.includes("pending"))
                       CustomIcon = <BarChart3 className="h-3.5 w-3.5" />;
                     if (
                       label.includes("contracts") ||
                       label.includes("agreements")
                     )
-                      CustomIcon = (
-                        <FileSignature className="h-3.5 w-3.5" />
-                      );
-                    if (
-                      label.includes("payables") ||
-                      label.includes("billing")
-                    )
+                      CustomIcon = <FileSignature className="h-3.5 w-3.5" />;
+                    if (label.includes("payables") || label.includes("billing"))
                       CustomIcon = <CreditCard className="h-3.5 w-3.5" />;
                     if (label.includes("sync"))
                       CustomIcon = <Zap className="h-3.5 w-3.5" />;
