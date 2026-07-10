@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
 
@@ -27,7 +27,7 @@ export default function Select({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
 
   // Handle outside click
   useEffect(() => {
@@ -44,32 +44,29 @@ export default function Select({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Update coords when opening or scrolling
-  useEffect(() => {
-    if (isOpen && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setCoords({
-        top: rect.bottom + window.scrollY + 4, // 4px gap
-        left: rect.left + window.scrollX,
-        width: rect.width,
-      });
+  function updateCoords() {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const gap = 8;
+    setCoords({
+      top: rect.bottom + gap,
+      left: rect.left,
+      width: rect.width,
+    });
+  }
+
+  useLayoutEffect(() => {
+    if (isOpen) {
+      updateCoords();
+    } else {
+      setCoords(null);
     }
   }, [isOpen]);
 
-  // Prevent scroll on body when open (optional, but good for portals if needed)
-  // However, it's better to just let the portal move, or just calculate on scroll.
-  // For simplicity, we just recalculate on window resize/scroll.
   useEffect(() => {
     if (!isOpen) return;
     function handleUpdate() {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setCoords({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-        });
-      }
+      updateCoords();
     }
     window.addEventListener("scroll", handleUpdate, true);
     window.addEventListener("resize", handleUpdate);
@@ -81,10 +78,10 @@ export default function Select({
 
   const selectedOption = options.find((o) => o.value === value);
 
-  const dropdownContent = isOpen ? (
+  const dropdownContent = isOpen && coords ? (
     <div
       ref={dropdownRef}
-      className="absolute z-[9999] max-h-60 overflow-y-auto rounded-xl border border-[#ece8e1] bg-white py-1 shadow-lg font-app-sans custom-scrollbar"
+      className="fixed z-[11050] max-h-60 overflow-y-auto rounded-xl border border-[#ece8e1] bg-white py-1 shadow-lg font-app-sans custom-scrollbar"
       style={{ top: coords.top, left: coords.left, width: coords.width }}
     >
       {options.length === 0 ? (
@@ -129,7 +126,7 @@ export default function Select({
         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </div>
 
-      {isOpen && createPortal(dropdownContent, document.body)}
+      {dropdownContent ? createPortal(dropdownContent, document.body) : null}
     </div>
   );
 }

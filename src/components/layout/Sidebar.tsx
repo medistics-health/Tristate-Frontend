@@ -24,6 +24,7 @@ import {
   Zap,
   Settings2,
   Globe,
+  ListChecks,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -239,6 +240,15 @@ const sidebarSteps: SidebarItem[] = [
       { label: "Audit Status Board", to: "/audit/status-board" },
     ],
   },
+  // {
+  //   label: "Credentialing",
+  //   requiredRoles: [...MODULE_ACCESS.CRM],
+  //   items: [
+  //     { label: "Dashboard", to: "/credentialing/dashboard" },
+  //     { label: "All Credentialing", to: "/credentialing/list" },
+  //     { label: "Insurance", to: "/credentialing/insurance" },
+  //   ],
+  // },
   {
     label: "Settings",
     requiredRoles: [...MODULE_ACCESS.SETTINGS],
@@ -462,6 +472,8 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                       return <Share2 className="h-3.5 w-3.5" />;
                     if (label.includes("audit"))
                       return <ClipboardCheck className="h-3.5 w-3.5" />;
+                    if (label.includes("credential"))
+                      return <Stethoscope className="h-3.5 w-3.5" />;
                     if (label.includes("assessment"))
                       return <BarChart3 className="h-3.5 w-3.5" />;
                     if (label.includes("pricing"))
@@ -504,6 +516,10 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                       CustomIcon = <User className="h-3.5 w-3.5" />;
                     if (label.includes("security"))
                       CustomIcon = <Shield className="h-3.5 w-3.5" />;
+                    if (label.includes("dashboard"))
+                      CustomIcon = <LayoutDashboard className="h-3.5 w-3.5" />;
+                    if (label.includes("All Credentialing"))
+                      CustomIcon = <ListChecks className="h-3.5 w-3.5" />;
                     if (label.includes("status board"))
                       CustomIcon = <LayoutDashboard className="h-3.5 w-3.5" />;
                     if (label.includes("overdue") || label.includes("pending"))

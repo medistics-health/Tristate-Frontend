@@ -119,7 +119,7 @@ export default function SearchSelect({
   const dropdownContent = isOpen ? (
     <div
       ref={dropdownRef}
-      className="absolute z-[9999] max-h-72 overflow-hidden flex flex-col rounded-xl border border-[#ece8e1] bg-white shadow-xl font-app-sans"
+      className="absolute z-[12050] max-h-72 overflow-hidden flex flex-col rounded-xl border border-[#ece8e1] bg-white shadow-xl font-app-sans"
       style={{ top: coords.top, left: coords.left, width: coords.width }}
     >
       <div className="p-2 border-b border-[#f0ece6] bg-slate-50/50">

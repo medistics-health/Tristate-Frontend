@@ -138,7 +138,7 @@ export function calcMarginPreview(
     vendorCost: vendor,
     grossMargin: gross,
     marginPct: pct,
-    requiresApproval: pct < MARGIN_THRESHOLD_PCT && client > 0,
+    requiresApproval: pct < MARGIN_THRESHOLD_PCT,
   };
 }
 
