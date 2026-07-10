@@ -55,14 +55,12 @@ function ActivePracticesPage() {
   type EditForm = {
     name: string;
     npi: string;
-    region: string;
     source: string;
   };
 
   const initialForm: EditForm = {
     name: "",
     npi: "",
-    region: "",
     source: "DIRECT",
   };
 
@@ -105,7 +103,6 @@ function ActivePracticesPage() {
       setEditForm({
         name: practice.name,
         npi: practice.npi || "",
-        region: practice.region,
         source: practice.source,
       });
     } catch (error) {
@@ -140,7 +137,6 @@ function ActivePracticesPage() {
       await updatePracticeApi(selectedPractice.id, {
         name: editForm.name.trim(),
         npi: editForm.npi.trim() || undefined,
-        region: editForm.region.trim(),
         source: editForm.source as PracticeBody["source"],
       });
       const data = await getPracticesView({ status: "ACTIVE" });
@@ -214,18 +210,6 @@ function ActivePracticesPage() {
           </div>
         ),
         cell: ({ row }) => getCellValue(row.original.values.npi),
-        size: 160,
-      },
-      {
-        id: "region",
-        accessorFn: (row) => getCellValue(row.values.region),
-        header: () => (
-          <div className="flex items-center gap-2">
-            <MapPin className="h-3.5 w-3.5 text-slate-400" />
-            <span>Region</span>
-          </div>
-        ),
-        cell: ({ row }) => getCellValue(row.original.values.region),
         size: 160,
       },
       {
@@ -519,24 +503,6 @@ function ActivePracticesPage() {
                           }))
                         }
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Region
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.region}
-                        onChange={(e) =>
-                          setEditForm((prev) => ({
-                            ...prev,
-                            region: e.target.value,
-                          }))
-                        }
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                        required
                       />
                     </div>
 

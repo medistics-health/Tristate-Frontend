@@ -706,10 +706,6 @@ export default function PracticeProfilePage() {
                   <p className="mt-1 font-semibold">{practice.npi || "-"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Region</p>
-                  <p className="mt-1 font-semibold">{practice.region || "-"}</p>
-                </div>
-                <div>
                   <p className="text-xs text-slate-400">Source</p>
                   <p className="mt-1 font-semibold">
                     {formatLabel(practice.source)}
