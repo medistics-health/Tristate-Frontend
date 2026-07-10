@@ -240,15 +240,15 @@ const sidebarSteps: SidebarItem[] = [
       { label: "Audit Status Board", to: "/audit/status-board" },
     ],
   },
-  {
-    label: "Credentialing",
-    requiredRoles: [...MODULE_ACCESS.CRM],
-    items: [
-      { label: "Dashboard", to: "/credentialing/dashboard" },
-      { label: "All Credentialing", to: "/credentialing/list" },
-      { label: "Insurance", to: "/credentialing/insurance" },
-    ],
-  },
+  // {
+  //   label: "Credentialing",
+  //   requiredRoles: [...MODULE_ACCESS.CRM],
+  //   items: [
+  //     { label: "Dashboard", to: "/credentialing/dashboard" },
+  //     { label: "All Credentialing", to: "/credentialing/list" },
+  //     { label: "Insurance", to: "/credentialing/insurance" },
+  //   ],
+  // },
   {
     label: "Settings",
     requiredRoles: [...MODULE_ACCESS.SETTINGS],
