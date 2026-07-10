@@ -84,10 +84,7 @@ export function getTemplateSubmitterGroups(
         ? `${submitter.name}: Tristate`
         : `${submitter.name}: ${practiceName ?? "Client"}`,
     // || "Submitter",
-    fields: (groupedFields[submitter.uuid] || []).filter((field) => {
-      const value = getDocusealFieldValue(fieldValues, field);
-      return field.required || value !== "";
-    }),
+    fields: groupedFields[submitter.uuid] || [],
   }));
 }
 
