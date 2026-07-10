@@ -33,6 +33,18 @@ type Props = { model: PricingModel; cfg: PricingConfigShape; upd: (p: Partial<Pr
 export function RateFormFields({ model, cfg, upd }: Props) {
   const label = PRICING_MODEL_OPTIONS.find((o) => o.value === model)?.label ?? model;
   const today = new Date().toISOString().split("T")[0];
+  const collectionSourceField = (
+    <div>
+      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+        Collection Source <span className="text-red-500">*</span>
+      </label>
+      <Select
+        value={cfg.collectionSource ?? "PM System"}
+        onChange={(v) => upd({ collectionSource: v })}
+        options={["PM System","Manual Upload","EHR Export"].map(s => ({ label: s, value: s }))}
+      />
+    </div>
+  );
 
   const dates = (
     <div className="grid grid-cols-2 gap-3">
@@ -57,6 +69,7 @@ export function RateFormFields({ model, cfg, upd }: Props) {
         <h3 className="text-[15px] font-semibold text-slate-700">{label}</h3>
         <Field label={model === "FIXED_ONE_TIME" ? "One-Time Amount (USD)" : "Monthly Amount (USD)"}
           type="number" value={cfg.amount ?? ""} onChange={(v) => upd({ amount: v })} placeholder="0.00" required />
+        {collectionSourceField}
         {dates}
       </div>
     );
@@ -71,16 +84,7 @@ export function RateFormFields({ model, cfg, upd }: Props) {
           <Field label="Minimum Fee (USD)" type="number" value={cfg.minimumFee ?? ""}  onChange={(v) => upd({ minimumFee: v })}  placeholder="0.00" />
           <Field label="Maximum Fee (USD)" type="number" value={cfg.maximumFee ?? ""}  onChange={(v) => upd({ maximumFee: v })}  placeholder="0.00" />
         </div>
-        <div>
-          <label className="mb-1 block text-[13px] font-medium text-slate-700">
-            Collection Source <span className="text-red-500">*</span>
-          </label>
-          <Select
-            value={cfg.collectionSource ?? "PM System"}
-            onChange={(v) => upd({ collectionSource: v })}
-            options={["PM System","Manual Upload","EHR Export"].map(s => ({ label: s, value: s }))}
-          />
-        </div>
+        {collectionSourceField}
         {dates}
       </div>
     );
@@ -94,6 +98,7 @@ export function RateFormFields({ model, cfg, upd }: Props) {
           <Field label="Rate per Unit (USD)" type="number" value={cfg.unitRate ?? ""}    onChange={(v) => upd({ unitRate: v })}    placeholder="0.00" required />
           <Field label="Minimum Fee (USD)"   type="number" value={cfg.minimumFee ?? ""}  onChange={(v) => upd({ minimumFee: v })}  placeholder="0.00" />
         </div>
+        {collectionSourceField}
         {dates}
       </div>
     );
@@ -146,6 +151,7 @@ export function RateFormFields({ model, cfg, upd }: Props) {
           className="inline-flex items-center gap-1 text-[12px] text-[#4f63ea] hover:underline">
           <Plus className="h-3.5 w-3.5" /> Add CPT Code
         </button>
+        {collectionSourceField}
         {dates}
       </div>
     );
@@ -196,16 +202,7 @@ export function RateFormFields({ model, cfg, upd }: Props) {
             </button>
           )}
         </div>
-        <div>
-          <label className="mb-1 block text-[13px] font-medium text-slate-700">
-            Collection Source <span className="text-red-500">*</span>
-          </label>
-          <Select
-            value={cfg.collectionSource ?? "PM System"}
-            onChange={(v) => upd({ collectionSource: v })}
-            options={["PM System","Manual Upload","EHR Export"].map(s => ({ label: s, value: s }))}
-          />
-        </div>
+        {collectionSourceField}
         {dates}
       </div>
     );
@@ -218,6 +215,7 @@ export function RateFormFields({ model, cfg, upd }: Props) {
         <Field label="Rate / Amount (USD)" type="number" value={cfg.amount ?? ""}     onChange={(v) => upd({ amount: v })}     placeholder="0.00" required />
         <Field label="Minimum Fee (USD)"   type="number" value={cfg.minimumFee ?? ""} onChange={(v) => upd({ minimumFee: v })} placeholder="0.00" />
       </div>
+      {collectionSourceField}
       {dates}
     </div>
   );

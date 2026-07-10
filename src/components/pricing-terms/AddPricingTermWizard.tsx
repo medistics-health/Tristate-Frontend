@@ -606,7 +606,7 @@ export default function AddPricingTermWizard({
       const vendorVal = hasVendor ? (parseAmount(vendorComps[idx]?.value) ?? 0) : 0;
       const marginVal = clientVal - vendorVal;
       const marginPct = clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
-      return clientVal > 0 && marginPct < 20;
+      return marginPct < 20;
     });
   }
 
@@ -821,7 +821,7 @@ export default function AddPricingTermWizard({
         const vendorVal = hasVendor ? (parseAmount(vendorComps[idx]?.value) ?? 0) : 0;
         const marginVal = clientVal - vendorVal;
         const marginPct = clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
-        return clientVal > 0 && marginPct < 20;
+        return marginPct < 20;
       });
       return {
         label: "Hybrid Components",
