@@ -2132,47 +2132,65 @@ function CreateLeadPage() {
                     Interested Services
                   </h2>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {services.map((service) => {
-                    const isSelected = form.interestedServiceIds.includes(
-                      service.id,
-                    );
-                    return (
-                      <button
-                        key={service.id}
-                        type="button"
-                        onClick={() => toggleService(service.id)}
-                        className={`flex items-start gap-3 p-3 text-left rounded-xl border transition-all ${
-                          isSelected
-                            ? "border-[#4f63ea] bg-[#4f63ea]/5 shadow-sm"
-                            : "border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200"
-                        }`}
+                {isLoadingServices ? (
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="animate-pulse rounded-xl border border-slate-100 bg-slate-50/50 p-3"
                       >
-                        <div
-                          className={`mt-0.5 h-4 w-4 shrink-0 rounded border flex items-center justify-center ${
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 h-4 w-4 shrink-0 rounded border border-slate-200 bg-slate-100" />
+                          <div className="flex-1 space-y-2">
+                            <div className="h-3.5 w-3/4 rounded bg-slate-200" />
+                            <div className="h-2.5 w-1/2 rounded bg-slate-100" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {services.map((service) => {
+                      const isSelected =
+                        form.interestedServiceIds.includes(service.id);
+                      return (
+                        <button
+                          key={service.id}
+                          type="button"
+                          onClick={() => toggleService(service.id)}
+                          className={`flex items-start gap-3 p-3 text-left rounded-xl border transition-all ${
                             isSelected
-                              ? "bg-[#4f63ea] border-[#4f63ea]"
-                              : "bg-white border-slate-300"
+                              ? "border-[#4f63ea] bg-[#4f63ea]/5 shadow-sm"
+                              : "border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200"
                           }`}
                         >
-                          {isSelected && (
-                            <CheckCircle2 className="h-3 w-3 text-white" />
-                          )}
-                        </div>
-                        <div>
                           <div
-                            className={`text-[13px] font-semibold ${isSelected ? "text-[#4f63ea]" : "text-slate-700"}`}
+                            className={`mt-0.5 h-4 w-4 shrink-0 rounded border flex items-center justify-center ${
+                              isSelected
+                                ? "bg-[#4f63ea] border-[#4f63ea]"
+                                : "bg-white border-slate-300"
+                            }`}
                           >
-                            {service.name}
+                            {isSelected && (
+                              <CheckCircle2 className="h-3 w-3 text-white" />
+                            )}
                           </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">
-                            {service.category || "General Service"}
+                          <div>
+                            <div
+                              className={`text-[13px] font-semibold ${isSelected ? "text-[#4f63ea]" : "text-slate-700"}`}
+                            >
+                              {service.name}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              {service.category || "General Service"}
+                            </div>
                           </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Internal Notes */}
