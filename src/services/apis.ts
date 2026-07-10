@@ -34,6 +34,16 @@ export const personEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/persons/${id}`,
 };
 
+export const credentialingEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/credentialing",
+  DASHBOARD: BACKEND_URL + "/api/v1/credentialing/dashboard",
+  LIST: BACKEND_URL + "/api/v1/credentialing",
+  CREATE: BACKEND_URL + "/api/v1/credentialing",
+  GET: (id: string) => BACKEND_URL + `/api/v1/credentialing/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/credentialing/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/credentialing/${id}`,
+};
+
 export const auditEndpoints = {
   BASE: BACKEND_URL + "/api/v1/audits",
   LIST: BACKEND_URL + "/api/v1/audits",

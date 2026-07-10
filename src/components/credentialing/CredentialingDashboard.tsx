@@ -4,9 +4,11 @@ import {
   CalendarClock,
   CircleAlert,
   Clock3,
+  Filter,
   FolderOpen,
   Gauge,
   LayoutGrid,
+  Loader2,
   Percent,
   Plus,
   RefreshCcw,
@@ -15,23 +17,22 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import DatePicker from "../shared/DatePicker";
 import Select from "../shared/Select";
+import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import CredentialingModal from "./CredentialingModal";
-import {
-  buildCredentialingRecord,
-  formatDateLabel,
-  getDaysLeft,
-  setCredentialingRecords,
-  useCredentialingRecords,
-} from "./credentialingStore";
+import { formatDateLabel, getDaysLeft } from "./credentialingStore";
 import {
   contractTypeOptions,
   credentialingStatusOptions,
   type CredentialingFormState,
 } from "./types";
+import {
+  createCredentialingRequestApi,
+  getCredentialingRequestsView,
+} from "../../services/operations/credentialing";
 
 type DashboardFilters = {
   search: string;
@@ -97,10 +98,121 @@ function isOpenRequest(status: string) {
   ].includes(status);
 }
 
+function createLocalSearchOptions(options: string[]) {
+  return async (query: string): Promise<SearchSelectOption[]> => {
+    const normalized = query.trim().toLowerCase();
+    return options
+      .filter((option) =>
+        normalized ? option.toLowerCase().includes(normalized) : true,
+      )
+      .map((option) => ({ label: option, value: option }));
+  };
+}
+
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded-xl bg-slate-200/80 ${className}`} />;
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
+        {Array.from({ length: 9 }).map((_, index) => (
+          <div
+            key={index}
+            className="overflow-hidden rounded-2xl border border-[#ece8e1] bg-white shadow-sm"
+          >
+            <div className="h-1 bg-gradient-to-r from-slate-200 to-slate-100" />
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <SkeletonBlock className="h-3 w-24" />
+                  <SkeletonBlock className="mt-3 h-8 w-16" />
+                </div>
+                <SkeletonBlock className="h-10 w-10 rounded-xl" />
+              </div>
+              <SkeletonBlock className="mt-4 h-3 w-32" />
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm p-5">
+        <div className="flex items-center gap-3">
+          <SkeletonBlock className="h-5 w-5 rounded-full" />
+          <SkeletonBlock className="h-4 w-48" />
+        </div>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {Array.from({ length: 7 }).map((_, index) => (
+            <div key={index} className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4">
+              <SkeletonBlock className="h-3 w-28" />
+              <SkeletonBlock className="mt-3 h-7 w-12" />
+              <SkeletonBlock className="mt-4 h-2 w-full" />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm p-5">
+          <SkeletonBlock className="h-4 w-40" />
+          <div className="mt-4 space-y-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4">
+                <SkeletonBlock className="h-3 w-36" />
+                <SkeletonBlock className="mt-2 h-3 w-24" />
+                <SkeletonBlock className="mt-3 h-3 w-20" />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm p-5">
+          <SkeletonBlock className="h-4 w-40" />
+          <div className="mt-4 space-y-3">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4">
+                <SkeletonBlock className="h-3 w-32" />
+                <SkeletonBlock className="mt-2 h-3 w-48" />
+                <SkeletonBlock className="mt-2 h-3 w-20" />
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function CredentialingDashboardPage() {
-  const records = useCredentialingRecords();
+  const [records, setRecords] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters);
   const [showModal, setShowModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function loadRecords() {
+      setIsLoading(true);
+      try {
+        const data = await getCredentialingRequestsView({ limit: 5000 });
+        if (active) {
+          setRecords(data.credentialingRequests);
+        }
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadRecords();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const uniquePractices = useMemo(
     () => Array.from(new Set(records.map((record) => record.practice))).sort(),
@@ -117,6 +229,18 @@ function CredentialingDashboardPage() {
     () =>
       Array.from(new Set(records.map((record) => record.assignedUser))).sort(),
     [records],
+  );
+  const searchPractices = useMemo(
+    () => createLocalSearchOptions(uniquePractices),
+    [uniquePractices],
+  );
+  const searchPayers = useMemo(
+    () => createLocalSearchOptions(uniquePayers),
+    [uniquePayers],
+  );
+  const searchAssignedUsers = useMemo(
+    () => createLocalSearchOptions(uniqueAssignedUsers),
+    [uniqueAssignedUsers],
   );
 
   const filteredRecords = useMemo(() => {
@@ -402,10 +526,25 @@ function CredentialingDashboardPage() {
     [filteredRecords],
   );
 
-  function handleCreate(form: CredentialingFormState) {
-    const nextRecord = buildCredentialingRecord(null, form);
-    setCredentialingRecords([nextRecord, ...records]);
-    setShowModal(false);
+  async function handleCreate(form: CredentialingFormState) {
+    setIsSaving(true);
+    try {
+      await createCredentialingRequestApi({
+        ...form,
+        practiceName: form.practice,
+        providerName: form.provider,
+        insurancePayerName: form.insuranceCompany,
+        assignedToUserName: form.assignedUser,
+        requestType: form.credentialingType,
+        contractType: form.contractType,
+        status: form.status,
+      });
+      const data = await getCredentialingRequestsView({ limit: 5000 });
+      setRecords(data.credentialingRequests);
+      setShowModal(false);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function resetFilters() {
@@ -439,11 +578,20 @@ function CredentialingDashboardPage() {
     >
       <div className="flex h-full gap-2 font-app-sans">
         <section className="app-panel min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
-          <div className="border-b border-[#f0ece6] bg-[linear-gradient(135deg,#ffffff_0%,#fbfaf8_55%,#f5f1e8_100%)] px-6 py-6">
-            <div className="flex flex-wrap items-end justify-end gap-5">
-              <div className="flex flex-wrap items-center gap-3">
+          <div className="border-b border-[#f0ece6] bg-[linear-gradient(135deg,#ffffff_0%,#fbfaf8_55%,#f5f1e8_100%)] px-5 py-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                  Credentialing
+                </div>
+                <h1 className="mt-1 text-[22px] font-semibold text-slate-800">
+                  Credentialing Dashboard
+                </h1>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="search"
                     value={filters.search}
@@ -453,70 +601,75 @@ function CredentialingDashboardPage() {
                         search: event.target.value,
                       }))
                     }
-                    placeholder="Search practice, payer, provider"
-                    className="app-control w-80 rounded-xl py-2 pl-10 pr-3 text-[13px]"
+                    placeholder="Search"
+                    className="app-control w-56 rounded-xl py-2 pl-10 pr-3 text-[13px]"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowModal(true)}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white shadow-sm hover:bg-[#3d4ed1]"
+                  disabled={isSaving}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white shadow-sm hover:bg-[#3d4ed1]"
                 >
-                  <Plus className="h-4 w-4" />
-                  Add New Credentialing
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  {isSaving ? "Saving..." : "Add New"}
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="border-b border-[#f0ece6] px-6 py-4">
-            <div className="grid gap-4 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="border-b border-[#f0ece6] px-5 py-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-slate-400" />
+                <div className="text-[13px] font-medium text-slate-700">
+                  Filters
+                </div>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                  {activeFilterCount} active
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+              >
+                <RefreshCcw className="h-3.5 w-3.5" />
+                Reset
+              </button>
+            </div>
+
+            <div className="grid gap-3 xl:grid-cols-4 2xl:grid-cols-6">
               <label className="block">
                 <span className="mb-1 block text-[12px] font-medium text-slate-500">
                   Practice
                 </span>
-                <input
-                  type="text"
-                  list="dashboard-practices"
+                <SearchSelect
                   value={filters.practice}
-                  onChange={(event) =>
-                    setFilters((current) => ({
-                      ...current,
-                      practice: event.target.value,
-                    }))
+                  onChange={(value) =>
+                    setFilters((current) => ({ ...current, practice: value }))
                   }
-                  className="app-control w-full rounded-xl px-3 py-2 text-[13px]"
-                  placeholder="All practices"
+                  onSearch={searchPractices}
+                  placeholder="Search practice"
                 />
-                <datalist id="dashboard-practices">
-                  {uniquePractices.map((practice) => (
-                    <option key={practice} value={practice} />
-                  ))}
-                </datalist>
               </label>
 
               <label className="block">
                 <span className="mb-1 block text-[12px] font-medium text-slate-500">
                   Payer
                 </span>
-                <input
-                  type="text"
-                  list="dashboard-payers"
+                <SearchSelect
                   value={filters.payer}
-                  onChange={(event) =>
-                    setFilters((current) => ({
-                      ...current,
-                      payer: event.target.value,
-                    }))
+                  onChange={(value) =>
+                    setFilters((current) => ({ ...current, payer: value }))
                   }
-                  className="app-control w-full rounded-xl px-3 py-2 text-[13px]"
-                  placeholder="All payers"
+                  onSearch={searchPayers}
+                  placeholder="Search payer"
                 />
-                <datalist id="dashboard-payers">
-                  {uniquePayers.map((payer) => (
-                    <option key={payer} value={payer} />
-                  ))}
-                </datalist>
               </label>
 
               <label className="block">
@@ -566,24 +719,17 @@ function CredentialingDashboardPage() {
                 <span className="mb-1 block text-[12px] font-medium text-slate-500">
                   Assigned Specialist
                 </span>
-                <input
-                  type="text"
-                  list="dashboard-assigned"
+                <SearchSelect
                   value={filters.assignedUser}
-                  onChange={(event) =>
+                  onChange={(value) =>
                     setFilters((current) => ({
                       ...current,
-                      assignedUser: event.target.value,
+                      assignedUser: value,
                     }))
                   }
-                  className="app-control w-full rounded-xl px-3 py-2 text-[13px]"
-                  placeholder="All specialists"
+                  onSearch={searchAssignedUsers}
+                  placeholder="Search specialist"
                 />
-                <datalist id="dashboard-assigned">
-                  {uniqueAssignedUsers.map((user) => (
-                    <option key={user} value={user} />
-                  ))}
-                </datalist>
               </label>
 
               <label className="block">
@@ -612,26 +758,16 @@ function CredentialingDashboardPage() {
                   placeholder="End date"
                   className="rounded-xl"
                 />
-              </label>
-
-              <div className="flex items-end gap-2">
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="inline-flex h-[42px] items-center gap-2 rounded-xl border border-[#ece8e1] bg-white px-4 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
-                >
-                  <RefreshCcw className="h-4 w-4" />
-                  Reset Filters
-                </button>
-                <div className="text-[12px] text-slate-400">
-                  {activeFilterCount} active filters
-                </div>
-              </div>
+                </label>
             </div>
           </div>
 
           <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 pr-3 custom-scrollbar">
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
+            {isLoading ? (
+              <DashboardSkeleton />
+            ) : (
+              <>
+                <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
               {[
                 {
                   label: "Total Active Requests",
@@ -722,9 +858,9 @@ function CredentialingDashboardPage() {
                   </div>
                 </div>
               ))}
-            </section>
+                </section>
 
-            <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
+                <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-[#f0ece6] px-5 py-4">
                 <div className="flex items-center gap-2">
                   <ArrowDownUp className="h-4 w-4 text-slate-400" />
@@ -765,9 +901,9 @@ function CredentialingDashboardPage() {
                   </div>
                 ))}
               </div>
-            </section>
+                </section>
 
-            <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
               <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
                 <div className="flex items-center justify-between border-b border-[#f0ece6] px-5 py-4">
                   <div className="flex items-center gap-2">
@@ -932,9 +1068,9 @@ function CredentialingDashboardPage() {
                   </table>
                 </div>
               </section>
-            </div>
+                </div>
 
-            <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+                <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
               <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
                 <div className="border-b border-[#f0ece6] px-5 py-4">
                   <div className="flex items-center gap-2">
@@ -1091,7 +1227,9 @@ function CredentialingDashboardPage() {
                   </div>
                 </div>
               </section>
-            </div>
+                </div>
+              </>
+            )}
           </div>
         </section>
 
@@ -1100,6 +1238,7 @@ function CredentialingDashboardPage() {
           mode="create"
           onClose={() => setShowModal(false)}
           onSave={handleCreate}
+          isSaving={isSaving}
         />
       </div>
     </AppLayout>

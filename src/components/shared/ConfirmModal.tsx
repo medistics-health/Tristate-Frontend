@@ -5,7 +5,7 @@ import { X, AlertCircle } from "lucide-react";
 type ConfirmModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void> | void;
   onSecondaryConfirm?: () => void;
   title: string;
   message?: string;
@@ -14,6 +14,8 @@ type ConfirmModalProps = {
   secondaryLabel?: string;
   cancelLabel?: string;
   type?: "primary" | "danger" | "success";
+  isConfirming?: boolean;
+  closeOnConfirm?: boolean;
 };
 
 export default function ConfirmModal({
@@ -28,6 +30,8 @@ export default function ConfirmModal({
   secondaryLabel,
   cancelLabel = "Cancel",
   type = "primary",
+  isConfirming = false,
+  closeOnConfirm = true,
 }: ConfirmModalProps) {
   if (!isOpen) return null;
 
@@ -83,13 +87,16 @@ export default function ConfirmModal({
           )}
 
           <button
-            onClick={() => {
-              onConfirm();
-              onClose();
+            disabled={isConfirming}
+            onClick={async () => {
+              await onConfirm();
+              if (closeOnConfirm) {
+                onClose();
+              }
             }}
             className={`rounded-xl px-6 py-2 text-[13px] font-bold transition-all shadow-sm ${typeStyles[type]}`}
           >
-            {confirmLabel}
+            {isConfirming ? "Deleting..." : confirmLabel}
           </button>
         </div>
       </div>

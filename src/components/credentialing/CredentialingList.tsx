@@ -6,7 +6,9 @@ import {
   ChevronRight,
   Download,
   Eye,
+  Filter,
   LayoutGrid,
+  Loader2,
   Pencil,
   Plus,
   Search,
@@ -17,13 +19,9 @@ import AppLayout from "../layout/AppLayout";
 import ConfirmModal from "../shared/ConfirmModal";
 import DatePicker from "../shared/DatePicker";
 import Select from "../shared/Select";
+import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import CredentialingModal from "./CredentialingModal";
-import {
-  buildCredentialingRecord,
-  formatDateLabel,
-  setCredentialingRecords,
-  useCredentialingRecords,
-} from "./credentialingStore";
+import { formatDateLabel } from "./credentialingStore";
 import {
   credentialingStatusOptions,
   contractTypeOptions,
@@ -31,6 +29,14 @@ import {
   type CredentialingFormState,
   type CredentialingRecord,
 } from "./types";
+import {
+  createCredentialingRequestApi,
+  deleteCredentialingRequestApi,
+  getCredentialingRequestOptions,
+  getCredentialingRequestsView,
+  updateCredentialingRequestApi,
+  type CredentialingOptionRecord,
+} from "../../services/operations/credentialing";
 
 type Filters = {
   search: string;
@@ -110,35 +116,22 @@ function statusTone(status: string) {
   }
 }
 
-function sortValue(record: CredentialingRecord, field: SortField) {
-  switch (field) {
-    case "credentialingId":
-      return record.credentialingId;
-    case "provider":
-      return record.provider;
-    case "insuranceCompany":
-      return record.insuranceCompany;
-    case "credentialingType":
-      return record.credentialingType;
-    case "status":
-      return record.status;
-    case "assignedUser":
-      return record.assignedUser;
-    case "submissionDate":
-      return record.submissionDate || "";
-    case "effectiveDate":
-      return record.effectiveDate || "";
-    case "expirationDate":
-      return record.expirationDate || "";
-    case "updatedAt":
-      return record.updatedAt || "";
-    default:
-      return "";
-  }
+function createLocalSearchOptions(options: string[]) {
+  return async (query: string): Promise<SearchSelectOption[]> => {
+    const normalized = query.trim().toLowerCase();
+    return options
+      .filter((option) =>
+        normalized ? option.toLowerCase().includes(normalized) : true,
+      )
+      .map((option) => ({ label: option, value: option }));
+  };
 }
 
 function CredentialingListPage() {
-  const records = useCredentialingRecords();
+  const [records, setRecords] = useState<CredentialingRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [showFilters, setShowFilters] = useState(true);
   const [selectedRecord, setSelectedRecord] =
@@ -154,6 +147,62 @@ function CredentialingListPage() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const pageSize = 8;
+  const [optionRecords, setOptionRecords] = useState<CredentialingOptionRecord[]>(
+    [],
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function loadRecords() {
+    setIsLoading(true);
+    try {
+      const data = await getCredentialingRequestsView({
+        page,
+        limit: pageSize,
+        search: filters.search || undefined,
+        practice: filters.practice || undefined,
+        provider: filters.provider || undefined,
+        insuranceCompany: filters.insuranceCompany || undefined,
+        status: filters.status || undefined,
+        credentialingType: filters.credentialingType || undefined,
+        contractType: filters.contractType || undefined,
+        assignedUser: filters.assignedUser || undefined,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        sortBy: sortField,
+        sortOrder: sortDirection,
+      });
+      setRecords(data.credentialingRequests);
+      setTotalRecords(data.pagination.totalRecords);
+      setTotalPages(data.pagination.totalPages || 1);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadRecords();
+  }, [page, pageSize, filters, sortDirection, sortField]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadOptions() {
+      try {
+        const options = await getCredentialingRequestOptions();
+        if (!active) return;
+        setOptionRecords(options);
+      } catch {
+        if (active) {
+          setOptionRecords([]);
+        }
+      }
+    }
+
+    void loadOptions();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -163,118 +212,27 @@ function CredentialingListPage() {
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
-  const filteredRecords = useMemo(() => {
-    return records.filter((record) => {
-      const query = filters.search.trim().toLowerCase();
-      const recordDate =
-        record.updatedAt || record.submissionDate || record.createdAt;
-
-      if (
-        query &&
-        ![
-          record.credentialingId,
-          record.practice,
-          record.provider,
-          record.insuranceCompany,
-          record.assignedUser,
-          record.credentialingType,
-          record.contractType,
-          record.status,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(query)
-      ) {
-        return false;
-      }
-
-      if (
-        filters.practice &&
-        !record.practice.toLowerCase().includes(filters.practice.toLowerCase())
-      ) {
-        return false;
-      }
-
-      if (
-        filters.provider &&
-        !record.provider.toLowerCase().includes(filters.provider.toLowerCase())
-      ) {
-        return false;
-      }
-
-      if (
-        filters.insuranceCompany &&
-        !record.insuranceCompany
-          .toLowerCase()
-          .includes(filters.insuranceCompany.toLowerCase())
-      ) {
-        return false;
-      }
-
-      if (filters.status && record.status !== filters.status) return false;
-      if (
-        filters.credentialingType &&
-        record.credentialingType !== filters.credentialingType
-      )
-        return false;
-      if (filters.contractType && record.contractType !== filters.contractType)
-        return false;
-      if (
-        filters.assignedUser &&
-        !record.assignedUser
-          .toLowerCase()
-          .includes(filters.assignedUser.toLowerCase())
-      ) {
-        return false;
-      }
-
-      if (filters.dateFrom && recordDate < filters.dateFrom) return false;
-      if (filters.dateTo && recordDate > filters.dateTo) return false;
-
-      return true;
-    });
-  }, [filters, records]);
-
-  const sortedRecords = useMemo(() => {
-    return [...filteredRecords].sort((a, b) => {
-      const aValue = sortValue(a, sortField);
-      const bValue = sortValue(b, sortField);
-      const comparison = String(aValue).localeCompare(String(bValue), undefined, {
-        numeric: true,
-        sensitivity: "base",
-      });
-      return sortDirection === "asc" ? comparison : -comparison;
-    });
-  }, [filteredRecords, sortDirection, sortField]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedRecords.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedRecords = useMemo(
-    () => sortedRecords.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [currentPage, pageSize, sortedRecords],
-  );
-
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
-
   const uniqueProviders = useMemo(
-    () => Array.from(new Set(records.map((record) => record.provider))).sort(),
-    [records],
+    () => Array.from(new Set(optionRecords.map((record) => record.provider))).sort(),
+    [optionRecords],
   );
   const uniquePractices = useMemo(
-    () => Array.from(new Set(records.map((record) => record.practice))).sort(),
-    [records],
+    () => Array.from(new Set(optionRecords.map((record) => record.practice))).sort(),
+    [optionRecords],
   );
   const uniqueInsuranceCompanies = useMemo(
     () =>
-      Array.from(new Set(records.map((record) => record.insuranceCompany))).sort(),
-    [records],
+      Array.from(new Set(optionRecords.map((record) => record.insuranceCompany))).sort(),
+    [optionRecords],
   );
   const uniqueAssignedUsers = useMemo(
-    () => Array.from(new Set(records.map((record) => record.assignedUser))).sort(),
-    [records],
+    () => Array.from(new Set(optionRecords.map((record) => record.assignedUser))).sort(),
+    [optionRecords],
   );
+  const searchPractices = useMemo(() => createLocalSearchOptions(uniquePractices), [uniquePractices]);
+  const searchProviders = useMemo(() => createLocalSearchOptions(uniqueProviders), [uniqueProviders]);
+  const searchPayers = useMemo(() => createLocalSearchOptions(uniqueInsuranceCompanies), [uniqueInsuranceCompanies]);
+  const searchAssignedUsers = useMemo(() => createLocalSearchOptions(uniqueAssignedUsers), [uniqueAssignedUsers]);
 
   useEffect(() => {
     const action = new URLSearchParams(window.location.search).get("action");
@@ -304,27 +262,80 @@ function CredentialingListPage() {
     setSelectedRecord(null);
   }
 
-  function handleSave(form: CredentialingFormState) {
-    const nextRecord = buildCredentialingRecord(selectedRecord, form);
-    const nextRecords = selectedRecord
-      ? records.map((record) =>
-          record.id === selectedRecord.id ? nextRecord : record,
-        )
-      : [nextRecord, ...records];
-    setCredentialingRecords(nextRecords);
-    closeModal();
+  function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
+    setFilters((current) => ({ ...current, [key]: value }));
+    setPage(1);
   }
 
-  function handleDelete() {
-    if (!selectedRecord) return;
-    setCredentialingRecords(
-      records.filter((record) => record.id !== selectedRecord.id),
-    );
-    closeModal();
-    setDeleteTarget(null);
+  async function handleSave(form: CredentialingFormState) {
+    setIsSaving(true);
+    try {
+      const documents = form.documents.map((document) => ({
+        fileName: document.fileName || document.name,
+        documentType: document.documentType || document.type,
+        fileUrl: document.fileUrl,
+        fileBase64: document.fileBase64,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
+        expiryDate: document.expiryDate || null,
+        uploadedByName: document.uploadedBy || "Admin",
+      }));
+      const payload = {
+        ...form,
+        documents,
+        practiceName: form.practice,
+        providerName: form.provider,
+        insurancePayerName: form.insuranceCompany,
+        assignedToUserName: form.assignedUser,
+        requestType: form.credentialingType,
+        contractType: form.contractType,
+        status: form.status,
+      };
+
+      if (selectedRecord) {
+        await updateCredentialingRequestApi(selectedRecord.id, payload);
+      } else {
+        await createCredentialingRequestApi(payload);
+      }
+
+      await loadRecords();
+      closeModal();
+    } finally {
+      setIsSaving(false);
+    }
   }
 
-  function exportCsv() {
+  async function handleDelete() {
+    const recordToDelete = deleteTarget || selectedRecord;
+    if (!recordToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteCredentialingRequestApi(recordToDelete.id);
+      await loadRecords();
+      closeModal();
+      setDeleteTarget(null);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  async function exportCsv() {
+    const allData = await getCredentialingRequestsView({
+      page: 1,
+      limit: Math.max(totalRecords, pageSize),
+      search: filters.search || undefined,
+      practice: filters.practice || undefined,
+      provider: filters.provider || undefined,
+      insuranceCompany: filters.insuranceCompany || undefined,
+      status: filters.status || undefined,
+      credentialingType: filters.credentialingType || undefined,
+      contractType: filters.contractType || undefined,
+      assignedUser: filters.assignedUser || undefined,
+      dateFrom: filters.dateFrom || undefined,
+      dateTo: filters.dateTo || undefined,
+      sortBy: sortField,
+      sortOrder: sortDirection,
+    });
     const header = [
       "Credentialing ID",
       "Provider",
@@ -337,7 +348,7 @@ function CredentialingListPage() {
       "Expiration Date",
       "Last Updated",
     ];
-    const rows = sortedRecords.map((record) => [
+    const rows = allData.credentialingRequests.map((record) => [
       record.credentialingId,
       record.provider,
       record.insuranceCompany,
@@ -376,11 +387,11 @@ function CredentialingListPage() {
   }
 
   function resetFilters() {
-    setFilters(defaultFilters);
-    setSearchInput("");
-    setSortField("updatedAt");
-    setSortDirection("desc");
-    setPage(1);
+      setFilters(defaultFilters);
+      setSearchInput("");
+      setSortField("updatedAt");
+      setSortDirection("desc");
+      setPage(1);
   }
 
   const activeFilterCount = [
@@ -394,19 +405,20 @@ function CredentialingListPage() {
     filters.dateFrom,
     filters.dateTo,
   ].filter(Boolean).length;
+  const currentPage = page;
   const rangeLabel =
-    sortedRecords.length === 0
+    totalRecords === 0
       ? "Showing 0 of 0"
       : `Showing ${(currentPage - 1) * pageSize + 1} to ${Math.min(
           currentPage * pageSize,
-          sortedRecords.length,
-        )} of ${sortedRecords.length}`;
+          totalRecords,
+        )} of ${totalRecords}`;
 
   return (
     <AppLayout
-      title="Credentialing List"
+      title="All Credentialing"
       activeModule="Credentialing"
-      activeSubItem="Credentialing List"
+      activeSubItem="All Credentialing"
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
       navbarActions={[
         {
@@ -418,138 +430,123 @@ function CredentialingListPage() {
     >
       <div className="flex h-full gap-2 font-app-sans">
         <section className="app-panel min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm">
-          <div className="border-b border-[#f0ece6] bg-gradient-to-r from-white via-[#fcfbf8] to-[#f7f3eb] px-6 py-6">
-            <div className="flex flex-wrap items-end justify-end gap-5">
-              
+          <div className="border-b border-[#f0ece6] bg-gradient-to-r from-white via-[#fcfbf8] to-[#f7f3eb] px-5 py-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                  Credentialing
+                </div>
+                <h1 className="mt-1 text-[22px] font-semibold text-slate-800">
+                  All Credentialing
+                </h1>
+              </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={openCreateModal}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
+                  disabled={isSaving || isDeleting}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <Plus className="h-4 w-4" />
-                  Add New Credentialing
+                  {isSaving || isDeleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  {isSaving ? "Saving..." : isDeleting ? "Deleting..." : "Add New"}
                 </button>
                 <button
                   type="button"
                   onClick={exportCsv}
-                  className="rounded-xl border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+                  disabled={isSaving || isDeleting}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#ece8e1] px-3.5 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <Download className="mr-2 inline h-4 w-4" />
+                  <Download className="h-4 w-4" />
                   Export
                 </button>
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="search"
                     value={searchInput}
                     onChange={(event) => setSearchInput(event.target.value)}
-                    placeholder="Search credentialing..."
-                    className="app-control w-72 rounded-xl py-2 pl-10 pr-3 text-[13px]"
+                    placeholder="Search"
+                    className="app-control w-56 rounded-xl py-2 pl-10 pr-3 text-[13px]"
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="border-b border-[#f0ece6] px-6 py-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowFilters((current) => !current)}
-                className="rounded-xl border border-[#ece8e1] px-3 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
-              >
-                {showFilters ? "Hide Filters" : "Show Filters"}
-              </button>
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="text-[13px] font-medium text-slate-500 hover:text-slate-700"
-              >
-                Reset Filters
-              </button>
-              <div className="ml-auto flex items-center gap-2 text-[13px] text-slate-400">
-                <span>{activeFilterCount} active filters</span>
-                <span>•</span>
-                <span>{sortedRecords.length} records</span>
+          <div className="border-b border-[#f0ece6] px-5 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-slate-400" />
+                <div className="text-[13px] font-medium text-slate-700">
+                  Filters
+                </div>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                  {activeFilterCount} active
+                </span>
+                <span className="text-[12px] text-slate-400">
+                  {totalRecords} records
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFilters((current) => !current)}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+                >
+                  {showFilters ? "Hide" : "Show"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+                >
+                  Reset
+                </button>
               </div>
             </div>
           </div>
-
           {showFilters ? (
-            <div className="border-b border-[#f0ece6] bg-[#faf9f7] px-6 py-5">
-              <div className="grid gap-4 xl:grid-cols-3 2xl:grid-cols-5">
+            <div className="border-b border-[#f0ece6] bg-[#faf9f7] px-5 py-4">
+              <div className="grid gap-3 xl:grid-cols-3 2xl:grid-cols-5">
                 <label className="block">
                   <span className="mb-1 block text-[12px] font-medium text-slate-500">
                     Practice
                   </span>
-                  <input
-                    type="text"
-                    list="credentialing-practices"
+                  <SearchSelect
                     value={filters.practice}
-                    onChange={(event) =>
-                      setFilters((current) => ({
-                        ...current,
-                        practice: event.target.value,
-                      }))
-                    }
-                    className="app-control w-full rounded-xl px-3 py-2 text-[13px]"
-                    placeholder="Filter by practice"
+                    onChange={(value) => updateFilter("practice", value)}
+                    onSearch={searchPractices}
+                    placeholder="Search practice"
                   />
-                  <datalist id="credentialing-practices">
-                    {uniquePractices.map((practice) => (
-                      <option key={practice} value={practice} />
-                    ))}
-                  </datalist>
                 </label>
 
                 <label className="block">
                   <span className="mb-1 block text-[12px] font-medium text-slate-500">
                     Provider
                   </span>
-                  <input
-                    type="text"
-                    list="credentialing-providers"
+                  <SearchSelect
                     value={filters.provider}
-                    onChange={(event) =>
-                      setFilters((current) => ({
-                        ...current,
-                        provider: event.target.value,
-                      }))
-                    }
-                    className="app-control w-full rounded-xl px-3 py-2 text-[13px]"
-                    placeholder="Filter by provider"
+                    onChange={(value) => updateFilter("provider", value)}
+                    onSearch={searchProviders}
+                    placeholder="Search provider"
                   />
-                  <datalist id="credentialing-providers">
-                    {uniqueProviders.map((provider) => (
-                      <option key={provider} value={provider} />
-                    ))}
-                  </datalist>
                 </label>
 
                 <label className="block">
                   <span className="mb-1 block text-[12px] font-medium text-slate-500">
                     Insurance Company
                   </span>
-                  <input
-                    type="text"
-                    list="credentialing-insurance"
+                  <SearchSelect
                     value={filters.insuranceCompany}
-                    onChange={(event) =>
-                      setFilters((current) => ({
-                        ...current,
-                        insuranceCompany: event.target.value,
-                      }))
-                    }
-                    className="app-control w-full rounded-xl px-3 py-2 text-[13px]"
-                    placeholder="Filter by payer"
+                    onChange={(value) => updateFilter("insuranceCompany", value)}
+                    onSearch={searchPayers}
+                    placeholder="Search payer"
                   />
-                  <datalist id="credentialing-insurance">
-                    {uniqueInsuranceCompanies.map((insurance) => (
-                      <option key={insurance} value={insurance} />
-                    ))}
-                  </datalist>
                 </label>
 
                 <label className="block">
@@ -558,9 +555,7 @@ function CredentialingListPage() {
                   </span>
                   <Select
                     value={filters.status}
-                    onChange={(value) =>
-                      setFilters((current) => ({ ...current, status: value }))
-                    }
+                    onChange={(value) => updateFilter("status", value)}
                     options={[
                       { label: "All Statuses", value: "" },
                       ...credentialingStatusOptions.map((status) => ({
@@ -578,12 +573,7 @@ function CredentialingListPage() {
                   </span>
                   <Select
                     value={filters.credentialingType}
-                    onChange={(value) =>
-                      setFilters((current) => ({
-                        ...current,
-                        credentialingType: value,
-                      }))
-                    }
+                    onChange={(value) => updateFilter("credentialingType", value)}
                     options={[
                       { label: "All Types", value: "" },
                       ...requestTypeOptions.map((type) => ({
@@ -601,12 +591,7 @@ function CredentialingListPage() {
                   </span>
                   <Select
                     value={filters.contractType}
-                    onChange={(value) =>
-                      setFilters((current) => ({
-                        ...current,
-                        contractType: value,
-                      }))
-                    }
+                    onChange={(value) => updateFilter("contractType", value)}
                     options={[
                       { label: "All Contract Types", value: "" },
                       ...contractTypeOptions.map((option) => ({
@@ -622,24 +607,12 @@ function CredentialingListPage() {
                   <span className="mb-1 block text-[12px] font-medium text-slate-500">
                     Assigned User
                   </span>
-                  <input
-                    type="text"
-                    list="credentialing-assigned"
+                  <SearchSelect
                     value={filters.assignedUser}
-                    onChange={(event) =>
-                      setFilters((current) => ({
-                        ...current,
-                        assignedUser: event.target.value,
-                      }))
-                    }
-                    className="app-control w-full rounded-xl px-3 py-2 text-[13px]"
-                    placeholder="Filter by user"
+                    onChange={(value) => updateFilter("assignedUser", value)}
+                    onSearch={searchAssignedUsers}
+                    placeholder="Search user"
                   />
-                  <datalist id="credentialing-assigned">
-                    {uniqueAssignedUsers.map((user) => (
-                      <option key={user} value={user} />
-                    ))}
-                  </datalist>
                 </label>
 
                 <label className="block">
@@ -648,9 +621,7 @@ function CredentialingListPage() {
                   </span>
                   <DatePicker
                     value={filters.dateFrom}
-                    onChange={(value) =>
-                      setFilters((current) => ({ ...current, dateFrom: value }))
-                    }
+                    onChange={(value) => updateFilter("dateFrom", value)}
                     placeholder="Start date"
                     className="rounded-xl"
                   />
@@ -662,9 +633,7 @@ function CredentialingListPage() {
                   </span>
                   <DatePicker
                     value={filters.dateTo}
-                    onChange={(value) =>
-                      setFilters((current) => ({ ...current, dateTo: value }))
-                    }
+                    onChange={(value) => updateFilter("dateTo", value)}
                     placeholder="End date"
                     className="rounded-xl"
                   />
@@ -716,7 +685,7 @@ function CredentialingListPage() {
                       <button
                         type="button"
                         onClick={() => updateSort(column.value)}
-                        className="inline-flex items-center gap-1.5"
+                        className="inline-flex cursor-pointer items-center gap-1.5"
                       >
                         <span>{column.label}</span>
                         {sortField === column.value ? (
@@ -735,7 +704,30 @@ function CredentialingListPage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedRecords.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td
+                      colSpan={11}
+                      className="px-4 py-8"
+                    >
+                      <div className="space-y-3">
+                        {Array.from({ length: 6 }).map((_, index) => (
+                          <div
+                            key={index}
+                            className="grid grid-cols-[1.2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_0.9fr] gap-3 rounded-2xl border border-[#ece8e1] bg-white px-4 py-4"
+                          >
+                            {Array.from({ length: 11 }).map((__, colIndex) => (
+                              <div
+                                key={colIndex}
+                                className="h-4 animate-pulse rounded bg-slate-200/80"
+                              />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ) : records.length === 0 ? (
                   <tr>
                     <td
                       colSpan={11}
@@ -745,7 +737,7 @@ function CredentialingListPage() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedRecords.map((record) => (
+                  records.map((record) => (
                     <tr key={record.id} className="text-[13px] text-slate-600">
                       <td className="border-b border-[#f4f1ec] px-4 py-3 font-medium text-slate-700">
                         <button
@@ -792,7 +784,7 @@ function CredentialingListPage() {
                           <button
                             type="button"
                             onClick={() => openViewModal(record)}
-                            className="rounded-lg border border-[#ece8e1] p-2 text-slate-500 hover:bg-[#f7f5f1]"
+                            className="cursor-pointer rounded-lg border border-[#ece8e1] p-2 text-slate-500 hover:bg-[#f7f5f1]"
                             title="View"
                           >
                             <Eye className="h-4 w-4" />
@@ -800,15 +792,18 @@ function CredentialingListPage() {
                           <button
                             type="button"
                             onClick={() => openEditModal(record)}
-                            className="rounded-lg border border-[#ece8e1] p-2 text-slate-500 hover:bg-[#f7f5f1]"
+                            className="cursor-pointer rounded-lg border border-[#ece8e1] p-2 text-slate-500 hover:bg-[#f7f5f1]"
                             title="Edit"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => setDeleteTarget(record)}
-                            className="rounded-lg border border-[#ece8e1] p-2 text-slate-500 hover:bg-[#f7f5f1] hover:text-red-600"
+                            onClick={() => {
+                              setSelectedRecord(record);
+                              setDeleteTarget(record);
+                            }}
+                            className="cursor-pointer rounded-lg border border-[#ece8e1] p-2 text-slate-500 hover:bg-[#f7f5f1] hover:text-red-600"
                             title="Delete"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -832,7 +827,7 @@ function CredentialingListPage() {
                 type="button"
                 disabled={currentPage === 1}
                 onClick={() => setPage((current) => Math.max(1, current - 1))}
-                className="rounded-lg border border-[#ece8e1] px-3 py-2 text-[13px] text-slate-600 hover:bg-[#f7f5f1] disabled:cursor-not-allowed disabled:opacity-40"
+                className="cursor-pointer rounded-lg border border-[#ece8e1] px-3 py-2 text-[13px] text-slate-600 hover:bg-[#f7f5f1] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -843,7 +838,7 @@ function CredentialingListPage() {
                     key={pageNumber}
                     type="button"
                     onClick={() => setPage(pageNumber)}
-                    className={`min-w-10 rounded-lg px-3 py-2 text-[13px] ${
+                    className={`min-w-10 cursor-pointer rounded-lg px-3 py-2 text-[13px] ${
                       currentPage === pageNumber
                         ? "bg-[#4f63ea] text-white"
                         : "border border-[#ece8e1] text-slate-600 hover:bg-[#f7f5f1]"
@@ -858,9 +853,9 @@ function CredentialingListPage() {
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() =>
-                  setPage((current) => Math.min(totalPages, current + 1))
+                      setPage((current) => Math.min(totalPages, current + 1))
                 }
-                className="rounded-lg border border-[#ece8e1] px-3 py-2 text-[13px] text-slate-600 hover:bg-[#f7f5f1] disabled:cursor-not-allowed disabled:opacity-40"
+                className="cursor-pointer rounded-lg border border-[#ece8e1] px-3 py-2 text-[13px] text-slate-600 hover:bg-[#f7f5f1] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -876,6 +871,8 @@ function CredentialingListPage() {
           onSave={handleSave}
           onRequestEdit={() => setModalMode("edit")}
           onDelete={() => setDeleteTarget(selectedRecord)}
+          isSaving={isSaving}
+          isDeleting={isDeleting}
         />
 
         <ConfirmModal
@@ -886,6 +883,8 @@ function CredentialingListPage() {
           message={`Delete ${deleteTarget?.credentialingId || "this record"}? This cannot be undone.`}
           confirmLabel="Delete"
           type="danger"
+          isConfirming={isDeleting}
+          closeOnConfirm={false}
         />
       </div>
     </AppLayout>
@@ -893,3 +892,5 @@ function CredentialingListPage() {
 }
 
 export default CredentialingListPage;
+
+

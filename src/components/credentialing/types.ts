@@ -77,10 +77,16 @@ export type AllowedDocumentType = (typeof allowedDocumentTypes)[number];
 export type CredentialingDocument = {
   id: string;
   name: string;
+  fileName?: string;
   type: AllowedDocumentType;
+  documentType?: AllowedDocumentType;
   uploadedAt: string;
   uploadedBy: string;
   expiryDate?: string;
+  fileUrl?: string;
+  fileBase64?: string;
+  fileSize?: number;
+  mimeType?: string;
 };
 
 export type CredentialingActivity = {

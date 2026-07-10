@@ -229,7 +229,7 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "Dashboard", to: "/credentialing/dashboard" },
-      { label: "Credentialing List", to: "/credentialing/list" },
+      { label: "All Credentialing", to: "/credentialing/list" },
     ],
   },
   {
@@ -501,7 +501,7 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                       CustomIcon = <Shield className="h-3.5 w-3.5" />;
                     if (label.includes("dashboard"))
                       CustomIcon = <LayoutDashboard className="h-3.5 w-3.5" />;
-                    if (label.includes("credentialing list"))
+                    if (label.includes("All Credentialing"))
                       CustomIcon = <ListChecks className="h-3.5 w-3.5" />;
                     if (label.includes("status board"))
                       CustomIcon = (

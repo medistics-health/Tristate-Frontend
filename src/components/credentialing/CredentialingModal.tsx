@@ -7,13 +7,15 @@ import {
   Clock3,
   Download,
   FileText,
+  Loader2,
   Plus,
+  ExternalLink,
   Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import DatePicker from "../shared/DatePicker";
-import Select from "../shared/Select";
+import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import {
   addDocumentsToForm,
   addFollowUpToForm,
@@ -21,7 +23,6 @@ import {
   formatDateLabel,
   formatDateTimeLabel,
   removeFollowUpFromForm,
-  useCredentialingRecords,
 } from "./credentialingStore";
 import {
   allowedDocumentTypes,
@@ -39,15 +40,21 @@ import {
   type FollowUpDirection,
   type LineOfBusiness,
 } from "./types";
+import { getCredentialingRequestsView } from "../../services/operations/credentialing";
+import { getAllUsers } from "../../services/operations/users";
+import { getPersonsView } from "../../services/operations/persons";
+import { getPracticesView } from "../../services/operations/practices";
 
 type CredentialingModalProps = {
   isOpen: boolean;
   mode: "create" | "edit" | "view";
   record?: CredentialingRecord | null;
   onClose: () => void;
-  onSave: (form: CredentialingFormState) => void;
+  onSave: (form: CredentialingFormState) => Promise<void> | void;
   onDelete?: () => void;
   onRequestEdit?: () => void;
+  isSaving?: boolean;
+  isDeleting?: boolean;
 };
 
 type FollowUpDraft = {
@@ -135,11 +142,15 @@ function statusTone(status: string) {
   }
 }
 
-function statusOptions() {
-  return credentialingStatusOptions.map((option) => ({
-    label: option,
-    value: option,
-  }));
+function createLocalSearchOptions(options: string[]) {
+  return async (query: string): Promise<SearchSelectOption[]> => {
+    const normalized = query.trim().toLowerCase();
+    return options
+      .filter((option) =>
+        normalized ? option.toLowerCase().includes(normalized) : true,
+      )
+      .map((option) => ({ label: option, value: option }));
+  };
 }
 
 export default function CredentialingModal({
@@ -150,6 +161,8 @@ export default function CredentialingModal({
   onSave,
   onDelete,
   onRequestEdit,
+  isSaving = false,
+  isDeleting = false,
 }: CredentialingModalProps) {
   const [form, setForm] = useState<CredentialingFormState>(
     createCredentialingFormState(null),
@@ -167,20 +180,103 @@ export default function CredentialingModal({
     loggedBy: "Admin",
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const records = useCredentialingRecords();
+  const [practiceOptions, setPracticeOptions] = useState<string[]>([]);
+  const [payerOptions, setPayerOptions] = useState<string[]>([]);
+  const [providerOptions, setProviderOptions] = useState<string[]>([]);
+  const [specialistOptions, setSpecialistOptions] = useState<string[]>([]);
 
-  const practiceOptions = useMemo(
-    () => Array.from(new Set(records.map((entry) => entry.practice))).sort(),
-    [records],
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let active = true;
+    async function loadOptions() {
+      try {
+        const [practiceView, credentialingView, personView, users] = await Promise.all([
+          getPracticesView({ limit: 1000 }),
+          getCredentialingRequestsView({ limit: 5000 }),
+          getPersonsView({ limit: 1000 }),
+          getAllUsers(),
+        ]);
+
+        if (!active) return;
+
+        setPracticeOptions(
+          Array.from(new Set(practiceView.rows.map((row) => row.values.name)))
+            .filter(Boolean)
+            .sort(),
+        );
+        setPayerOptions(
+          Array.from(
+            new Set(credentialingView.credentialingRequests.map((entry) => entry.insuranceCompany)),
+          )
+            .filter(Boolean)
+            .sort(),
+        );
+        setProviderOptions(
+          Array.from(
+            new Set(
+              personView.rows.map((row) => row.values.fullName).filter(Boolean),
+            ),
+          ).sort(),
+        );
+        setSpecialistOptions(
+          Array.from(
+            new Set(
+              users
+                .map((user: any) => [user.firstName, user.lastName].filter(Boolean).join(" "))
+                .filter(Boolean),
+            ),
+          ).sort(),
+        );
+      } catch {
+        if (!active) return;
+        setPracticeOptions([]);
+        setPayerOptions([]);
+        setProviderOptions([]);
+        setSpecialistOptions([]);
+      }
+    }
+
+    void loadOptions();
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
+  const searchPracticeOptions = useMemo(() => createLocalSearchOptions(practiceOptions), [practiceOptions]);
+  const searchPayerOptions = useMemo(() => createLocalSearchOptions(payerOptions), [payerOptions]);
+  const searchProviderOptions = useMemo(() => createLocalSearchOptions(providerOptions), [providerOptions]);
+  const searchSpecialistOptions = useMemo(() => createLocalSearchOptions(specialistOptions), [specialistOptions]);
+  const searchStatusOptions = useMemo(
+    () => createLocalSearchOptions(credentialingStatusOptions as readonly string[] as string[]),
+    [],
   );
-  const payerOptions = useMemo(
-    () =>
-      Array.from(new Set(records.map((entry) => entry.insuranceCompany))).sort(),
-    [records],
+  const searchRequestTypeOptions = useMemo(
+    () => createLocalSearchOptions(requestTypeOptions as readonly string[] as string[]),
+    [],
   );
-  const specialistOptions = useMemo(
-    () => Array.from(new Set(records.map((entry) => entry.assignedUser))).sort(),
-    [records],
+  const searchContractTypeOptions = useMemo(
+    () => createLocalSearchOptions(contractTypeOptions as readonly string[] as string[]),
+    [],
+  );
+  const searchPriorityOptions = useMemo(
+    () => createLocalSearchOptions(priorityOptions as readonly string[] as string[]),
+    [],
+  );
+  const searchVerificationOptions = useMemo(
+    () => createLocalSearchOptions(verificationStatusOptions as readonly string[] as string[]),
+    [],
+  );
+  const searchDocumentTypeOptions = useMemo(
+    () => createLocalSearchOptions(allowedDocumentTypes as readonly string[] as string[]),
+    [],
+  );
+  const searchChannelOptions = useMemo(
+    () => createLocalSearchOptions(followUpChannelOptions as readonly string[] as string[]),
+    [],
+  );
+  const searchDirectionOptions = useMemo(
+    () => createLocalSearchOptions(followUpDirectionOptions as readonly string[] as string[]),
+    [],
   );
 
   useEffect(() => {
@@ -225,15 +321,16 @@ export default function CredentialingModal({
     }));
   }
 
-  function handleFileSelect(files: FileList | null) {
+  async function handleFileSelect(files: FileList | null) {
     if (!files || files.length === 0) return;
+    const uploadedDocuments = await addDocumentsToForm(
+      form.documents,
+      Array.from(files),
+      selectedDocumentType,
+    );
     setForm((current) => ({
       ...current,
-      documents: addDocumentsToForm(
-        current.documents,
-        Array.from(files),
-        selectedDocumentType,
-      ).map((doc) =>
+      documents: uploadedDocuments.map((doc) =>
         documentExpiryDate && doc.expiryDate == null
           ? { ...doc, expiryDate: documentExpiryDate }
           : doc,
@@ -304,7 +401,7 @@ export default function CredentialingModal({
                 />
               </div>
               <div className="mt-1 text-[13px] text-slate-400">
-                {record?.credentialingId || "Manual credentialing record"}
+                {record?.credentialingId || "Create credentialing record"}
               </div>
             </div>
           </div>
@@ -320,6 +417,7 @@ export default function CredentialingModal({
 
         <div className="min-h-0 flex-1 overflow-auto bg-[#fbfaf8]">
           <form
+            id="credentialing-form"
             className="space-y-5 p-6"
             onSubmit={(event) => {
               event.preventDefault();
@@ -337,49 +435,40 @@ export default function CredentialingModal({
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <label className="block">
                   <FieldLabel required>Practice</FieldLabel>
-                  <Select
+                  <SearchSelect
                     value={form.practice}
                     onChange={(value) => updateField("practice", value)}
-                    options={practiceOptions.map((option) => ({
-                      label: option,
-                      value: option,
-                    }))}
+                    onSearch={searchPracticeOptions}
                     disabled={isReadOnly}
-                    placeholder="Select practice"
+                    placeholder="Search practice"
                   />
                 </label>
 
                 <label className="block">
                   <FieldLabel>Provider</FieldLabel>
-                  <input
-                    type="text"
+                  <SearchSelect
                     value={form.provider}
-                    onChange={(event) =>
-                      updateField("provider", event.target.value)
-                    }
-                    readOnly={isReadOnly}
-                    placeholder="Optional if practice-level"
-                    className="app-control w-full rounded-xl px-3 py-2 text-[13px] disabled:bg-slate-50"
+                    onChange={(value) => updateField("provider", value)}
+                    onSearch={searchProviderOptions}
+                    disabled={isReadOnly}
+                    placeholder="Search provider"
                   />
                 </label>
 
                 <label className="block">
-                  <FieldLabel required>Insurance Payer</FieldLabel>
-                  <Select
+                  <FieldLabel>Insurance Payer</FieldLabel>
+                  <SearchSelect
                     value={form.insuranceCompany}
                     onChange={(value) => updateField("insuranceCompany", value)}
-                    options={payerOptions.map((option) => ({
-                      label: option,
-                      value: option,
-                    }))}
+                    onSearch={searchPayerOptions}
                     disabled={isReadOnly}
-                    placeholder="Select payer"
+                    placeholder="Search payer (optional)"
                   />
                 </label>
 
                 <label className="block">
                   <FieldLabel required>Request Type</FieldLabel>
-                  <Select
+                  <SearchSelect
                     value={form.credentialingType}
                     onChange={(value) =>
                       updateField(
@@ -387,18 +476,15 @@ export default function CredentialingModal({
                         value as CredentialingFormState["credentialingType"],
                       )
                     }
-                    options={requestTypeOptions.map((option) => ({
-                      label: option,
-                      value: option,
-                    }))}
+                    onSearch={searchRequestTypeOptions}
                     disabled={isReadOnly}
-                    placeholder="Select request type"
+                    placeholder="Search request type"
                   />
                 </label>
 
                 <label className="block">
                   <FieldLabel required>Contract Type</FieldLabel>
-                  <Select
+                  <SearchSelect
                     value={form.contractType}
                     onChange={(value) =>
                       updateField(
@@ -406,12 +492,9 @@ export default function CredentialingModal({
                         value as CredentialingFormState["contractType"],
                       )
                     }
-                    options={contractTypeOptions.map((option) => ({
-                      label: option,
-                      value: option,
-                    }))}
+                    onSearch={searchContractTypeOptions}
                     disabled={isReadOnly}
-                    placeholder="Select contract type"
+                    placeholder="Search contract type"
                   />
                 </label>
 
@@ -431,21 +514,18 @@ export default function CredentialingModal({
 
                 <label className="block">
                   <FieldLabel required>Assigned Specialist</FieldLabel>
-                  <Select
+                  <SearchSelect
                     value={form.assignedUser}
                     onChange={(value) => updateField("assignedUser", value)}
-                    options={specialistOptions.map((option) => ({
-                      label: option,
-                      value: option,
-                    }))}
+                    onSearch={searchSpecialistOptions}
                     disabled={isReadOnly}
-                    placeholder="Select specialist"
+                    placeholder="Search specialist"
                   />
                 </label>
 
                 <label className="block">
                   <FieldLabel required>Priority</FieldLabel>
-                  <Select
+                  <SearchSelect
                     value={form.priority}
                     onChange={(value) =>
                       updateField(
@@ -453,18 +533,15 @@ export default function CredentialingModal({
                         value as CredentialingFormState["priority"],
                       )
                     }
-                    options={priorityOptions.map((option) => ({
-                      label: option,
-                      value: option,
-                    }))}
+                    onSearch={searchPriorityOptions}
                     disabled={isReadOnly}
-                    placeholder="Select priority"
+                    placeholder="Search priority"
                   />
                 </label>
 
                 <label className="block">
                   <FieldLabel required>Status</FieldLabel>
-                  <Select
+                  <SearchSelect
                     value={form.status}
                     onChange={(value) =>
                       updateField(
@@ -472,9 +549,9 @@ export default function CredentialingModal({
                         value as CredentialingFormState["status"],
                       )
                     }
-                    options={statusOptions()}
+                    onSearch={searchStatusOptions}
                     disabled={isReadOnly}
-                    placeholder="Select status"
+                    placeholder="Search status"
                   />
                 </label>
               </div>
@@ -540,7 +617,7 @@ export default function CredentialingModal({
               <div className="grid gap-4 md:grid-cols-3">
                 <label className="block">
                   <FieldLabel>TIN Verified</FieldLabel>
-                  <Select
+                  <SearchSelect
                     value={form.tinVerified}
                     onChange={(value) =>
                       updateField(
@@ -548,18 +625,15 @@ export default function CredentialingModal({
                         value as CredentialingFormState["tinVerified"],
                       )
                     }
-                    options={verificationStatusOptions.map((option) => ({
-                      label: option,
-                      value: option,
-                    }))}
+                    onSearch={searchVerificationOptions}
                     disabled={isReadOnly}
-                    placeholder="Select status"
+                    placeholder="Search status"
                   />
                 </label>
 
                 <label className="block">
                   <FieldLabel>Address Verified</FieldLabel>
-                  <Select
+                  <SearchSelect
                     value={form.addressVerified}
                     onChange={(value) =>
                       updateField(
@@ -567,12 +641,9 @@ export default function CredentialingModal({
                         value as CredentialingFormState["addressVerified"],
                       )
                     }
-                    options={verificationStatusOptions.map((option) => ({
-                      label: option,
-                      value: option,
-                    }))}
+                    onSearch={searchVerificationOptions}
                     disabled={isReadOnly}
-                    placeholder="Select status"
+                    placeholder="Search status"
                   />
                 </label>
 
@@ -634,19 +705,16 @@ export default function CredentialingModal({
                   <div className="mb-3 text-[13px] font-medium text-slate-700">
                     Upload Documents
                   </div>
-                  <Select
+                  <SearchSelect
                     value={selectedDocumentType}
                     onChange={(value) =>
                       setSelectedDocumentType(
                         value as (typeof allowedDocumentTypes)[number],
                       )
                     }
-                    options={allowedDocumentTypes.map((option) => ({
-                      label: option,
-                      value: option,
-                    }))}
+                    onSearch={searchDocumentTypeOptions}
                     disabled={isReadOnly}
-                    placeholder="Select document type"
+                    placeholder="Search document type"
                   />
 
                   <label className="mt-3 block">
@@ -674,7 +742,9 @@ export default function CredentialingModal({
                       multiple
                       disabled={isReadOnly}
                       className="hidden"
-                      onChange={(event) => handleFileSelect(event.target.files)}
+                      onChange={(event) => {
+                        void handleFileSelect(event.target.files);
+                      }}
                     />
                   </label>
                 </div>
@@ -712,13 +782,38 @@ export default function CredentialingModal({
                             label={doc.type}
                             tone="bg-slate-100 text-slate-600"
                           />
-                          <button
-                            type="button"
-                            onClick={() => downloadLocalDocument(record, doc.name)}
-                            className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-slate-700"
-                          >
-                            <Download className="h-4 w-4" />
-                          </button>
+                          {doc.fileUrl ? (
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={doc.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 rounded-lg border border-[#ece8e1] px-3 py-2 text-[12px] font-medium text-slate-600 hover:bg-white hover:text-slate-800"
+                                title="View document"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                View
+                              </a>
+                              <a
+                                href={doc.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-slate-700"
+                                title="Open Azure document"
+                              >
+                                <Download className="h-4 w-4" />
+                              </a>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => downloadLocalDocument(record, doc.name)}
+                              className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-slate-700"
+                              title="Download local preview"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                          )}
                           {!isReadOnly ? (
                             <button
                               type="button"
@@ -749,7 +844,7 @@ export default function CredentialingModal({
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     <label className="block">
                       <FieldLabel>Channel</FieldLabel>
-                      <Select
+                      <SearchSelect
                         value={followUpDraft.channel}
                         onChange={(value) =>
                           setFollowUpDraft((current) => ({
@@ -757,17 +852,14 @@ export default function CredentialingModal({
                             channel: value as FollowUpChannel,
                           }))
                         }
-                        options={followUpChannelOptions.map((option) => ({
-                          label: option,
-                          value: option,
-                        }))}
+                        onSearch={searchChannelOptions}
                         placeholder="Select channel"
                       />
                     </label>
 
                     <label className="block">
                       <FieldLabel>Direction</FieldLabel>
-                      <Select
+                      <SearchSelect
                         value={followUpDraft.direction}
                         onChange={(value) =>
                           setFollowUpDraft((current) => ({
@@ -775,10 +867,7 @@ export default function CredentialingModal({
                             direction: value as FollowUpDirection,
                           }))
                         }
-                        options={followUpDirectionOptions.map((option) => ({
-                          label: option,
-                          value: option,
-                        }))}
+                        onSearch={searchDirectionOptions}
                         placeholder="Select direction"
                       />
                     </label>
@@ -992,23 +1081,43 @@ export default function CredentialingModal({
                   <button
                     type="button"
                     onClick={onDelete}
+                    disabled={isSaving || isDeleting}
                     className="rounded-xl border border-red-200 px-4 py-2 text-[13px] font-medium text-red-600 hover:bg-red-50"
                   >
-                    Delete
+                    {isDeleting ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Deleting...
+                      </span>
+                    ) : (
+                      "Delete"
+                    )}
                   </button>
                 ) : null}
                 <button
                   type="button"
                   onClick={onClose}
+                  disabled={isSaving || isDeleting}
                   className="rounded-xl border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
+                  form="credentialing-form"
+                  disabled={isSaving || isDeleting}
                   className="rounded-xl bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
                 >
-                  {mode === "create" ? "Save Credentialing" : "Save Changes"}
+                  {isSaving ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {mode === "create" ? "Saving..." : "Updating..."}
+                    </span>
+                  ) : mode === "create" ? (
+                    "Save Credentialing"
+                  ) : (
+                    "Save Changes"
+                  )}
                 </button>
               </>
             )}
