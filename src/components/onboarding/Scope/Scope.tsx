@@ -29,12 +29,6 @@ type ScopeFormState = Pick<
   | "currentVendorEndDate"
   | "engagementGoals"
 >;
-type ServiceVendorDetail = {
-  hasExistingVendor: boolean;
-  vendorName: string;
-  vendorEndDate: string;
-};
-
 const serviceOptions: Option[] = [
   { label: "Credentialing", value: "CREDENTIALING" },
   { label: "Billing / Revenue Cycle Management", value: "BILLING_RCM" },
@@ -108,9 +102,6 @@ export default function Scope() {
   const [practiceServiceVendors, setPracticeServiceVendors] = useState<
     Record<string, { vendorId: string | null }>
   >({});
-  const [serviceVendors, setServiceVendors] = useState<
-    Record<string, ServiceVendorDetail>
-  >({});
   const requestedGoLiveDatePickerRef = useRef<HTMLInputElement | null>(null);
 
   const selectedServices = useMemo(
@@ -150,20 +141,6 @@ export default function Scope() {
       ),
     [selectedPractice?.persons],
   );
-
-  useEffect(() => {
-    setServiceVendors((prev) => {
-      const next: Record<string, ServiceVendorDetail> = {};
-      selectedServices.forEach((service) => {
-        next[service] = prev[service] ?? {
-          hasExistingVendor: false,
-          vendorName: "",
-          vendorEndDate: "",
-        };
-      });
-      return next;
-    });
-  }, [selectedServices]);
 
   useEffect(() => {
     if (practices.length) return;
@@ -338,37 +315,6 @@ export default function Scope() {
     };
   }, [selectedPracticeId]);
 
-  function toggleService(value: string) {
-    setScope((prev) => {
-      const existing = prev.requestedServices ?? [];
-      const hasValue = existing.includes(value);
-      const nextValues = hasValue
-        ? existing.filter((item) => item !== value)
-        : [...existing, value];
-
-      return {
-        ...prev,
-        requestedServices: nextValues,
-      };
-    });
-  }
-
-  function updateServiceVendor(
-    service: string,
-    changes: Partial<ServiceVendorDetail>,
-  ) {
-    setServiceVendors((prev) => ({
-      ...prev,
-      [service]: {
-        hasExistingVendor: false,
-        vendorName: "",
-        vendorEndDate: "",
-        ...prev[service],
-        ...changes,
-      },
-    }));
-  }
-
   function validateScope() {
     return true;
   }
@@ -389,31 +335,32 @@ export default function Scope() {
 
     try {
       const selectedVendorEntries = selectedServices
-        .map((service) => ({
-          service,
-          ...serviceVendors[service],
-        }))
-        .filter((entry) => entry.hasExistingVendor);
+        .filter(
+          (service) =>
+            practiceServiceVendors[service]?.vendorId,
+        )
+        .map((service) => {
+          const svcVendor = practiceServiceVendors[service];
+          const vendorName = svcVendor?.vendorId
+            ? (vendors.find((v) => v.id === svcVendor.vendorId)?.name ?? "")
+            : "";
+          return { service, vendorName };
+        });
       const replacingExistingVendor = selectedVendorEntries.length > 0;
       const currentVendorName = selectedVendorEntries
         .map((entry) => {
           const serviceLabel =
             serviceLabelMap.get(entry.service) ?? entry.service;
-          return `${serviceLabel}: ${entry.vendorName.trim()}`;
+          return `${serviceLabel}: ${entry.vendorName}`;
         })
         .join("; ");
-      const currentVendorEndDate =
-        selectedVendorEntries.find((entry) => entry.vendorEndDate)
-          ?.vendorEndDate ?? "";
+      const currentVendorEndDate = "";
       const vendorSummary = selectedVendorEntries.length
         ? selectedVendorEntries
             .map((entry) => {
               const serviceLabel =
                 serviceLabelMap.get(entry.service) ?? entry.service;
-              const datePart = entry.vendorEndDate
-                ? ` (end date: ${entry.vendorEndDate})`
-                : "";
-              return `- ${serviceLabel}: ${entry.vendorName.trim()}${datePart}`;
+              return `- ${serviceLabel}: ${entry.vendorName}`;
             })
             .join("\n")
         : "";
@@ -498,13 +445,14 @@ export default function Scope() {
           </p>
         </div>
 
+        {/* Practice & Person */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Scope Setup</h2>
-
-          {/* Select Practice */}
-          <div className="mt-6 space-y-4">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Practice &amp; Contact
+          </h2>
+          <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Practice *
               </label>
               <select
@@ -514,7 +462,7 @@ export default function Scope() {
                   setSelectedPersonId("");
                 }}
                 disabled={isLoadingSignedPractices}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
               >
                 <option value="">
                   {isLoadingSignedPractices
@@ -528,181 +476,163 @@ export default function Scope() {
                 ))}
               </select>
               {!isLoadingSignedPractices && !availableScopePractices.length ? (
-                <p className="mt-2 text-xs text-amber-700">
+                <p className="mt-1.5 text-xs text-amber-700">
                   No practices found with a signed agreement.
                 </p>
               ) : null}
             </div>
 
-            {/* Practice Person */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Practice person *
               </label>
-              <select
-                value={selectedPersonId}
-                onChange={(event) => setSelectedPersonId(event.target.value)}
-                disabled={!selectedPracticeId}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
-              >
-                <option value="">Select person</option>
-                {eligiblePracticePersons.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {[person.firstName, person.lastName]
-                      .filter(Boolean)
-                      .join(" ") ||
-                      person.email ||
-                      "Contact"}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedPersonId}
+                  onChange={(event) => setSelectedPersonId(event.target.value)}
+                  disabled={!selectedPracticeId}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+                >
+                  <option value="">Select person</option>
+                  {eligiblePracticePersons.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {[person.firstName, person.lastName]
+                        .filter(Boolean)
+                        .join(" ") ||
+                        person.email ||
+                        "Contact"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedPracticeId && !eligiblePracticePersons.length ? (
+                <p className="mt-1.5 text-xs text-amber-700">
+                  No ADMIN or OWNER person is linked to this practice.
+                </p>
+              ) : null}
+              {selectedPracticeId ? (
+                <button
+                  type="button"
+                  onClick={() => navigate("/people/all-peoples")}
+                  className="mt-1.5 text-xs font-medium text-slate-500 underline underline-offset-2 hover:text-slate-800"
+                >
+                  Manage / Add Contact
+                </button>
+              ) : null}
             </div>
+          </div>
+        </section>
 
-            {selectedPracticeId && !eligiblePracticePersons.length ? (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                No ADMIN or OWNER person is linked to this practice. Add an
-                eligible contact first, then send onboarding.
-              </p>
-            ) : null}
-
-            {selectedPracticeId ? (
-              <button
-                type="button"
-                onClick={() => navigate("/people/all-peoples")}
-                className="text-sm font-medium text-slate-600 underline underline-offset-2 hover:text-slate-900"
-              >
-                Manage / Add Contact
-              </button>
+        {/* Services & Vendor */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Services in Scope
+            </h2>
+            {practiceAgreementServiceValues.length > 0 ? (
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                {practiceAgreementServiceValues.length} service
+                {practiceAgreementServiceValues.length !== 1 ? "s" : ""}
+              </span>
             ) : null}
           </div>
 
-          {/* Services Requested / Scope */}
-          <div className="mt-8 space-y-6">
-            <h3 className="text-md font-semibold text-slate-800">
-              Services in Scope
-            </h3>
-
-            {selectedPracticeId && practiceAgreementServiceValues.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {practiceAgreementServiceValues.map((value) => (
-                  <span
-                    key={value}
-                    className="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700"
-                  >
-                    {serviceLabelMap.get(value) ?? value}
-                  </span>
-                ))}
+          {selectedPracticeId && practiceAgreementServiceValues.length > 0 ? (
+            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+              <div className="flex items-center justify-between bg-slate-50 px-4 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Service
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Vendor
+                </span>
               </div>
-            ) : (
-              <p className="text-sm text-slate-500">
-                {selectedPracticeId
-                  ? "No services found in the practice's signed agreement."
-                  : "Select a practice above to see its agreement services."}
-              </p>
-            )}
-
-            {/* Commented out: manual service selection — services are auto-populated from the practice's signed agreement
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Which services are requested? *
-              </label>
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                {serviceOptions.map((option) => (
-                  <label
-                    key={option.value}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedServices.includes(option.value)}
-                      onChange={() => toggleService(option.value)}
-                    />
-                    <span>{option.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            */}
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Requested go-live date
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={requestedGoLiveDateDisplay}
-                    readOnly
-                    onClick={openRequestedGoLiveDatePicker}
-                    placeholder="MM/DD/YYYY"
-                    className="w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 pr-28 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={openRequestedGoLiveDatePicker}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
-                  >
-                    Pick
-                  </button>
-                  <input
-                    ref={requestedGoLiveDatePickerRef}
-                    type="date"
-                    value={scope.requestedGoLiveDate ?? ""}
-                    onChange={(event) =>
-                      setScope((prev) => ({
-                        ...prev,
-                        requestedGoLiveDate: event.target.value,
-                      }))
-                    }
-                    tabIndex={-1}
-                    aria-hidden="true"
-                    className="pointer-events-none absolute h-0 w-0 opacity-0"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Vendor by requested service
-              </label>
-              <div className="space-y-3">
-                {practiceAgreementServiceValues.length ? (
-                  practiceAgreementServiceValues.map((service) => {
-                    const svcVendor = practiceServiceVendors[service];
-                    const vendorName = svcVendor?.vendorId
-                      ? (vendors.find((v) => v.id === svcVendor.vendorId)
-                          ?.name ?? "Unknown vendor")
-                      : null;
-                    return (
-                      <div
-                        key={service}
-                        // className="rounded-xl border border-slate-200 p-3"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          {/*<p className="text-sm font-medium text-slate-800">
-                            {serviceLabelMap.get(service) ?? service}
-                          </p>*/}
-                          {vendorName ? (
-                            <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-                              {vendorName}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center rounded-full bg-slate-50 px-3 py-1 text-sm font-medium text-slate-400">
-                              No vendor
-                            </span>
-                          )}
-                        </div>
+              <div className="divide-y divide-slate-100">
+                {practiceAgreementServiceValues.map((service) => {
+                  const svcVendor = practiceServiceVendors[service];
+                  const vendorName = svcVendor?.vendorId
+                    ? (vendors.find((v) => v.id === svcVendor.vendorId)
+                        ?.name ?? "Unknown vendor")
+                    : null;
+                  return (
+                    <div
+                      key={service}
+                      className="flex items-center justify-between px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-slate-800">
+                          {serviceLabelMap.get(service) ?? service}
+                        </span>
                       </div>
-                    );
-                  })
-                ) : (
-                  <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                    Select a practice above to see vendor details.
-                  </p>
-                )}
+                      {vendorName ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
+                          <svg
+                            className="h-3 w-3 text-indigo-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth="2"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+                            />
+                          </svg>
+                          {vendorName}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-400">
+                          No vendor
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-500">
+              {selectedPracticeId
+                ? "No services found in the practice's signed agreement."
+                : "Select a practice above to see its agreement services."}
+            </p>
+          )}
+
+          <div className="mt-5">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Requested go-live date
+            </label>
+            <div className="relative max-w-xs">
+              <input
+                type="text"
+                value={requestedGoLiveDateDisplay}
+                readOnly
+                onClick={openRequestedGoLiveDatePicker}
+                placeholder="MM/DD/YYYY"
+                className="w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 pr-28 text-sm"
+              />
+              <button
+                type="button"
+                onClick={openRequestedGoLiveDatePicker}
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-100"
+              >
+                Pick
+              </button>
+              <input
+                ref={requestedGoLiveDatePickerRef}
+                type="date"
+                value={scope.requestedGoLiveDate ?? ""}
+                onChange={(event) =>
+                  setScope((prev) => ({
+                    ...prev,
+                    requestedGoLiveDate: event.target.value,
+                  }))
+                }
+                tabIndex={-1}
+                aria-hidden="true"
+                className="pointer-events-none absolute h-0 w-0 opacity-0"
+              />
             </div>
           </div>
         </section>
