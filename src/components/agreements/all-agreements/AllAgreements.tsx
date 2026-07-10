@@ -195,7 +195,7 @@ function buildCreateFormDocusealPrefillValues(
       fieldName.includes("practice") ||
       fieldName.includes("clinic")
     ) {
-      value = practice?.name || "";
+      // value = practice?.name || "";
     } else if (fieldName.includes("npi")) {
       value = practice?.npi || "";
     } else if (fieldName.includes("effective")) {

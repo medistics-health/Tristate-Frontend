@@ -275,7 +275,7 @@ function buildLeadAgreementDocusealPrefillValues(
       fieldName.includes("practice") ||
       fieldName.includes("clinic")
     ) {
-      value = practiceName || companyName;
+      // value = practiceName || companyName;
     } else if (fieldName.includes("company")) {
       value = companyName;
     } else if (fieldName.includes("npi")) {
