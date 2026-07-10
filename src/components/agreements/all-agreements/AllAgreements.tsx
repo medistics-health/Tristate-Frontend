@@ -2233,9 +2233,14 @@ function AllAgreementsPage() {
                     );
                     const templateFieldValues =
                       createForm.docusealFieldValues[templateId] || {};
+                    const practiceName =
+                      practices.find(
+                        (p) => p.id === createForm.practiceId,
+                      )?.name || "";
                     const submitterGroups = getTemplateSubmitterGroups(
                       template,
                       templateFieldValues,
+                      practiceName,
                     );
 
                     return (

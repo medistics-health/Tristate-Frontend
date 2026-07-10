@@ -56,12 +56,15 @@ export function buildTemplateFieldValues(template?: DocusealTemplate) {
 export function getTemplateSubmitterGroups(
   template: DocusealTemplate | undefined,
   fieldValues: Record<string, string>,
+  practiceName?: string,
 ) {
   if (!template) {
     return [];
   }
 
-  const editableFields = (template.fields || []).filter(isEditableDocusealField);
+  const editableFields = (template.fields || []).filter(
+    isEditableDocusealField,
+  );
   const groupedFields = editableFields.reduce<Record<string, DocusealField[]>>(
     (acc, field) => {
       const submitterUuid = field.submitter_uuid || "unknown";
@@ -76,7 +79,11 @@ export function getTemplateSubmitterGroups(
 
   return (template.submitters || []).map((submitter) => ({
     submitterUuid: submitter.uuid,
-    submitterName: submitter.name || "Submitter",
+    submitterName:
+      submitter.name === "First Party"
+        ? `${submitter.name}: Tristate`
+        : `${submitter.name}: ${practiceName ?? "Client"}`,
+    // || "Submitter",
     fields: (groupedFields[submitter.uuid] || []).filter((field) => {
       const value = getDocusealFieldValue(fieldValues, field);
       return field.required || value !== "";

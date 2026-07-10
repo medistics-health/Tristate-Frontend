@@ -2231,7 +2231,10 @@ function CreateLeadPage() {
                         type="button"
                         onClick={() => {
                           updateAgreementField("action", "none");
-                          setForm((prev) => ({ ...prev, interestedServiceIds: [] }));
+                          setForm((prev) => ({
+                            ...prev,
+                            interestedServiceIds: [],
+                          }));
                         }}
                         className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
                           form.agreement.action === "none"
@@ -2520,6 +2523,9 @@ function CreateLeadPage() {
                                   getTemplateSubmitterGroups(
                                     template,
                                     templateFieldValues,
+                                    selectedPracticeLabel.length > 0
+                                      ? selectedPracticeLabel
+                                      : form.practiceName,
                                   );
 
                                 return (

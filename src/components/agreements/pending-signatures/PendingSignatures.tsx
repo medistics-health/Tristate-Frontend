@@ -848,6 +848,7 @@ function AgreementPendingSignaturesPage() {
                                 const submitterGroups = getTemplateSubmitterGroups(
                                   template,
                                   submissionFields,
+                                  selectedAgreement?.practice?.name,
                                 );
 
                                 return (
