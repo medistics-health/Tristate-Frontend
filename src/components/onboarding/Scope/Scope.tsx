@@ -281,24 +281,19 @@ export default function Scope() {
           .find((agreement) => agreement.status === "SIGNED");
 
         if (signedAgreement?.services?.length) {
-          const serviceNames = signedAgreement.services.map((s) =>
-            s.name.toLowerCase(),
-          );
-          const matchedValues = serviceOptions
-            .filter((opt) => serviceNames.includes(opt.label.toLowerCase()))
-            .map((opt) => opt.value);
-
+          const matchedValues: string[] = [];
           const vendorMap: Record<string, { vendorId: string | null }> = {};
+
           for (const svc of signedAgreement.services) {
             const lowerName = svc.name.toLowerCase();
             const matchedOpt = serviceOptions.find(
               (opt) => opt.label.toLowerCase() === lowerName,
             );
-            if (matchedOpt) {
-              vendorMap[matchedOpt.value] = {
-                vendorId: (svc as any).vendorId ?? null,
-              };
-            }
+            const serviceValue = matchedOpt ? matchedOpt.value : svc.name;
+            matchedValues.push(serviceValue);
+            vendorMap[serviceValue] = {
+              vendorId: (svc as any).vendorId ?? null,
+            };
           }
 
           setPracticeAgreementServiceValues(matchedValues);
