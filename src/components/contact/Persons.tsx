@@ -54,11 +54,18 @@ function getCellDisplayValue(value: PersonCellValue): string {
 }
 
 function normalizePhoneInput(value: string): string {
-  return value.replace(/\D/g, "").slice(0, 10);
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function stripPhone(value: string): string {
+  return value.replace(/\D/g, "");
 }
 
 function isValidPersonPhone(value: string): boolean {
-  return /^\d{10}$/.test(value);
+  return /^\d{10}$/.test(stripPhone(value));
 }
 
 function getSignedDocumentUrls(submission: {
@@ -257,7 +264,7 @@ export default function PersonsPage() {
         role: String(values.role || "ADMIN"),
         influence: String(values.influence || "MEDIUM"),
         email: String(values.email || ""),
-        phone: String(values.phone || ""),
+        phone: normalizePhoneInput(String(values.phone || "")),
         practiceIds: practiceIdsArray,
         companyIds: companyIdsArray,
         designation: String(values.designation || ""),
@@ -597,7 +604,7 @@ export default function PersonsPage() {
       toast.error("You do not have permission to create persons.");
       return;
     }
-    const trimmedPhone = formData.phone.trim();
+    const trimmedPhone = stripPhone(formData.phone.trim());
 
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       toast.error("First name and last name are required");
@@ -653,7 +660,7 @@ export default function PersonsPage() {
       toast.error("You do not have permission to update persons.");
       return;
     }
-    const trimmedPhone = formData.phone.trim();
+    const trimmedPhone = stripPhone(formData.phone.trim());
 
     if (
       !selectedRow ||
@@ -976,10 +983,10 @@ export default function PersonsPage() {
               value={formData.phone}
               onChange={(e) => handleFormChange("phone", e.target.value)}
               inputMode="numeric"
-              maxLength={10}
-              pattern="\d{10}"
+              maxLength={12}
+              pattern="\d{3}-?\d{3}-?\d{4}"
               title="Phone number must be exactly 10 digits"
-              placeholder="10-digit phone number"
+              placeholder="XXX-XXX-XXXX"
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
@@ -1530,7 +1537,7 @@ export default function PersonsPage() {
                         ? [
                             {
                               label: "Phone",
-                              value: String(selectedRow.values.phone),
+                              value: normalizePhoneInput(String(selectedRow.values.phone)),
                             },
                           ]
                         : []),
@@ -1689,10 +1696,10 @@ export default function PersonsPage() {
                         handleFormChange("phone", e.target.value)
                       }
                       inputMode="numeric"
-                      maxLength={10}
-                      pattern="\d{10}"
+                      maxLength={12}
+                      pattern="\d{3}-?\d{3}-?\d{4}"
                       title="Phone number must be exactly 10 digits"
-                      placeholder="10-digit phone number"
+                      placeholder="XXX-XXX-XXXX"
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>

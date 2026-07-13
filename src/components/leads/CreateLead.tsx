@@ -213,6 +213,17 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   // "Exhibit P",
 ];
 
+function normalizePhoneInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function stripPhone(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
 const personRoleOptions: PersonRole[] = [
   "OWNER",
   "ADMIN",
@@ -417,7 +428,7 @@ function CreateLeadPage() {
         );
         const companyPayload: CompanyBody = {
           name: form.companyName.trim(),
-          phone: form.companyPhone.trim() || undefined,
+          phone: stripPhone(form.companyPhone.trim()) || undefined,
           email: form.companyEmail.trim() || undefined,
           website: form.companyWebsite.trim() || undefined,
           status: "LEAD",
@@ -522,7 +533,7 @@ function CreateLeadPage() {
           role: form.primaryContactRole,
           influence: "HIGH",
           email: form.primaryContactEmail.trim(),
-          phone: form.primaryContactPhone.trim() || undefined,
+          phone: stripPhone(form.primaryContactPhone.trim()) || undefined,
           designation: form.primaryContactDesignation.trim() || undefined,
           practiceIds: mergedPracticeIds,
           companyIds: mergedCompanyIds,
@@ -1255,14 +1266,14 @@ function CreateLeadPage() {
     // Validate phone formats
     if (
       form.companyPhone.trim() &&
-      !/^\d{10}$/.test(form.companyPhone.trim())
+      !/^\d{10}$/.test(stripPhone(form.companyPhone.trim()))
     ) {
       toast.error("Company phone must be exactly 10 digits.");
       return;
     }
     if (
       form.primaryContactPhone.trim() &&
-      !/^\d{10}$/.test(form.primaryContactPhone.trim())
+      !/^\d{10}$/.test(stripPhone(form.primaryContactPhone.trim()))
     ) {
       toast.error("Contact phone must be exactly 10 digits.");
       return;
@@ -1458,13 +1469,13 @@ function CreateLeadPage() {
                         <input
                           type="tel"
                           inputMode="numeric"
-                          maxLength={10}
-                          pattern="[0-9]{10}"
+                          maxLength={12}
+                          pattern="\d{3}-?\d{3}-?\d{4}"
                           value={form.companyPhone}
                           onChange={(e) =>
                             updateField(
                               "companyPhone",
-                              e.target.value.replace(/\D/g, "").slice(0, 10),
+                              normalizePhoneInput(e.target.value),
                             )
                           }
                           className="app-control w-full rounded-md px-3 py-2 text-[13px]"
@@ -1973,19 +1984,19 @@ function CreateLeadPage() {
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
                         Phone
                       </span>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        maxLength={10}
-                        pattern="[0-9]{10}"
-                        value={form.primaryContactPhone}
-                        onChange={(e) =>
-                          updateField(
-                            "primaryContactPhone",
-                            e.target.value.replace(/\D/g, "").slice(0, 10),
-                          )
-                        }
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                       <input
+                         type="tel"
+                         inputMode="numeric"
+                         maxLength={12}
+                         pattern="\d{3}-?\d{3}-?\d{4}"
+                         value={form.primaryContactPhone}
+                         onChange={(e) =>
+                           updateField(
+                             "primaryContactPhone",
+                             normalizePhoneInput(e.target.value),
+                           )
+                         }
+                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </label>
                     <label className="block">
