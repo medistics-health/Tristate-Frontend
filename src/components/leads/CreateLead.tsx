@@ -2152,8 +2152,9 @@ function CreateLeadPage() {
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {services.map((service) => {
-                      const isSelected =
-                        form.interestedServiceIds.includes(service.id);
+                      const isSelected = form.interestedServiceIds.includes(
+                        service.id,
+                      );
                       return (
                         <button
                           key={service.id}
@@ -2694,7 +2695,7 @@ function CreateLeadPage() {
                   onClick={resetForm}
                   className="px-6 py-2.5 text-[14px] font-medium text-slate-600 hover:text-slate-800 transition-colors"
                 >
-                  Cancel
+                  Clear All
                 </button>
                 <button
                   type="submit"

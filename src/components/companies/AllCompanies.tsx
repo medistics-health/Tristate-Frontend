@@ -20,7 +20,6 @@ import {
   Mail,
   Globe,
   DollarSign,
-  Users,
   Tag,
   MapPin,
   X,
@@ -92,7 +91,6 @@ type TaxIdFormData = {
 type CompanyFormData = {
   name: string;
   domain: string;
-  size: string;
   revenue: string;
   phone: string;
   email: string;
@@ -102,14 +100,12 @@ type CompanyFormData = {
   city: string;
   state: string;
   zip: string;
-  country: string;
   taxIds: TaxIdFormData[];
 };
 
 const initialFormData: CompanyFormData = {
   name: "",
   domain: "",
-  size: "",
   revenue: "",
   phone: "",
   email: "",
@@ -119,7 +115,6 @@ const initialFormData: CompanyFormData = {
   city: "",
   state: "",
   zip: "",
-  country: "",
   taxIds: [{ taxIdNumber: "", legalEntityName: "", notes: "" }],
 };
 
@@ -130,7 +125,6 @@ function companyToPanelRow(company: Company): CompanyRow {
       id: company.id,
       name: company.name,
       domain: company.domain || "",
-      size: company.size || 0,
       revenue: company.revenue || 0,
       phone: company.phone || "",
       email: company.email || "",
@@ -139,7 +133,6 @@ function companyToPanelRow(company: Company): CompanyRow {
       street: company.street || "",
       city: company.city || "",
       state: company.state || "",
-      country: company.country || "",
       zip: company.zip || "",
       creationDate: new Date(company.createdAt).toLocaleString(),
       lastUpdate: new Date(company.updatedAt).toLocaleString(),
@@ -155,7 +148,6 @@ function companyToFormData(company: Company): CompanyFormData {
   return {
     name: company.name || "",
     domain: company.domain || "",
-    size: company.size ? String(company.size) : "",
     revenue: company.revenue ? String(company.revenue) : "",
     phone: company.phone || "",
     email: company.email || "",
@@ -165,7 +157,6 @@ function companyToFormData(company: Company): CompanyFormData {
     city: company.city || "",
     state: company.state || "",
     zip: company.zip || "",
-    country: company.country || "",
     taxIds:
       company.taxIds && company.taxIds.length > 0
         ? company.taxIds.map((taxId) => ({
@@ -323,7 +314,6 @@ export default function AllCompaniesPage() {
         const iconMap: Record<string, React.ReactNode> = {
           name: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           domain: <Globe className="h-3.5 w-3.5 text-slate-400" />,
-          size: <Users className="h-3.5 w-3.5 text-slate-400" />,
           revenue: <DollarSign className="h-3.5 w-3.5 text-slate-400" />,
           phone: <Phone className="h-3.5 w-3.5 text-slate-400" />,
           email: <Mail className="h-3.5 w-3.5 text-slate-400" />,
@@ -373,7 +363,6 @@ export default function AllCompaniesPage() {
               );
             }
             if (
-              field.id === "size" ||
               field.id === "revenue" ||
               field.id === "practicesCount" ||
               field.id === "practiceGroupsCount" ||
@@ -549,7 +538,6 @@ export default function AllCompaniesPage() {
       const companyData = {
         name: formData.name.trim(),
         domain: formData.domain.trim() || undefined,
-        size: formData.size ? parseInt(formData.size, 10) : undefined,
         revenue: formData.revenue ? parseInt(formData.revenue, 10) : undefined,
         phone: trimmedPhone || undefined,
         email: trimmedEmail || undefined,
@@ -560,7 +548,6 @@ export default function AllCompaniesPage() {
           city: formData.city.trim() || undefined,
           state: formData.state.trim() || undefined,
           zip: formData.zip.trim() || undefined,
-          country: formData.country.trim() || undefined,
         },
         // ...(validTaxIds.length > 0 ? { taxIds: validTaxIds } : {}),
         taxIds: formData.taxIds || undefined,
@@ -624,7 +611,6 @@ export default function AllCompaniesPage() {
       const companyData = {
         name: formData.name.trim(),
         domain: formData.domain.trim() || undefined,
-        size: formData.size ? parseInt(formData.size, 10) : undefined,
         revenue: formData.revenue ? parseInt(formData.revenue, 10) : undefined,
         phone: trimmedPhone || undefined,
         email: trimmedEmail || undefined,
@@ -635,7 +621,6 @@ export default function AllCompaniesPage() {
           city: formData.city.trim() || undefined,
           state: formData.state.trim() || undefined,
           zip: formData.zip.trim() || undefined,
-          country: formData.country.trim() || undefined,
         },
         taxIds: formData.taxIds || undefined,
       };
@@ -902,22 +887,10 @@ export default function AllCompaniesPage() {
             />
           </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Size
-            </label>
-            <input
-              type="number"
-              value={formData.size}
-              onChange={(e) => handleFormChange("size", e.target.value)}
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Revenue
-            </label>
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            Revenue
+          </label>
             <input
               type="number"
               value={formData.revenue}
@@ -925,7 +898,6 @@ export default function AllCompaniesPage() {
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
-        </div>
 
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
@@ -1026,11 +998,10 @@ export default function AllCompaniesPage() {
                   value={formData.state}
                   onChange={(e) => handleFormChange("state", e.target.value)}
                   className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            />
+          </div>
+
+        <div>
                 <label className="mb-1 block text-[11px] text-slate-500">
                   ZIP
                 </label>
@@ -1043,17 +1014,6 @@ export default function AllCompaniesPage() {
                   pattern="[0-9]{5}(-[0-9]{4})?"
                   maxLength={10}
                   title="5-digit or 9-digit ZIP code (e.g. 94102 or 94102-6789)"
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] text-slate-500">
-                  Country
-                </label>
-                <input
-                  type="text"
-                  value={formData.country}
-                  onChange={(e) => handleFormChange("country", e.target.value)}
                   className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                 />
               </div>
@@ -1566,20 +1526,7 @@ export default function AllCompaniesPage() {
                     />
                   </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Size
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.size}
-                      onChange={(e) => handleFormChange("size", e.target.value)}
-                      placeholder="Employee count"
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </div>
-                  <div>
+                <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
                       Revenue
                     </label>
@@ -1593,7 +1540,6 @@ export default function AllCompaniesPage() {
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>
-                </div>
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
@@ -1710,11 +1656,10 @@ export default function AllCompaniesPage() {
                           }
                           placeholder="CA"
                           className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
+                    />
+                  </div>
+
+                <div>
                         <label className="mb-1 block text-[12px] text-slate-500">
                           ZIP Code
                         </label>
@@ -1729,20 +1674,6 @@ export default function AllCompaniesPage() {
                           pattern="[0-9]{5}(-[0-9]{4})?"
                           maxLength={10}
                           title="5-digit or 9-digit ZIP code (e.g. 94102 or 94102-6789)"
-                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-[12px] text-slate-500">
-                          Country
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.country}
-                          onChange={(e) =>
-                            handleFormChange("country", e.target.value)
-                          }
-                          placeholder="USA"
                           className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                         />
                       </div>

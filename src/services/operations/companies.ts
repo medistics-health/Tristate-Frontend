@@ -33,7 +33,6 @@ function companyToRow(company: Company): CompanyRow {
       name: company.name,
       domain: company.domain || "",
 
-      size: company.size || 0,
       revenue: company.revenue || 0,
       phone: company.phone || "",
       email: company.email || "",
@@ -63,7 +62,6 @@ const fields = [
   },
   { id: "domain", label: "Domain", type: "text" as const, visible: true },
 
-  { id: "size", label: "Size", type: "number" as const, visible: true },
   { id: "revenue", label: "Revenue", type: "number" as const, visible: false },
   { id: "phone", label: "Phone", type: "text" as const, visible: false },
   { id: "email", label: "Email", type: "text" as const, visible: true },
