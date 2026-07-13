@@ -1594,6 +1594,32 @@ export default function OnboardingFormV5() {
   }, [formData.numberOfPractices, formData.onboardingType]);
 
   useEffect(() => {
+    const targetLocations = Math.max(1, Number(formData.numberOfLocations ?? 1) || 1);
+
+    setFormData((prev) => {
+      let changed = false;
+      const nextPractices = (prev.practices ?? []).map((practice) => {
+        const current = practice.locations ?? [];
+        if (current.length === targetLocations) return practice;
+        changed = true;
+        if (current.length > targetLocations) {
+          return { ...practice, locations: current.slice(0, targetLocations) };
+        }
+        const extra = Array.from(
+          { length: targetLocations - current.length },
+          (_, i) => ({
+            ...initialLocation,
+            isPrimaryLocation: false,
+            locationName: `Location ${current.length + i + 1}`,
+          }),
+        );
+        return { ...practice, locations: [...current, ...extra] };
+      });
+      return changed ? { ...prev, practices: nextPractices } : prev;
+    });
+  }, [formData.numberOfLocations]);
+
+  useEffect(() => {
     if (
       formData.onboardingType === "SINGLE_PRACTICE_ORGANIZATION" ||
       !copyCompanyInfoToPracticeOne
@@ -3067,7 +3093,7 @@ export default function OnboardingFormV5() {
                         onChange={(event) =>
                           updateField(
                             "numberOfLocations",
-                            parseNumber(event.target.value.replace(/\D/g, "")),
+                            Math.max(1, parseNumber(event.target.value.replace(/\D/g, "")) || 1),
                           )
                         }
                       />
@@ -4215,7 +4241,8 @@ export default function OnboardingFormV5() {
                               formData.onboardingType ===
                                 "SINGLE_PRACTICE_ORGANIZATION" ||
                               formData.onboardingType === "SINGLE_PRACTICE" ||
-                              formData.onboardingType === "SINGLE_PRACTICE_NOW"
+                              formData.onboardingType === "SINGLE_PRACTICE_NOW" ||
+                              (formData.numberOfLocations ?? 1) <= 1
                                 ? undefined
                                 : "+ Add Location"
                             }
@@ -4223,7 +4250,8 @@ export default function OnboardingFormV5() {
                               formData.onboardingType ===
                                 "SINGLE_PRACTICE_ORGANIZATION" ||
                               formData.onboardingType === "SINGLE_PRACTICE" ||
-                              formData.onboardingType === "SINGLE_PRACTICE_NOW"
+                              formData.onboardingType === "SINGLE_PRACTICE_NOW" ||
+                              (formData.numberOfLocations ?? 1) <= 1
                                 ? undefined
                                 : () => addLocation(practiceIndex)
                             }
@@ -4240,7 +4268,8 @@ export default function OnboardingFormV5() {
                                       Practice {practiceIndex + 1} - Location{" "}
                                       {locationIndex + 1}
                                     </p>
-                                    {(practice.locations ?? []).length > 1 ? (
+                                    {(practice.locations ?? []).length > 1 &&
+                                    (formData.numberOfLocations ?? 1) > 1 ? (
                                       <button
                                         type="button"
                                         onClick={() =>
