@@ -5,6 +5,7 @@ import { createExternalOnboardingFromForm } from "../../../services/operations/c
 import {
   getAgreementsByPractice,
   sendOnboardingFormApi,
+  type Agreement,
 } from "../../../services/operations/agreements";
 import type { OnboardingBody } from "../../../services/operations/onboarding";
 import {
@@ -102,6 +103,8 @@ export default function Scope() {
   const [practiceServiceVendors, setPracticeServiceVendors] = useState<
     Record<string, { vendorId: string | null }>
   >({});
+  const [selectedAgreementId, setSelectedAgreementId] = useState("");
+  const [practiceAgreements, setPracticeAgreements] = useState<Agreement[]>([]);
   const requestedGoLiveDatePickerRef = useRef<HTMLInputElement | null>(null);
 
   const selectedServices = useMemo(
@@ -245,6 +248,8 @@ export default function Scope() {
       setSelectedPersonId("");
       setPracticeAgreementServiceValues([]);
       setPracticeServiceVendors({});
+      setSelectedAgreementId("");
+      setPracticeAgreements([]);
       return;
     }
 
@@ -257,6 +262,16 @@ export default function Scope() {
         ]);
         if (!active) return;
         setSelectedPractice(practice);
+        const signedAgreements = agreements.filter(
+          (a) => a.status === "SIGNED",
+        );
+        setPracticeAgreements(signedAgreements);
+
+        if (signedAgreements.length === 1) {
+          setSelectedAgreementId(signedAgreements[0].id);
+        } else {
+          setSelectedAgreementId("");
+        }
 
         const signedAgreement = [...agreements]
           .sort(
@@ -372,12 +387,15 @@ export default function Scope() {
         .join("\n\n");
 
       const agreements = await getAgreementsByPractice(selectedPracticeId);
-      const agreementForOnboarding = [...agreements]
-        .sort(
-          (a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-        )
-        .find((agreement) => agreement.status === "SIGNED");
+      const agreementForOnboarding = selectedAgreementId
+        ? agreements.find((a) => a.id === selectedAgreementId)
+        : [...agreements]
+            .sort(
+              (a, b) =>
+                new Date(b.updatedAt).getTime() -
+                new Date(a.updatedAt).getTime(),
+            )
+            .find((agreement) => agreement.status === "SIGNED");
 
       if (!agreementForOnboarding?.id) {
         throw new Error(
@@ -388,6 +406,7 @@ export default function Scope() {
       await createExternalOnboardingFromForm({
         practiceId: selectedPracticeId,
         personId: selectedPersonId,
+        agreementId: agreementForOnboarding.id,
         requestedServices: selectedServices,
         requestedGoLiveDate: scope.requestedGoLiveDate,
         servicesForAllPractices: scope.servicesForAllPractices || undefined,
@@ -522,6 +541,40 @@ export default function Scope() {
             </div>
           </div>
         </section>
+
+        {/* Agreement */}
+        {selectedPracticeId && practiceAgreements.length > 0 ? (
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Agreement
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Select the agreement for this practice.
+            </p>
+            <div className="mt-4">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Agreement *
+              </label>
+              <select
+                value={selectedAgreementId}
+                onChange={(event) => setSelectedAgreementId(event.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">Select agreement</option>
+                {practiceAgreements.map((agreement) => (
+                  <option key={agreement.id} value={agreement.id}>
+                    {agreement.practice?.name || "Practice"} - {agreement.type} ({agreement.status})
+                  </option>
+                ))}
+              </select>
+              {practiceAgreements.length === 1 ? (
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Auto-selected — only one agreement found for this practice.
+                </p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
 
         {/* Services & Vendor */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
