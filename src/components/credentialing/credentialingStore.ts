@@ -78,6 +78,7 @@ export function createCredentialingFormState(
     status: record?.status || credentialingStatusOptions[0],
     payerProviderId: record?.payerProviderId || "",
     assignedUser: record?.assignedUser || "",
+    assignedUserId: record?.assignedUserId || record?.assignedToUserId || "",
     priority: record?.priority || priorityOptions[1],
     startDate: formatDateInput(record?.startDate),
     submissionDate: formatDateInput(record?.submissionDate),
