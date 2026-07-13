@@ -60,6 +60,7 @@ import type {
 } from "../practices/types";
 import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import AddressAutocomplete, { type AddressData } from "../shared/AddressAutocomplete";
 import ConfirmModal from "../shared/ConfirmModal";
 import {
   canManageSettings,
@@ -1049,6 +1050,15 @@ function CreateLeadPage() {
     setForm(initialFormState);
   };
 
+  const handleAddressSelect = (address: AddressData) => {
+    if (address.label) {
+      updateField("companyStreet", address.street);
+      updateField("companyCity", address.city);
+      updateField("companyState", address.state);
+      updateField("companyZip", address.zip);
+    }
+  };
+
   const updateGroupNpi = (index: number, field: string, value: string) => {
     setForm((current) => ({
       ...current,
@@ -1508,7 +1518,17 @@ function CreateLeadPage() {
                       <span className="mb-2 block text-[12px] font-medium text-slate-600">
                         Address
                       </span>
-                      <div className="grid gap-3 md:grid-cols-2">
+                      <AddressAutocomplete
+                        onSelect={handleAddressSelect}
+                        value={
+                          [form.companyStreet, form.companyCity, form.companyState, form.companyZip]
+                            .filter(Boolean)
+                            .join(", ") || ""
+                        }
+                        placeholder="Search address to auto-fill below..."
+                        clearable
+                      />
+                      <div className="grid gap-3 md:grid-cols-2 mt-3">
                         <label className="block">
                           <span className="mb-1 block text-[12px] text-slate-500">
                             Street

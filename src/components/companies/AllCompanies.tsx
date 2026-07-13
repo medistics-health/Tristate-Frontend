@@ -31,6 +31,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import AddressAutocomplete, { type AddressData } from "../shared/AddressAutocomplete";
 import { useSearchParams } from "react-router-dom";
 import AppLayout from "../layout/AppLayout";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
@@ -466,6 +467,18 @@ export default function AllCompaniesPage() {
       ...prev,
       [field]: field === "phone" ? normalizePhoneInput(value) : value,
     }));
+  }
+
+  function handleAddressSelect(address: AddressData) {
+    if (address.label) {
+      setFormData((prev) => ({
+        ...prev,
+        street: address.street,
+        city: address.city,
+        state: address.state,
+        zip: address.zip,
+      }));
+    }
   }
 
   function handleTaxIdChange(
@@ -965,7 +978,17 @@ export default function AllCompaniesPage() {
           <h4 className="mb-3 text-[12px] font-medium text-slate-600">
             Address
           </h4>
-          <div className="space-y-3">
+          <AddressAutocomplete
+            onSelect={handleAddressSelect}
+            value={
+              [formData.street, formData.city, formData.state, formData.zip]
+                .filter(Boolean)
+                .join(", ") || ""
+            }
+            placeholder="Search address to auto-fill below..."
+            clearable
+          />
+          <div className="space-y-3 mt-3">
             <div>
               <label className="mb-1 block text-[11px] text-slate-500">
                 Street
@@ -1614,7 +1637,17 @@ export default function AllCompaniesPage() {
                   <h3 className="mb-3 text-[13px] font-medium text-slate-700">
                     Address
                   </h3>
-                  <div className="space-y-3">
+                  <AddressAutocomplete
+                    onSelect={handleAddressSelect}
+                    value={
+                      [formData.street, formData.city, formData.state, formData.zip]
+                        .filter(Boolean)
+                        .join(", ") || ""
+                    }
+                    placeholder="Search address to auto-fill below..."
+                    clearable
+                  />
+                  <div className="space-y-3 mt-3">
                     <div>
                       <label className="mb-1 block text-[12px] text-slate-500">
                         Street
