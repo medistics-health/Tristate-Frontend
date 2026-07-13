@@ -486,7 +486,7 @@ function CreateLeadPage() {
         );
         const practicePayload: PracticeBody = {
           name: form.practiceName.trim(),
-          npi: form.practiceNpi.trim(),
+          npi: form.practiceNpi.trim() || undefined,
           status: "LEAD",
           source: form.practiceSource,
           bucket: form.practiceBucket
@@ -1222,14 +1222,6 @@ function CreateLeadPage() {
         toast.error("Practice name is required.");
         return;
       }
-      if (!form.practiceNpi.trim()) {
-        toast.error("Practice NPI is required.");
-        return;
-      }
-      if (!/^\d{10}$/.test(form.practiceNpi.trim())) {
-        toast.error("Practice NPI must be exactly 10 digits.");
-        return;
-      }
     } else {
       if (!form.selectedPracticeId) {
         toast.error("Please select an existing practice.");
@@ -1282,6 +1274,7 @@ function CreateLeadPage() {
     // Validate NPI format
     if (
       form.practiceRelation === "new" &&
+      form.practiceNpi.trim() &&
       !/^\d{10}$/.test(form.practiceNpi.trim())
     ) {
       toast.error("Practice NPI must be exactly 10 digits.");
@@ -1726,7 +1719,7 @@ function CreateLeadPage() {
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                        NPI *
+                        NPI
                       </span>
                       <input
                         type="text"

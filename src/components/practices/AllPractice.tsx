@@ -1166,14 +1166,13 @@ export default function AllPracticePage() {
 
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
-            NPI <span className="text-red-500">*</span>
+            NPI
           </label>
           <input
             type="text"
             pattern="\d{10}"
             title="NPI Number must be exactly 10 digits"
             value={formData.npi}
-            required
             onChange={(e) => handleFormChange("npi", e.target.value)}
             inputMode="numeric"
             maxLength={10}
@@ -1918,7 +1917,7 @@ export default function AllPracticePage() {
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    NPI <span className="text-red-500">*</span>
+                    NPI
                   </label>
                   <input
                     type="text"
