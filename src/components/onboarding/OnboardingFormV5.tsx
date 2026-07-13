@@ -4868,6 +4868,74 @@ export default function OnboardingFormV5() {
                                     </Field>
                                   ) : null}
 
+                                  {scopeRequestedServices.includes(
+                                    "CREDENTIALING",
+                                  ) ? (
+                                    <Field
+                                      label="CAQH Username"
+                                      required={!caqhExemptProviderTypes.includes(
+                                        provider.providerType ?? "",
+                                      )}
+                                    >
+                                      <TextInput
+                                        value={provider.caqhUsername ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "caqhUsername",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+
+                                  {scopeRequestedServices.includes(
+                                    "CREDENTIALING",
+                                  ) ? (
+                                    <Field
+                                      label="CAQH Password"
+                                      required={!caqhExemptProviderTypes.includes(
+                                        provider.providerType ?? "",
+                                      )}
+                                    >
+                                      <TextInput
+                                        type="password"
+                                        value={provider.caqhPassword ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "caqhPassword",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+
+                                  {scopeRequestedServices.includes(
+                                    "CREDENTIALING",
+                                  ) ? (
+                                    <Field label="CAQH Last Attestation Date">
+                                      <TextInput
+                                        type="date"
+                                        value={
+                                          provider.caqhLastAttestationDate ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "caqhLastAttestationDate",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+
                                   <Field label="State License Number">
                                     <TextInput
                                       value={provider.stateLicenseNumber ?? ""}
@@ -4990,73 +5058,6 @@ export default function OnboardingFormV5() {
                                       }
                                     />
                                   </Field>
-
-                                  {scopeRequestedServices.includes(
-                                    "CREDENTIALING",
-                                  ) ? (
-                                    <Field
-                                      label="CAQH Username"
-                                      required={!caqhExemptProviderTypes.includes(
-                                        provider.providerType ?? "",
-                                      )}
-                                    >
-                                      <TextInput
-                                        value={provider.caqhUsername ?? ""}
-                                        onChange={(event) =>
-                                          updateProvider(
-                                            practiceIndex,
-                                            providerIndex,
-                                            "caqhUsername",
-                                            event.target.value,
-                                          )
-                                        }
-                                      />
-                                    </Field>
-                                  ) : null}
-
-                                  {scopeRequestedServices.includes(
-                                    "CREDENTIALING",
-                                  ) ? (
-                                    <Field
-                                      label="CAQH Password"
-                                      required={!caqhExemptProviderTypes.includes(
-                                        provider.providerType ?? "",
-                                      )}>
-                                      <TextInput
-                                        type="password"
-                                        value={provider.caqhPassword ?? ""}
-                                        onChange={(event) =>
-                                          updateProvider(
-                                            practiceIndex,
-                                            providerIndex,
-                                            "caqhPassword",
-                                            event.target.value,
-                                          )
-                                        }
-                                      />
-                                    </Field>
-                                  ) : null}
-
-                                  {scopeRequestedServices.includes(
-                                    "CREDENTIALING",
-                                  ) ? (
-                                    <Field label="CAQH Last Attestation Date">
-                                      <TextInput
-                                        type="date"
-                                        value={
-                                          provider.caqhLastAttestationDate ?? ""
-                                        }
-                                        onChange={(event) =>
-                                          updateProvider(
-                                            practiceIndex,
-                                            providerIndex,
-                                            "caqhLastAttestationDate",
-                                            event.target.value,
-                                          )
-                                        }
-                                      />
-                                    </Field>
-                                  ) : null}
 
                                   <Field label="Languages Spoken">
                                     <TextArea
