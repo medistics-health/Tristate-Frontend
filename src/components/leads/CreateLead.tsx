@@ -283,6 +283,16 @@ function buildLeadAgreementDocusealPrefillValues(
     let value = "";
 
     if (
+      fieldName.includes("first party") &&
+      fieldName.includes("name")
+    ) {
+      value = "Tristate";
+    } else if (
+      fieldName.includes("second party") &&
+      fieldName.includes("name")
+    ) {
+      value = practiceName || companyName;
+    } else if (
       fieldName.includes("client") ||
       fieldName.includes("practice") ||
       fieldName.includes("clinic")
@@ -794,6 +804,44 @@ function CreateLeadPage() {
     templates,
   ]);
 
+  // Re-prefill template field values (First/Second Party Name, etc.) when practice name changes
+  useEffect(() => {
+    if (form.agreement.templateIds.length === 0) return;
+
+    setForm((prev) => {
+      const nextFieldValues = { ...prev.agreement.docusealFieldValues };
+      let hasChanges = false;
+
+      for (const templateId of prev.agreement.templateIds) {
+        const template = templates.find((t) => String(t.id) === templateId);
+        if (!template) continue;
+
+        const prefilled = buildLeadAgreementDocusealPrefillValues(template, prev);
+        const currentValues = nextFieldValues[templateId] || {};
+        const updatedValues = { ...currentValues };
+
+        for (const [fieldUuid, nextValue] of Object.entries(prefilled)) {
+          if (nextValue && updatedValues[fieldUuid] !== nextValue) {
+            updatedValues[fieldUuid] = nextValue;
+            hasChanges = true;
+          }
+        }
+
+        nextFieldValues[templateId] = updatedValues;
+      }
+
+      if (!hasChanges) return prev;
+
+      return {
+        ...prev,
+        agreement: {
+          ...prev.agreement,
+          docusealFieldValues: nextFieldValues,
+        },
+      };
+    });
+  }, [form.practiceName, form.agreement.effectiveDate, form.agreement.templateIds, templates]);
+
   // Fetch existing agreements when practice changes
   useEffect(() => {
     if (form.selectedPracticeId) {
@@ -1192,6 +1240,7 @@ function CreateLeadPage() {
     try {
       const fullPractice = await getPractice(practiceId);
       setSelectedPracticeLabel(fullPractice.name || "");
+      setForm((prev) => ({ ...prev, practiceName: fullPractice.name || "" }));
     } catch (err) {
       console.error("Error loading selected practice:", err);
     }

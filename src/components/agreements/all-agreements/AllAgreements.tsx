@@ -191,6 +191,16 @@ function buildCreateFormDocusealPrefillValues(
     let value = "";
 
     if (
+      fieldName.includes("first party") &&
+      fieldName.includes("name")
+    ) {
+      value = "Tristate";
+    } else if (
+      fieldName.includes("second party") &&
+      fieldName.includes("name")
+    ) {
+      value = practice?.name || "";
+    } else if (
       fieldName.includes("client") ||
       fieldName.includes("practice") ||
       fieldName.includes("clinic")
