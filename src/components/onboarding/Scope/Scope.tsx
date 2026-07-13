@@ -345,10 +345,7 @@ export default function Scope() {
 
     try {
       const selectedVendorEntries = selectedServices
-        .filter(
-          (service) =>
-            practiceServiceVendors[service]?.vendorId,
-        )
+        .filter((service) => practiceServiceVendors[service]?.vendorId)
         .map((service) => {
           const svcVendor = practiceServiceVendors[service];
           const vendorName = svcVendor?.vendorId
@@ -540,9 +537,7 @@ export default function Scope() {
         {/* Agreement */}
         {selectedPracticeId && practiceAgreements.length > 0 ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Agreement
-            </h2>
+            <h2 className="text-lg font-semibold text-slate-900">Agreement</h2>
             <p className="mt-1 text-sm text-slate-500">
               Select the agreement for this practice.
             </p>
@@ -558,13 +553,14 @@ export default function Scope() {
                 <option value="">Select agreement</option>
                 {practiceAgreements.map((agreement) => (
                   <option key={agreement.id} value={agreement.id}>
-                    {agreement.practice?.name || "Practice"} - {agreement.type} ({agreement.status})
+                    {agreement.practice?.name || "Practice"} - {agreement.type}{" "}
+                    ({agreement.status})
                   </option>
                 ))}
               </select>
               {practiceAgreements.length === 1 ? (
                 <p className="mt-1.5 text-xs text-slate-500">
-                  Auto-selected — only one agreement found for this practice.
+                  Auto-selected — only signed agreement found for this practice.
                 </p>
               ) : null}
             </div>
@@ -599,8 +595,8 @@ export default function Scope() {
                 {practiceAgreementServiceValues.map((service) => {
                   const svcVendor = practiceServiceVendors[service];
                   const vendorName = svcVendor?.vendorId
-                    ? (vendors.find((v) => v.id === svcVendor.vendorId)
-                        ?.name ?? "Unknown vendor")
+                    ? (vendors.find((v) => v.id === svcVendor.vendorId)?.name ??
+                      "Unknown vendor")
                     : null;
                   return (
                     <div
