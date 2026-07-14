@@ -189,6 +189,7 @@ export async function createCredentialingRequestApi(
     practiceName?: string;
     providerName?: string;
     assignedToUserName?: string;
+    assignedToUserId?: string;
   },
 ): Promise<CredentialingRecord> {
   try {
@@ -213,6 +214,7 @@ export async function updateCredentialingRequestApi(
       practiceName?: string;
       providerName?: string;
       assignedToUserName?: string;
+      assignedToUserId?: string;
     }
   >,
 ): Promise<CredentialingRecord> {
