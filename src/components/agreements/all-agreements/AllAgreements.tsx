@@ -13,6 +13,7 @@ import {
   readStoredUser,
 } from "../../../utils/auth";
 import {
+  ChevronDown,
   ChevronLeft,
   Circle,
   LayoutList,
@@ -111,7 +112,8 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   "Master Service Agreement",
   "BAA",
   "Credentialing Exhibit",
-  "Exhibit P",
+  "Mutual NDA",
+  // "Exhibit P",
 ];
 
 function isClientNameField(field: DocusealField) {
@@ -129,6 +131,7 @@ type AgreementFormState = {
   terminationDate: string;
   docusealTemplates: string[];
   docusealFieldValues: Record<string, Record<string, string>>;
+  serviceIds: string[];
 };
 
 const initialFormState: AgreementFormState = {
@@ -142,6 +145,7 @@ const initialFormState: AgreementFormState = {
   terminationDate: "",
   docusealTemplates: [],
   docusealFieldValues: {},
+  serviceIds: [],
 };
 
 function formatStatusLabel(status: string) {
@@ -187,11 +191,21 @@ function buildCreateFormDocusealPrefillValues(
     let value = "";
 
     if (
+      fieldName.includes("first party") &&
+      fieldName.includes("name")
+    ) {
+      value = "Tristate";
+    } else if (
+      fieldName.includes("second party") &&
+      fieldName.includes("name")
+    ) {
+      value = practice?.name || "";
+    } else if (
       fieldName.includes("client") ||
       fieldName.includes("practice") ||
       fieldName.includes("clinic")
     ) {
-      value = practice?.name || "";
+      // value = practice?.name || "";
     } else if (fieldName.includes("npi")) {
       value = practice?.npi || "";
     } else if (fieldName.includes("effective")) {
@@ -233,6 +247,7 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
       .filter((templateId): templateId is number => templateId !== null)
       .map((templateId) => String(templateId)),
     docusealFieldValues,
+    serviceIds: agreement.services?.map((s) => s.id) || [],
   };
 }
 
@@ -393,6 +408,13 @@ function AllAgreementsPage() {
           String(row.original.values.practiceName || "-"),
       },
       {
+        id: "services",
+        accessorFn: (row: AgreementRow) => row.values.services,
+        header: () => "Services",
+        cell: ({ row }: { row: { original: AgreementRow } }) =>
+          String(row.original.values.services || "-"),
+      },
+      {
         id: "value",
         accessorFn: (row: AgreementRow) => row.values.value,
         header: () => "Value",
@@ -490,11 +512,15 @@ function AllAgreementsPage() {
   useEffect(() => {
     if ((showCreateForm || showDetailPanel) && practices.length === 0) {
       setOptionsLoading(true);
-      getAllPractices()
-        .then((practiceList) => {
+      Promise.all([
+        getAllPractices(),
+        getAllServices(),
+      ])
+        .then(([practiceList, serviceList]) => {
           setPractices(practiceList);
+          setServices(serviceList);
         })
-        .catch((err) => console.error("Failed to load practices:", err))
+        .catch((err) => console.error("Failed to load options:", err))
         .finally(() => setOptionsLoading(false));
     }
   }, [showCreateForm, showDetailPanel, practices.length]);
@@ -601,7 +627,10 @@ function AllAgreementsPage() {
         // limit: 50,
       );
       const loadedVersions = data as AgreementVersion[];
-      if (loadedVersions.length > 0 && !loadedVersions.some((version) => version.isCurrent)) {
+      if (
+        loadedVersions.length > 0 &&
+        !loadedVersions.some((version) => version.isCurrent)
+      ) {
         const nextCurrentVersion = [...loadedVersions].sort(
           (a, b) => b.versionNumber - a.versionNumber,
         )[0];
@@ -827,6 +856,9 @@ function AllAgreementsPage() {
               };
             }),
           }
+        : {}),
+      ...(form.serviceIds?.length > 0
+        ? { serviceIds: form.serviceIds }
         : {}),
     };
   }
@@ -1115,10 +1147,10 @@ function AllAgreementsPage() {
   }) {
     const rawValue = submission.signedDocUrl || submission.signedDocUrls;
     if (!rawValue) return [];
-  
+
     const trimmed = rawValue.trim();
     if (!trimmed) return [];
-  
+
     try {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed)) {
@@ -1129,13 +1161,13 @@ function AllAgreementsPage() {
     } catch {
       // Support plain string and comma-separated URL formats.
     }
-  
+
     return trimmed
       .split(",")
       .map((url) => url.trim())
       .filter(Boolean);
   }
-  
+
   function getDocumentLabel(url: string, fallback: string) {
     try {
       const pathname = new URL(url).pathname;
@@ -1482,15 +1514,19 @@ function AllAgreementsPage() {
                   onSubmit={async (e) => {
                     e.preventDefault();
                     if (!canWriteAgreements) {
-                      toast.error("You do not have permission to update agreement versions.");
+                      toast.error(
+                        "You do not have permission to update agreement versions.",
+                      );
                       return;
                     }
                     if (!selectedRowId) return;
                     const isOnlyCurrentVersion =
                       editingVersionId &&
-                      versions.find((version) => version.id === editingVersionId)
-                        ?.isCurrent &&
-                      versions.filter((version) => version.isCurrent).length === 1;
+                      versions.find(
+                        (version) => version.id === editingVersionId,
+                      )?.isCurrent &&
+                      versions.filter((version) => version.isCurrent).length ===
+                        1;
 
                     if (isOnlyCurrentVersion && !versionForm.isCurrent) {
                       toast.error(
@@ -1737,7 +1773,10 @@ function AllAgreementsPage() {
                                 if (!window.confirm("Delete this version?"))
                                   return;
                                 try {
-                                  if (version.isCurrent && versions.length > 1) {
+                                  if (
+                                    version.isCurrent &&
+                                    versions.length > 1
+                                  ) {
                                     const nextCurrentVersion = versions
                                       .filter((item) => item.id !== version.id)
                                       .sort(
@@ -1751,7 +1790,8 @@ function AllAgreementsPage() {
                                   }
                                   await deleteAgreementVersionApi(version.id);
                                   toast.success("Version deleted");
-                                  if (selectedRowId) loadVersions(selectedRowId);
+                                  if (selectedRowId)
+                                    loadVersions(selectedRowId);
                                 } catch (err) {
                                   toast.error(
                                     err instanceof Error
@@ -1863,6 +1903,93 @@ function AllAgreementsPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Services
+            </label>
+            <div className="relative">
+              {optionsLoading ? (
+                <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
+                  Loading...
+                </div>
+              ) : (
+                <>
+                  {createForm.serviceIds.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {createForm.serviceIds.map((serviceId) => {
+                        const service = services.find((s) => s.id === serviceId);
+                        return (
+                          <span
+                            key={serviceId}
+                            className="inline-flex items-center gap-1 rounded-md bg-[#f0f2fe] px-2 py-1 text-[12px] text-[#4f63ea]"
+                          >
+                            {service?.name || serviceId}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  serviceIds: prev.serviceIds.filter(
+                                    (id) => id !== serviceId,
+                                  ),
+                                }))
+                              }
+                              className="hover:text-red-500"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <details className="relative">
+                    <summary className="app-control flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-[13px] text-slate-600">
+                      <span className={createForm.serviceIds.length === 0 ? "text-slate-400" : ""}>
+                        {createForm.serviceIds.length === 0
+                          ? "Select services..."
+                          : `${createForm.serviceIds.length} service${createForm.serviceIds.length === 1 ? "" : "s"} selected`}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </summary>
+                    <div className="absolute z-10 mt-1 max-h-[200px] w-full overflow-y-auto rounded-md border border-[#ece8e1] bg-white shadow-lg">
+                      {services.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-[13px] text-slate-400">
+                          No services available
+                        </div>
+                      ) : (
+                        services.map((service) => {
+                          const isSelected = createForm.serviceIds.includes(service.id);
+                          return (
+                            <label
+                              key={service.id}
+                              className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-[#faf9f7]"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() =>
+                                  setCreateForm((prev) => ({
+                                    ...prev,
+                                    serviceIds: isSelected
+                                      ? prev.serviceIds.filter((id) => id !== service.id)
+                                      : [...prev.serviceIds, service.id],
+                                  }))
+                                }
+                                className="h-4 w-4 rounded border-[#cec8bf]"
+                              />
+                              {service.name}
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </details>
+                </>
+              )}
+            </div>
           </div>
 
           <div>
@@ -2116,9 +2243,14 @@ function AllAgreementsPage() {
                     );
                     const templateFieldValues =
                       createForm.docusealFieldValues[templateId] || {};
+                    const practiceName =
+                      practices.find(
+                        (p) => p.id === createForm.practiceId,
+                      )?.name || "";
                     const submitterGroups = getTemplateSubmitterGroups(
                       template,
                       templateFieldValues,
+                      practiceName,
                     );
 
                     return (

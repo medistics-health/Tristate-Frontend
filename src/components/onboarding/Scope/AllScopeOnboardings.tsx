@@ -19,7 +19,6 @@ type PaginationInfo = {
 type ScopeRow = {
   id: string;
   practiceName: string;
-  type: string;
   status: string;
   services: string[];
   createdAt: string;
@@ -70,6 +69,8 @@ const serviceLabelMap: Record<string, string> = {
   PHARMACY_PROGRAM_SUPPORT: "Pharmacy Support",
   PATIENT_ACQUISITION: "Patient Acquisition",
   BRAND_GROWTH: "Brand Growth",
+  PATIENT_ACQUISITION_BRAND_GROWTH: "Patient Acquisition / Brand Growth",
+  MSP_TECH_SUPPORT: "MSP / Tech Support",
   AI_VISIBILITY: "AI Visibility",
   OTHER: "Other",
 };
@@ -150,7 +151,6 @@ export default function AllScopeOnboardings() {
             ob.practices?.[0]?.practiceName ||
             ob.legalCompanyName ||
             "N/A",
-          type: ob.onboardingType || "N/A",
           status: ob.status || "DRAFT",
           services: ob.requestedServices || [],
           createdAt: ob.createdAt
@@ -229,9 +229,6 @@ export default function AllScopeOnboardings() {
                   </div>
                 </th>
                 <th className="border-b border-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">
-                  Type
-                </th>
-                <th className="border-b border-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">
                   Status
                 </th>
                 <th className="border-b border-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">
@@ -251,7 +248,7 @@ export default function AllScopeOnboardings() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-20 text-center">
+                  <td colSpan={4} className="px-4 py-20 text-center">
                     <div className="flex items-center justify-center gap-2 text-slate-400">
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
                       <span className="text-sm">Loading...</span>
@@ -265,15 +262,6 @@ export default function AllScopeOnboardings() {
                       <span className="font-medium text-slate-800">
                         {row.practiceName}
                       </span>
-                    </td>
-                    <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
-                      {row.type === "MULTI_PRACTICE_ORGANIZATION"
-                        ? "Multi Practice"
-                        : row.type === "SINGLE_PRACTICE_ORGANIZATION"
-                          ? "Single Practice Org"
-                          : row.type === "SINGLE_PRACTICE"
-                            ? "Single Practice"
-                            : row.type}
                     </td>
                     <td className="border-b border-slate-100 px-4 py-3 text-sm">
                       <span

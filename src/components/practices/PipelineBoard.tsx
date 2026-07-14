@@ -138,7 +138,6 @@ function PipelineBoardPage() {
     name: string;
     npi: string;
     status: string;
-    region: string;
     source: string;
   };
 
@@ -146,7 +145,6 @@ function PipelineBoardPage() {
     name: "",
     npi: "",
     status: "LEAD",
-    region: "",
     source: "DIRECT",
   };
 
@@ -207,7 +205,6 @@ function PipelineBoardPage() {
       name: practice.name,
       npi: practice.npi || "",
       status: practice.status,
-      region: practice.region,
       source: practice.source,
     };
   }
@@ -223,7 +220,6 @@ function PipelineBoardPage() {
       name: form.name,
       npi: form.npi || undefined,
       status: form.status as PracticeBody["status"],
-      region: form.region,
       source: form.source as PracticeBody["source"],
     };
   }
@@ -546,24 +542,6 @@ function PipelineBoardPage() {
                           </option>
                         ))}
                       </select>
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Region <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.region}
-                        onChange={(event) =>
-                          setEditForm((prev) => ({
-                            ...prev,
-                            region: event.target.value,
-                          }))
-                        }
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                        required
-                      />
                     </div>
 
                     <div>

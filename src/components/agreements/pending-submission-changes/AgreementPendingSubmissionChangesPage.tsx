@@ -508,6 +508,7 @@ function AgreementPendingSubmissionChangesPage() {
                         const submitterGroups = getTemplateSubmitterGroups(
                           template,
                           submissionFields,
+                          selectedAgreement?.practice?.name,
                         );
 
                         return (

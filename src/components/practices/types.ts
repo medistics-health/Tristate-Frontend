@@ -16,7 +16,6 @@ export type PracticeBody = {
   name: string;
   npi?: string;
   status: PracticeStatus;
-  region: string;
   source: PracticeSource;
   bucket: string[];
   companyId?: string;
@@ -43,7 +42,6 @@ export type Practice = {
   name: string;
   npi?: string;
   status: PracticeStatus;
-  region: string;
   source: PracticeSource;
   bucket: string[];
   companyId?: string;

@@ -25,7 +25,6 @@ export type CompanyBody = {
   name: string;
   domain?: string;
   industry?: string;
-  size?: number;
   revenue?: number;
   phone?: string;
   email?: string;
@@ -44,7 +43,6 @@ export type Company = {
   name: string;
   domain?: string;
   industry?: string;
-  size?: number;
   revenue?: number;
   phone?: string;
   email?: string;
