@@ -172,6 +172,7 @@ export default function CredentialingModal({
   const [selectedDocumentType, setSelectedDocumentType] = useState(
     allowedDocumentTypes[0],
   );
+
   const [documentExpiryDate, setDocumentExpiryDate] = useState("");
   const [followUpDraft, setFollowUpDraft] = useState<FollowUpDraft>({
     channel: followUpChannelOptions[0],
@@ -179,26 +180,32 @@ export default function CredentialingModal({
     referenceNumber: "",
     summary: "",
     nextAction: "",
-    loggedBy: "Admin",
+    loggedBy: "",
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [practiceOptions, setPracticeOptions] = useState<string[]>([]);
   const [payerOptions, setPayerOptions] = useState<string[]>([]);
   const [providerOptions, setProviderOptions] = useState<string[]>([]);
-  const [specialistOptions, setSpecialistOptions] = useState<SearchSelectOption[]>([]);
-
+  const [specialistOptions, setSpecialistOptions] = useState<
+    SearchSelectOption[]
+  >([]);
   function getUserDisplayName(user: any) {
-    return [
-      [user.firstName, user.lastName].filter(Boolean).join(" ").trim(),
-      user.userName,
-      user.email,
-    ]
-      .find((entry) => Boolean(entry && String(entry).trim())) || "";
+    return (
+      [
+        [user.firstName, user.lastName].filter(Boolean).join(" ").trim(),
+        user.userName,
+        user.email,
+      ].find((entry) => Boolean(entry && String(entry).trim())) || ""
+    );
   }
-
   function getLoggedByDefault() {
-    const storedRole = readStoredUser()?.role?.trim();
-    return storedRole || "Admin";
+    const user = readStoredUser();
+
+    const loggedBy = [user?.firstName, user?.lastName]
+      .filter(Boolean)
+      .join(" ");
+
+    return loggedBy || "Admin";
   }
 
   useEffect(() => {
@@ -207,12 +214,13 @@ export default function CredentialingModal({
     let active = true;
     async function loadOptions() {
       try {
-        const [practiceView, credentialingView, personView, users] = await Promise.all([
-          getPracticesView({ limit: 1000 }),
-          getCredentialingRequestsView({ limit: 5000 }),
-          getPersonsView({ limit: 1000 }),
-          getAllUsers(),
-        ]);
+        const [practiceView, credentialingView, personView, users] =
+          await Promise.all([
+            getPracticesView({ limit: 1000 }),
+            getCredentialingRequestsView({ limit: 5000 }),
+            getPersonsView({ limit: 1000 }),
+            getAllUsers(),
+          ]);
 
         if (!active) return;
 
@@ -223,7 +231,11 @@ export default function CredentialingModal({
         );
         setPayerOptions(
           Array.from(
-            new Set(credentialingView.credentialingRequests.map((entry) => entry.insuranceCompany)),
+            new Set(
+              credentialingView.credentialingRequests.map(
+                (entry) => entry.insuranceCompany,
+              ),
+            ),
           )
             .filter(Boolean)
             .sort(),
@@ -238,7 +250,10 @@ export default function CredentialingModal({
         setSpecialistOptions(
           users
             .map((user: any) => ({
-              label: [getUserDisplayName(user), user.role ? `(${user.role})` : ""]
+              label: [
+                getUserDisplayName(user),
+                user.role ? `(${user.role})` : "",
+              ]
                 .filter(Boolean)
                 .join(" ")
                 .trim(),
@@ -262,9 +277,18 @@ export default function CredentialingModal({
       active = false;
     };
   }, [isOpen]);
-  const searchPracticeOptions = useMemo(() => createLocalSearchOptions(practiceOptions), [practiceOptions]);
-  const searchPayerOptions = useMemo(() => createLocalSearchOptions(payerOptions), [payerOptions]);
-  const searchProviderOptions = useMemo(() => createLocalSearchOptions(providerOptions), [providerOptions]);
+  const searchPracticeOptions = useMemo(
+    () => createLocalSearchOptions(practiceOptions),
+    [practiceOptions],
+  );
+  const searchPayerOptions = useMemo(
+    () => createLocalSearchOptions(payerOptions),
+    [payerOptions],
+  );
+  const searchProviderOptions = useMemo(
+    () => createLocalSearchOptions(providerOptions),
+    [providerOptions],
+  );
   const searchSpecialistOptions = useMemo(
     () => async (query: string) => {
       const normalized = query.trim().toLowerCase();
@@ -311,7 +335,10 @@ export default function CredentialingModal({
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function updateAssignedSpecialist(value: string, option?: SearchSelectOption) {
+  function updateAssignedSpecialist(
+    value: string,
+    option?: SearchSelectOption,
+  ) {
     updateField("assignedUserId", value);
     updateField("assignedUser", option?.label || value);
   }
@@ -354,7 +381,8 @@ export default function CredentialingModal({
   }
 
   function addFollowUpEntry() {
-    if (!followUpDraft.summary.trim() && !followUpDraft.nextAction.trim()) return;
+    if (!followUpDraft.summary.trim() && !followUpDraft.nextAction.trim())
+      return;
     setForm((current) => ({
       ...current,
       followUpLogs: addFollowUpToForm(current.followUpLogs, followUpDraft),
@@ -399,10 +427,7 @@ export default function CredentialingModal({
                 <div className="text-[18px] font-semibold text-slate-800">
                   {title}
                 </div>
-                <Badge
-                  label={form.status}
-                  tone={statusTone(form.status)}
-                />
+                <Badge label={form.status} tone={statusTone(form.status)} />
               </div>
               <div className="mt-1 text-[13px] text-slate-400">
                 {record?.credentialingId || "Create credentialing record"}
@@ -589,13 +614,18 @@ export default function CredentialingModal({
                   { label: "Effective Date", key: "effectiveDate" },
                   { label: "Expiration Date", key: "expirationDate" },
                   { label: "Next Follow-up Date", key: "nextFollowUpDate" },
-                  { label: "Re-credentialing Due Date", key: "reCredentialingDueDate" },
+                  {
+                    label: "Re-credentialing Due Date",
+                    key: "reCredentialingDueDate",
+                  },
                 ].map((field) => (
                   <label key={field.label} className="block">
                     <FieldLabel>{field.label}</FieldLabel>
                     <DatePicker
                       value={
-                        form[field.key as keyof CredentialingFormState] as string
+                        form[
+                          field.key as keyof CredentialingFormState
+                        ] as string
                       }
                       onChange={(value) =>
                         updateField(
@@ -728,20 +758,20 @@ export default function CredentialingModal({
                   <div className="mb-3 text-[13px] font-medium text-slate-700">
                     Upload Documents
                   </div>
-                    <Select
-                      value={selectedDocumentType}
-                      onChange={(value) =>
-                        setSelectedDocumentType(
-                          value as (typeof allowedDocumentTypes)[number],
-                        )
-                      }
-                      disabled={isReadOnly}
-                      options={allowedDocumentTypes.map((option) => ({
-                        label: option,
-                        value: option,
-                      }))}
-                      placeholder="Select document type"
-                    />
+                  <Select
+                    value={selectedDocumentType}
+                    onChange={(value) =>
+                      setSelectedDocumentType(
+                        value as (typeof allowedDocumentTypes)[number],
+                      )
+                    }
+                    disabled={isReadOnly}
+                    options={allowedDocumentTypes.map((option) => ({
+                      label: option,
+                      value: option,
+                    }))}
+                    placeholder="Select document type"
+                  />
 
                   <label className="mt-3 block">
                     <FieldLabel>Optional Expiry Date</FieldLabel>
@@ -833,7 +863,9 @@ export default function CredentialingModal({
                           ) : (
                             <button
                               type="button"
-                              onClick={() => downloadLocalDocument(record, doc.name)}
+                              onClick={() =>
+                                downloadLocalDocument(record, doc.name)
+                              }
                               className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-slate-700"
                               title="Download local preview"
                             >
@@ -906,18 +938,18 @@ export default function CredentialingModal({
 
                     <label className="block">
                       <FieldLabel>Logged By</FieldLabel>
-                        <input
-                          type="text"
-                          value={followUpDraft.loggedBy}
-                          onChange={(event) =>
-                            setFollowUpDraft((current) => ({
-                              ...current,
-                              loggedBy: event.target.value,
-                            }))
-                          }
-                          className="app-control w-full rounded-xl px-3 py-2 text-[13px]"
-                          placeholder="Role name"
-                        />
+                      <input
+                        type="text"
+                        value={followUpDraft.loggedBy}
+                        onChange={(event) =>
+                          setFollowUpDraft((current) => ({
+                            ...current,
+                            loggedBy: event.target.value,
+                          }))
+                        }
+                        className="app-control w-full rounded-xl px-3 py-2 text-[13px]"
+                        placeholder="Name"
+                      />
                     </label>
                   </div>
 
@@ -1084,9 +1116,7 @@ export default function CredentialingModal({
 
         <div className="flex items-center justify-between border-t border-[#f0ece6] bg-white px-6 py-4">
           <div className="text-[12px] text-slate-400">
-            {isReadOnly
-              ? "Record is read-only in view mode."
-              : ""}
+            {isReadOnly ? "Record is read-only in view mode." : ""}
           </div>
 
           <div className="flex items-center gap-3">
