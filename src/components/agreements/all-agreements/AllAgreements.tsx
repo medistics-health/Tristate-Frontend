@@ -80,7 +80,6 @@ import {
   getDocusealFieldLabel,
   getDocusealFieldValue,
   getMissingRequiredDocusealFields,
-  getServiceBasedRequiredFieldUuids,
   getTemplateSubmitterGroups,
   isEditableDocusealField,
 } from "../../../utils/docuseal";
@@ -471,21 +470,6 @@ function AllAgreementsPage() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const serviceRequiredFieldUuids = useMemo(() => {
-    if (createForm.type !== "MSA" || createForm.serviceIds.length === 0) {
-      return new Set<string>();
-    }
-    const selectedServiceNames = createForm.serviceIds
-      .map((id) => services.find((s) => s.id === id)?.name || "")
-      .filter(Boolean);
-    const msaTemplate = docusealTemplates.find(
-      (t) =>
-        t.name.toLowerCase().includes("master service agreement") ||
-        t.name.toLowerCase().includes("msa"),
-    );
-    return getServiceBasedRequiredFieldUuids(selectedServiceNames, msaTemplate);
-  }, [createForm.type, createForm.serviceIds, services, docusealTemplates]);
-
   useEffect(() => {
     const timer = setTimeout(() => {
       async function loadData() {
@@ -805,19 +789,10 @@ function AllAgreementsPage() {
       );
       if (!template) continue;
 
-      const isMsaTemplate =
-        template.name.toLowerCase().includes("master service agreement") ||
-        template.name.toLowerCase().includes("msa");
-      const additionalRequired =
-        form.type === "MSA" && isMsaTemplate
-          ? serviceRequiredFieldUuids
-          : undefined;
-
       const fieldValues = form.docusealFieldValues[templateId] || {};
       const missingRequiredField = getMissingRequiredDocusealFields(
         template,
         fieldValues,
-        additionalRequired,
       )[0];
 
       if (missingRequiredField) {
@@ -2287,18 +2262,6 @@ function AllAgreementsPage() {
                           <div>
                             <div className="text-[13px] font-medium text-slate-700">
                               {template.name}
-                              {createForm.type === "MSA" &&
-                                (template.name
-                                  .toLowerCase()
-                                  .includes("master service agreement") ||
-                                  template.name
-                                    .toLowerCase()
-                                    .includes("msa")) &&
-                                createForm.serviceIds.length > 0 && (
-                                  <span className="ml-2 text-[11px] font-normal text-slate-400">
-                                    (service-required fields marked)
-                                  </span>
-                                )}
                             </div>
                             <div className="text-[11px] text-slate-400">
                               {editableFields.length} fillable field
@@ -2331,10 +2294,6 @@ function AllAgreementsPage() {
                                         templateFieldValues[field.name] ||
                                         "";
 
-                                      const isServiceRequired =
-                                        serviceRequiredFieldUuids.has(
-                                          field.uuid || field.name || "",
-                                        );
                                       return (
                                         <label
                                           key={field.uuid}
@@ -2351,8 +2310,7 @@ function AllAgreementsPage() {
                                               field,
                                               fieldIndex,
                                             )}
-                                            {(field.required ||
-                                              isServiceRequired) && (
+                                            {field.required && (
                                               <span className="ml-1 text-red-500">
                                                 *
                                               </span>
@@ -2361,10 +2319,7 @@ function AllAgreementsPage() {
                                           <input
                                             type={inputType}
                                             value={value}
-                                            required={
-                                              field.required ||
-                                              isServiceRequired
-                                            }
+                                            required={field.required}
                                             onChange={(event) =>
                                               updateTemplateFieldValue(
                                                 templateId,

@@ -88,53 +88,16 @@ export function getTemplateSubmitterGroups(
   }));
 }
 
-function tokenizeServiceName(name: string): string[] {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "")
-    .split(/\s+/)
-    .filter((token) => token.length >= 3);
-}
-
-export function getServiceBasedRequiredFieldUuids(
-  serviceNames: string[],
-  template: DocusealTemplate | undefined,
-): Set<string> {
-  const requiredUuids = new Set<string>();
-  if (!template || serviceNames.length === 0) return requiredUuids;
-
-  const tokens = serviceNames.flatMap(tokenizeServiceName);
-  if (tokens.length === 0) return requiredUuids;
-
-  for (const field of template.fields || []) {
-    if (!isEditableDocusealField(field)) continue;
-
-    const fieldName = (field.name || "").toLowerCase();
-    const matched = tokens.some((token) => fieldName.includes(token));
-    if (matched) {
-      requiredUuids.add(field.uuid || field.name || "");
-    }
-  }
-
-  return requiredUuids;
-}
-
 export function getMissingRequiredDocusealFields(
   template: DocusealTemplate | undefined,
   fieldValues: Record<string, string>,
-  additionalRequiredUuids?: Set<string>,
 ) {
   if (!template) return [];
 
   return (template.fields || []).filter((field) => {
-    if (!isEditableDocusealField(field)) return false;
-
-    const isTemplateRequired = field.required;
-    const isServiceRequired = additionalRequiredUuids?.has(
-      field.uuid || field.name || "",
-    );
-
-    if (!isTemplateRequired && !isServiceRequired) return false;
+    if (!isEditableDocusealField(field) || !field.required) {
+      return false;
+    }
 
     return !getDocusealFieldValue(fieldValues, field).trim();
   });
