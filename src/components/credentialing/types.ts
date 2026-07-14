@@ -120,6 +120,8 @@ export type CredentialingRecord = {
   status: CredentialingStatus;
   payerProviderId: string;
   assignedUser: string;
+  assignedToUserId?: string;
+  assignedUserId?: string;
   priority: Priority;
   startDate: string;
   submissionDate: string;
@@ -148,6 +150,7 @@ export type CredentialingFormState = {
   status: CredentialingStatus;
   payerProviderId: string;
   assignedUser: string;
+  assignedUserId: string;
   priority: Priority;
   startDate: string;
   submissionDate: string;

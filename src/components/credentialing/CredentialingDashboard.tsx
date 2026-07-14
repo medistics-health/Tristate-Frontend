@@ -534,6 +534,7 @@ function CredentialingDashboardPage() {
         practiceName: form.practice,
         providerName: form.provider,
         insurancePayerName: form.insuranceCompany,
+        assignedToUserId: form.assignedUserId || undefined,
         assignedToUserName: form.assignedUser,
         requestType: form.credentialingType,
         contractType: form.contractType,
@@ -609,7 +610,7 @@ function CredentialingDashboardPage() {
                   type="button"
                   onClick={() => setShowModal(true)}
                   disabled={isSaving}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white shadow-sm hover:bg-[#3d4ed1]"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white shadow-sm hover:bg-[#3d4ed1] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
                 >
                   {isSaving ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
