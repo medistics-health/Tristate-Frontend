@@ -32,8 +32,7 @@ function companyToRow(company: Company): CompanyRow {
       id: company.id,
       name: company.name,
       domain: company.domain || "",
-      industry: company.industry || "",
-      size: company.size || 0,
+
       revenue: company.revenue || 0,
       phone: company.phone || "",
       email: company.email || "",
@@ -62,8 +61,7 @@ const fields = [
     visible: true,
   },
   { id: "domain", label: "Domain", type: "text" as const, visible: true },
-  { id: "industry", label: "Industry", type: "text" as const, visible: true },
-  { id: "size", label: "Size", type: "number" as const, visible: true },
+
   { id: "revenue", label: "Revenue", type: "number" as const, visible: false },
   { id: "phone", label: "Phone", type: "text" as const, visible: false },
   { id: "email", label: "Email", type: "text" as const, visible: true },
@@ -102,7 +100,6 @@ export type CompanyQueryParams = {
   limit?: number;
   search?: string;
   status?: string;
-  industry?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 };
@@ -116,7 +113,6 @@ export async function getCompaniesView(
     if (params?.limit) queryString.set("limit", String(params.limit));
     if (params?.search) queryString.set("search", params.search);
     if (params?.status) queryString.set("status", params.status);
-    if (params?.industry) queryString.set("industry", params.industry);
     if (params?.sortBy) queryString.set("sortBy", params.sortBy);
     if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 

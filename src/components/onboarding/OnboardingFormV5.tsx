@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useParams } from "react-router-dom";
 import type {
@@ -194,6 +194,11 @@ const serviceOptions: Option[] = [
   { label: "Pharmacy Program Support", value: "PHARMACY_PROGRAM_SUPPORT" },
   { label: "Patient Acquisition", value: "PATIENT_ACQUISITION" },
   { label: "Brand Growth", value: "BRAND_GROWTH" },
+  {
+    label: "Patient Acquisition/Brand Growth",
+    value: "PATIENT_ACQUISITION_BRAND_GROWTH",
+  },
+  { label: "MSP/Tech Support", value: "MSP_TECH_SUPPORT" },
   { label: "AI Visibility", value: "AI_VISIBILITY" },
   { label: "Other", value: "OTHER" },
 ];
@@ -216,6 +221,7 @@ const subCareProgramValues = careProgramServiceValues.filter(
 const marketingServiceValues = [
   "PATIENT_ACQUISITION",
   "BRAND_GROWTH",
+  "PATIENT_ACQUISITION_BRAND_GROWTH",
   "AI_VISIBILITY",
 ];
 
@@ -263,6 +269,12 @@ const genderOptions: Option[] = [
   { label: "Male", value: "MALE" },
   { label: "Female", value: "FEMALE" },
   { label: "Other", value: "OTHER" },
+];
+
+const caqhExemptProviderTypes = [
+  "BEHAVIORAL_HEALTH_PROVIDER",
+  "CARE_MANAGER",
+  "OTHER",
 ];
 
 const independentBillingProviderTypes = [
@@ -458,7 +470,7 @@ function isDocumentReceivedAfterRequested(
 
   if (!requested || !received) return true;
 
-  return received > requested;
+  return received >= requested;
 }
 
 const centralizationOptions: Option[] = [
@@ -902,7 +914,7 @@ const initialFormData: OnboardingBody = {
   billingManagedCentrally: "NO",
   credentialingManagedCentrally: "NO",
   contractingManagedCentrally: "NO",
-  oneMainContact: true,
+  oneMainContact: undefined,
   legalCompanyName: "",
   dbaName: "",
   organizationType: "",
@@ -1196,7 +1208,7 @@ function CheckboxGroup({
   values,
   onToggle,
 }: {
-  options: Option[];
+  options: (Option & { key?: string })[];
   values: string[];
   onToggle: (value: string) => void;
 }) {
@@ -1206,7 +1218,7 @@ function CheckboxGroup({
         const checked = values.includes(option.value);
         return (
           <label
-            key={option.value}
+            key={option.key ?? option.value}
             className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 text-sm transition ${
               checked
                 ? "border-slate-900 bg-slate-50 text-slate-900"
@@ -1461,7 +1473,7 @@ export default function OnboardingFormV5() {
   );
   const [selectedProviderUploadField, setSelectedProviderUploadField] =
     useState<Record<string, ProviderDocumentField>>({});
-  const [hasPracticeManager, setHasPracticeManager] = useState(false);
+  const [hasPracticeManager, setHasPracticeManager] = useState<boolean | null>(null);
   const [pmFirstName, setPmFirstName] = useState("");
   const [pmLastName, setPmLastName] = useState("");
   const [copyCompanyInfoToPracticeOne, setCopyCompanyInfoToPracticeOne] =
@@ -1552,7 +1564,7 @@ export default function OnboardingFormV5() {
 
     const practiceCount = isSinglePracticeOrg
       ? 1
-      : Math.max(2, Number(formData.numberOfPractices ?? 0) || 0);
+      : Math.max(1, Number(formData.numberOfPractices ?? 0) || 0);
 
     setFormData((prev) => {
       const currentPractices = prev.practices ?? [];
@@ -1580,6 +1592,32 @@ export default function OnboardingFormV5() {
       };
     });
   }, [formData.numberOfPractices, formData.onboardingType]);
+
+  useEffect(() => {
+    const targetLocations = Math.max(1, Number(formData.numberOfLocations ?? 1) || 1);
+
+    setFormData((prev) => {
+      let changed = false;
+      const nextPractices = (prev.practices ?? []).map((practice) => {
+        const current = practice.locations ?? [];
+        if (current.length === targetLocations) return practice;
+        changed = true;
+        if (current.length > targetLocations) {
+          return { ...practice, locations: current.slice(0, targetLocations) };
+        }
+        const extra = Array.from(
+          { length: targetLocations - current.length },
+          (_, i) => ({
+            ...initialLocation,
+            isPrimaryLocation: false,
+            locationName: `Location ${current.length + i + 1}`,
+          }),
+        );
+        return { ...practice, locations: [...current, ...extra] };
+      });
+      return changed ? { ...prev, practices: nextPractices } : prev;
+    });
+  }, [formData.numberOfLocations]);
 
   useEffect(() => {
     if (
@@ -1748,11 +1786,23 @@ export default function OnboardingFormV5() {
     formData.onboardingType,
   ]);
 
-  const locationNames = (formData.practices ?? []).flatMap((practice) =>
-    (practice.locations ?? [])
-      .map((location) => location.locationName?.trim() ?? "")
-      .filter(Boolean),
-  );
+  type LocationOption = { label: string; value: string; key: string };
+
+  const locationOptions = useMemo(() => {
+    return (formData.practices ?? []).flatMap((practice, practiceIndex) =>
+      (practice.locations ?? []).flatMap((location, locationIndex) => {
+        const name = location.locationName?.trim() ?? "";
+        if (!name) return [];
+        return [
+          {
+            label: name,
+            value: name,
+            key: `${practiceIndex}-${locationIndex}`,
+          },
+        ];
+      }),
+    );
+  }, [formData.practices]);
 
   const scopeRequestedServices =
     (formData.requestedServices ?? []).length > 0
@@ -1968,13 +2018,14 @@ export default function OnboardingFormV5() {
     const caqhUsername = provider.caqhUsername?.trim() ?? "";
     const caqhPassword = provider.caqhPassword?.trim() ?? "";
     const validSsnLastFour = /^\d{4}$/.test(ssnLastFour);
-    const requiresCaqhCredentials = credentialingRequested;
+    const isCaqhExempt = caqhExemptProviderTypes.includes(providerType);
+    const requiresCaqhCredentials =
+      credentialingRequested && !isCaqhExempt;
     const hasBoardCertificationFile = !!(
       provider.copyOfBoardCertification?.trim() ?? ""
     );
-    const isIndependentBilling = independentBillingProviderTypes.includes(
-      providerType,
-    );
+    const isIndependentBilling =
+      independentBillingProviderTypes.includes(providerType);
     return (
       !!firstName &&
       !!lastName &&
@@ -2396,10 +2447,10 @@ export default function OnboardingFormV5() {
       if (!formData.onboardingType) errors.push("Onboarding type");
       if (
         formData.onboardingType === "MULTI_PRACTICE_ORGANIZATION" &&
-        (Number(formData.numberOfPractices ?? 0) || 0) < 2
+        (Number(formData.numberOfPractices ?? 0) || 0) < 1
       ) {
         errors.push(
-          "How many practices are being onboarded (must be 2 or more)",
+          "How many practices are being onboarded (must be 1 or more)",
         );
       }
       if (
@@ -2477,7 +2528,9 @@ export default function OnboardingFormV5() {
     }
 
     if (currentStep === 5) {
-      if (!hasPracticeManager) {
+      if (hasPracticeManager === null) {
+        errors.push("Does this practice have a practice manager");
+      } else if (!hasPracticeManager) {
         // no-op: no practice manager means no contacts required
       } else if (!(formData.contacts ?? []).length) {
         errors.push("At least one contact");
@@ -2520,19 +2573,30 @@ export default function OnboardingFormV5() {
     }
 
     if (currentStep === 8) {
-      const invalidDocumentIndexes = (formData.documents ?? [])
-        .map((document, index) => {
-          const documentType = document.documentType?.trim() ?? "";
-          const validDateOrder = isDocumentReceivedAfterRequested(
-            document.dateRequested,
-            document.dateReceived,
-          );
-          return documentType && validDateOrder ? null : index + 1;
-        })
-        .filter((index): index is number => index !== null);
+      const missingTypeIndexes: number[] = [];
+      const invalidDateIndexes: number[] = [];
 
-      if (invalidDocumentIndexes.length) {
-        errors.push(`Document ${invalidDocumentIndexes.join(", ")} type`);
+      (formData.documents ?? []).forEach((document, index) => {
+        const documentType = document.documentType?.trim() ?? "";
+        if (!documentType) missingTypeIndexes.push(index + 1);
+
+        const validDateOrder = isDocumentReceivedAfterRequested(
+          document.dateRequested,
+          document.dateReceived,
+        );
+        if (!validDateOrder) invalidDateIndexes.push(index + 1);
+      });
+
+      if (missingTypeIndexes.length) {
+        errors.push(
+          `Document ${missingTypeIndexes.join(", ")} type is required`,
+        );
+      }
+
+      if (invalidDateIndexes.length) {
+        errors.push(
+          `Document ${invalidDateIndexes.join(", ")} date order (received must be on or after requested)`,
+        );
       }
 
       if (!(formData.submittedByName?.trim() ?? "")) {
@@ -2593,6 +2657,7 @@ export default function OnboardingFormV5() {
     }
 
     if (stepId === 5) {
+      if (hasPracticeManager === null) return false;
       if (!hasPracticeManager) return true;
       return (
         (formData.contacts ?? []).every((contact) => {
@@ -2936,7 +3001,7 @@ export default function OnboardingFormV5() {
                         updateField(
                           "numberOfPractices",
                           Math.max(
-                            2,
+                            1,
                             Number(formData.numberOfPractices ?? 0) || 0,
                           ),
                         );
@@ -2985,7 +3050,7 @@ export default function OnboardingFormV5() {
                         min={
                           formData.onboardingType ===
                           "MULTI_PRACTICE_ORGANIZATION"
-                            ? 2
+                            ? 1
                             : 1
                         }
                         max={
@@ -3006,7 +3071,7 @@ export default function OnboardingFormV5() {
                             formData.onboardingType ===
                               "MULTI_PRACTICE_ORGANIZATION"
                               ? Math.max(
-                                  2,
+                                  1,
                                   parseNumber(
                                     event.target.value.replace(/\D/g, ""),
                                   ),
@@ -3023,12 +3088,12 @@ export default function OnboardingFormV5() {
                     <Field label="How many locations total are being onboarded?">
                       <TextInput
                         type="number"
-                        min={0}
-                        value={formData.numberOfLocations ?? 0}
+                        min={1}
+                        value={formData.numberOfLocations ?? 1}
                         onChange={(event) =>
                           updateField(
                             "numberOfLocations",
-                            parseNumber(event.target.value.replace(/\D/g, "")),
+                            Math.max(1, parseNumber(event.target.value.replace(/\D/g, "")) || 1),
                           )
                         }
                       />
@@ -3082,7 +3147,7 @@ export default function OnboardingFormV5() {
                     <Field label="Is there one main contact for all practices?">
                       <BooleanRadioGroup
                         name="oneMainContact"
-                        value={formData.oneMainContact ?? false}
+                        value={formData.oneMainContact ?? null}
                         onChange={(value) =>
                           updateField("oneMainContact", value)
                         }
@@ -4120,7 +4185,7 @@ export default function OnboardingFormV5() {
                             </Field>
                           </div>
 
-                          <div className="lg:col-span-3">
+                          {/* <div className="lg:col-span-3">
                             <Field label="Does this practice currently offer care management services?">
                               <BooleanRadioGroup
                                 name={`care-management-${practiceIndex}`}
@@ -4166,7 +4231,7 @@ export default function OnboardingFormV5() {
                                 />
                               </Field>
                             </div>
-                          ) : null}
+                          ) : null} */}
                         </div>
 
                         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-4">
@@ -4176,7 +4241,8 @@ export default function OnboardingFormV5() {
                               formData.onboardingType ===
                                 "SINGLE_PRACTICE_ORGANIZATION" ||
                               formData.onboardingType === "SINGLE_PRACTICE" ||
-                              formData.onboardingType === "SINGLE_PRACTICE_NOW"
+                              formData.onboardingType === "SINGLE_PRACTICE_NOW" ||
+                              (formData.numberOfLocations ?? 1) <= 1
                                 ? undefined
                                 : "+ Add Location"
                             }
@@ -4184,7 +4250,8 @@ export default function OnboardingFormV5() {
                               formData.onboardingType ===
                                 "SINGLE_PRACTICE_ORGANIZATION" ||
                               formData.onboardingType === "SINGLE_PRACTICE" ||
-                              formData.onboardingType === "SINGLE_PRACTICE_NOW"
+                              formData.onboardingType === "SINGLE_PRACTICE_NOW" ||
+                              (formData.numberOfLocations ?? 1) <= 1
                                 ? undefined
                                 : () => addLocation(practiceIndex)
                             }
@@ -4201,7 +4268,8 @@ export default function OnboardingFormV5() {
                                       Practice {practiceIndex + 1} - Location{" "}
                                       {locationIndex + 1}
                                     </p>
-                                    {(practice.locations ?? []).length > 1 ? (
+                                    {(practice.locations ?? []).length > 1 &&
+                                    (formData.numberOfLocations ?? 1) > 1 ? (
                                       <button
                                         type="button"
                                         onClick={() =>
@@ -4470,7 +4538,10 @@ export default function OnboardingFormV5() {
                                             practiceIndex,
                                             locationIndex,
                                             "cliaNumber",
-                                            event.target.value.replace(/\D/g, ""),
+                                            event.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            ),
                                           )
                                         }
                                       />
@@ -4774,7 +4845,12 @@ export default function OnboardingFormV5() {
                                   {scopeRequestedServices.includes(
                                     "CREDENTIALING",
                                   ) ? (
-                                    <Field label="CAQH ID" required>
+                                    <Field
+                                      label="CAQH ID"
+                                      required={!caqhExemptProviderTypes.includes(
+                                        provider.providerType ?? "",
+                                      )}
+                                    >
                                       <TextInput
                                         value={provider.caqhId ?? ""}
                                         onChange={(event) =>
@@ -4786,6 +4862,74 @@ export default function OnboardingFormV5() {
                                               /\D/g,
                                               "",
                                             ),
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+
+                                  {scopeRequestedServices.includes(
+                                    "CREDENTIALING",
+                                  ) ? (
+                                    <Field
+                                      label="CAQH Username"
+                                      required={!caqhExemptProviderTypes.includes(
+                                        provider.providerType ?? "",
+                                      )}
+                                    >
+                                      <TextInput
+                                        value={provider.caqhUsername ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "caqhUsername",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+
+                                  {scopeRequestedServices.includes(
+                                    "CREDENTIALING",
+                                  ) ? (
+                                    <Field
+                                      label="CAQH Password"
+                                      required={!caqhExemptProviderTypes.includes(
+                                        provider.providerType ?? "",
+                                      )}
+                                    >
+                                      <TextInput
+                                        type="password"
+                                        value={provider.caqhPassword ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "caqhPassword",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+                                  ) : null}
+
+                                  {scopeRequestedServices.includes(
+                                    "CREDENTIALING",
+                                  ) ? (
+                                    <Field label="CAQH Last Attestation Date">
+                                      <TextInput
+                                        type="date"
+                                        value={
+                                          provider.caqhLastAttestationDate ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "caqhLastAttestationDate",
+                                            event.target.value,
                                           )
                                         }
                                       />
@@ -4915,64 +5059,6 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  {scopeRequestedServices.includes(
-                                    "CREDENTIALING",
-                                  ) ? (
-                                    <Field label="CAQH Username" required>
-                                      <TextInput
-                                        value={provider.caqhUsername ?? ""}
-                                        onChange={(event) =>
-                                          updateProvider(
-                                            practiceIndex,
-                                            providerIndex,
-                                            "caqhUsername",
-                                            event.target.value,
-                                          )
-                                        }
-                                      />
-                                    </Field>
-                                  ) : null}
-
-                                  {scopeRequestedServices.includes(
-                                    "CREDENTIALING",
-                                  ) ? (
-                                    <Field label="CAQH Password" required>
-                                      <TextInput
-                                        type="password"
-                                        value={provider.caqhPassword ?? ""}
-                                        onChange={(event) =>
-                                          updateProvider(
-                                            practiceIndex,
-                                            providerIndex,
-                                            "caqhPassword",
-                                            event.target.value,
-                                          )
-                                        }
-                                      />
-                                    </Field>
-                                  ) : null}
-
-                                  {scopeRequestedServices.includes(
-                                    "CREDENTIALING",
-                                  ) ? (
-                                    <Field label="CAQH Last Attestation Date">
-                                      <TextInput
-                                        type="date"
-                                        value={
-                                          provider.caqhLastAttestationDate ?? ""
-                                        }
-                                        onChange={(event) =>
-                                          updateProvider(
-                                            practiceIndex,
-                                            providerIndex,
-                                            "caqhLastAttestationDate",
-                                            event.target.value,
-                                          )
-                                        }
-                                      />
-                                    </Field>
-                                  ) : null}
-
                                   <Field label="Languages Spoken">
                                     <TextArea
                                       rows={3}
@@ -4991,10 +5077,7 @@ export default function OnboardingFormV5() {
                                   <div className="lg:col-span-3">
                                     <Field label="Participating Locations">
                                       <CheckboxGroup
-                                        options={locationNames.map((name) => ({
-                                          label: name,
-                                          value: name,
-                                        }))}
+                                        options={locationOptions}
                                         values={
                                           provider.participatingLocations ?? []
                                         }
@@ -5826,9 +5909,7 @@ export default function OnboardingFormV5() {
                   <Field label="Can patient lists be exported?">
                     <BooleanRadioGroup
                       name="patientListExportable"
-                      value={
-                        formData.technology?.patientListExportable ?? null
-                      }
+                      value={formData.technology?.patientListExportable ?? null}
                       onChange={(value) =>
                         updateNestedField(
                           "technology",
@@ -6050,9 +6131,17 @@ export default function OnboardingFormV5() {
                       values={formData.billing?.currentlyBilledServices ?? []}
                       onToggle={(value) =>
                         setFormData((prev) => {
-                          const programValues = ["APCM", "CCM", "RPM", "PCM", "BHI", "RTM"];
+                          const programValues = [
+                            "APCM",
+                            "CCM",
+                            "RPM",
+                            "PCM",
+                            "BHI",
+                            "RTM",
+                          ];
                           const specialValues = ["NONE", "NOT_SURE"];
-                          const current = prev.billing?.currentlyBilledServices ?? [];
+                          const current =
+                            prev.billing?.currentlyBilledServices ?? [];
                           let next: string[];
                           if (specialValues.includes(value)) {
                             if (current.includes(value)) {
@@ -6064,7 +6153,9 @@ export default function OnboardingFormV5() {
                             next = current.includes(value)
                               ? current.filter((v) => v !== value)
                               : [...current, value];
-                            next = next.filter((v) => !specialValues.includes(v));
+                            next = next.filter(
+                              (v) => !specialValues.includes(v),
+                            );
                           }
                           return {
                             ...prev,
@@ -6241,9 +6332,7 @@ export default function OnboardingFormV5() {
                       <Field label="Do you have a designated contact person for insurance/credentialing?">
                         <BooleanRadioGroup
                           name="designated-credentialing-contact"
-                          value={
-                            formData.credentialing?.caqhMaintained ?? null
-                          }
+                          value={formData.credentialing?.caqhMaintained ?? null}
                           onChange={(value) => {
                             updateNestedField(
                               "credentialing",

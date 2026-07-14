@@ -136,7 +136,6 @@ type PracticeFormData = {
   name: string;
   npi: string;
   status: string;
-  region: string;
   source: string;
   bucket: string;
   companyId: string;
@@ -148,7 +147,6 @@ const initialFormData: PracticeFormData = {
   name: "",
   npi: "",
   status: "LEAD",
-  region: "",
   source: "DIRECT",
   bucket: "",
   taxIdId: "",
@@ -202,7 +200,6 @@ export default function AllPracticePage() {
   const [filters, setFilters] = useState({
     search: "",
     status: "",
-    region: "",
     source: "",
     companyId: "",
   });
@@ -225,15 +222,9 @@ export default function AllPracticePage() {
   );
 
   const whenToSearch = filters.search.length > 3 || filters.search.length === 0;
-  const whenToSearchRegion =
-    filters.region.length >= 2 || filters.region.length === 0;
 
   const disableMe =
-    !filters.search &&
-    !filters.status &&
-    !filters.region &&
-    !filters.source &&
-    !filters.companyId;
+    !filters.search && !filters.status && !filters.source && !filters.companyId;
 
   useEffect(() => {
     async function loadData() {
@@ -245,7 +236,6 @@ export default function AllPracticePage() {
           limit: pagination.limit,
           ...(filters.search && { search: filters.search }),
           ...(filters.status && { status: filters.status }),
-          ...(filters.region && { region: filters.region }),
           ...(filters.source && { source: filters.source }),
           ...(filters.companyId && { companyId: filters.companyId }),
           sortBy: sorting[0]?.id || "createdAt",
@@ -269,7 +259,7 @@ export default function AllPracticePage() {
         setIsLoading(false);
       }
     }
-    if (whenToSearch && whenToSearchRegion) {
+    if (whenToSearch) {
       loadData();
     }
   }, [pagination.page, pagination.limit, sorting, filters]);
@@ -287,7 +277,6 @@ export default function AllPracticePage() {
         name: String(values.name || ""),
         npi: String(values.npi || ""),
         status: String(values.status || "LEAD"),
-        region: String(values.region || ""),
         source: String(values.source || "DIRECT"),
         bucket: Array.isArray(values.bucket)
           ? values.bucket.join(", ")
@@ -341,8 +330,7 @@ export default function AllPracticePage() {
 
     rows.forEach((row) => {
       const groupNpis = row.values.groupNpis as
-        | { groupNpiNumber: string; groupName: string }[]
-        | undefined;
+        { groupNpiNumber: string; groupName: string }[] | undefined;
       if (groupNpis && groupNpis.length > 0) {
         const key = groupNpis[0].groupNpiNumber;
         if (!groups[key]) {
@@ -421,7 +409,6 @@ export default function AllPracticePage() {
           name: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           npi: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           status: <Circle className="h-3.5 w-3.5 text-slate-400" />,
-          region: <MapPin className="h-3.5 w-3.5 text-slate-400" />,
           source: <Tag className="h-3.5 w-3.5 text-slate-400" />,
           bucket: <Tag className="h-3.5 w-3.5 text-slate-400" />,
           companyName: <Building2 className="h-3.5 w-3.5 text-slate-400" />,
@@ -695,7 +682,6 @@ export default function AllPracticePage() {
         name: formData.name.trim(),
         npi: formData.npi.trim() || undefined,
         status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
-        region: formData.region.trim(),
         groupNpis: groupNpiEntries.map((entry) => ({
           ...entry,
           groupNpiNumber: normalizeNpiInput(entry.groupNpiNumber),
@@ -703,11 +689,7 @@ export default function AllPracticePage() {
           taxId: formData.taxIdId || entry.taxId || "",
         })),
         source: formData.source as
-          | "DIRECT"
-          | "REFERRAL"
-          | "CHANNEL_PARTNER"
-          | "OUTBOUND"
-          | "INBOUND",
+          "DIRECT" | "REFERRAL" | "CHANNEL_PARTNER" | "OUTBOUND" | "INBOUND",
         bucket: formData.bucket
           ? formData.bucket
               .split(",")
@@ -855,7 +837,6 @@ export default function AllPracticePage() {
           name: formData.name.trim(),
           npi: formData.npi.trim() || undefined,
           status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
-          region: formData.region.trim(),
           groupNpis: groupNpiEntries.map((entry) => ({
             ...entry,
             groupNpiNumber: normalizeNpiInput(entry.groupNpiNumber),
@@ -863,11 +844,7 @@ export default function AllPracticePage() {
             taxId: formData.taxIdId || entry.taxId || "",
           })),
           source: formData.source as
-            | "DIRECT"
-            | "REFERRAL"
-            | "CHANNEL_PARTNER"
-            | "OUTBOUND"
-            | "INBOUND",
+            "DIRECT" | "REFERRAL" | "CHANNEL_PARTNER" | "OUTBOUND" | "INBOUND",
           bucket: formData.bucket
             ? formData.bucket
                 .split(",")
@@ -897,7 +874,6 @@ export default function AllPracticePage() {
         name: formData.name.trim(),
         npi: formData.npi.trim() || undefined,
         status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
-        region: formData.region.trim(),
         groupNpis: groupNpiEntries.map((entry) => ({
           ...entry,
           groupNpiNumber: normalizeNpiInput(entry.groupNpiNumber),
@@ -905,11 +881,7 @@ export default function AllPracticePage() {
           taxId: formData.taxIdId || entry.taxId || "",
         })),
         source: formData.source as
-          | "DIRECT"
-          | "REFERRAL"
-          | "CHANNEL_PARTNER"
-          | "OUTBOUND"
-          | "INBOUND",
+          "DIRECT" | "REFERRAL" | "CHANNEL_PARTNER" | "OUTBOUND" | "INBOUND",
         bucket: formData.bucket
           ? formData.bucket
               .split(",")
@@ -1127,13 +1099,6 @@ export default function AllPracticePage() {
   //         </div>
 
   //         <div className="flex items-center gap-2 text-[13px]">
-  //           <span className="w-24 text-slate-400">Region:</span>
-  //           <span className="text-slate-700">
-  //             {String(values.region || "-")}
-  //           </span>
-  //         </div>
-
-  //         <div className="flex items-center gap-2 text-[13px]">
   //           <span className="w-24 text-slate-400">Source:</span>
   //           <span
   //             className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -1201,14 +1166,13 @@ export default function AllPracticePage() {
 
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
-            NPI <span className="text-red-500">*</span>
+            NPI
           </label>
           <input
             type="text"
             pattern="\d{10}"
             title="NPI Number must be exactly 10 digits"
             value={formData.npi}
-            required
             onChange={(e) => handleFormChange("npi", e.target.value)}
             inputMode="numeric"
             maxLength={10}
@@ -1217,7 +1181,7 @@ export default function AllPracticePage() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
               Status <span className="text-red-500">*</span>
@@ -1238,18 +1202,6 @@ export default function AllPracticePage() {
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Region <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.region}
-              onChange={(e) => handleFormChange("region", e.target.value)}
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            />
           </div>
         </div>
 
@@ -1272,7 +1224,7 @@ export default function AllPracticePage() {
           </div>
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Bucket
+              Specialty
             </label>
             <input
               type="text"
@@ -1482,7 +1434,9 @@ export default function AllPracticePage() {
       activeModule="Practices"
       activeSubItem="All Practices"
       navbarIcon={<Building2 className="h-4 w-4 text-slate-500" />}
-      navbarActions={canWritePractices ? getStandardNavbarActions(openCreateForm) : []}
+      navbarActions={
+        canWritePractices ? getStandardNavbarActions(openCreateForm) : []
+      }
     >
       <div className="flex h-full gap-2">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
@@ -1543,16 +1497,6 @@ export default function AllPracticePage() {
                   </option>
                 ))}
               </select>
-              <input
-                type="text"
-                placeholder="Region..."
-                value={filters.region}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, region: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              />
               <select
                 value={filters.source}
                 onChange={(e) => {
@@ -1594,7 +1538,6 @@ export default function AllPracticePage() {
                   setFilters({
                     search: "",
                     status: "",
-                    region: "",
                     source: "",
                     companyId: "",
                   })
@@ -1906,9 +1849,6 @@ export default function AllPracticePage() {
                           {selectedRow.values.npi ? (
                             <p>NPI: {String(selectedRow.values.npi)}</p>
                           ) : null}
-                          {selectedRow.values.region ? (
-                            <p>Region: {String(selectedRow.values.region)}</p>
-                          ) : null}
                         </div>
                       </div>
 
@@ -1977,7 +1917,7 @@ export default function AllPracticePage() {
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    NPI <span className="text-red-500">*</span>
+                    NPI
                   </label>
                   <input
                     type="text"
@@ -1992,7 +1932,7 @@ export default function AllPracticePage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
                       Status <span className="text-red-500">*</span>
@@ -2014,20 +1954,6 @@ export default function AllPracticePage() {
                         </option>
                       ))}
                     </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Region <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.region}
-                      onChange={(e) =>
-                        handleFormChange("region", e.target.value)
-                      }
-                      placeholder="e.g. Northeast"
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
                   </div>
                 </div>
 
@@ -2052,7 +1978,7 @@ export default function AllPracticePage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Bucket
+                      Specialty
                     </label>
                     <input
                       type="text"

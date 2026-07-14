@@ -430,6 +430,7 @@ function AgreementPendingApprovalPage() {
                         const submitterGroups = getTemplateSubmitterGroups(
                           template,
                           submissionFields,
+                          selectedAgreement?.practice?.name,
                         );
 
                         return (

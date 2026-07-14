@@ -33,7 +33,6 @@ function practiceToRow(practice: Practice): PracticeRow {
       name: practice.name,
       npi: practice.npi || "",
       status: practice.status,
-      region: practice.region,
       source: practice.source,
       bucket: practice.bucket.join(", "),
       companyId: practice.companyId || "",
@@ -71,7 +70,6 @@ const fields = [
   { id: "name", label: "Name", type: "text" as const, visible: true },
   { id: "npi", label: "NPI", type: "text" as const, visible: true },
   { id: "status", label: "Status", type: "text" as const, visible: true },
-  { id: "region", label: "Region", type: "text" as const, visible: true },
   { id: "source", label: "Source", type: "text" as const, visible: true },
   { id: "bucket", label: "Bucket", type: "text" as const, visible: false },
   { id: "companyName", label: "Company", type: "text" as const, visible: true },
@@ -126,7 +124,6 @@ export type PracticeQueryParams = {
   limit?: number;
   search?: string;
   status?: string;
-  region?: string;
   source?: string;
   companyId?: string;
   sortBy?: string;
@@ -142,7 +139,6 @@ export async function getPracticesView(
     if (params?.limit) queryString.set("limit", String(params.limit));
     if (params?.search) queryString.set("search", params.search);
     if (params?.status) queryString.set("status", params.status);
-    if (params?.region) queryString.set("region", params.region);
     if (params?.source) queryString.set("source", params.source);
     if (params?.companyId) queryString.set("companyId", params.companyId);
     if (params?.sortBy) queryString.set("sortBy", params.sortBy);

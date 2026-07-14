@@ -23,14 +23,12 @@ import AppLayout from "../layout/AppLayout";
 import { LOGOUT_ACTION, type NavbarAction } from "../layout/Navbar";
 import type { CompanyBody, Company } from "../companies/types";
 import type { PersonBody, PersonRole } from "../contact/types";
-import type { DealApiError, DealBody } from "../../services/operations/deals";
 import {
   createCompanyApi,
   deleteCompanyApi,
   getCompany,
   getCompaniesView,
 } from "../../services/operations/companies";
-import { createDealApi, deleteDealApi } from "../../services/operations/deals";
 import {
   createPersonApi,
   deletePersonApi,
@@ -62,6 +60,7 @@ import type {
 } from "../practices/types";
 import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import AddressAutocomplete, { type AddressData } from "../shared/AddressAutocomplete";
 import ConfirmModal from "../shared/ConfirmModal";
 import {
   canManageSettings,
@@ -102,15 +101,14 @@ type LeadFormState = {
   companyRelation: RelationType;
   selectedCompanyId: string;
   companyName: string;
-  companyIndustry: string;
-  companySize: string;
+
   companyPhone: string;
   companyEmail: string;
   companyWebsite: string;
   companyStreet: string;
   companyCity: string;
   companyState: string;
-  companyCountry: string;
+
   companyZip: string;
   taxIds: TaxIdFormState[];
 
@@ -119,7 +117,7 @@ type LeadFormState = {
   selectedPracticeId: string;
   practiceName: string;
   practiceNpi: string;
-  practiceRegion: string;
+
   practiceSource: PracticeSource;
   practiceBucket: string;
   practiceTaxIdKey: string;
@@ -144,14 +142,7 @@ type LeadFormState = {
     notes: string;
   }[];
 
-  // Deal
   interestedServiceIds: string[];
-  estimatedValue: string;
-  probability: string;
-  followUpTaskTitle: string;
-  followUpTaskDueAt: string;
-  assignedOwnerId: string;
-  channelPartnerId: string;
   notes: string;
 
   // Integrated Agreement
@@ -168,15 +159,14 @@ const initialFormState: LeadFormState = {
   companyRelation: "new",
   selectedCompanyId: "",
   companyName: "",
-  companyIndustry: "",
-  companySize: "",
+
   companyPhone: "",
   companyEmail: "",
   companyWebsite: "",
   companyStreet: "",
   companyCity: "",
   companyState: "",
-  companyCountry: "",
+
   companyZip: "",
   taxIds: [initialTaxId],
 
@@ -184,7 +174,7 @@ const initialFormState: LeadFormState = {
   selectedPracticeId: "",
   practiceName: "",
   practiceNpi: "",
-  practiceRegion: "",
+
   practiceSource: "DIRECT",
   practiceBucket: "",
   practiceTaxIdKey: "",
@@ -202,12 +192,6 @@ const initialFormState: LeadFormState = {
   practiceGroupNpis: [],
 
   interestedServiceIds: [],
-  estimatedValue: "",
-  probability: "10",
-  followUpTaskTitle: "",
-  followUpTaskDueAt: "",
-  assignedOwnerId: "",
-  channelPartnerId: "",
   notes: "",
 
   agreement: {
@@ -226,8 +210,20 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   "Master Service Agreement",
   "BAA",
   "Credentialing Exhibit",
-  "Exhibit P",
+  "Mutual NDA",
+  // "Exhibit P",
 ];
+
+function normalizePhoneInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function stripPhone(value: string): string {
+  return value.replace(/\D/g, "");
+}
 
 const personRoleOptions: PersonRole[] = [
   "OWNER",
@@ -255,14 +251,6 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
 }
 
-function defaultFollowUpTitle(contactName: string, practiceName: string) {
-  const firstName = contactName.trim().split(/\s+/)[0];
-  if (firstName) {
-    return `Follow up with ${firstName} about ${practiceName}`;
-  }
-  return `Follow up on ${practiceName}`;
-}
-
 function getPrimaryContactName(form: LeadFormState) {
   return [form.primaryContactFirstName, form.primaryContactLastName]
     .map((part) => part.trim())
@@ -271,12 +259,7 @@ function getPrimaryContactName(form: LeadFormState) {
 }
 
 function buildErrorMessage(error: unknown) {
-  const message =
-    error instanceof Error ? error.message : "Unable to save lead.";
-  const missingRequirements = (error as DealApiError | undefined)
-    ?.missingRequirements;
-  if (!missingRequirements?.length) return message;
-  return `${message} Missing: ${missingRequirements.join(", ")}.`;
+  return error instanceof Error ? error.message : "Unable to save lead.";
 }
 
 function buildLeadAgreementDocusealPrefillValues(
@@ -300,11 +283,21 @@ function buildLeadAgreementDocusealPrefillValues(
     let value = "";
 
     if (
+      fieldName.includes("first party") &&
+      fieldName.includes("name")
+    ) {
+      value = "Tristate";
+    } else if (
+      fieldName.includes("second party") &&
+      fieldName.includes("name")
+    ) {
+      value = practiceName || companyName;
+    } else if (
       fieldName.includes("client") ||
       fieldName.includes("practice") ||
       fieldName.includes("clinic")
     ) {
-      value = practiceName || companyName;
+      // value = practiceName || companyName;
     } else if (fieldName.includes("company")) {
       value = companyName;
     } else if (fieldName.includes("npi")) {
@@ -431,7 +424,6 @@ function CreateLeadPage() {
     let createdCompanyId: string | undefined;
     let createdPracticeId: string | undefined;
     let createdContactId: string | undefined;
-    let createdDealId: string | undefined;
     let createdAgreementId: string | undefined;
     let agreementSendWarning: string | null = null;
 
@@ -447,9 +439,7 @@ function CreateLeadPage() {
         );
         const companyPayload: CompanyBody = {
           name: form.companyName.trim(),
-          industry: form.companyIndustry.trim(),
-          size: Number(form.companySize) || undefined,
-          phone: form.companyPhone.trim() || undefined,
+          phone: stripPhone(form.companyPhone.trim()) || undefined,
           email: form.companyEmail.trim() || undefined,
           website: form.companyWebsite.trim() || undefined,
           status: "LEAD",
@@ -457,7 +447,6 @@ function CreateLeadPage() {
             street: form.companyStreet.trim() || undefined,
             city: form.companyCity.trim() || undefined,
             state: form.companyState.trim() || undefined,
-            country: form.companyCountry.trim() || undefined,
             zip: form.companyZip.trim() || undefined,
           },
           taxIds:
@@ -508,9 +497,8 @@ function CreateLeadPage() {
         );
         const practicePayload: PracticeBody = {
           name: form.practiceName.trim(),
-          npi: form.practiceNpi.trim(),
+          npi: form.practiceNpi.trim() || undefined,
           status: "LEAD",
-          region: form.practiceRegion.trim(),
           source: form.practiceSource,
           bucket: form.practiceBucket
             .split(",")
@@ -556,7 +544,7 @@ function CreateLeadPage() {
           role: form.primaryContactRole,
           influence: "HIGH",
           email: form.primaryContactEmail.trim(),
-          phone: form.primaryContactPhone.trim() || undefined,
+          phone: stripPhone(form.primaryContactPhone.trim()) || undefined,
           designation: form.primaryContactDesignation.trim() || undefined,
           practiceIds: mergedPracticeIds,
           companyIds: mergedCompanyIds,
@@ -598,36 +586,7 @@ function CreateLeadPage() {
         }
       }
 
-      // 4. Handle Deal
-      const activityTimestamp = new Date().toISOString();
-      const contactName =
-        form.contactRelation === "new"
-          ? getPrimaryContactName(form)
-          : "Selected Contact";
-      const pName =
-        form.practiceRelation === "new"
-          ? form.practiceName
-          : "Selected Practice";
-
-      const dealPayload: DealBody = {
-        practiceId: practiceId,
-        companyId: companyId || null,
-        primaryContactId: contactId,
-        stage: "PROSPECTING",
-        value: Number(form.estimatedValue),
-        probability: Number(form.probability),
-        selectedServiceIds: form.interestedServiceIds,
-        nextTaskTitle:
-          form.followUpTaskTitle.trim() ||
-          defaultFollowUpTitle(contactName, pName),
-        nextTaskDueAt: new Date(form.followUpTaskDueAt).toISOString(),
-        lastActivityAt: activityTimestamp,
-        activityCount: 1,
-      };
-      const dealRow = await createDealApi(dealPayload);
-      createdDealId = dealRow.id;
-
-      // 5. Handle Agreement (if requested)
+      // 4. Handle Agreement (if requested)
       let agreementId: string | undefined = undefined;
       if (withAgreement && form.agreement.action !== "none") {
         if (form.agreement.action === "create") {
@@ -669,7 +628,6 @@ function CreateLeadPage() {
             : "PENDING_APPROVAL";
           const agreementPayload = {
             practiceId: practiceId,
-            dealId: dealRow.id,
             type: form.agreement.type,
             status: "DRAFT",
             approvalStatus: agreementApprovalStatus,
@@ -681,6 +639,7 @@ function CreateLeadPage() {
               : undefined,
             docusealSubmissions:
               submissions.length > 0 ? submissions : undefined,
+            serviceIds: form.interestedServiceIds,
           };
           const agreementRow = await createAgreementApi(
             agreementPayload as any,
@@ -727,12 +686,6 @@ function CreateLeadPage() {
                   : "Lead was created, but practice activation or company status update could not be completed.";
             }
           }
-
-          // Potentially update dealId on existing agreement if needed
-          // await createAgreementApi({
-          //   id: agreementId,
-          //   dealId: dealRow.id,
-          // } as any);
         }
       }
 
@@ -760,7 +713,6 @@ function CreateLeadPage() {
       const cleanupTasks: Array<Promise<unknown>> = [];
       if (createdAgreementId)
         cleanupTasks.push(deleteAgreementApi(createdAgreementId));
-      if (createdDealId) cleanupTasks.push(deleteDealApi(createdDealId));
       if (createdContactId)
         cleanupTasks.push(deletePersonApi(createdContactId));
       if (createdPracticeId)
@@ -851,6 +803,44 @@ function CreateLeadPage() {
     form.agreement.type,
     templates,
   ]);
+
+  // Re-prefill template field values (First/Second Party Name, etc.) when practice name changes
+  useEffect(() => {
+    if (form.agreement.templateIds.length === 0) return;
+
+    setForm((prev) => {
+      const nextFieldValues = { ...prev.agreement.docusealFieldValues };
+      let hasChanges = false;
+
+      for (const templateId of prev.agreement.templateIds) {
+        const template = templates.find((t) => String(t.id) === templateId);
+        if (!template) continue;
+
+        const prefilled = buildLeadAgreementDocusealPrefillValues(template, prev);
+        const currentValues = nextFieldValues[templateId] || {};
+        const updatedValues = { ...currentValues };
+
+        for (const [fieldUuid, nextValue] of Object.entries(prefilled)) {
+          if (nextValue && updatedValues[fieldUuid] !== nextValue) {
+            updatedValues[fieldUuid] = nextValue;
+            hasChanges = true;
+          }
+        }
+
+        nextFieldValues[templateId] = updatedValues;
+      }
+
+      if (!hasChanges) return prev;
+
+      return {
+        ...prev,
+        agreement: {
+          ...prev.agreement,
+          docusealFieldValues: nextFieldValues,
+        },
+      };
+    });
+  }, [form.practiceName, form.agreement.effectiveDate, form.agreement.templateIds, templates]);
 
   // Fetch existing agreements when practice changes
   useEffect(() => {
@@ -1090,16 +1080,31 @@ function CreateLeadPage() {
   };
 
   const toggleService = (serviceId: string) => {
-    setForm((current) => ({
-      ...current,
-      interestedServiceIds: current.interestedServiceIds.includes(serviceId)
-        ? current.interestedServiceIds.filter((id) => id !== serviceId)
-        : [...current.interestedServiceIds, serviceId],
-    }));
+    setForm((current) => {
+      const isAdding = !current.interestedServiceIds.includes(serviceId);
+      return {
+        ...current,
+        interestedServiceIds: isAdding
+          ? [...current.interestedServiceIds, serviceId]
+          : current.interestedServiceIds.filter((id) => id !== serviceId),
+        ...(isAdding && current.agreement.action === "none"
+          ? { agreement: { ...current.agreement, action: "create" } }
+          : {}),
+      };
+    });
   };
 
   const resetForm = () => {
     setForm(initialFormState);
+  };
+
+  const handleAddressSelect = (address: AddressData) => {
+    if (address.label) {
+      updateField("companyStreet", address.street);
+      updateField("companyCity", address.city);
+      updateField("companyState", address.state);
+      updateField("companyZip", address.zip);
+    }
   };
 
   const updateGroupNpi = (index: number, field: string, value: string) => {
@@ -1235,6 +1240,7 @@ function CreateLeadPage() {
     try {
       const fullPractice = await getPractice(practiceId);
       setSelectedPracticeLabel(fullPractice.name || "");
+      setForm((prev) => ({ ...prev, practiceName: fullPractice.name || "" }));
     } catch (err) {
       console.error("Error loading selected practice:", err);
     }
@@ -1255,30 +1261,11 @@ function CreateLeadPage() {
     }));
   };
 
-  const handleSearchChannelPartners = async (
-    query: string,
-  ): Promise<SearchSelectOption[]> => {
-    const view = await getCompaniesView({
-      search: query || undefined,
-      limit: 10,
-      status: "PARTNER",
-    });
-    return view.rows.map((row) => ({
-      label: row.values.name as string,
-      value: row.id,
-      subLabel: row.values.industry as string,
-    }));
-  };
-
   async function handleSaveLead(event: React.FormEvent) {
     event.preventDefault();
 
     // Validations
     if (form.companyRelation === "new" && form.companyName.trim()) {
-      if (!form.companyIndustry.trim()) {
-        toast.error("Company industry is required.");
-        return;
-      }
       if (
         form.companyEmail.trim() &&
         !/^[^\s@]+@[^\s@]+\.com$/i.test(form.companyEmail.trim())
@@ -1292,18 +1279,6 @@ function CreateLeadPage() {
     if (form.practiceRelation === "new") {
       if (!form.practiceName.trim()) {
         toast.error("Practice name is required.");
-        return;
-      }
-      if (!form.practiceNpi.trim()) {
-        toast.error("Practice NPI is required.");
-        return;
-      }
-      if (!/^\d{10}$/.test(form.practiceNpi.trim())) {
-        toast.error("Practice NPI must be exactly 10 digits.");
-        return;
-      }
-      if (!form.practiceRegion.trim()) {
-        toast.error("Practice region is required.");
         return;
       }
     } else {
@@ -1342,14 +1317,14 @@ function CreateLeadPage() {
     // Validate phone formats
     if (
       form.companyPhone.trim() &&
-      !/^\d{10}$/.test(form.companyPhone.trim())
+      !/^\d{10}$/.test(stripPhone(form.companyPhone.trim()))
     ) {
       toast.error("Company phone must be exactly 10 digits.");
       return;
     }
     if (
       form.primaryContactPhone.trim() &&
-      !/^\d{10}$/.test(form.primaryContactPhone.trim())
+      !/^\d{10}$/.test(stripPhone(form.primaryContactPhone.trim()))
     ) {
       toast.error("Contact phone must be exactly 10 digits.");
       return;
@@ -1358,6 +1333,7 @@ function CreateLeadPage() {
     // Validate NPI format
     if (
       form.practiceRelation === "new" &&
+      form.practiceNpi.trim() &&
       !/^\d{10}$/.test(form.practiceNpi.trim())
     ) {
       toast.error("Practice NPI must be exactly 10 digits.");
@@ -1391,15 +1367,6 @@ function CreateLeadPage() {
 
     if (form.contactRelation !== "new" && !form.selectedContactId) {
       toast.error("Please select an existing contact.");
-      return;
-    }
-
-    if (!form.estimatedValue) {
-      toast.error("Estimated deal value is required.");
-      return;
-    }
-    if (!form.followUpTaskDueAt) {
-      toast.error("Follow-up due date is required.");
       return;
     }
 
@@ -1531,7 +1498,7 @@ function CreateLeadPage() {
                     </label>
                   </div>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 p-4 rounded-xl border border-[#f0ece6] bg-[#fafafa] animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="grid gap-4 md:grid-cols-1 p-4 rounded-xl border border-[#f0ece6] bg-[#fafafa] animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="block">
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
                         Company Name *
@@ -1546,34 +1513,7 @@ function CreateLeadPage() {
                         placeholder="e.g. Acme Medical Group"
                       />
                     </label>
-                    <label className="block">
-                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Industry *
-                      </span>
-                      <input
-                        type="text"
-                        value={form.companyIndustry}
-                        onChange={(e) =>
-                          updateField("companyIndustry", e.target.value)
-                        }
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                        placeholder="e.g. Healthcare Services"
-                      />
-                    </label>
-                    <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
-                      <label className="block">
-                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                          Size
-                        </span>
-                        <input
-                          type="number"
-                          value={form.companySize}
-                          onChange={(e) =>
-                            updateField("companySize", e.target.value)
-                          }
-                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                        />
-                      </label>
+                    <div className="md:col-span-2 grid gap-4 md:grid-cols-2">
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
                           Phone
@@ -1581,13 +1521,13 @@ function CreateLeadPage() {
                         <input
                           type="tel"
                           inputMode="numeric"
-                          maxLength={10}
-                          pattern="[0-9]{10}"
+                          maxLength={12}
+                          pattern="\d{3}-?\d{3}-?\d{4}"
                           value={form.companyPhone}
                           onChange={(e) =>
                             updateField(
                               "companyPhone",
-                              e.target.value.replace(/\D/g, "").slice(0, 10),
+                              normalizePhoneInput(e.target.value),
                             )
                           }
                           className="app-control w-full rounded-md px-3 py-2 text-[13px]"
@@ -1627,7 +1567,17 @@ function CreateLeadPage() {
                       <span className="mb-2 block text-[12px] font-medium text-slate-600">
                         Address
                       </span>
-                      <div className="grid gap-3 md:grid-cols-2">
+                      <AddressAutocomplete
+                        onSelect={handleAddressSelect}
+                        value={
+                          [form.companyStreet, form.companyCity, form.companyState, form.companyZip]
+                            .filter(Boolean)
+                            .join(", ") || ""
+                        }
+                        placeholder="Search address to auto-fill below..."
+                        clearable
+                      />
+                      <div className="grid gap-3 md:grid-cols-2 mt-3">
                         <label className="block">
                           <span className="mb-1 block text-[12px] text-slate-500">
                             Street
@@ -1682,19 +1632,6 @@ function CreateLeadPage() {
                                 "companyZip",
                                 e.target.value.replace(/\D/g, "").slice(0, 9),
                               )
-                            }
-                            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                          />
-                        </label>
-                        <label className="block md:col-span-2">
-                          <span className="mb-1 block text-[12px] text-slate-500">
-                            Country
-                          </span>
-                          <input
-                            type="text"
-                            value={form.companyCountry}
-                            onChange={(e) =>
-                              updateField("companyCountry", e.target.value)
                             }
                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                           />
@@ -1851,7 +1788,7 @@ function CreateLeadPage() {
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                        NPI *
+                        NPI
                       </span>
                       <input
                         type="text"
@@ -1871,7 +1808,7 @@ function CreateLeadPage() {
                     <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                          Tax ID - Legal Entity Name
+                          Tax ID
                         </span>
                         {companyTaxIdOptions.length > 1 ? (
                           <select
@@ -1901,20 +1838,6 @@ function CreateLeadPage() {
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                          Region *
-                        </span>
-                        <input
-                          type="text"
-                          value={form.practiceRegion}
-                          onChange={(e) =>
-                            updateField("practiceRegion", e.target.value)
-                          }
-                          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                          placeholder="e.g. Northeast"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
                           Lead Source
                         </span>
                         <select
@@ -1936,7 +1859,7 @@ function CreateLeadPage() {
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                          Bucket / Specialty
+                          Specialty
                         </span>
                         <input
                           type="text"
@@ -2123,19 +2046,19 @@ function CreateLeadPage() {
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
                         Phone
                       </span>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        maxLength={10}
-                        pattern="[0-9]{10}"
-                        value={form.primaryContactPhone}
-                        onChange={(e) =>
-                          updateField(
-                            "primaryContactPhone",
-                            e.target.value.replace(/\D/g, "").slice(0, 10),
-                          )
-                        }
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                       <input
+                         type="tel"
+                         inputMode="numeric"
+                         maxLength={12}
+                         pattern="\d{3}-?\d{3}-?\d{4}"
+                         value={form.primaryContactPhone}
+                         onChange={(e) =>
+                           updateField(
+                             "primaryContactPhone",
+                             normalizePhoneInput(e.target.value),
+                           )
+                         }
+                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </label>
                     <label className="block">
@@ -2161,7 +2084,7 @@ function CreateLeadPage() {
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Designation
+                        Title
                       </span>
                       <input
                         type="text"
@@ -2274,100 +2197,32 @@ function CreateLeadPage() {
                 </div>
               </div>
 
-              {/* Deal Section */}
-              <div className="space-y-6 pt-6 border-t border-slate-200">
+              {/* Interested Services */}
+              <div className="space-y-3 pt-6 border-t border-slate-200">
                 <div className="flex items-center gap-2">
                   <Target className="h-5 w-5 text-[#4f63ea]" />
                   <h2 className="text-[16px] font-semibold text-slate-800">
-                    Deal / Opportunity Setup
+                    Interested Services
                   </h2>
                 </div>
-
-                <div className="grid gap-6 md:grid-cols-3">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Estimated Value *
-                    </span>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-medium">
-                        $
-                      </span>
-                      <input
-                        type="number"
-                        value={form.estimatedValue}
-                        onChange={(e) =>
-                          updateField("estimatedValue", e.target.value)
-                        }
-                        className="app-control w-full rounded-md pl-7 pr-3 py-2 text-[13px]"
-                        placeholder="0"
-                      />
-                    </div>
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Probability (%)
-                    </span>
-                    <input
-                      type="number"
-                      value={form.probability}
-                      onChange={(e) =>
-                        updateField("probability", e.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Follow-Up Due *
-                    </span>
-                    <input
-                      type="date"
-                      value={form.followUpTaskDueAt}
-                      onChange={(e) =>
-                        updateField("followUpTaskDueAt", e.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid gap-6 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Assigned Owner
-                    </span>
-                    <select
-                      value={form.assignedOwnerId}
-                      onChange={(e) =>
-                        updateField("assignedOwnerId", e.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    >
-                      <option value="">Select Owner</option>
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.firstName} {u.lastName}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Channel Partner (if applicable)
-                    </span>
-                    <SearchSelect
-                      value={form.channelPartnerId}
-                      onChange={(val) => updateField("channelPartnerId", val)}
-                      onSearch={handleSearchChannelPartners}
-                      placeholder="Search channel partners..."
-                    />
-                  </label>
-                </div>
-
-                <div className="space-y-3">
-                  <span className="text-[13px] font-medium text-slate-700">
-                    Interested Services
-                  </span>
+                {isLoadingServices ? (
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="animate-pulse rounded-xl border border-slate-100 bg-slate-50/50 p-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 h-4 w-4 shrink-0 rounded border border-slate-200 bg-slate-100" />
+                          <div className="flex-1 space-y-2">
+                            <div className="h-3.5 w-3/4 rounded bg-slate-200" />
+                            <div className="h-2.5 w-1/2 rounded bg-slate-100" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {services.map((service) => {
                       const isSelected = form.interestedServiceIds.includes(
@@ -2409,8 +2264,12 @@ function CreateLeadPage() {
                       );
                     })}
                   </div>
-                </div>
+                )}
+              </div>
 
+              {/* Internal Notes */}
+              {/* Commented out: no target field to save notes to after Deal module removal */}
+              {/* <div className="space-y-3 pt-6 border-t border-slate-200">
                 <label className="block">
                   <span className="mb-1 block text-[13px] font-medium text-slate-700">
                     Internal Notes
@@ -2423,7 +2282,7 @@ function CreateLeadPage() {
                     placeholder="Enter lead context, timeline, or specific requirements..."
                   />
                 </label>
-              </div>
+              </div> */}
 
               {/* Integrated Agreement Section */}
               {form.interestedServiceIds.length > 0 && (
@@ -2462,7 +2321,13 @@ function CreateLeadPage() {
                       )}
                       <button
                         type="button"
-                        onClick={() => updateAgreementField("action", "none")}
+                        onClick={() => {
+                          updateAgreementField("action", "none");
+                          setForm((prev) => ({
+                            ...prev,
+                            interestedServiceIds: [],
+                          }));
+                        }}
                         className={`px-3 py-1 text-[12px] font-medium rounded-md transition-all ${
                           form.agreement.action === "none"
                             ? "bg-white text-indigo-600 shadow-sm"
@@ -2750,6 +2615,9 @@ function CreateLeadPage() {
                                   getTemplateSubmitterGroups(
                                     template,
                                     templateFieldValues,
+                                    selectedPracticeLabel.length > 0
+                                      ? selectedPracticeLabel
+                                      : form.practiceName,
                                   );
 
                                 return (
@@ -2900,7 +2768,7 @@ function CreateLeadPage() {
                   onClick={resetForm}
                   className="px-6 py-2.5 text-[14px] font-medium text-slate-600 hover:text-slate-800 transition-colors"
                 >
-                  Cancel
+                  Clear All
                 </button>
                 <button
                   type="submit"
