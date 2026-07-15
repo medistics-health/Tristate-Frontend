@@ -598,10 +598,9 @@ function CreateLeadPage() {
             )
             .map((t) => String(t.id));
 
-          const allSelectedIds =
-            form.agreement.type === "MSA"
-              ? [...new Set([...form.agreement.templateIds, ...autoIncludeIds])]
-              : form.agreement.templateIds;
+          const allSelectedIds = [
+            ...new Set([...form.agreement.templateIds, ...autoIncludeIds]),
+          ];
 
           const submissions = allSelectedIds.map((id) => {
             const template = templates.find((t) => t.id === Number(id));
@@ -773,11 +772,7 @@ function CreateLeadPage() {
   }, []);
 
   useEffect(() => {
-    if (
-      form.agreement.action !== "create" ||
-      form.agreement.type !== "MSA" ||
-      templates.length === 0
-    ) {
+    if (form.agreement.action !== "create" || templates.length === 0) {
       return;
     }
 
@@ -2385,23 +2380,21 @@ function CreateLeadPage() {
                             onChange={(e) => {
                               const newType = e.target.value;
                               updateAgreementField("type", newType);
-                              if (newType === "MSA") {
-                                const autoSelectIds = templates
-                                  .filter((t) =>
-                                    AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
-                                      t.name
-                                        .toLowerCase()
-                                        .includes(name.toLowerCase()),
-                                    ),
-                                  )
-                                  .map((t) => String(t.id));
-                                setAgreementTemplateIds([
-                                  ...new Set([
-                                    ...form.agreement.templateIds,
-                                    ...autoSelectIds,
-                                  ]),
-                                ]);
-                              }
+                              const autoSelectIds = templates
+                                .filter((t) =>
+                                  AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+                                    t.name
+                                      .toLowerCase()
+                                      .includes(name.toLowerCase()),
+                                  ),
+                                )
+                                .map((t) => String(t.id));
+                              setAgreementTemplateIds([
+                                ...new Set([
+                                  ...form.agreement.templateIds,
+                                  ...autoSelectIds,
+                                ]),
+                              ]);
                             }}
                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                           >
@@ -2537,7 +2530,6 @@ function CreateLeadPage() {
                                           templateId,
                                         );
                                       const isAutoInclude =
-                                        form.agreement.type === "MSA" &&
                                         AUTO_INCLUDE_TEMPLATE_NAMES.some(
                                           (name) =>
                                             template.name

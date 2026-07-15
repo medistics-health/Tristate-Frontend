@@ -1030,7 +1030,6 @@ function AllAgreementsPage() {
   }
 
   function applyAutoSelectTemplates(templates: DocusealTemplate[]) {
-    if (createForm.type !== "MSA") return;
     const autoSelectIds = templates
       .filter((t) =>
         AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
@@ -1881,7 +1880,7 @@ function AllAgreementsPage() {
                   ...prev,
                   type: newType,
                 }));
-                if (newType === "MSA") {
+                if (newType) {
                   const autoSelectIds = docusealTemplates
                     .filter((t) =>
                       AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
