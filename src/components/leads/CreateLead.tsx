@@ -214,6 +214,15 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   // "Exhibit P",
 ];
 
+const HIDDEN_TEMPLATE_NAME_PATTERNS = ["Khan_", "Dr. Anil Patel", "Dr. Anul Patel", "Dr. Shah"];
+
+function isHiddenTemplate(name: string): boolean {
+  const lower = name.toLowerCase();
+  return HIDDEN_TEMPLATE_NAME_PATTERNS.some((p) =>
+    lower.includes(p.toLowerCase()),
+  );
+}
+
 function normalizePhoneInput(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 10);
   if (digits.length <= 3) return digits;
@@ -758,7 +767,7 @@ function CreateLeadPage() {
         const userList = canReadUsers ? await getAllUsers() : [];
         setServices(serviceList.filter((service) => service.isActive));
         setUsers(userList);
-        setTemplates(templateRes.templates.data);
+        setTemplates(templateRes.templates.data.filter((t) => !isHiddenTemplate(t.name)));
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unable to load services.";

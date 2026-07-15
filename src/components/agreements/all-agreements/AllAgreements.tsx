@@ -116,6 +116,15 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   // "Exhibit P",
 ];
 
+const HIDDEN_TEMPLATE_NAME_PATTERNS = ["Khan_", "Dr. Anil Patel", "Dr. Anul Patel", "Dr. Shah"];
+
+function isHiddenTemplate(name: string): boolean {
+  const lower = name.toLowerCase();
+  return HIDDEN_TEMPLATE_NAME_PATTERNS.some((p) =>
+    lower.includes(p.toLowerCase()),
+  );
+}
+
 function isClientNameField(field: DocusealField) {
   return /client\s*name/i.test(field.name || "");
 }
@@ -1064,9 +1073,9 @@ function AllAgreementsPage() {
       setTemplatesLoading(true);
       try {
         const response = await getDocusealTemplates();
-        const templates = response.templates.data;
-        setDocusealTemplates(templates);
-        applyAutoSelectTemplates(templates);
+        const visible = response.templates.data.filter((t) => !isHiddenTemplate(t.name));
+        setDocusealTemplates(visible);
+        applyAutoSelectTemplates(visible);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to fetch templates";
