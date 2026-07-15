@@ -98,9 +98,5 @@ export async function activatePracticeWithAgreementEmail(
     status: "ACTIVE",
   });
 
-  if (practice.companyId) {
-    await updateCompanyApi(practice.companyId, {
-      status: "CUSTOMER",
-    });
-  }
+
 }
