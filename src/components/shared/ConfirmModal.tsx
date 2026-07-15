@@ -36,9 +36,9 @@ export default function ConfirmModal({
   if (!isOpen) return null;
 
   const typeStyles = {
-    primary: "bg-[#4f63ea] hover:bg-[#3d4ecf] text-white",
-    danger: "bg-red-600 hover:bg-red-700 text-white",
-    success: "bg-green-600 hover:bg-green-700 text-white",
+    primary: "bg-[#4f63ea] hover:bg-[#3d4ecf] text-white disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200",
+    danger: "bg-red-600 hover:bg-red-700 text-white disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200",
+    success: "bg-green-600 hover:bg-green-700 text-white disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200",
   };
 
   return createPortal(
@@ -94,7 +94,7 @@ export default function ConfirmModal({
                 onClose();
               }
             }}
-            className={`rounded-xl px-6 py-2 text-[13px] font-bold transition-all shadow-sm ${typeStyles[type]}`}
+            className={`rounded-xl px-6 py-2 text-[13px] font-bold transition-all shadow-sm disabled:cursor-not-allowed ${typeStyles[type]}`}
           >
             {isConfirming ? "Deleting..." : confirmLabel}
           </button>

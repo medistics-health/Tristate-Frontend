@@ -37,6 +37,7 @@ import {
   updateCredentialingRequestApi,
   type CredentialingOptionRecord,
 } from "../../services/operations/credentialing";
+import { getAllUsers } from "../../services/operations/users";
 
 type Filters = {
   search: string;
@@ -150,6 +151,7 @@ function CredentialingListPage() {
   const [optionRecords, setOptionRecords] = useState<CredentialingOptionRecord[]>(
     [],
   );
+  const [assignedUserOptions, setAssignedUserOptions] = useState<SearchSelectOption[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -188,12 +190,30 @@ function CredentialingListPage() {
     let active = true;
     async function loadOptions() {
       try {
-        const options = await getCredentialingRequestOptions();
+        const [options, users] = await Promise.all([
+          getCredentialingRequestOptions(),
+          getAllUsers(),
+        ]);
         if (!active) return;
         setOptionRecords(options);
+        setAssignedUserOptions(
+          users
+            .map((user: any) => {
+              const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+              const label = fullName || user.userName || user.email || user.role || "";
+              return {
+                label: user.role ? `${label} (${user.role})` : label,
+                value: user.id,
+                subLabel: [user.userName, user.email, user.role].filter(Boolean).join(" · "),
+              };
+            })
+            .filter((entry) => Boolean(entry.value && entry.label))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        );
       } catch {
         if (active) {
           setOptionRecords([]);
+          setAssignedUserOptions([]);
         }
       }
     }
@@ -225,14 +245,26 @@ function CredentialingListPage() {
       Array.from(new Set(optionRecords.map((record) => record.insuranceCompany))).sort(),
     [optionRecords],
   );
-  const uniqueAssignedUsers = useMemo(
-    () => Array.from(new Set(optionRecords.map((record) => record.assignedUser))).sort(),
-    [optionRecords],
-  );
   const searchPractices = useMemo(() => createLocalSearchOptions(uniquePractices), [uniquePractices]);
   const searchProviders = useMemo(() => createLocalSearchOptions(uniqueProviders), [uniqueProviders]);
   const searchPayers = useMemo(() => createLocalSearchOptions(uniqueInsuranceCompanies), [uniqueInsuranceCompanies]);
-  const searchAssignedUsers = useMemo(() => createLocalSearchOptions(uniqueAssignedUsers), [uniqueAssignedUsers]);
+  const searchAssignedUsers = useMemo(
+    () => async (query: string) => {
+      const normalized = query.trim().toLowerCase();
+      return assignedUserOptions.filter((option) =>
+        normalized
+          ? option.label.toLowerCase().includes(normalized) ||
+            option.subLabel?.toLowerCase().includes(normalized) ||
+            option.value.toLowerCase().includes(normalized)
+          : true,
+      );
+    },
+    [assignedUserOptions],
+  );
+  const assignedUserFilterLabel = useMemo(
+    () => assignedUserOptions.find((option) => option.value === filters.assignedUser)?.label || "",
+    [assignedUserOptions, filters.assignedUser],
+  );
 
   useEffect(() => {
     const action = new URLSearchParams(window.location.search).get("action");
@@ -286,6 +318,7 @@ function CredentialingListPage() {
         practiceName: form.practice,
         providerName: form.provider,
         insurancePayerName: form.insuranceCompany,
+        assignedToUserId: form.assignedUserId || undefined,
         assignedToUserName: form.assignedUser,
         requestType: form.credentialingType,
         contractType: form.contractType,
@@ -446,7 +479,7 @@ function CredentialingListPage() {
                   type="button"
                   onClick={openCreateModal}
                   disabled={isSaving || isDeleting}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
                 >
                   {isSaving || isDeleting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -459,7 +492,7 @@ function CredentialingListPage() {
                   type="button"
                   onClick={exportCsv}
                   disabled={isSaving || isDeleting}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#ece8e1] px-3.5 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#ece8e1] px-3.5 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
                 >
                   <Download className="h-4 w-4" />
                   Export
@@ -609,7 +642,13 @@ function CredentialingListPage() {
                   </span>
                   <SearchSelect
                     value={filters.assignedUser}
-                    onChange={(value) => updateFilter("assignedUser", value)}
+                    displayLabel={assignedUserFilterLabel}
+                    onChange={(value) =>
+                      updateFilter(
+                        "assignedUser",
+                        value === filters.assignedUser ? "" : value,
+                      )
+                    }
                     onSearch={searchAssignedUsers}
                     placeholder="Search user"
                   />
