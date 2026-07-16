@@ -278,7 +278,17 @@ function buildLeadAgreementDocusealPrefillValues(
   const values: Record<string, string> = {};
   if (!template) return values;
 
+  const practiceAddress = [
+    form.companyStreet,
+    form.companyCity,
+    form.companyState,
+    form.companyZip,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  console.log(practiceAddress)
   const practiceName = form.practiceName.trim();
+  const practiceAddressToAutofile = practiceAddress
   const practiceNpi = form.practiceNpi.trim();
   const companyName = form.companyName.trim();
   const contactName = getPrimaryContactName(form);
@@ -301,6 +311,13 @@ function buildLeadAgreementDocusealPrefillValues(
       fieldName.includes("name")
     ) {
       value = practiceName || companyName;
+    } else if (
+      fieldName.includes("second party") &&
+      fieldName.includes("address")
+    ) {
+      value = practiceAddressToAutofile;
+      values[field.uuid] = value;
+      continue;
     } else if (
       fieldName.includes("client") ||
       fieldName.includes("practice") ||
@@ -825,7 +842,7 @@ function CreateLeadPage() {
         const updatedValues = { ...currentValues };
 
         for (const [fieldUuid, nextValue] of Object.entries(prefilled)) {
-          if (nextValue && updatedValues[fieldUuid] !== nextValue) {
+          if (updatedValues[fieldUuid] !== nextValue) {
             updatedValues[fieldUuid] = nextValue;
             hasChanges = true;
           }
@@ -844,7 +861,7 @@ function CreateLeadPage() {
         },
       };
     });
-  }, [form.practiceName, form.agreement.effectiveDate, form.agreement.templateIds, templates]);
+  }, [form.practiceName, form.companyStreet, form.companyCity, form.companyState, form.companyZip, form.agreement.effectiveDate, form.agreement.templateIds, templates]);
 
   // Fetch existing agreements when practice changes
   useEffect(() => {
@@ -911,6 +928,9 @@ function CreateLeadPage() {
       ...current,
       companyRelation: relation,
       selectedCompanyId: relation === "new" ? "" : current.selectedCompanyId,
+      ...(relation === "new"
+        ? { companyStreet: "", companyCity: "", companyState: "", companyZip: "" }
+        : {}),
     }));
     if (relation === "new") {
       setSelectedCompany(null);
@@ -1190,11 +1210,26 @@ function CreateLeadPage() {
     updateField("selectedCompanyId", companyId);
     if (!companyId) {
       setSelectedCompany(null);
+      setForm((prev) => ({
+        ...prev,
+        companyStreet: "",
+        companyCity: "",
+        companyState: "",
+        companyZip: "",
+      }));
       return;
     }
 
     try {
-      setSelectedCompany(await getCompany(companyId));
+      const company = await getCompany(companyId);
+      setSelectedCompany(company);
+      setForm((prev) => ({
+        ...prev,
+        companyStreet: company.street ?? "",
+        companyCity: company.city ?? "",
+        companyState: company.state ?? "",
+        companyZip: company.zip ?? "",
+      }));
     } catch {
       setSelectedCompany(null);
     }
