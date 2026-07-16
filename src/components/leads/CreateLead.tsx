@@ -214,6 +214,15 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   // "Exhibit P",
 ];
 
+const HIDDEN_TEMPLATE_NAME_PATTERNS = ["Khan_", "Dr. Anil Patel", "Dr. Anul Patel", "Dr. Shah"];
+
+function isHiddenTemplate(name: string): boolean {
+  const lower = name.toLowerCase();
+  return HIDDEN_TEMPLATE_NAME_PATTERNS.some((p) =>
+    lower.includes(p.toLowerCase()),
+  );
+}
+
 function normalizePhoneInput(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 10);
   if (digits.length <= 3) return digits;
@@ -598,10 +607,9 @@ function CreateLeadPage() {
             )
             .map((t) => String(t.id));
 
-          const allSelectedIds =
-            form.agreement.type === "MSA"
-              ? [...new Set([...form.agreement.templateIds, ...autoIncludeIds])]
-              : form.agreement.templateIds;
+          const allSelectedIds = [
+            ...new Set([...form.agreement.templateIds, ...autoIncludeIds]),
+          ];
 
           const submissions = allSelectedIds.map((id) => {
             const template = templates.find((t) => t.id === Number(id));
@@ -759,7 +767,7 @@ function CreateLeadPage() {
         const userList = canReadUsers ? await getAllUsers() : [];
         setServices(serviceList.filter((service) => service.isActive));
         setUsers(userList);
-        setTemplates(templateRes.templates.data);
+        setTemplates(templateRes.templates.data.filter((t) => !isHiddenTemplate(t.name)));
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unable to load services.";
@@ -773,11 +781,7 @@ function CreateLeadPage() {
   }, []);
 
   useEffect(() => {
-    if (
-      form.agreement.action !== "create" ||
-      form.agreement.type !== "MSA" ||
-      templates.length === 0
-    ) {
+    if (form.agreement.action !== "create" || templates.length === 0) {
       return;
     }
 
@@ -840,7 +844,7 @@ function CreateLeadPage() {
         },
       };
     });
-  }, [form.practiceName, form.agreement.effectiveDate, form.agreement.templateIds, templates]);
+  }, [form.practiceName, form.practiceNpi, form.agreement.effectiveDate, form.agreement.templateIds, templates]);
 
   // Fetch existing agreements when practice changes
   useEffect(() => {
@@ -918,6 +922,7 @@ function CreateLeadPage() {
       ...current,
       practiceRelation: relation,
       selectedPracticeId: relation === "new" ? "" : current.selectedPracticeId,
+      practiceNpi: relation === "new" ? "" : current.practiceNpi,
       agreement:
         relation === "new"
           ? {
@@ -1240,7 +1245,11 @@ function CreateLeadPage() {
     try {
       const fullPractice = await getPractice(practiceId);
       setSelectedPracticeLabel(fullPractice.name || "");
-      setForm((prev) => ({ ...prev, practiceName: fullPractice.name || "" }));
+      setForm((prev) => ({
+        ...prev,
+        practiceName: fullPractice.name || "",
+        practiceNpi: fullPractice.npi || "",
+      }));
     } catch (err) {
       console.error("Error loading selected practice:", err);
     }
@@ -2385,23 +2394,21 @@ function CreateLeadPage() {
                             onChange={(e) => {
                               const newType = e.target.value;
                               updateAgreementField("type", newType);
-                              if (newType === "MSA") {
-                                const autoSelectIds = templates
-                                  .filter((t) =>
-                                    AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
-                                      t.name
-                                        .toLowerCase()
-                                        .includes(name.toLowerCase()),
-                                    ),
-                                  )
-                                  .map((t) => String(t.id));
-                                setAgreementTemplateIds([
-                                  ...new Set([
-                                    ...form.agreement.templateIds,
-                                    ...autoSelectIds,
-                                  ]),
-                                ]);
-                              }
+                              const autoSelectIds = templates
+                                .filter((t) =>
+                                  AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
+                                    t.name
+                                      .toLowerCase()
+                                      .includes(name.toLowerCase()),
+                                  ),
+                                )
+                                .map((t) => String(t.id));
+                              setAgreementTemplateIds([
+                                ...new Set([
+                                  ...form.agreement.templateIds,
+                                  ...autoSelectIds,
+                                ]),
+                              ]);
                             }}
                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                           >
@@ -2537,7 +2544,6 @@ function CreateLeadPage() {
                                           templateId,
                                         );
                                       const isAutoInclude =
-                                        form.agreement.type === "MSA" &&
                                         AUTO_INCLUDE_TEMPLATE_NAMES.some(
                                           (name) =>
                                             template.name
