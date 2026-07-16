@@ -844,7 +844,7 @@ function CreateLeadPage() {
         },
       };
     });
-  }, [form.practiceName, form.agreement.effectiveDate, form.agreement.templateIds, templates]);
+  }, [form.practiceName, form.practiceNpi, form.agreement.effectiveDate, form.agreement.templateIds, templates]);
 
   // Fetch existing agreements when practice changes
   useEffect(() => {
@@ -922,6 +922,7 @@ function CreateLeadPage() {
       ...current,
       practiceRelation: relation,
       selectedPracticeId: relation === "new" ? "" : current.selectedPracticeId,
+      practiceNpi: relation === "new" ? "" : current.practiceNpi,
       agreement:
         relation === "new"
           ? {
@@ -1244,7 +1245,11 @@ function CreateLeadPage() {
     try {
       const fullPractice = await getPractice(practiceId);
       setSelectedPracticeLabel(fullPractice.name || "");
-      setForm((prev) => ({ ...prev, practiceName: fullPractice.name || "" }));
+      setForm((prev) => ({
+        ...prev,
+        practiceName: fullPractice.name || "",
+        practiceNpi: fullPractice.npi || "",
+      }));
     } catch (err) {
       console.error("Error loading selected practice:", err);
     }
