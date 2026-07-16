@@ -216,7 +216,8 @@ function buildCreateFormDocusealPrefillValues(
     ) {
       // value = practice?.name || "";
     } else if (fieldName.includes("npi")) {
-      value = practice?.npi || "";
+      values[field.uuid] = practice?.npi || "";
+      continue;
     } else if (fieldName.includes("effective")) {
       value = effectiveDate;
     } else if (field.type === "date" && fieldName.includes("date")) {
@@ -317,6 +318,7 @@ function AllAgreementsPage() {
   const createFormAutoFilledValuesRef = useRef<
     Record<string, Record<string, string>>
   >({});
+  const prevPracticeIdRef = useRef<string>("");
 
   // Tabs for detail panel
   const [activeTab, setActiveTab] = useState<"overview" | "versions">(
@@ -714,6 +716,7 @@ function AllAgreementsPage() {
     }
     setCreateForm(initialFormState);
     createFormAutoFilledValuesRef.current = {};
+    prevPracticeIdRef.current = "";
     setTemplateSearch("");
     setShowTemplateDropdown(false);
     setShowCreateForm(true);
@@ -726,6 +729,7 @@ function AllAgreementsPage() {
     setShowCreateForm(false);
     setCreateForm(initialFormState);
     createFormAutoFilledValuesRef.current = {};
+    prevPracticeIdRef.current = "";
     setTemplateSearch("");
     setShowTemplateDropdown(false);
   }
@@ -1091,8 +1095,12 @@ function AllAgreementsPage() {
   useEffect(() => {
     if (createForm.docusealTemplates.length === 0) {
       createFormAutoFilledValuesRef.current = {};
+      prevPracticeIdRef.current = createForm.practiceId;
       return;
     }
+
+    const practiceChanged = prevPracticeIdRef.current !== createForm.practiceId;
+    prevPracticeIdRef.current = createForm.practiceId;
 
     setCreateForm((prev) => {
       let hasChanges = false;
@@ -1119,7 +1127,7 @@ function AllAgreementsPage() {
           const currentValue = currentValues[fieldUuid] || "";
           const previousValue = previousAutoFilled[fieldUuid] || "";
 
-          if (!currentValue || currentValue === previousValue) {
+          if (practiceChanged || !currentValue || currentValue === previousValue) {
             updatedValues[fieldUuid] = nextValue;
             if (currentValue !== nextValue) {
               hasChanges = true;
