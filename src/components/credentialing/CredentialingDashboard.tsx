@@ -37,6 +37,7 @@ import { getInsurancePlanOptionsApi } from "../../services/operations/insurance"
 
 type DashboardFilters = {
   practice: string;
+  provider: string;
   payer: string;
   status: string;
   contractType: string;
@@ -47,6 +48,7 @@ type DashboardFilters = {
 
 const defaultFilters: DashboardFilters = {
   practice: "",
+  provider: "",
   payer: "",
   status: "",
   contractType: "",
@@ -296,9 +298,17 @@ function CredentialingDashboardPage() {
     () => Array.from(new Set(records.map((record) => record.practice))).sort(),
     [records],
   );
+  const uniqueProviders = useMemo(
+    () => Array.from(new Set(records.map((record) => record.provider))).sort(),
+    [records],
+  );
   const searchPractices = useMemo(
     () => createLocalSearchOptions(uniquePractices),
     [uniquePractices],
+  );
+  const searchProviders = useMemo(
+    () => createLocalSearchOptions(uniqueProviders),
+    [uniqueProviders],
   );
   const searchPayers = useMemo(
     () => async (query: string) => {
@@ -338,6 +348,13 @@ function CredentialingDashboardPage() {
       if (
         filters.practice &&
         record.practice.toLowerCase() !== filters.practice.toLowerCase()
+      ) {
+        return false;
+      }
+
+      if (
+        filters.provider &&
+        record.provider.toLowerCase() !== filters.provider.toLowerCase()
       ) {
         return false;
       }
@@ -628,6 +645,7 @@ function CredentialingDashboardPage() {
 
   const activeFilterCount = [
     filters.practice,
+    filters.provider,
     filters.payer,
     filters.status,
     filters.contractType,
@@ -719,7 +737,23 @@ function CredentialingDashboardPage() {
 
               <label className="block">
                 <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                  Insurance Payer
+                  Provider
+                </span>
+                <SearchSelect
+                  value={filters.provider}
+                  onChange={(value) =>
+                    setFilters((current) => ({ ...current, provider: value }))
+                  }
+                  onSearch={searchProviders}
+                  clearable
+                  toggleOnSelectSame
+                  placeholder="Search provider"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[12px] font-medium text-slate-500">
+                  Insurance Plan
                 </span>
                 <SearchSelect
                   value={filters.payer}
@@ -733,7 +767,7 @@ function CredentialingDashboardPage() {
                   onSearch={searchPayers}
                   clearable
                   toggleOnSelectSame
-                  placeholder="Search insurance payer"
+                  placeholder="Search insurance plan"
                 />
               </label>
 
@@ -1064,7 +1098,7 @@ function CredentialingDashboardPage() {
                     <TrendingUp className="h-4 w-4 text-slate-400" />
                     <div>
                       <div className="text-[15px] font-semibold text-slate-800">
-                        Insurance Payer View
+                        Insurance Plan View
                       </div>
                       <div className="text-[12px] text-slate-400">
                         Ranked by average turnaround time.
@@ -1072,7 +1106,7 @@ function CredentialingDashboardPage() {
                     </div>
                   </div>
                   <div className="text-[12px] text-slate-400">
-                    {payerRows.length} insurance payers
+                  {payerRows.length} insurance plans
                   </div>
                 </div>
                 <div className="overflow-hidden">
@@ -1080,7 +1114,7 @@ function CredentialingDashboardPage() {
                     <thead className="bg-white text-[12px] uppercase tracking-wide text-slate-400">
                       <tr>
                         <th className="border-b border-[#f0ece6] px-5 py-3">
-                          Insurance Payer
+                          Insurance Plan
                         </th>
                         <th className="border-b border-[#f0ece6] px-5 py-3">
                           Contracted

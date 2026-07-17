@@ -917,7 +917,7 @@ function CredentialingListPage() {
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
-                          <button
+                          {/* <button
                             type="button"
                             onClick={() => {
                               setSelectedRecord(record);
@@ -927,7 +927,7 @@ function CredentialingListPage() {
                             title="Delete"
                           >
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </button> */}
                         </div>
                       </td>
                     </tr>
