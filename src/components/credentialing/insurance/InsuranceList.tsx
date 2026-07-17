@@ -250,6 +250,7 @@ function validateCarrierForm(form: InsuranceCarrierFormState) {
       hasAddressValue(contact.address);
     if (!hasAnyContactValue) return;
     if (!contact.name.trim()) errors[`contacts.${index}.name`] = "Name is required.";
+    if (!contact.role) errors[`contacts.${index}.role`] = "Role is required.";
     contact.telecom.forEach((entry, telecomIndex) =>
       validateTelecomEntry(entry, `contacts.${index}.telecom.${telecomIndex}`, errors),
     );
@@ -533,18 +534,21 @@ function ContactEditor({
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="block">
-                  <span className="mb-1 block text-[12px] font-medium text-slate-500">Role</span>
+                  <span className="mb-1 block text-[12px] font-medium text-slate-500">Role *</span>
                   {readOnly ? (
                     <input type="text" value={contact.role} readOnly className={fieldClass(false, true)} />
                   ) : (
-                    <Select
-                      value={contact.role}
-                      onChange={(role) => updateContact(index, { role: role as CarrierContact["role"] })}
-                      options={[
-                        { label: "Select role", value: "" },
-                        ...contactRoleOptions.map((option) => ({ label: option, value: option })),
-                      ]}
-                    />
+                    <div>
+                      <Select
+                        value={contact.role}
+                        onChange={(role) => updateContact(index, { role: role as CarrierContact["role"] })}
+                        options={[
+                          { label: "Select role", value: "" },
+                          ...contactRoleOptions.map((option) => ({ label: option, value: option })),
+                        ]}
+                      />
+                      {errorText(errors[`contacts.${index}.role`])}
+                    </div>
                   )}
                 </label>
                 <label className="block">
@@ -727,6 +731,7 @@ function InsuranceListPage() {
   const [planErrors, setPlanErrors] = useState<ErrorMap>({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [formMessage, setFormMessage] = useState("");
   const pageSize = 8;
 
   async function loadData(params?: CarrierQueryParams) {
@@ -786,6 +791,7 @@ function InsuranceListPage() {
     setPlanForm(createPlanCreateFormState());
     setCarrierErrors({});
     setPlanErrors({});
+    setFormMessage("");
     setSaving(false);
   }
 
@@ -822,7 +828,10 @@ function InsuranceListPage() {
   async function handleCarrierSubmit() {
     const errors = validateCarrierForm(carrierForm);
     setCarrierErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      setFormMessage("Please fill the required values before saving the carrier.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -852,7 +861,10 @@ function InsuranceListPage() {
   async function handlePlanSubmit() {
     const errors = validatePlanCreateForm(planForm);
     setPlanErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      setFormMessage("Please fill the required values before saving the plan.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -937,13 +949,6 @@ function InsuranceListPage() {
       activeModule="Master"
       activeSubItem="Insurance"
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
-      navbarActions={[
-        {
-          label: "Add Insurance",
-          icon: <Plus className="h-4 w-4" />,
-          onClick: openCreateModal,
-        },
-      ]}
     >
       <div className="flex h-full font-app-sans">
         <section className="app-panel min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm">
@@ -959,7 +964,7 @@ function InsuranceListPage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
               >
                 <Plus className="h-4 w-4" />
-                Add Carrier / Plan
+                Add Carrier/Plan
               </button>
             </div>
             <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_180px_220px]">
@@ -1085,13 +1090,13 @@ function InsuranceListPage() {
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </button>
-                                  <button
+                                  {/* <button
                                     type="button"
                                     onClick={() => setDeleteTarget({ type: "carrier", carrier })}
                                     className="rounded-lg p-2 text-slate-500 hover:bg-[#fff1f2] hover:text-red-600"
                                   >
                                     <Trash2 className="h-4 w-4" />
-                                  </button>
+                                  </button> */}
                                 </div>
                               </td>
                             </tr>
@@ -1137,13 +1142,13 @@ function InsuranceListPage() {
                                         >
                                           <Pencil className="h-4 w-4" />
                                         </button>
-                                        <button
+                                        {/* <button
                                           type="button"
                                           onClick={() => setDeleteTarget({ type: "plan", plan })}
                                           className="rounded-lg p-2 text-slate-500 hover:bg-[#fff1f2] hover:text-red-600"
                                         >
                                           <Trash2 className="h-4 w-4" />
-                                        </button>
+                                        </button> */}
                                       </div>
                                     </td>
                                   </tr>
@@ -1216,6 +1221,11 @@ function InsuranceListPage() {
                 </h2>
                 {modalEntity === "plan" && modalMode === "create" ? (
                   <p className="text-[13px] text-slate-500">Select carrier first, then create one or multiple plans.</p>
+                ) : null}
+                {formMessage ? (
+                  <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+                    {formMessage}
+                  </p>
                 ) : null}
               </div>
               <button type="button" onClick={resetModal} className="rounded-lg p-2 text-slate-500 hover:bg-[#f7f5f1]">
@@ -1397,6 +1407,19 @@ function InsuranceListPage() {
               >
                 {isViewMode ? "Close" : "Cancel"}
               </button>
+              {isViewMode && modalEntity !== "selector" ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    modalEntity === "carrier"
+                      ? openCarrierModal("edit", selectedCarrier || undefined)
+                      : openPlanModal("edit", selectedPlan || undefined)
+                  }
+                  className="rounded-xl border border-[#4f63ea] px-4 py-2 text-[13px] font-medium text-[#4f63ea] hover:bg-[#f4f6ff]"
+                >
+                  Edit
+                </button>
+              ) : null}
               {!isViewMode && modalEntity !== "selector" && (
                 <button
                   type="button"

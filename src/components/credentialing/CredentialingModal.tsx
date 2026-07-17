@@ -555,10 +555,20 @@ export default function CredentialingModal({
           <form
             id="credentialing-form"
             className="space-y-5 p-6"
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault();
-              if (validateBeforeSave()) {
-                onSave(form);
+              if (!validateBeforeSave()) {
+                return;
+              }
+
+              try {
+                await onSave(form);
+              } catch (error) {
+                setFormMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Unable to save credentialing.",
+                );
               }
             }}
           >
@@ -1129,13 +1139,22 @@ export default function CredentialingModal({
                       <Plus className="h-4 w-4" />
                       Add Follow-up Entry
                     </button>
-                    {!isReadOnly && form.followUpLogs.length > 0 ? (
+                    {!isReadOnly ? (
                       <button
                         type="button"
-                        onClick={() => setForm((current) => ({ ...current, followUpLogs: [] }))}
+                        onClick={() =>
+                          setFollowUpDraft({
+                            channel: followUpChannelOptions[0],
+                            direction: followUpDirectionOptions[0],
+                            referenceNumber: "",
+                            summary: "",
+                            nextAction: "",
+                            loggedBy: getLoggedByDefault(),
+                          })
+                        }
                         className="ml-2 inline-flex items-center gap-2 rounded-xl border border-[#ece8e1] bg-white px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
                       >
-                        Clear All
+                        Clear Fields
                       </button>
                     ) : null}
                   </div>
@@ -1266,7 +1285,7 @@ export default function CredentialingModal({
               </>
             ) : (
               <>
-                {isEditMode ? (
+                {/* {isEditMode ? (
                   <button
                     type="button"
                     onClick={onDelete}
@@ -1282,7 +1301,7 @@ export default function CredentialingModal({
                       "Delete"
                     )}
                   </button>
-                ) : null}
+                ) : null} */}
                 {formMessage ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
                 {formMessage}
