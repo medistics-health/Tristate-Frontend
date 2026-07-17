@@ -558,7 +558,7 @@ function App() {
         }
       />
       <Route
-        path="/credentialing/insurance"
+        path="/master/insurance"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <InsuranceListPage />

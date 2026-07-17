@@ -44,6 +44,19 @@ export const credentialingEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/credentialing/${id}`,
 };
 
+export const insuranceEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/insurance",
+  CARRIERS: BACKEND_URL + "/api/v1/insurance/carriers",
+  CARRIER_OPTIONS: BACKEND_URL + "/api/v1/insurance/carriers/options",
+  PLAN_OPTIONS: BACKEND_URL + "/api/v1/insurance/plans/options",
+  CREATE_CARRIER: BACKEND_URL + "/api/v1/insurance/carriers",
+  UPDATE_CARRIER: (id: string) => BACKEND_URL + `/api/v1/insurance/carriers/${id}`,
+  DELETE_CARRIER: (id: string) => BACKEND_URL + `/api/v1/insurance/carriers/${id}`,
+  CREATE_PLANS: BACKEND_URL + "/api/v1/insurance/plans",
+  UPDATE_PLAN: (id: string) => BACKEND_URL + `/api/v1/insurance/plans/${id}`,
+  DELETE_PLAN: (id: string) => BACKEND_URL + `/api/v1/insurance/plans/${id}`,
+};
+
 export const auditEndpoints = {
   BASE: BACKEND_URL + "/api/v1/audits",
   LIST: BACKEND_URL + "/api/v1/audits",

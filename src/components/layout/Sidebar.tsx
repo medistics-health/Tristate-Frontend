@@ -246,7 +246,13 @@ const sidebarSteps: SidebarItem[] = [
     items: [
       { label: "Dashboard", to: "/credentialing/dashboard" },
       { label: "All Credentialing", to: "/credentialing/list" },
-      { label: "Insurance", to: "/credentialing/insurance" },
+    ],
+  },
+  {
+    label: "Master",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+    items: [
+      { label: "Insurance", to: "/master/insurance" },
     ],
   },
   {
@@ -474,6 +480,8 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                       return <ClipboardCheck className="h-3.5 w-3.5" />;
                     if (label.includes("credential"))
                       return <Stethoscope className="h-3.5 w-3.5" />;
+                    if (label.includes("master"))
+                      return <Settings2 className="h-3.5 w-3.5" />;
                     if (label.includes("assessment"))
                       return <BarChart3 className="h-3.5 w-3.5" />;
                     if (label.includes("pricing"))
