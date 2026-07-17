@@ -116,6 +116,15 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   // "Exhibit P",
 ];
 
+const HIDDEN_TEMPLATE_NAME_PATTERNS = ["Khan_", "Dr. Anil Patel", "Dr. Anul Patel", "Dr. Shah"];
+
+function isHiddenTemplate(name: string): boolean {
+  const lower = name.toLowerCase();
+  return HIDDEN_TEMPLATE_NAME_PATTERNS.some((p) =>
+    lower.includes(p.toLowerCase()),
+  );
+}
+
 function isClientNameField(field: DocusealField) {
   return /client\s*name/i.test(field.name || "");
 }
@@ -207,7 +216,8 @@ function buildCreateFormDocusealPrefillValues(
     ) {
       // value = practice?.name || "";
     } else if (fieldName.includes("npi")) {
-      value = practice?.npi || "";
+      values[field.uuid] = practice?.npi || "";
+      continue;
     } else if (fieldName.includes("effective")) {
       value = effectiveDate;
     } else if (field.type === "date" && fieldName.includes("date")) {
@@ -308,6 +318,7 @@ function AllAgreementsPage() {
   const createFormAutoFilledValuesRef = useRef<
     Record<string, Record<string, string>>
   >({});
+  const prevPracticeIdRef = useRef<string>("");
 
   // Tabs for detail panel
   const [activeTab, setActiveTab] = useState<"overview" | "versions">(
@@ -705,6 +716,7 @@ function AllAgreementsPage() {
     }
     setCreateForm(initialFormState);
     createFormAutoFilledValuesRef.current = {};
+    prevPracticeIdRef.current = "";
     setTemplateSearch("");
     setShowTemplateDropdown(false);
     setShowCreateForm(true);
@@ -717,6 +729,7 @@ function AllAgreementsPage() {
     setShowCreateForm(false);
     setCreateForm(initialFormState);
     createFormAutoFilledValuesRef.current = {};
+    prevPracticeIdRef.current = "";
     setTemplateSearch("");
     setShowTemplateDropdown(false);
   }
@@ -1030,7 +1043,6 @@ function AllAgreementsPage() {
   }
 
   function applyAutoSelectTemplates(templates: DocusealTemplate[]) {
-    if (createForm.type !== "MSA") return;
     const autoSelectIds = templates
       .filter((t) =>
         AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>
@@ -1065,9 +1077,9 @@ function AllAgreementsPage() {
       setTemplatesLoading(true);
       try {
         const response = await getDocusealTemplates();
-        const templates = response.templates.data;
-        setDocusealTemplates(templates);
-        applyAutoSelectTemplates(templates);
+        const visible = response.templates.data.filter((t) => !isHiddenTemplate(t.name));
+        setDocusealTemplates(visible);
+        applyAutoSelectTemplates(visible);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to fetch templates";
@@ -1083,8 +1095,12 @@ function AllAgreementsPage() {
   useEffect(() => {
     if (createForm.docusealTemplates.length === 0) {
       createFormAutoFilledValuesRef.current = {};
+      prevPracticeIdRef.current = createForm.practiceId;
       return;
     }
+
+    const practiceChanged = prevPracticeIdRef.current !== createForm.practiceId;
+    prevPracticeIdRef.current = createForm.practiceId;
 
     setCreateForm((prev) => {
       let hasChanges = false;
@@ -1111,7 +1127,7 @@ function AllAgreementsPage() {
           const currentValue = currentValues[fieldUuid] || "";
           const previousValue = previousAutoFilled[fieldUuid] || "";
 
-          if (!currentValue || currentValue === previousValue) {
+          if (practiceChanged || !currentValue || currentValue === previousValue) {
             updatedValues[fieldUuid] = nextValue;
             if (currentValue !== nextValue) {
               hasChanges = true;
@@ -1881,7 +1897,7 @@ function AllAgreementsPage() {
                   ...prev,
                   type: newType,
                 }));
-                if (newType === "MSA") {
+                if (newType) {
                   const autoSelectIds = docusealTemplates
                     .filter((t) =>
                       AUTO_INCLUDE_TEMPLATE_NAMES.some((name) =>

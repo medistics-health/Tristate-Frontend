@@ -396,7 +396,7 @@ export default function DocumentSigningPage() {
         className="w-full h-full border-0"
         onLoad={() => setIsLoading(false)}
       />*/}
-      <DocusealForm src={`https://docuseal.com/s/${slug}`} />
+      <DocusealForm src={`https://docuseal.com/s/${slug}`} allowToResubmit={false} />
     </div>
   );
 }
