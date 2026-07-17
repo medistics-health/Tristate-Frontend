@@ -18,6 +18,7 @@ type SearchSelectProps = {
   disabled?: boolean;
   clearOnSelect?: boolean;
   clearable?: boolean;
+  toggleOnSelectSame?: boolean;
 };
 
 export default function SearchSelect({
@@ -30,6 +31,7 @@ export default function SearchSelect({
   disabled = false,
   clearOnSelect = false,
   clearable = false,
+  toggleOnSelectSame = false,
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -117,6 +119,13 @@ export default function SearchSelect({
   }, [selectedOption, displayLabel, value, placeholder]);
 
   const handleSelect = (option: SearchSelectOption) => {
+    if (toggleOnSelectSame && option.value === value) {
+      setSelectedOption(null);
+      setQuery("");
+      onChange("");
+      setIsOpen(false);
+      return;
+    }
     setSelectedOption(option);
     onChange(option.value, option);
     setIsOpen(false);

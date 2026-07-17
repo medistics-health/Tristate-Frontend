@@ -111,7 +111,9 @@ export type CredentialingFollowUp = {
 export type CredentialingRecord = {
   id: string;
   credentialingId: string;
+  practiceId?: string;
   practice: string;
+  providerId?: string;
   provider: string;
   insuranceCompany: string;
   credentialingType: RequestType;
@@ -141,7 +143,9 @@ export type CredentialingRecord = {
 };
 
 export type CredentialingFormState = {
+  practiceId: string;
   practice: string;
+  providerId: string;
   provider: string;
   insuranceCompany: string;
   credentialingType: RequestType;

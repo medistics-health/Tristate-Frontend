@@ -41,7 +41,7 @@ import {
   type FollowUpDirection,
   type LineOfBusiness,
 } from "./types";
-import { getCredentialingRequestsView } from "../../services/operations/credentialing";
+import { getInsurancePlanOptionsApi } from "../../services/operations/insurance";
 import { getAllUsers } from "../../services/operations/users";
 import { getPersonsView } from "../../services/operations/persons";
 import { getPracticesView } from "../../services/operations/practices";
@@ -174,6 +174,7 @@ export default function CredentialingModal({
   );
 
   const [documentExpiryDate, setDocumentExpiryDate] = useState("");
+  const [formMessage, setFormMessage] = useState("");
   const [followUpDraft, setFollowUpDraft] = useState<FollowUpDraft>({
     channel: followUpChannelOptions[0],
     direction: followUpDirectionOptions[0],
@@ -183,9 +184,9 @@ export default function CredentialingModal({
     loggedBy: "",
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [practiceOptions, setPracticeOptions] = useState<string[]>([]);
-  const [payerOptions, setPayerOptions] = useState<string[]>([]);
-  const [providerOptions, setProviderOptions] = useState<string[]>([]);
+  const [practiceOptions, setPracticeOptions] = useState<SearchSelectOption[]>([]);
+  const [payerOptions, setPayerOptions] = useState<SearchSelectOption[]>([]);
+  const [providerOptions, setProviderOptions] = useState<SearchSelectOption[]>([]);
   const [specialistOptions, setSpecialistOptions] = useState<
     SearchSelectOption[]
   >([]);
@@ -214,38 +215,33 @@ export default function CredentialingModal({
     let active = true;
     async function loadOptions() {
       try {
-        const [practiceView, credentialingView, personView, users] =
+        const [practiceView, planView, users] =
           await Promise.all([
             getPracticesView({ limit: 1000 }),
-            getCredentialingRequestsView({ limit: 5000 }),
-            getPersonsView({ limit: 1000 }),
+            getInsurancePlanOptionsApi(),
             getAllUsers(),
           ]);
 
         if (!active) return;
 
         setPracticeOptions(
-          Array.from(new Set(practiceView.rows.map((row) => row.values.name)))
-            .filter(Boolean)
-            .sort(),
+          practiceView.rows
+            .map((row) => ({
+              label: String(row.values.name || ""),
+              value: String(row.values.id || ""),
+            }))
+            .filter((entry) => Boolean(entry.value && entry.label))
+            .sort((a, b) => a.label.localeCompare(b.label)),
         );
         setPayerOptions(
-          Array.from(
-            new Set(
-              credentialingView.credentialingRequests.map(
-                (entry) => entry.insuranceCompany,
-              ),
-            ),
-          )
-            .filter(Boolean)
-            .sort(),
-        );
-        setProviderOptions(
-          Array.from(
-            new Set(
-              personView.rows.map((row) => row.values.fullName).filter(Boolean),
-            ),
-          ).sort(),
+          planView
+            .map((entry) => ({
+              label: entry.planName,
+              value: entry.id,
+              subLabel: entry.planCode,
+            }))
+            .filter((entry) => Boolean(entry.value && entry.label))
+            .sort((a, b) => a.label.localeCompare(b.label)),
         );
         setSpecialistOptions(
           users
@@ -278,15 +274,41 @@ export default function CredentialingModal({
     };
   }, [isOpen]);
   const searchPracticeOptions = useMemo(
-    () => createLocalSearchOptions(practiceOptions),
+    () => async (query: string) => {
+      const normalized = query.trim().toLowerCase();
+      return practiceOptions.filter((option) =>
+        normalized
+          ? option.label.toLowerCase().includes(normalized) ||
+            option.value.toLowerCase().includes(normalized)
+          : true,
+      );
+    },
     [practiceOptions],
   );
   const searchPayerOptions = useMemo(
-    () => createLocalSearchOptions(payerOptions),
+    () => async (query: string) => {
+      const normalized = query.trim().toLowerCase();
+      return payerOptions.filter((option) =>
+        normalized
+          ? option.label.toLowerCase().includes(normalized) ||
+            option.subLabel?.toLowerCase().includes(normalized) ||
+            option.value.toLowerCase().includes(normalized)
+          : true,
+      );
+    },
     [payerOptions],
   );
   const searchProviderOptions = useMemo(
-    () => createLocalSearchOptions(providerOptions),
+    () => async (query: string) => {
+      const normalized = query.trim().toLowerCase();
+      return providerOptions.filter((option) =>
+        normalized
+          ? option.label.toLowerCase().includes(normalized) ||
+            option.subLabel?.toLowerCase().includes(normalized) ||
+            option.value.toLowerCase().includes(normalized)
+          : true,
+      );
+    },
     [providerOptions],
   );
   const searchSpecialistOptions = useMemo(
@@ -307,6 +329,7 @@ export default function CredentialingModal({
     setForm(createCredentialingFormState(record));
     setSelectedDocumentType(allowedDocumentTypes[0]);
     setDocumentExpiryDate("");
+    setFormMessage("");
     setFollowUpDraft({
       channel: followUpChannelOptions[0],
       direction: followUpDirectionOptions[0],
@@ -316,6 +339,39 @@ export default function CredentialingModal({
       loggedBy: getLoggedByDefault(),
     });
   }, [isOpen, record, mode]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!form.practiceId) {
+      setProviderOptions([]);
+      return;
+    }
+
+    let active = true;
+    async function loadProviders() {
+      try {
+        const data = await getPersonsView({ limit: 1000, practiceId: form.practiceId });
+        if (!active) return;
+        setProviderOptions(
+          data.rows
+            .map((row: any) => ({
+              label: String(row.values.fullName || ""),
+              value: String(row.values.id || ""),
+              subLabel: [row.values.role, row.values.email].filter(Boolean).join(" · "),
+            }))
+            .filter((entry) => Boolean(entry.value && entry.label))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        );
+      } catch {
+        if (active) setProviderOptions([]);
+      }
+    }
+
+    void loadProviders();
+    return () => {
+      active = false;
+    };
+  }, [isOpen, form.practiceId]);
 
   const isReadOnly = mode === "view";
   const isEditMode = mode === "edit";
@@ -332,6 +388,7 @@ export default function CredentialingModal({
     key: K,
     value: CredentialingFormState[K],
   ) {
+    setFormMessage("");
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -339,8 +396,56 @@ export default function CredentialingModal({
     value: string,
     option?: SearchSelectOption,
   ) {
+    setFormMessage("");
     updateField("assignedUserId", value);
     updateField("assignedUser", option?.label || value);
+  }
+
+  function updatePractice(value: string, option?: SearchSelectOption) {
+    setFormMessage("");
+    updateField("practiceId", value);
+    updateField("practice", option?.label || value);
+    updateField("providerId", "");
+    updateField("provider", "");
+  }
+
+  function updateProvider(value: string, option?: SearchSelectOption) {
+    setFormMessage("");
+    updateField("providerId", value);
+    updateField("provider", option?.label || value);
+  }
+
+  function hasPendingFollowUpDraft() {
+    return [
+      followUpDraft.referenceNumber,
+      followUpDraft.summary,
+      followUpDraft.nextAction,
+    ].some((value) => Boolean(value.trim()));
+  }
+
+  function validateBeforeSave() {
+    const missingFields: string[] = [];
+    if (!form.practice.trim()) missingFields.push("Practice");
+    if (!form.provider.trim()) missingFields.push("Provider");
+    if (!form.insuranceCompany.trim()) missingFields.push("Insurance Plan");
+    if (!form.credentialingType.trim()) missingFields.push("Request Type");
+    if (!form.contractType.trim()) missingFields.push("Contract Type");
+    if (!form.assignedUserId.trim()) missingFields.push("Assigned Specialist");
+    if (!form.priority.trim()) missingFields.push("Priority");
+    if (!form.status.trim()) missingFields.push("Status");
+
+    if (missingFields.length > 0) {
+      setFormMessage(`Please fill the required fields: ${missingFields.join(", ")}.`);
+      return false;
+    }
+
+    if (hasPendingFollowUpDraft()) {
+      setFormMessage("Please add the Follow-up / Communication Log first before saving credentialing.");
+      return false;
+    }
+
+    setFormMessage("");
+    return true;
   }
 
   function toggleLineOfBusiness(line: LineOfBusiness) {
@@ -381,12 +486,14 @@ export default function CredentialingModal({
   }
 
   function addFollowUpEntry() {
-    if (!followUpDraft.summary.trim() && !followUpDraft.nextAction.trim())
+    if (!hasPendingFollowUpDraft()) {
       return;
+    }
     setForm((current) => ({
       ...current,
       followUpLogs: addFollowUpToForm(current.followUpLogs, followUpDraft),
     }));
+    setFormMessage("");
     setFollowUpDraft({
       channel: followUpChannelOptions[0],
       direction: followUpDirectionOptions[0],
@@ -450,9 +557,12 @@ export default function CredentialingModal({
             className="space-y-5 p-6"
             onSubmit={(event) => {
               event.preventDefault();
-              onSave(form);
+              if (validateBeforeSave()) {
+                onSave(form);
+              }
             }}
           >
+            
             <section className="rounded-2xl border border-[#ece8e1] bg-white p-5">
               <div className="mb-4 flex items-center gap-2">
                 <Circle className="h-4 w-4 text-slate-400" />
@@ -465,33 +575,41 @@ export default function CredentialingModal({
                 <label className="block">
                   <FieldLabel required>Practice</FieldLabel>
                   <SearchSelect
-                    value={form.practice}
-                    onChange={(value) => updateField("practice", value)}
+                    value={form.practiceId || form.practice}
+                    displayLabel={form.practice}
+                    onChange={updatePractice}
                     onSearch={searchPracticeOptions}
                     disabled={isReadOnly}
+                    clearable={!isReadOnly}
                     placeholder="Search practice"
                   />
                 </label>
 
                 <label className="block">
-                  <FieldLabel>Provider</FieldLabel>
+                  <FieldLabel required>Provider</FieldLabel>
                   <SearchSelect
-                    value={form.provider}
-                    onChange={(value) => updateField("provider", value)}
+                    value={form.providerId || form.provider}
+                    displayLabel={form.provider}
+                    onChange={updateProvider}
                     onSearch={searchProviderOptions}
-                    disabled={isReadOnly}
-                    placeholder="Search provider"
+                    disabled={isReadOnly || !form.practiceId}
+                    clearable={!isReadOnly}
+                    placeholder={form.practiceId ? "Search provider" : "Select practice first"}
                   />
                 </label>
 
                 <label className="block">
-                  <FieldLabel>Insurance Payer</FieldLabel>
+                  <FieldLabel required>Insurance Plan</FieldLabel>
                   <SearchSelect
                     value={form.insuranceCompany}
-                    onChange={(value) => updateField("insuranceCompany", value)}
+                    displayLabel={form.insuranceCompany}
+                    onChange={(_, option) =>
+                      updateField("insuranceCompany", option?.label || "")
+                    }
                     onSearch={searchPayerOptions}
                     disabled={isReadOnly}
-                    placeholder="Search payer (optional)"
+                    clearable={false}
+                    placeholder="Search insurance plan"
                   />
                 </label>
 
@@ -609,7 +727,6 @@ export default function CredentialingModal({
 
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {[
-                  { label: "Start Date", key: "startDate" },
                   { label: "Date Submitted", key: "submissionDate" },
                   { label: "Effective Date", key: "effectiveDate" },
                   { label: "Expiration Date", key: "expirationDate" },
@@ -939,6 +1056,7 @@ export default function CredentialingModal({
                     <label className="block">
                       <FieldLabel>Logged By</FieldLabel>
                       <input
+                        disabled
                         type="text"
                         value={followUpDraft.loggedBy}
                         onChange={(event) =>
@@ -987,7 +1105,7 @@ export default function CredentialingModal({
                   </div>
 
                   <label className="mt-4 block">
-                    <FieldLabel required>Summary</FieldLabel>
+                    <FieldLabel>Summary</FieldLabel>
                     <textarea
                       value={followUpDraft.summary}
                       onChange={(event) =>
@@ -1011,6 +1129,15 @@ export default function CredentialingModal({
                       <Plus className="h-4 w-4" />
                       Add Follow-up Entry
                     </button>
+                    {!isReadOnly && form.followUpLogs.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setForm((current) => ({ ...current, followUpLogs: [] }))}
+                        className="ml-2 inline-flex items-center gap-2 rounded-xl border border-[#ece8e1] bg-white px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+                      >
+                        Clear All
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -1156,6 +1283,11 @@ export default function CredentialingModal({
                     )}
                   </button>
                 ) : null}
+                {formMessage ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
+                {formMessage}
+              </div>
+            ) : null}
                 <button
                   type="button"
                   onClick={onClose}

@@ -38,6 +38,7 @@ import {
   type CredentialingOptionRecord,
 } from "../../services/operations/credentialing";
 import { getAllUsers } from "../../services/operations/users";
+import { getInsurancePlanOptionsApi } from "../../services/operations/insurance";
 
 type Filters = {
   search: string;
@@ -54,6 +55,7 @@ type Filters = {
 
 type SortField =
   | "credentialingId"
+  | "practice"
   | "provider"
   | "insuranceCompany"
   | "credentialingType"
@@ -79,11 +81,12 @@ const defaultFilters: Filters = {
 
 const sortOptions: { label: string; value: SortField }[] = [
   { label: "Credentialing ID", value: "credentialingId" },
+  { label: "Practice", value: "practice" },
   { label: "Provider", value: "provider" },
-  { label: "Insurance Company", value: "insuranceCompany" },
+  { label: "Insurance Plan", value: "insuranceCompany" },
   { label: "Credentialing Type", value: "credentialingType" },
   { label: "Status", value: "status" },
-  { label: "Assigned To", value: "assignedUser" },
+  { label: "Assigned Specialist", value: "assignedUser" },
   { label: "Submission Date", value: "submissionDate" },
   { label: "Effective Date", value: "effectiveDate" },
   { label: "Expiration Date", value: "expirationDate" },
@@ -151,6 +154,7 @@ function CredentialingListPage() {
   const [optionRecords, setOptionRecords] = useState<CredentialingOptionRecord[]>(
     [],
   );
+  const [payerOptions, setPayerOptions] = useState<SearchSelectOption[]>([]);
   const [assignedUserOptions, setAssignedUserOptions] = useState<SearchSelectOption[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -190,12 +194,23 @@ function CredentialingListPage() {
     let active = true;
     async function loadOptions() {
       try {
-        const [options, users] = await Promise.all([
+        const [options, users, plans] = await Promise.all([
           getCredentialingRequestOptions(),
           getAllUsers(),
+          getInsurancePlanOptionsApi(),
         ]);
         if (!active) return;
         setOptionRecords(options);
+        setPayerOptions(
+          plans
+            .map((plan) => ({
+              label: plan.planName,
+              value: plan.id,
+              subLabel: plan.planCode,
+            }))
+            .filter((entry) => Boolean(entry.value && entry.label))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        );
         setAssignedUserOptions(
           users
             .map((user: any) => {
@@ -213,6 +228,7 @@ function CredentialingListPage() {
       } catch {
         if (active) {
           setOptionRecords([]);
+          setPayerOptions([]);
           setAssignedUserOptions([]);
         }
       }
@@ -223,6 +239,45 @@ function CredentialingListPage() {
       active = false;
     };
   }, []);
+
+  async function loadFilterOptions() {
+    try {
+      const [options, users, plans] = await Promise.all([
+        getCredentialingRequestOptions(),
+        getAllUsers(),
+        getInsurancePlanOptionsApi(),
+      ]);
+      setOptionRecords(options);
+      setPayerOptions(
+        plans
+          .map((plan) => ({
+            label: plan.planName,
+            value: plan.id,
+            subLabel: plan.planCode,
+          }))
+          .filter((entry) => Boolean(entry.value && entry.label))
+          .sort((a, b) => a.label.localeCompare(b.label)),
+      );
+      setAssignedUserOptions(
+        users
+          .map((user: any) => {
+            const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+            const label = fullName || user.userName || user.email || user.role || "";
+            return {
+              label: user.role ? `${label} (${user.role})` : label,
+              value: user.id,
+              subLabel: [user.userName, user.email, user.role].filter(Boolean).join(" · "),
+            };
+          })
+          .filter((entry) => Boolean(entry.value && entry.label))
+          .sort((a, b) => a.label.localeCompare(b.label)),
+      );
+    } catch {
+      setOptionRecords([]);
+      setPayerOptions([]);
+      setAssignedUserOptions([]);
+    }
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -240,14 +295,21 @@ function CredentialingListPage() {
     () => Array.from(new Set(optionRecords.map((record) => record.practice))).sort(),
     [optionRecords],
   );
-  const uniqueInsuranceCompanies = useMemo(
-    () =>
-      Array.from(new Set(optionRecords.map((record) => record.insuranceCompany))).sort(),
-    [optionRecords],
-  );
   const searchPractices = useMemo(() => createLocalSearchOptions(uniquePractices), [uniquePractices]);
   const searchProviders = useMemo(() => createLocalSearchOptions(uniqueProviders), [uniqueProviders]);
-  const searchPayers = useMemo(() => createLocalSearchOptions(uniqueInsuranceCompanies), [uniqueInsuranceCompanies]);
+  const searchPayers = useMemo(
+    () => async (query: string) => {
+      const normalized = query.trim().toLowerCase();
+      return payerOptions.filter((option) =>
+        normalized
+          ? option.label.toLowerCase().includes(normalized) ||
+            option.subLabel?.toLowerCase().includes(normalized) ||
+            option.value.toLowerCase().includes(normalized)
+          : true,
+      );
+    },
+    [payerOptions],
+  );
   const searchAssignedUsers = useMemo(
     () => async (query: string) => {
       const normalized = query.trim().toLowerCase();
@@ -262,7 +324,9 @@ function CredentialingListPage() {
     [assignedUserOptions],
   );
   const assignedUserFilterLabel = useMemo(
-    () => assignedUserOptions.find((option) => option.value === filters.assignedUser)?.label || "",
+    () =>
+      assignedUserOptions.find((option) => option.value === filters.assignedUser)?.label ||
+      "",
     [assignedUserOptions, filters.assignedUser],
   );
 
@@ -314,8 +378,10 @@ function CredentialingListPage() {
       }));
       const payload = {
         ...form,
+        practiceId: form.practiceId || undefined,
         documents,
         practiceName: form.practice,
+        providerId: form.providerId || undefined,
         providerName: form.provider,
         insurancePayerName: form.insuranceCompany,
         assignedToUserId: form.assignedUserId || undefined,
@@ -332,6 +398,7 @@ function CredentialingListPage() {
       }
 
       await loadRecords();
+      await loadFilterOptions();
       closeModal();
     } finally {
       setIsSaving(false);
@@ -345,6 +412,7 @@ function CredentialingListPage() {
     try {
       await deleteCredentialingRequestApi(recordToDelete.id);
       await loadRecords();
+      await loadFilterOptions();
       closeModal();
       setDeleteTarget(null);
     } finally {
@@ -371,11 +439,12 @@ function CredentialingListPage() {
     });
     const header = [
       "Credentialing ID",
+      "Practice",
       "Provider",
-      "Insurance Company",
+      "Insurance Plan",
       "Credentialing Type",
       "Status",
-      "Assigned To",
+      "Assigned Specialist",
       "Submission Date",
       "Effective Date",
       "Expiration Date",
@@ -383,6 +452,7 @@ function CredentialingListPage() {
     ];
     const rows = allData.credentialingRequests.map((record) => [
       record.credentialingId,
+      record.practice,
       record.provider,
       record.insuranceCompany,
       record.credentialingType,
@@ -554,6 +624,8 @@ function CredentialingListPage() {
                     value={filters.practice}
                     onChange={(value) => updateFilter("practice", value)}
                     onSearch={searchPractices}
+                    clearable
+                    toggleOnSelectSame
                     placeholder="Search practice"
                   />
                 </label>
@@ -566,19 +638,26 @@ function CredentialingListPage() {
                     value={filters.provider}
                     onChange={(value) => updateFilter("provider", value)}
                     onSearch={searchProviders}
+                    clearable
+                    toggleOnSelectSame
                     placeholder="Search provider"
                   />
                 </label>
 
                 <label className="block">
                   <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                    Insurance Company
+                    Insurance Plan
                   </span>
                   <SearchSelect
                     value={filters.insuranceCompany}
-                    onChange={(value) => updateFilter("insuranceCompany", value)}
+                    displayLabel={filters.insuranceCompany}
+                    onChange={(_, option) =>
+                      updateFilter("insuranceCompany", option?.label || "")
+                    }
                     onSearch={searchPayers}
-                    placeholder="Search payer"
+                    clearable
+                    toggleOnSelectSame
+                    placeholder="Search insurance plan"
                   />
                 </label>
 
@@ -638,42 +717,39 @@ function CredentialingListPage() {
 
                 <label className="block">
                   <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                    Assigned User
+                    Assigned Specialist
                   </span>
                   <SearchSelect
                     value={filters.assignedUser}
                     displayLabel={assignedUserFilterLabel}
-                    onChange={(value) =>
-                      updateFilter(
-                        "assignedUser",
-                        value === filters.assignedUser ? "" : value,
-                      )
-                    }
+                    onChange={(value) => updateFilter("assignedUser", value)}
                     onSearch={searchAssignedUsers}
-                    placeholder="Search user"
+                    clearable
+                    toggleOnSelectSame
+                    placeholder="Search specialist"
                   />
                 </label>
 
                 <label className="block">
                   <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                    Date Range From
+                    Submitted Date From
                   </span>
                   <DatePicker
                     value={filters.dateFrom}
                     onChange={(value) => updateFilter("dateFrom", value)}
-                    placeholder="Start date"
+                    placeholder="Submitted date from"
                     className="rounded-xl"
                   />
                 </label>
 
                 <label className="block">
                   <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                    Date Range To
+                    Submitted Date To
                   </span>
                   <DatePicker
                     value={filters.dateTo}
                     onChange={(value) => updateFilter("dateTo", value)}
-                    placeholder="End date"
+                    placeholder="Submitted date to"
                     className="rounded-xl"
                   />
                 </label>
@@ -746,16 +822,16 @@ function CredentialingListPage() {
                 {isLoading ? (
                   <tr>
                     <td
-                      colSpan={11}
+                      colSpan={12}
                       className="px-4 py-8"
                     >
                       <div className="space-y-3">
                         {Array.from({ length: 6 }).map((_, index) => (
                           <div
                             key={index}
-                            className="grid grid-cols-[1.2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_0.9fr] gap-3 rounded-2xl border border-[#ece8e1] bg-white px-4 py-4"
+                            className="grid grid-cols-[1.1fr_1.3fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_0.9fr] gap-3 rounded-2xl border border-[#ece8e1] bg-white px-4 py-4"
                           >
-                            {Array.from({ length: 11 }).map((__, colIndex) => (
+                            {Array.from({ length: 12 }).map((__, colIndex) => (
                               <div
                                 key={colIndex}
                                 className="h-4 animate-pulse rounded bg-slate-200/80"
@@ -769,7 +845,7 @@ function CredentialingListPage() {
                 ) : records.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={11}
+                      colSpan={12}
                       className="px-4 py-14 text-center text-[13px] text-slate-400"
                     >
                       No credentialing records match the current filters.
@@ -778,6 +854,7 @@ function CredentialingListPage() {
                 ) : (
                   records.map((record) => (
                     <tr key={record.id} className="text-[13px] text-slate-600">
+                      
                       <td className="border-b border-[#f4f1ec] px-4 py-3 font-medium text-slate-700">
                         <button
                           type="button"
@@ -787,6 +864,10 @@ function CredentialingListPage() {
                           {record.credentialingId}
                         </button>
                       </td>
+                      <td className="border-b border-[#f4f1ec] px-4 py-3">
+                        {record.practice}
+                      </td>
+                     
                       <td className="border-b border-[#f4f1ec] px-4 py-3">
                         {record.provider}
                       </td>
