@@ -87,50 +87,12 @@ type CreateRunFormState = {
   practiceId: string;
   periodStart: string;
   periodEnd: string;
+  paymentMethod: "ACH" | "CREDIT_CARD" | "";
   notes: string;
   autoCalculate: boolean;
   agreementIds: string[];
   termInputs: Record<string, TermInputValues>;
 };
-
-type AutoDerivedField = "baseAmount" | "collectionsBase";
-type AutoDerivedFieldState = Record<
-  string,
-  Partial<Record<AutoDerivedField, boolean>>
->;
-
-const AUTO_DERIVED_TERM_NAMES = new Set([
-  "credit card charges",
-  "percent of collections",
-]);
-
-function normalizeTermName(value?: string | null) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function isAutoDerivedTerm(term: AgreementServiceTerm) {
-  return AUTO_DERIVED_TERM_NAMES.has(
-    normalizeTermName(term.service?.name || term.externalReference),
-  );
-}
-
-function getAutoDerivedField(term: AgreementServiceTerm): AutoDerivedField | null {
-  const config = (term.pricingConfig || {}) as Record<string, any>;
-  const hasCollectionsComponent =
-    term.pricingModel === "HYBRID" &&
-    Array.isArray(config.components) &&
-    config.components.some((component: any) => component?.type === "% Collections");
-
-  if (term.pricingModel === "HYBRID") {
-    return hasCollectionsComponent ? "collectionsBase" : null;
-  }
-
-  if (term.pricingModel === "PERCENT_COLLECTIONS") {
-    return "baseAmount";
-  }
-
-  return "baseAmount";
-}
 
 type PaymentAllocationRow = {
   invoiceId: string;
@@ -151,11 +113,50 @@ const initialCreateRunForm: CreateRunFormState = {
   practiceId: "",
   periodStart: "",
   periodEnd: "",
+  paymentMethod: "",
   notes: "",
-  autoCalculate: false,
+  autoCalculate: true,
   agreementIds: [],
   termInputs: {},
 };
+
+function calculateProcessingFee(
+  netAmount: number,
+  paymentMethod: "ACH" | "CREDIT_CARD",
+) {
+  const roundMoney = (value: number) =>
+    Math.round((value + Number.EPSILON) * 100) / 100;
+
+  const normalizedNetAmount = roundMoney(Math.max(0, netAmount));
+  const rate = paymentMethod === "CREDIT_CARD" ? 0.029 : 0.008;
+  const fixedFee = paymentMethod === "CREDIT_CARD" ? 0.3 : 0;
+  const maxFee = paymentMethod === "ACH" ? 5 : Number.POSITIVE_INFINITY;
+
+  if (normalizedNetAmount <= 0) {
+    return { grossAmount: 0, feeAmount: 0 };
+  }
+
+  let grossAmount = roundMoney((normalizedNetAmount + fixedFee) / (1 - rate));
+
+  while (true) {
+    const feeAmount = roundMoney(
+      Math.min(roundMoney(grossAmount * rate + fixedFee), maxFee),
+    );
+    const actualNet = roundMoney(grossAmount - feeAmount);
+
+    if (actualNet === normalizedNetAmount) {
+      return { grossAmount, feeAmount };
+    }
+
+    grossAmount = roundMoney(
+      grossAmount + (actualNet < normalizedNetAmount ? 0.01 : -0.01),
+    );
+  }
+}
+
+function getPaymentMethodLabel(paymentMethod: "ACH" | "CREDIT_CARD") {
+  return paymentMethod === "CREDIT_CARD" ? "Credit Card" : "ACH";
+}
 
 const initialPaymentForm: PaymentFormState = {
   practiceId: "",
@@ -224,8 +225,6 @@ function BillingRunsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [createForm, setCreateForm] =
     useState<CreateRunFormState>(initialCreateRunForm);
-  const [manualDerivedFields, setManualDerivedFields] =
-    useState<AutoDerivedFieldState>({});
   const [paymentForm, setPaymentForm] =
     useState<PaymentFormState>(initialPaymentForm);
   const [pagination, setPagination] = useState({
@@ -284,60 +283,6 @@ function BillingRunsPage() {
     createForm.periodEnd,
   ]);
 
-  const autoDerivedBaseTotal = useMemo(() => {
-    if (activePricingTerms.length === 0) return 0;
-
-    let total = 0;
-    for (const term of activePricingTerms) {
-      if (isAutoDerivedTerm(term)) {
-        continue;
-      }
-
-      const preview = computeTermPreview(
-        term,
-        createForm.termInputs[term.id] || {},
-      );
-      total += preview.clientAmount;
-    }
-
-    return roundMoneyClient(total);
-  }, [activePricingTerms, createForm.termInputs]);
-
-  useEffect(() => {
-    if (!showCreateForm || activePricingTerms.length === 0) return;
-
-    const autoValue = autoDerivedBaseTotal.toFixed(2);
-
-    setCreateForm((prev) => {
-      let changed = false;
-      const nextTermInputs = { ...prev.termInputs };
-
-      for (const term of activePricingTerms) {
-        if (!isAutoDerivedTerm(term)) continue;
-
-        const current = nextTermInputs[term.id] || {};
-        const targetField = getAutoDerivedField(term);
-        if (!targetField) continue;
-
-        const isManuallySet = manualDerivedFields[term.id]?.[targetField];
-        if (!isManuallySet && current[targetField] !== autoValue) {
-          nextTermInputs[term.id] = {
-            ...current,
-            [targetField]: autoValue,
-          };
-          changed = true;
-        }
-      }
-
-      return changed ? { ...prev, termInputs: nextTermInputs } : prev;
-    });
-  }, [
-    activePricingTerms,
-    autoDerivedBaseTotal,
-    manualDerivedFields,
-    showCreateForm,
-  ]);
-
   const previewTotals = useMemo(() => {
     let invoiceTotal = 0;
     let vendorTotal = 0;
@@ -358,20 +303,35 @@ function BillingRunsPage() {
     };
   }, [activePricingTerms, createForm.termInputs]);
 
+  const processingFeePreview = useMemo(
+    () =>
+      calculateProcessingFee(
+        previewTotals.invoiceTotal,
+        createForm.paymentMethod,
+      ),
+    [createForm.paymentMethod, previewTotals.invoiceTotal],
+  );
+
   const detailTotals = useMemo(() => {
     if (!selectedRun || !selectedRun.items || selectedRun.items.length === 0) {
       return null;
     }
-    let invoiceTotal = 0;
+    let netServicesTotal = 0;
     let vendorPayable = 0;
     let margin = 0;
     for (const item of selectedRun.items) {
-      invoiceTotal += Number(item.clientAmount || 0);
+      netServicesTotal += Number(item.clientAmount || 0);
       vendorPayable += Number(item.vendorAmount || 0);
       margin += Number(item.marginAmount || 0);
     }
+    const paymentMethod =
+      selectedRun.paymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "ACH";
+    const fee = calculateProcessingFee(netServicesTotal, paymentMethod);
     return {
-      invoiceTotal,
+      netServicesTotal,
+      paymentMethod,
+      processingFeeAmount: fee.feeAmount,
+      grossInvoiceTotal: fee.grossAmount,
       vendorPayable,
       margin,
     };
@@ -529,11 +489,10 @@ function BillingRunsPage() {
       return;
     }
     setIsLoadingAgreements(true);
-      getAgreementsByPractice(createForm.practiceId)
+    getAgreementsByPractice(createForm.practiceId)
       .then((agreements) => {
         const active = agreements.filter((a) => a.status === "ACTIVE");
         setPracticeAgreements(active);
-        setManualDerivedFields({});
         setCreateForm((prev) => ({
           ...prev,
           agreementIds: active.map((a) => a.id),
@@ -589,14 +548,13 @@ function BillingRunsPage() {
     setProfileCreateHandled(true);
     setShowCreateForm(true);
     setShowDetailPanel(false);
-      setShowPaymentForm(false);
-      setSelectedRowId(null);
-      setSelectedRun(null);
-      setManualDerivedFields({});
-      setCreateForm({
-        ...initialCreateRunForm,
-        practiceId,
-      });
+    setShowPaymentForm(false);
+    setSelectedRowId(null);
+    setSelectedRun(null);
+    setCreateForm({
+      ...initialCreateRunForm,
+      practiceId,
+    });
     setReadiness(null);
 
     if (practices.length === 0) {
@@ -659,7 +617,6 @@ function BillingRunsPage() {
   }
 
   function resetCreateForm() {
-    setManualDerivedFields({});
     setCreateForm(initialCreateRunForm);
     setReadiness(null);
     setPracticeAgreements([]);
@@ -683,7 +640,6 @@ function BillingRunsPage() {
     setShowPaymentForm(false);
     setSelectedRowId(null);
     setSelectedRun(null);
-    setManualDerivedFields({});
     setCreateForm({
       ...initialCreateRunForm,
       practiceId: preselectedPracticeId,
@@ -741,6 +697,7 @@ function BillingRunsPage() {
         practiceId: createForm.practiceId,
         periodStart: createForm.periodStart,
         periodEnd: createForm.periodEnd,
+        paymentMethod: createForm.paymentMethod,
         notes: createForm.notes || undefined,
         autoCalculate: createForm.autoCalculate,
         snapshots,
@@ -1012,7 +969,9 @@ function BillingRunsPage() {
                 type="button"
                 disabled={
                   isActionLoading !== null ||
-                  !["CALCULATED", "REVIEW_REQUIRED"].includes(selectedRun.status)
+                  !["CALCULATED", "REVIEW_REQUIRED"].includes(
+                    selectedRun.status,
+                  )
                 }
                 onClick={() => handleRunAction("approve")}
                 className="inline-flex items-center gap-2 rounded-md bg-[#4f63ea] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
@@ -1090,10 +1049,26 @@ function BillingRunsPage() {
                 </h3>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 font-medium">
-                    Invoice Total
+                    Net Services
                   </span>
                   <span className="font-bold text-slate-800 text-[15px]">
-                    {formatMoney(detailTotals.invoiceTotal)}
+                    {formatMoney(detailTotals.netServicesTotal)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">
+                    Processing Fee
+                  </span>
+                  <span className="font-bold text-slate-700">
+                    {formatMoney(detailTotals.processingFeeAmount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">
+                    Gross Invoice Total
+                  </span>
+                  <span className="font-bold text-slate-800">
+                    {formatMoney(detailTotals.grossInvoiceTotal)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1102,6 +1077,14 @@ function BillingRunsPage() {
                   </span>
                   <span className="font-bold text-slate-700">
                     {formatMoney(detailTotals.vendorPayable)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-[#eadfcd]/40 pt-2.5">
+                  <span className="text-slate-500 font-medium">
+                    Payment Method
+                  </span>
+                  <span className="font-bold text-slate-700">
+                    {getPaymentMethodLabel(detailTotals.paymentMethod)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between border-t border-[#eadfcd]/40 pt-2.5">
@@ -1406,7 +1389,7 @@ function BillingRunsPage() {
                     const canPreviewInvoice =
                       selectedRun.status !== "POSTED" &&
                       selectedRun.status !== "CLOSED" &&
-                      selectedRun.status !== "PENDING"
+                      selectedRun.status !== "PENDING";
                     const linkedInvoices = Array.from(
                       new Map(
                         (selectedRun.items || [])
@@ -1422,11 +1405,21 @@ function BillingRunsPage() {
                       return canPreviewInvoice ? (
                         <button
                           type="button"
-                          onClick={() => window.open(billingEndpoints.INVOICE_PREVIEW(selectedRun.id), "_blank", "noopener,noreferrer")}
+                          onClick={() =>
+                            window.open(
+                              billingEndpoints.INVOICE_PREVIEW(selectedRun.id),
+                              "_blank",
+                              "noopener,noreferrer",
+                            )
+                          }
                           className="w-full rounded-lg border border-[#c7d2fe] bg-indigo-50 px-3 py-3 text-left text-indigo-700 transition-colors hover:bg-indigo-100"
                         >
-                          <div className="text-[13px] font-semibold">Preview Invoice PDF</div>
-                          <div className="text-[11px] text-indigo-500">Generated from calculated items before posting.</div>
+                          <div className="text-[13px] font-semibold">
+                            Preview Invoice PDF
+                          </div>
+                          <div className="text-[11px] text-indigo-500">
+                            Generated from calculated items before posting.
+                          </div>
                         </button>
                       ) : (
                         <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-slate-400">
@@ -1442,23 +1435,23 @@ function BillingRunsPage() {
                           ? invoice.receiptPdfBlobUrl
                           : invoice.invoicePdfBlobUrl;
                       return (
-                      <div
-                        key={invoice.id}
-                        className="rounded-lg border border-[#f0ece6] px-3 py-2"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-slate-700">
-                            {invoice.invoiceNumber ||
-                              invoice.id.slice(0, 8).toUpperCase()}
-                          </span>
-                          <span className="text-slate-700">
-                            {formatMoney(invoice.totalAmount)}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-[12px] text-slate-400">
-                          {invoice.status}
-                        </div>
-                        {/* {canViewInvoicePdf && (
+                        <div
+                          key={invoice.id}
+                          className="rounded-lg border border-[#f0ece6] px-3 py-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-slate-700">
+                              {invoice.invoiceNumber ||
+                                invoice.id.slice(0, 8).toUpperCase()}
+                            </span>
+                            <span className="text-slate-700">
+                              {formatMoney(invoice.totalAmount)}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-[12px] text-slate-400">
+                            {invoice.status}
+                          </div>
+                          {/* {canViewInvoicePdf && (
                           <div className="mt-2">
                             <button
                               type="button"
@@ -1476,8 +1469,8 @@ function BillingRunsPage() {
                             </button>
                           </div>
                         )} */}
-                      </div>
-                    );
+                        </div>
+                      );
                     });
                   })()}
                 </div>
@@ -1546,17 +1539,14 @@ function BillingRunsPage() {
             </label>
             <select
               value={createForm.practiceId}
-              onChange={(event) =>
-                {
-                  setManualDerivedFields({});
-                  setCreateForm((prev) => ({
-                    ...prev,
-                    practiceId: event.target.value,
-                    agreementIds: [],
-                    termInputs: {},
-                  }));
-                }
-              }
+              onChange={(event) => {
+                setCreateForm((prev) => ({
+                  ...prev,
+                  practiceId: event.target.value,
+                  agreementIds: [],
+                  termInputs: {},
+                }));
+              }}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
               required
             >
@@ -1608,19 +1598,30 @@ function BillingRunsPage() {
 
           <div>
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
-              Notes
+              Payment Method <span className="text-red-500">*</span>
             </label>
-            <textarea
-              value={createForm.notes}
+            <select
+              value={createForm.paymentMethod}
               onChange={(event) =>
                 setCreateForm((prev) => ({
                   ...prev,
-                  notes: event.target.value,
+                  paymentMethod: event.target.value as "ACH" | "CREDIT_CARD",
                 }))
               }
-              rows={3}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            />
+              required
+            >
+              <option value="">Select payment method</option>
+              <option value="ACH">ACH</option>
+              <option value="CREDIT_CARD">Credit Card</option>
+            </select>
+            <p className="mt-1 text-[11px] text-slate-500">
+              {createForm.paymentMethod === "CREDIT_CARD"
+                ? "2.9% + $0.30"
+                : createForm.paymentMethod === "ACH"
+                  ? "0.80% per transaction, capped at $5.00"
+                  : ""}
+            </p>
           </div>
 
           <label className="flex items-center gap-2 text-[13px] text-slate-700">
@@ -1637,6 +1638,23 @@ function BillingRunsPage() {
             />
             Auto calculate after creation
           </label>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Notes
+            </label>
+            <textarea
+              value={createForm.notes}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  notes: event.target.value,
+                }))
+              }
+              rows={3}
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            />
+          </div>
 
           {/* Agreements Selection */}
           {createForm.practiceId && (
@@ -2006,7 +2024,7 @@ function BillingRunsPage() {
                                 </span>
                               </span>
                             )}
-                            
+
                             {config.vendorPricing?.minimumFee && (
                               <span className="text-slate-500">
                                 Vendor min fee:{" "}
@@ -2102,28 +2120,17 @@ function BillingRunsPage() {
                                               ?.collectionsBase || ""
                                           }
                                           onChange={(event) =>
-                                            {
-                                              const nextValue =
-                                                event.target.value;
-                                              setManualDerivedFields((prev) => ({
-                                                ...prev,
+                                            setCreateForm((prev) => ({
+                                              ...prev,
+                                              termInputs: {
+                                                ...prev.termInputs,
                                                 [term.id]: {
-                                                  ...prev[term.id],
+                                                  ...prev.termInputs[term.id],
                                                   collectionsBase:
-                                                    nextValue.trim() !== "",
+                                                    event.target.value,
                                                 },
-                                              }));
-                                              setCreateForm((prev) => ({
-                                                ...prev,
-                                                termInputs: {
-                                                  ...prev.termInputs,
-                                                  [term.id]: {
-                                                    ...prev.termInputs[term.id],
-                                                    collectionsBase: nextValue,
-                                                  },
-                                                },
-                                              }));
-                                            }
+                                              },
+                                            }))
                                           }
                                           placeholder="0.00"
                                           title="Auto-fills from the other line items, but you can override it."
@@ -2275,12 +2282,12 @@ function BillingRunsPage() {
                                   const isPercentCollections =
                                     term.pricingModel === "PERCENT_COLLECTIONS";
                                   if (isPercentCollections) {
-                                      const currentLines = createForm.termInputs[
+                                    const currentLines = createForm.termInputs[
                                       term.id
                                     ]?.collectionsLines || [
                                       {
                                         id: "1",
-                                        label: "Credit card charges",
+                                        label: "Collections",
                                         amount:
                                           createForm.termInputs[term.id]
                                             ?.baseAmount || "",
@@ -2295,13 +2302,6 @@ function BillingRunsPage() {
                                           sum + (parseFloat(line.amount) || 0),
                                         0,
                                       );
-                                      setManualDerivedFields((prev) => ({
-                                        ...prev,
-                                        [term.id]: {
-                                          ...prev[term.id],
-                                          baseAmount: true,
-                                        },
-                                      }));
                                       setCreateForm((prev) => ({
                                         ...prev,
                                         termInputs: {
@@ -2420,28 +2420,16 @@ function BillingRunsPage() {
                                             ?.baseAmount || ""
                                         }
                                         onChange={(event) =>
-                                          {
-                                            const nextValue =
-                                              event.target.value;
-                                            setManualDerivedFields((prev) => ({
-                                              ...prev,
+                                          setCreateForm((prev) => ({
+                                            ...prev,
+                                            termInputs: {
+                                              ...prev.termInputs,
                                               [term.id]: {
-                                                ...prev[term.id],
-                                                baseAmount:
-                                                  nextValue.trim() !== "",
+                                                ...prev.termInputs[term.id],
+                                                baseAmount: event.target.value,
                                               },
-                                            }));
-                                            setCreateForm((prev) => ({
-                                              ...prev,
-                                              termInputs: {
-                                                ...prev.termInputs,
-                                                [term.id]: {
-                                                  ...prev.termInputs[term.id],
-                                                  baseAmount: nextValue,
-                                                },
-                                              },
-                                            }));
-                                          }
+                                            },
+                                          }))
                                         }
                                         placeholder="0.00"
                                         title="Auto-fills from the other line items, but you can override it."
@@ -2464,7 +2452,7 @@ function BillingRunsPage() {
                                     createForm.termInputs[term.id]?.quantity ||
                                     ""
                                   }
-              onChange={(event) =>
+                                  onChange={(event) =>
                                     setCreateForm((prev) => ({
                                       ...prev,
                                       termInputs: {
@@ -2529,13 +2517,21 @@ function BillingRunsPage() {
               <h3 className="mb-2.5 text-[13px] font-semibold text-indigo-900">
                 Run Summary
               </h3>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
                   <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                    Invoice Total
+                    Net Services
                   </div>
                   <div className="mt-1 text-[14px] font-bold text-slate-800">
                     {formatMoney(previewTotals.invoiceTotal)}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                    Processing Fee
+                  </div>
+                  <div className="mt-1 text-[14px] font-bold text-slate-800">
+                    {formatMoney(processingFeePreview.feeAmount)}
                   </div>
                 </div>
                 <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
@@ -2548,18 +2544,19 @@ function BillingRunsPage() {
                 </div>
                 <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
                   <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                    Total Margin
+                    Gross Invoice
                   </div>
-                  <div
-                    className={`mt-1 text-[14px] font-bold ${
-                      previewTotals.marginTotal >= 0
-                        ? "text-emerald-600"
-                        : "text-rose-600"
-                    }`}
-                  >
-                    {formatMoney(previewTotals.marginTotal)}
+                  <div className="mt-1 text-[14px] font-bold text-slate-800">
+                    {formatMoney(processingFeePreview.grossAmount)}
                   </div>
                 </div>
+              </div>
+              <div className="mt-2 flex items-center justify-between rounded-lg bg-white/70 px-3 py-2 text-[12px] text-slate-600">
+                <span>
+                  Payment method:{" "}
+                  {getPaymentMethodLabel(createForm.paymentMethod)}
+                </span>
+                <span>Margin: {formatMoney(previewTotals.marginTotal)}</span>
               </div>
             </div>
           )}

@@ -76,6 +76,7 @@ export type BillingSnapshotInput = {
 export type BillingRunListItem = {
   id: string;
   practiceId: string;
+  paymentMethod: "ACH" | "CREDIT_CARD";
   periodStart: string;
   periodEnd: string;
   status: BillingRunStatus;
@@ -170,6 +171,7 @@ export type CreateBillingRunBody = {
   practiceId: string;
   periodStart: string;
   periodEnd: string;
+  paymentMethod: "ACH" | "CREDIT_CARD";
   notes?: string | null;
   autoCalculate?: boolean;
   snapshots?: BillingSnapshotInput[];

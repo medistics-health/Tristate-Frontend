@@ -60,6 +60,8 @@ export type Invoice = {
   lineItems?: Array<{ id: string }>;
   purchaseOrders?: Array<{ id: string }>;
   invoiceNumber: string;
+  paymentMethod?: string | null;
+  processingFeeAmount?: string | null;
   stripeInvoiceId?: string | null;
   stripeHostedInvoiceUrl?: string | null;
   stripeInvoicePdfUrl?: string | null;
