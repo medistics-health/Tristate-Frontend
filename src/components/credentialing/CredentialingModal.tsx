@@ -917,7 +917,7 @@ export default function CredentialingModal({
                       Upload files
                     </span>
                     <span className="mt-1 text-[12px] text-slate-400">
-                      Select one or more files
+                      Select one or more files - Upto 25MB
                     </span>
                     <input
                       ref={fileInputRef}
