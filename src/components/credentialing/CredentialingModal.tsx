@@ -184,9 +184,13 @@ export default function CredentialingModal({
     loggedBy: "",
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [practiceOptions, setPracticeOptions] = useState<SearchSelectOption[]>([]);
+  const [practiceOptions, setPracticeOptions] = useState<SearchSelectOption[]>(
+    [],
+  );
   const [payerOptions, setPayerOptions] = useState<SearchSelectOption[]>([]);
-  const [providerOptions, setProviderOptions] = useState<SearchSelectOption[]>([]);
+  const [providerOptions, setProviderOptions] = useState<SearchSelectOption[]>(
+    [],
+  );
   const [specialistOptions, setSpecialistOptions] = useState<
     SearchSelectOption[]
   >([]);
@@ -215,12 +219,11 @@ export default function CredentialingModal({
     let active = true;
     async function loadOptions() {
       try {
-        const [practiceView, planView, users] =
-          await Promise.all([
-            getPracticesView({ limit: 1000 }),
-            getInsurancePlanOptionsApi(),
-            getAllUsers(),
-          ]);
+        const [practiceView, planView, users] = await Promise.all([
+          getPracticesView({ limit: 1000 }),
+          getInsurancePlanOptionsApi(),
+          getAllUsers(),
+        ]);
 
         if (!active) return;
 
@@ -350,14 +353,19 @@ export default function CredentialingModal({
     let active = true;
     async function loadProviders() {
       try {
-        const data = await getPersonsView({ limit: 1000, practiceId: form.practiceId });
+        const data = await getPersonsView({
+          limit: 1000,
+          practiceId: form.practiceId,
+        });
         if (!active) return;
         setProviderOptions(
           data.rows
             .map((row: any) => ({
               label: String(row.values.fullName || ""),
               value: String(row.values.id || ""),
-              subLabel: [row.values.role, row.values.email].filter(Boolean).join(" · "),
+              subLabel: [row.values.role, row.values.email]
+                .filter(Boolean)
+                .join(" · "),
             }))
             .filter((entry) => Boolean(entry.value && entry.label))
             .sort((a, b) => a.label.localeCompare(b.label)),
@@ -435,12 +443,16 @@ export default function CredentialingModal({
     if (!form.status.trim()) missingFields.push("Status");
 
     if (missingFields.length > 0) {
-      setFormMessage(`Please fill the required fields: ${missingFields.join(", ")}.`);
+      setFormMessage(
+        `Please fill the required fields: ${missingFields.join(", ")}.`,
+      );
       return false;
     }
 
     if (hasPendingFollowUpDraft()) {
-      setFormMessage("Please add the Follow-up / Communication Log first before saving credentialing.");
+      setFormMessage(
+        "Please add the Follow-up / Communication Log first before saving credentialing.",
+      );
       return false;
     }
 
@@ -572,7 +584,6 @@ export default function CredentialingModal({
               }
             }}
           >
-            
             <section className="rounded-2xl border border-[#ece8e1] bg-white p-5">
               <div className="mb-4 flex items-center gap-2">
                 <Circle className="h-4 w-4 text-slate-400" />
@@ -604,7 +615,11 @@ export default function CredentialingModal({
                     onSearch={searchProviderOptions}
                     disabled={isReadOnly || !form.practiceId}
                     clearable={!isReadOnly}
-                    placeholder={form.practiceId ? "Search provider" : "Select practice first"}
+                    placeholder={
+                      form.practiceId
+                        ? "Search provider"
+                        : "Select practice first"
+                    }
                   />
                 </label>
 
@@ -1083,7 +1098,7 @@ export default function CredentialingModal({
 
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <label className="block">
-                      <FieldLabel>Reference Number</FieldLabel>
+                      <FieldLabel required>Reference Number</FieldLabel>
                       <input
                         type="text"
                         value={followUpDraft.referenceNumber}
@@ -1303,10 +1318,10 @@ export default function CredentialingModal({
                   </button>
                 ) : null} */}
                 {formMessage ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
-                {formMessage}
-              </div>
-            ) : null}
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
+                    {formMessage}
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   onClick={onClose}
