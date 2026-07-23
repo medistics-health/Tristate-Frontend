@@ -77,6 +77,9 @@ export type BillingRunListItem = {
   id: string;
   practiceId: string;
   paymentMethod: "ACH" | "CREDIT_CARD";
+  feeBearer: "CLIENT" | "COMPANY";
+  companyFeeAmountOverride?: string | null;
+  processingFeeConfig?: Record<string, unknown> | null;
   periodStart: string;
   periodEnd: string;
   status: BillingRunStatus;
@@ -172,6 +175,9 @@ export type CreateBillingRunBody = {
   periodStart: string;
   periodEnd: string;
   paymentMethod: "ACH" | "CREDIT_CARD";
+  feeBearer: "CLIENT" | "COMPANY";
+  companyFeeAmountOverride?: number | string | null;
+  processingFeeConfig?: Record<string, unknown> | null;
   notes?: string | null;
   autoCalculate?: boolean;
   snapshots?: BillingSnapshotInput[];
@@ -206,7 +212,11 @@ export type BillingRunRow = {
     itemCount: number;
     approvedAt: string;
     createdAt: string;
-    invoiceTotal: number;
+    netServices: number;
+    grossInvoiceTotal: number;
+    processingFee: number;
+    companyAbsorbed: number;
+    paymentMethod: string;
     vendorPayable: number;
     totalMargin: number;
   };
@@ -229,17 +239,109 @@ function formatDate(value?: string | null, withTime = false) {
   return withTime ? date.toLocaleString() : date.toLocaleDateString();
 }
 
-function toBillingRunRow(run: BillingRunListItem): BillingRunRow {
-  let invoiceTotal = 0;
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+export function getBillingRunProcessingSummary(run: {
+  paymentMethod: "ACH" | "CREDIT_CARD";
+  processingFeeConfig?: Record<string, unknown> | null;
+  items?: Array<{
+    clientAmount: string;
+    vendorAmount?: string | null;
+    marginAmount?: string | null;
+  }>;
+}) {
+  const settings = {
+    creditCard: {
+      COMPANY: {
+        ratePercent: Number(
+          (run.processingFeeConfig as any)?.creditCard?.COMPANY?.ratePercent ?? 1.4,
+        ),
+        fixedFee: Number(
+          (run.processingFeeConfig as any)?.creditCard?.COMPANY?.fixedFee ?? 0.3,
+        ),
+      },
+      CLIENT: {
+        ratePercent: Number(
+          (run.processingFeeConfig as any)?.creditCard?.CLIENT?.ratePercent ?? 1.5,
+        ),
+        fixedFee: Number(
+          (run.processingFeeConfig as any)?.creditCard?.CLIENT?.fixedFee ?? 0,
+        ),
+      },
+    },
+    ach: {
+      COMPANY: {
+        ratePercent: Number(
+          (run.processingFeeConfig as any)?.ach?.COMPANY?.ratePercent ?? 0.8,
+        ),
+        capAmount: Number(
+          (run.processingFeeConfig as any)?.ach?.COMPANY?.capAmount ?? 5,
+        ),
+      },
+      CLIENT: {
+        ratePercent: Number(
+          (run.processingFeeConfig as any)?.ach?.CLIENT?.ratePercent ?? 0,
+        ),
+        capAmount: Number(
+          (run.processingFeeConfig as any)?.ach?.CLIENT?.capAmount ?? 0,
+        ),
+      },
+    },
+  };
+
+  let netServices = 0;
   let vendorPayable = 0;
   let totalMargin = 0;
   if (run.items) {
     for (const item of run.items) {
-      invoiceTotal += Number(item.clientAmount || 0);
+      netServices += Number(item.clientAmount || 0);
       vendorPayable += Number(item.vendorAmount || 0);
       totalMargin += Number(item.marginAmount || 0);
     }
   }
+
+  const baseAmount = roundMoney(netServices);
+  let processingFee = 0;
+  let companyAbsorbed = 0;
+  if (run.paymentMethod === "CREDIT_CARD") {
+    processingFee = roundMoney(
+      baseAmount * (settings.creditCard.CLIENT.ratePercent / 100) +
+        settings.creditCard.CLIENT.fixedFee,
+    );
+    companyAbsorbed = roundMoney(
+      baseAmount * (settings.creditCard.COMPANY.ratePercent / 100) +
+        settings.creditCard.COMPANY.fixedFee,
+    );
+  } else {
+    processingFee = roundMoney(
+      Math.min(
+        roundMoney(baseAmount * (settings.ach.CLIENT.ratePercent / 100)),
+        Math.max(0, settings.ach.CLIENT.capAmount),
+      ),
+    );
+    companyAbsorbed = roundMoney(
+      Math.min(
+        roundMoney(baseAmount * (settings.ach.COMPANY.ratePercent / 100)),
+        Math.max(0, settings.ach.COMPANY.capAmount),
+      ),
+    );
+  }
+
+  return {
+    netServices: baseAmount,
+    processingFee,
+    companyAbsorbed,
+    grossInvoiceTotal: roundMoney(baseAmount + processingFee),
+    vendorPayable: roundMoney(vendorPayable),
+    totalMargin: roundMoney(totalMargin),
+    paymentMethod: run.paymentMethod === "CREDIT_CARD" ? "Credit Card" : "ACH",
+  };
+}
+
+function toBillingRunRow(run: BillingRunListItem): BillingRunRow {
+  const summary = getBillingRunProcessingSummary(run);
 
   return {
     id: run.id,
@@ -251,9 +353,13 @@ function toBillingRunRow(run: BillingRunListItem): BillingRunRow {
       itemCount: run._count?.items || 0,
       approvedAt: formatDate(run.approvedAt, true),
       createdAt: formatDate(run.createdAt, true),
-      invoiceTotal,
-      vendorPayable,
-      totalMargin,
+      netServices: summary.netServices,
+      grossInvoiceTotal: summary.grossInvoiceTotal,
+      processingFee: summary.processingFee,
+      companyAbsorbed: summary.companyAbsorbed,
+      paymentMethod: summary.paymentMethod,
+      vendorPayable: summary.vendorPayable,
+      totalMargin: summary.totalMargin,
     },
   };
 }

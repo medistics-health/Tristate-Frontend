@@ -22,6 +22,7 @@ import {
   deleteUserApi,
   getSystemSettingsApi,
   updateSystemSettingsApi,
+  type SystemSettings,
 } from "../../services/operations/users";
 import { getMercuryAccounts } from "../../services/operations/mercury";
 import QuickBooksIntegrations from "../integrations/QuickBooksIntegrations";
@@ -36,6 +37,14 @@ function parseNotifyToEmails(value: string) {
         .filter(Boolean),
     ),
   ];
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(value);
 }
 
 export default function SettingsPage() {
@@ -66,6 +75,14 @@ export default function SettingsPage() {
     supportEmail: "",
     authorizedSigner: "",
     notifyTo: [] as string[],
+    creditCardCompanyRatePercent: 1.4,
+    creditCardCompanyFixedFee: 0.3,
+    creditCardClientRatePercent: 1.5,
+    creditCardClientFixedFee: 0,
+    achCompanyRatePercent: 0.8,
+    achCompanyCapAmount: 5,
+    achClientRatePercent: 0,
+    achClientCapAmount: 0,
     invoiceDueDays: 15,
     invoiceReminderDays: 5,
   });
@@ -125,7 +142,7 @@ export default function SettingsPage() {
   async function loadSettings() {
     setIsLoadingSettings(true);
     try {
-      const data = await getSystemSettingsApi();
+      const data: SystemSettings = await getSystemSettingsApi();
       setOrgSettings({
         organizationName: data.organizationName || "",
         domain: data.domain || "",
@@ -133,6 +150,16 @@ export default function SettingsPage() {
         supportEmail: data.supportEmail || "",
         authorizedSigner: data.authorizedSigner || "",
         notifyTo: Array.isArray(data.notifyTo) ? data.notifyTo : [],
+        creditCardCompanyRatePercent:
+          data.creditCardCompanyRatePercent ?? 1.4,
+        creditCardCompanyFixedFee: data.creditCardCompanyFixedFee ?? 0.3,
+        creditCardClientRatePercent:
+          data.creditCardClientRatePercent ?? 1.5,
+        creditCardClientFixedFee: data.creditCardClientFixedFee ?? 0,
+        achCompanyRatePercent: data.achCompanyRatePercent ?? 0.8,
+        achCompanyCapAmount: data.achCompanyCapAmount ?? 5,
+        achClientRatePercent: data.achClientRatePercent ?? 0,
+        achClientCapAmount: data.achClientCapAmount ?? 0,
         invoiceDueDays: data.invoiceDueDays ?? 15,
         invoiceReminderDays: data.invoiceReminderDays ?? 5,
       });
@@ -463,6 +490,178 @@ export default function SettingsPage() {
                         }
                         className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
                       />
+                    </div>
+                    <div className="col-span-2 rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4">
+                      <div className="mb-4">
+                        <h4 className="text-sm font-bold text-slate-800">
+                          Processing Fee Rules
+                        </h4>
+                        <p className="mt-1 text-xs text-slate-500">
+                          These values drive the billing run payment method and bearer calculations.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-4">
+                        <div className="col-span-4 text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Credit Card
+                        </div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Bearer
+                        </div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Rate %
+                        </div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Fixed Fee
+                        </div>
+                        <div />
+
+                        <div className="self-center text-sm font-medium text-slate-700">
+                          Company
+                        </div>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min={0}
+                          value={orgSettings.creditCardCompanyRatePercent}
+                          onChange={(e) =>
+                            setOrgSettings({
+                              ...orgSettings,
+                              creditCardCompanyRatePercent:
+                                parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="rounded-xl border border-[#ece8e1] bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={orgSettings.creditCardCompanyFixedFee}
+                          onChange={(e) =>
+                            setOrgSettings({
+                              ...orgSettings,
+                              creditCardCompanyFixedFee:
+                                parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="rounded-xl border border-[#ece8e1] bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                        />
+                        <div />
+
+                        <div className="self-center text-sm font-medium text-slate-700">
+                          Client
+                        </div>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min={0}
+                          value={orgSettings.creditCardClientRatePercent}
+                          onChange={(e) =>
+                            setOrgSettings({
+                              ...orgSettings,
+                              creditCardClientRatePercent:
+                                parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="rounded-xl border border-[#ece8e1] bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={orgSettings.creditCardClientFixedFee}
+                          onChange={(e) =>
+                            setOrgSettings({
+                              ...orgSettings,
+                              creditCardClientFixedFee:
+                                parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="rounded-xl border border-[#ece8e1] bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                        />
+                        <div />
+
+                        <div className="col-span-4 mt-4 text-xs font-bold uppercase tracking-wider text-slate-400">
+                          ACH
+                        </div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Bearer
+                        </div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Rate %
+                        </div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Cap Amount
+                        </div>
+                        <div />
+
+                        <div className="self-center text-sm font-medium text-slate-700">
+                          Company
+                        </div>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min={0}
+                          value={orgSettings.achCompanyRatePercent}
+                          onChange={(e) =>
+                            setOrgSettings({
+                              ...orgSettings,
+                              achCompanyRatePercent:
+                                parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="rounded-xl border border-[#ece8e1] bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={orgSettings.achCompanyCapAmount}
+                          onChange={(e) =>
+                            setOrgSettings({
+                              ...orgSettings,
+                              achCompanyCapAmount:
+                                parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="rounded-xl border border-[#ece8e1] bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                        />
+                        <div />
+
+                        <div className="self-center text-sm font-medium text-slate-700">
+                          Client
+                        </div>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min={0}
+                          value={orgSettings.achClientRatePercent}
+                          onChange={(e) =>
+                            setOrgSettings({
+                              ...orgSettings,
+                              achClientRatePercent:
+                                parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="rounded-xl border border-[#ece8e1] bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={orgSettings.achClientCapAmount}
+                          onChange={(e) =>
+                            setOrgSettings({
+                              ...orgSettings,
+                              achClientCapAmount:
+                                parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="rounded-xl border border-[#ece8e1] bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                        />
+                        <div />
+                      </div>
                     </div>
                   </div>
                 </section>

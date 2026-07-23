@@ -64,6 +64,7 @@ import {
   type BillingRunRow,
   type BillingRunStatus,
   type BillingSnapshotInput,
+  getBillingRunProcessingSummary,
 } from "../../services/operations/billings";
 import {
   canFinanceWrite,
@@ -71,6 +72,10 @@ import {
   readStoredUser,
 } from "../../utils/auth";
 import { billingEndpoints } from "../../services/apis";
+import {
+  getSystemSettingsApi,
+  type SystemSettings,
+} from "../../services/operations/users";
 
 const statusStyles: Record<BillingRunStatus, string> = {
   PENDING: "bg-slate-100 text-slate-700",
@@ -88,6 +93,7 @@ type CreateRunFormState = {
   periodStart: string;
   periodEnd: string;
   paymentMethod: "ACH" | "CREDIT_CARD" | "";
+  processingFeeConfig: ProcessingFeeSettings;
   notes: string;
   autoCalculate: boolean;
   agreementIds: string[];
@@ -114,48 +120,240 @@ const initialCreateRunForm: CreateRunFormState = {
   periodStart: "",
   periodEnd: "",
   paymentMethod: "",
+  processingFeeConfig: buildProcessingFeeSettings(),
   notes: "",
   autoCalculate: true,
   agreementIds: [],
   termInputs: {},
 };
 
-function calculateProcessingFee(
-  netAmount: number,
+type ProcessingFeeSettings = {
+  creditCard: {
+    COMPANY: { ratePercent: number; fixedFee: number };
+    CLIENT: { ratePercent: number; fixedFee: number };
+  };
+  ach: {
+    COMPANY: { ratePercent: number; capAmount: number };
+    CLIENT: { ratePercent: number; capAmount: number };
+  };
+};
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function roundToPrecision(value: number, decimals: number) {
+  const factor = 10 ** decimals;
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
+function buildProcessingFeeSettings(
+  source?: Partial<SystemSettings> | Record<string, unknown> | null,
+): ProcessingFeeSettings {
+  return {
+    creditCard: {
+      COMPANY: {
+        ratePercent: Number(source?.creditCardCompanyRatePercent ?? 1.4),
+        fixedFee: Number(source?.creditCardCompanyFixedFee ?? 0.3),
+      },
+      CLIENT: {
+        ratePercent: Number(source?.creditCardClientRatePercent ?? 1.5),
+        fixedFee: Number(source?.creditCardClientFixedFee ?? 0),
+      },
+    },
+    ach: {
+      COMPANY: {
+        ratePercent: Number(source?.achCompanyRatePercent ?? 0.8),
+        capAmount: Number(source?.achCompanyCapAmount ?? 5),
+      },
+      CLIENT: {
+        ratePercent: Number(source?.achClientRatePercent ?? 0),
+        capAmount: Number(source?.achClientCapAmount ?? 0),
+      },
+    },
+  };
+}
+
+function calculateConfiguredFee(
+  baseAmount: number,
   paymentMethod: "ACH" | "CREDIT_CARD",
+  feeBearer: "CLIENT" | "COMPANY",
+  settings: ProcessingFeeSettings,
 ) {
-  const roundMoney = (value: number) =>
-    Math.round((value + Number.EPSILON) * 100) / 100;
-
-  const normalizedNetAmount = roundMoney(Math.max(0, netAmount));
-  const rate = paymentMethod === "CREDIT_CARD" ? 0.029 : 0.008;
-  const fixedFee = paymentMethod === "CREDIT_CARD" ? 0.3 : 0;
-  const maxFee = paymentMethod === "ACH" ? 5 : Number.POSITIVE_INFINITY;
-
-  if (normalizedNetAmount <= 0) {
-    return { grossAmount: 0, feeAmount: 0 };
-  }
-
-  let grossAmount = roundMoney((normalizedNetAmount + fixedFee) / (1 - rate));
-
-  while (true) {
-    const feeAmount = roundMoney(
-      Math.min(roundMoney(grossAmount * rate + fixedFee), maxFee),
-    );
-    const actualNet = roundMoney(grossAmount - feeAmount);
-
-    if (actualNet === normalizedNetAmount) {
-      return { grossAmount, feeAmount };
-    }
-
-    grossAmount = roundMoney(
-      grossAmount + (actualNet < normalizedNetAmount ? 0.01 : -0.01),
+  const normalizedBase = roundMoney(Math.max(0, baseAmount));
+  if (paymentMethod === "CREDIT_CARD") {
+    const rule = settings.creditCard[feeBearer];
+    return roundMoney(
+      normalizedBase * (rule.ratePercent / 100) + rule.fixedFee,
     );
   }
+
+  const rule = settings.ach[feeBearer];
+  return roundMoney(
+    Math.min(
+      roundMoney(normalizedBase * (rule.ratePercent / 100)),
+      Math.max(0, rule.capAmount),
+    ),
+  );
+}
+
+function calculateProcessingAmounts(params: {
+  baseAmount: number;
+  paymentMethod: "ACH" | "CREDIT_CARD";
+  settings: ProcessingFeeSettings;
+}) {
+  const baseAmount = roundMoney(Math.max(0, params.baseAmount));
+  const clientFeeAmount = calculateConfiguredFee(
+    baseAmount,
+    params.paymentMethod,
+    "CLIENT",
+    params.settings,
+  );
+  const maxCompanyFeeAmount = calculateConfiguredFee(
+    baseAmount,
+    params.paymentMethod,
+    "COMPANY",
+    params.settings,
+  );
+
+  return {
+    clientFeeAmount,
+    companyFeeAmount: maxCompanyFeeAmount,
+    maxCompanyFeeAmount,
+    grossInvoiceAmount: roundMoney(baseAmount + clientFeeAmount),
+  };
 }
 
 function getPaymentMethodLabel(paymentMethod: "ACH" | "CREDIT_CARD") {
   return paymentMethod === "CREDIT_CARD" ? "Credit Card" : "ACH";
+}
+
+function updateProcessingFeeConfig(
+  current: ProcessingFeeSettings,
+  defaults: ProcessingFeeSettings,
+  paymentMethod: "ACH" | "CREDIT_CARD",
+  feeBearer: "CLIENT" | "COMPANY",
+  field: "ratePercent" | "fixedFee" | "capAmount",
+  value: string,
+): ProcessingFeeSettings {
+  const parsedValue = value === "" ? 0 : Number(value);
+  const safeValue = Number.isFinite(parsedValue) ? parsedValue : 0;
+  const normalizedValue = Math.max(0, safeValue);
+  const otherFeeBearer = feeBearer === "COMPANY" ? "CLIENT" : "COMPANY";
+  const decimals = field === "ratePercent" ? 4 : 2;
+
+  const total =
+    paymentMethod === "CREDIT_CARD"
+      ? field === "ratePercent"
+        ? defaults.creditCard.COMPANY.ratePercent +
+          defaults.creditCard.CLIENT.ratePercent
+        : defaults.creditCard.COMPANY.fixedFee +
+          defaults.creditCard.CLIENT.fixedFee
+      : field === "ratePercent"
+        ? defaults.ach.COMPANY.ratePercent + defaults.ach.CLIENT.ratePercent
+        : defaults.ach.COMPANY.capAmount + defaults.ach.CLIENT.capAmount;
+
+  const nextValue = Math.min(
+    roundToPrecision(normalizedValue, decimals),
+    roundToPrecision(total, decimals),
+  );
+  const otherValue = Math.max(
+    0,
+    roundToPrecision(roundToPrecision(total, decimals) - nextValue, decimals),
+  );
+
+  if (paymentMethod === "CREDIT_CARD") {
+    return {
+      ...current,
+      creditCard: {
+        ...current.creditCard,
+        [feeBearer]: {
+          ...current.creditCard[feeBearer],
+          [field]: nextValue,
+        },
+        [otherFeeBearer]: {
+          ...current.creditCard[otherFeeBearer],
+          [field]: otherValue,
+        },
+      },
+    };
+  }
+
+  return {
+    ...current,
+    ach: {
+      ...current.ach,
+      [feeBearer]: {
+        ...current.ach[feeBearer],
+        [field]: nextValue,
+      },
+      [otherFeeBearer]: {
+        ...current.ach[otherFeeBearer],
+        [field]: otherValue,
+      },
+    },
+  };
+}
+
+function getProcessingFeeSetupError(
+  paymentMethod: "ACH" | "CREDIT_CARD" | "",
+  current: ProcessingFeeSettings,
+  defaults: ProcessingFeeSettings,
+) {
+  if (!paymentMethod) {
+    return null;
+  }
+
+  const tolerance = 0.01;
+  const entries =
+    paymentMethod === "CREDIT_CARD"
+      ? [
+          {
+            label: "Credit Card percentage fee",
+            total:
+              defaults.creditCard.COMPANY.ratePercent +
+              defaults.creditCard.CLIENT.ratePercent,
+            company: current.creditCard.COMPANY.ratePercent,
+            client: current.creditCard.CLIENT.ratePercent,
+          },
+          {
+            label: "Credit Card fixed fee",
+            total:
+              defaults.creditCard.COMPANY.fixedFee +
+              defaults.creditCard.CLIENT.fixedFee,
+            company: current.creditCard.COMPANY.fixedFee,
+            client: current.creditCard.CLIENT.fixedFee,
+          },
+        ]
+      : [
+          {
+            label: "ACH percentage fee",
+            total:
+              defaults.ach.COMPANY.ratePercent +
+              defaults.ach.CLIENT.ratePercent,
+            company: current.ach.COMPANY.ratePercent,
+            client: current.ach.CLIENT.ratePercent,
+          },
+          {
+            label: "ACH cap amount",
+            total:
+              defaults.ach.COMPANY.capAmount + defaults.ach.CLIENT.capAmount,
+            company: current.ach.COMPANY.capAmount,
+            client: current.ach.CLIENT.capAmount,
+          },
+        ];
+
+  for (const entry of entries) {
+    if (entry.company < 0 || entry.client < 0) {
+      return `${entry.label} cannot be negative.`;
+    }
+
+    if (Math.abs(entry.company + entry.client - entry.total) > tolerance) {
+      return `${entry.label} must match General Settings total.`;
+    }
+  }
+
+  return null;
 }
 
 const initialPaymentForm: PaymentFormState = {
@@ -184,6 +382,14 @@ function formatMoney(value?: string | number | null) {
     currency: "USD",
     minimumFractionDigits: 2,
   }).format(numericValue);
+}
+
+function formatPercentValue(value: number) {
+  return `${Number(value).toFixed(2).replace(/\.00$/, "")}%`;
+}
+
+function formatCurrencyValue(value: number) {
+  return formatMoney(value);
 }
 
 function formatStatusLabel(status: string) {
@@ -223,6 +429,9 @@ function BillingRunsPage() {
   const [practices, setPractices] = useState<Practice[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [feeSettings, setFeeSettings] = useState<ProcessingFeeSettings>(
+    buildProcessingFeeSettings(),
+  );
   const [createForm, setCreateForm] =
     useState<CreateRunFormState>(initialCreateRunForm);
   const [paymentForm, setPaymentForm] =
@@ -303,39 +512,94 @@ function BillingRunsPage() {
     };
   }, [activePricingTerms, createForm.termInputs]);
 
-  const processingFeePreview = useMemo(
-    () =>
-      calculateProcessingFee(
-        previewTotals.invoiceTotal,
-        createForm.paymentMethod,
-      ),
-    [createForm.paymentMethod, previewTotals.invoiceTotal],
-  );
+  const processingFeePreview = useMemo(() => {
+    if (!createForm.paymentMethod) {
+      return {
+        clientFeeAmount: 0,
+        companyFeeAmount: 0,
+        maxCompanyFeeAmount: 0,
+        grossInvoiceAmount: previewTotals.invoiceTotal,
+      };
+    }
+
+    return calculateProcessingAmounts({
+      baseAmount: previewTotals.invoiceTotal,
+      paymentMethod: createForm.paymentMethod,
+      settings: createForm.processingFeeConfig,
+    });
+  }, [
+    createForm.paymentMethod,
+    createForm.processingFeeConfig,
+    previewTotals.invoiceTotal,
+  ]);
 
   const detailTotals = useMemo(() => {
     if (!selectedRun || !selectedRun.items || selectedRun.items.length === 0) {
       return null;
     }
-    let netServicesTotal = 0;
-    let vendorPayable = 0;
-    let margin = 0;
-    for (const item of selectedRun.items) {
-      netServicesTotal += Number(item.clientAmount || 0);
-      vendorPayable += Number(item.vendorAmount || 0);
-      margin += Number(item.marginAmount || 0);
-    }
-    const paymentMethod =
-      selectedRun.paymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "ACH";
-    const fee = calculateProcessingFee(netServicesTotal, paymentMethod);
+    const summary = getBillingRunProcessingSummary({
+      paymentMethod:
+        selectedRun.paymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "ACH",
+      processingFeeConfig: selectedRun.processingFeeConfig || {},
+      items: selectedRun.items.map((item) => ({
+        clientAmount: String(item.clientAmount || 0),
+        vendorAmount:
+          item.vendorAmount !== undefined && item.vendorAmount !== null
+            ? String(item.vendorAmount)
+            : null,
+        marginAmount:
+          item.marginAmount !== undefined && item.marginAmount !== null
+            ? String(item.marginAmount)
+            : null,
+      })),
+    });
     return {
-      netServicesTotal,
-      paymentMethod,
-      processingFeeAmount: fee.feeAmount,
-      grossInvoiceTotal: fee.grossAmount,
-      vendorPayable,
-      margin,
+      netServicesTotal: summary.netServices,
+      paymentMethod:
+        selectedRun.paymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "ACH",
+      processingFeeAmount: summary.processingFee,
+      companyFeeAmount: summary.companyAbsorbed,
+      grossInvoiceTotal: summary.grossInvoiceTotal,
+      vendorPayable: summary.vendorPayable,
+      margin: summary.totalMargin,
     };
   }, [selectedRun]);
+
+  const creditCardDefaults = useMemo(
+    () => ({
+      percentageFee:
+        feeSettings.creditCard.COMPANY.ratePercent +
+        feeSettings.creditCard.CLIENT.ratePercent,
+      fixedFee:
+        feeSettings.creditCard.COMPANY.fixedFee +
+        feeSettings.creditCard.CLIENT.fixedFee,
+    }),
+    [feeSettings],
+  );
+
+  const achDefaults = useMemo(
+    () => ({
+      percentageFee: Math.max(
+        feeSettings.ach.COMPANY.ratePercent,
+        feeSettings.ach.CLIENT.ratePercent,
+      ),
+      capAmount: Math.max(
+        feeSettings.ach.COMPANY.capAmount,
+        feeSettings.ach.CLIENT.capAmount,
+      ),
+    }),
+    [feeSettings],
+  );
+
+  const processingFeeSetupError = useMemo(
+    () =>
+      getProcessingFeeSetupError(
+        createForm.paymentMethod,
+        createForm.processingFeeConfig,
+        feeSettings,
+      ),
+    [createForm.paymentMethod, createForm.processingFeeConfig, feeSettings],
+  );
 
   const filteredInvoices = useMemo(
     () =>
@@ -380,11 +644,32 @@ function BillingRunsPage() {
             row.original.values.period,
         },
         {
-          id: "invoiceTotal",
-          accessorFn: (row: BillingRunRow) => row.values.invoiceTotal,
-          header: () => "Invoice Total",
+          id: "netServices",
+          accessorFn: (row: BillingRunRow) => row.values.netServices,
+          header: () => "Net Services",
           cell: ({ row }: { row: { original: BillingRunRow } }) =>
-            formatMoney(row.original.values.invoiceTotal),
+            formatMoney(row.original.values.netServices),
+        },
+        {
+          id: "grossInvoiceTotal",
+          accessorFn: (row: BillingRunRow) => row.values.grossInvoiceTotal,
+          header: () => "Gross Invoice Total",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.grossInvoiceTotal),
+        },
+        {
+          id: "processingFee",
+          accessorFn: (row: BillingRunRow) => row.values.processingFee,
+          header: () => "Processing Fee",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.processingFee),
+        },
+        {
+          id: "companyAbsorbed",
+          accessorFn: (row: BillingRunRow) => row.values.companyAbsorbed,
+          header: () => "Company Absorbed",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.companyAbsorbed),
         },
         {
           id: "vendorPayable",
@@ -400,7 +685,13 @@ function BillingRunsPage() {
           cell: ({ row }: { row: { original: BillingRunRow } }) =>
             formatMoney(row.original.values.totalMargin),
         },
-
+        {
+          id: "paymentMethod",
+          accessorFn: (row: BillingRunRow) => row.values.paymentMethod,
+          header: () => "Payment Method",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            row.original.values.paymentMethod,
+        },
         {
           id: "itemCount",
           accessorFn: (row: BillingRunRow) => row.values.itemCount,
@@ -465,11 +756,22 @@ function BillingRunsPage() {
       (showCreateForm || showPaymentForm || showDetailPanel) &&
       practices.length === 0
     ) {
-      Promise.all([getAllPractices(), getAllInvoices(), getAllServices()])
-        .then(([practiceList, invoiceList, serviceList]) => {
+      Promise.all([
+        getAllPractices(),
+        getAllInvoices(),
+        getAllServices(),
+        getSystemSettingsApi(),
+      ])
+        .then(([practiceList, invoiceList, serviceList, settings]) => {
           setPractices(practiceList);
           setInvoices(invoiceList);
           setServices(serviceList);
+          const nextSettings = buildProcessingFeeSettings(settings);
+          setFeeSettings(nextSettings);
+          setCreateForm((prev) => ({
+            ...prev,
+            processingFeeConfig: nextSettings,
+          }));
         })
         .catch((err) => {
           const message =
@@ -554,15 +856,27 @@ function BillingRunsPage() {
     setCreateForm({
       ...initialCreateRunForm,
       practiceId,
+      processingFeeConfig: feeSettings,
     });
     setReadiness(null);
 
     if (practices.length === 0) {
-      Promise.all([getAllPractices(), getAllInvoices(), getAllServices()])
-        .then(([practiceList, invoiceList, serviceList]) => {
+      Promise.all([
+        getAllPractices(),
+        getAllInvoices(),
+        getAllServices(),
+        getSystemSettingsApi(),
+      ])
+        .then(([practiceList, invoiceList, serviceList, settings]) => {
           setPractices(practiceList);
           setInvoices(invoiceList);
           setServices(serviceList);
+          const nextSettings = buildProcessingFeeSettings(settings);
+          setFeeSettings(nextSettings);
+          setCreateForm((prev) => ({
+            ...prev,
+            processingFeeConfig: nextSettings,
+          }));
         })
         .catch((err) => {
           const message =
@@ -617,7 +931,10 @@ function BillingRunsPage() {
   }
 
   function resetCreateForm() {
-    setCreateForm(initialCreateRunForm);
+    setCreateForm({
+      ...initialCreateRunForm,
+      processingFeeConfig: feeSettings,
+    });
     setReadiness(null);
     setPracticeAgreements([]);
     setLoadedTerms([]);
@@ -643,6 +960,7 @@ function BillingRunsPage() {
     setCreateForm({
       ...initialCreateRunForm,
       practiceId: preselectedPracticeId,
+      processingFeeConfig: feeSettings,
     });
     setReadiness(null);
     setPracticeAgreements([]);
@@ -671,9 +989,17 @@ function BillingRunsPage() {
     if (
       !createForm.practiceId ||
       !createForm.periodStart ||
-      !createForm.periodEnd
+      !createForm.periodEnd ||
+      !createForm.paymentMethod
     ) {
       toast.error("Practice and billing period are required");
+      return;
+    }
+
+    if (processingFeeSetupError) {
+      toast.error(
+        "Fix the Processing Fee Setup values before creating the billing run.",
+      );
       return;
     }
 
@@ -698,6 +1024,10 @@ function BillingRunsPage() {
         periodStart: createForm.periodStart,
         periodEnd: createForm.periodEnd,
         paymentMethod: createForm.paymentMethod,
+        processingFeeConfig: createForm.processingFeeConfig as Record<
+          string,
+          unknown
+        >,
         notes: createForm.notes || undefined,
         autoCalculate: createForm.autoCalculate,
         snapshots,
@@ -1065,6 +1395,14 @@ function BillingRunsPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 font-medium">
+                    Company Absorbed
+                  </span>
+                  <span className="font-bold text-slate-700">
+                    {formatMoney(detailTotals.companyFeeAmount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">
                     Gross Invoice Total
                   </span>
                   <span className="font-bold text-slate-800">
@@ -1079,7 +1417,7 @@ function BillingRunsPage() {
                     {formatMoney(detailTotals.vendorPayable)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between border-t border-[#eadfcd]/40 pt-2.5">
+                <div className="flex items-center justify-between">
                   <span className="text-slate-500 font-medium">
                     Payment Method
                   </span>
@@ -1617,11 +1955,311 @@ function BillingRunsPage() {
             </select>
             <p className="mt-1 text-[11px] text-slate-500">
               {createForm.paymentMethod === "CREDIT_CARD"
-                ? "2.9% + $0.30"
+                ? `${formatPercentValue(creditCardDefaults.percentageFee)} + ${formatCurrencyValue(creditCardDefaults.fixedFee)}`
                 : createForm.paymentMethod === "ACH"
-                  ? "0.80% per transaction, capped at $5.00"
+                  ? `${formatPercentValue(achDefaults.percentageFee)} per transaction, capped at ${formatCurrencyValue(achDefaults.capAmount)}`
                   : ""}
             </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Processing Fee Setup
+            </label>
+            <div
+              className={`mt-2 overflow-hidden rounded-lg border text-[12px] ${
+                processingFeeSetupError
+                  ? "border-red-300 bg-red-50/70"
+                  : "border-[#ece7df] bg-[#faf9f7]"
+              } text-slate-600`}
+            >
+              {createForm.paymentMethod === "CREDIT_CARD" ? (
+                <div className="grid grid-cols-[96px_minmax(0,1fr)_minmax(0,1fr)] items-center">
+                  <div
+                    className={`border-b px-4 py-3 text-[10px] font-semibold uppercase tracking-wide ${processingFeeSetupError ? "border-red-200 bg-red-50 text-red-400" : "border-[#ece7df] bg-[#fcfbf9] text-slate-400"}`}
+                  >
+                    Bearer
+                  </div>
+                  <div
+                    className={`border-b px-4 py-3 text-[10px] font-semibold uppercase tracking-wide ${processingFeeSetupError ? "border-red-200 bg-red-50 text-red-400" : "border-[#ece7df] bg-[#fcfbf9] text-slate-400"}`}
+                  >
+                    <span className="block">
+                      Percentage Fee (
+                      {formatPercentValue(creditCardDefaults.percentageFee)})
+                    </span>
+                  </div>
+                  <div
+                    className={`border-b px-4 py-3 text-[10px] font-semibold uppercase tracking-wide ${processingFeeSetupError ? "border-red-200 bg-red-50 text-red-400" : "border-[#ece7df] bg-[#fcfbf9] text-slate-400"}`}
+                  >
+                    <span className="block">
+                      Fixed Fee (
+                      {formatCurrencyValue(creditCardDefaults.fixedFee)})
+                    </span>
+                  </div>
+                  <div
+                    className={`border-b px-4 py-3 font-semibold ${processingFeeSetupError ? "border-red-200 text-red-700" : "border-[#ece7df] text-slate-700"}`}
+                  >
+                    Company
+                  </div>
+                  <div
+                    className={`border-b px-3 py-2 ${processingFeeSetupError ? "border-red-200" : "border-[#ece7df]"}`}
+                  >
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={
+                        createForm.processingFeeConfig.creditCard.COMPANY
+                          .ratePercent
+                      }
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          processingFeeConfig: updateProcessingFeeConfig(
+                            prev.processingFeeConfig,
+                            feeSettings,
+                            "CREDIT_CARD",
+                            "COMPANY",
+                            "ratePercent",
+                            event.target.value,
+                          ),
+                        }))
+                      }
+                      className={`app-control w-full rounded-md px-3 py-2 text-[12px] ${processingFeeSetupError ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+                    />
+                  </div>
+                  <div
+                    className={`border-b px-3 py-2 ${processingFeeSetupError ? "border-red-200" : "border-[#ece7df]"}`}
+                  >
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={
+                        createForm.processingFeeConfig.creditCard.COMPANY
+                          .fixedFee
+                      }
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          processingFeeConfig: updateProcessingFeeConfig(
+                            prev.processingFeeConfig,
+                            feeSettings,
+                            "CREDIT_CARD",
+                            "COMPANY",
+                            "fixedFee",
+                            event.target.value,
+                          ),
+                        }))
+                      }
+                      className={`app-control w-full rounded-md px-3 py-2 text-[12px] ${processingFeeSetupError ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+                    />
+                  </div>
+                  <div
+                    className={`px-4 py-3 font-semibold ${processingFeeSetupError ? "text-red-700" : "text-slate-700"}`}
+                  >
+                    Client
+                  </div>
+                  <div className="px-3 py-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={
+                        createForm.processingFeeConfig.creditCard.CLIENT
+                          .ratePercent
+                      }
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          processingFeeConfig: updateProcessingFeeConfig(
+                            prev.processingFeeConfig,
+                            feeSettings,
+                            "CREDIT_CARD",
+                            "CLIENT",
+                            "ratePercent",
+                            event.target.value,
+                          ),
+                        }))
+                      }
+                      className={`app-control w-full rounded-md px-3 py-2 text-[12px] ${processingFeeSetupError ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+                    />
+                  </div>
+                  <div className="px-3 py-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={
+                        createForm.processingFeeConfig.creditCard.CLIENT
+                          .fixedFee
+                      }
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          processingFeeConfig: updateProcessingFeeConfig(
+                            prev.processingFeeConfig,
+                            feeSettings,
+                            "CREDIT_CARD",
+                            "CLIENT",
+                            "fixedFee",
+                            event.target.value,
+                          ),
+                        }))
+                      }
+                      className={`app-control w-full rounded-md px-3 py-2 text-[12px] ${processingFeeSetupError ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+                    />
+                  </div>
+                </div>
+              ) : createForm.paymentMethod === "ACH" ? (
+                <div className="grid grid-cols-[96px_minmax(0,1fr)_minmax(0,1fr)] items-center">
+                  <div
+                    className={`border-b px-4 py-3 text-[10px] font-semibold uppercase tracking-wide ${processingFeeSetupError ? "border-red-200 bg-red-50 text-red-400" : "border-[#ece7df] bg-[#fcfbf9] text-slate-400"}`}
+                  >
+                    Bearer
+                  </div>
+                  <div
+                    className={`border-b px-4 py-3 text-[10px] font-semibold uppercase tracking-wide ${processingFeeSetupError ? "border-red-200 bg-red-50 text-red-400" : "border-[#ece7df] bg-[#fcfbf9] text-slate-400"}`}
+                  >
+                    <span className="block">
+                      Percentage Fee (
+                      {formatPercentValue(achDefaults.percentageFee)})
+                    </span>
+                  </div>
+                  <div
+                    className={`border-b px-4 py-3 text-[10px] font-semibold uppercase tracking-wide ${processingFeeSetupError ? "border-red-200 bg-red-50 text-red-400" : "border-[#ece7df] bg-[#fcfbf9] text-slate-400"}`}
+                  >
+                    <span className="block">
+                      Cap Amount ({formatCurrencyValue(achDefaults.capAmount)})
+                    </span>
+                  </div>
+                  <div
+                    className={`border-b px-4 py-3 font-semibold ${processingFeeSetupError ? "border-red-200 text-red-700" : "border-[#ece7df] text-slate-700"}`}
+                  >
+                    Company
+                  </div>
+                  <div
+                    className={`border-b px-3 py-2 ${processingFeeSetupError ? "border-red-200" : "border-[#ece7df]"}`}
+                  >
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={
+                        createForm.processingFeeConfig.ach.COMPANY.ratePercent
+                      }
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          processingFeeConfig: updateProcessingFeeConfig(
+                            prev.processingFeeConfig,
+                            feeSettings,
+                            "ACH",
+                            "COMPANY",
+                            "ratePercent",
+                            event.target.value,
+                          ),
+                        }))
+                      }
+                      className={`app-control w-full rounded-md px-3 py-2 text-[12px] ${processingFeeSetupError ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+                    />
+                  </div>
+                  <div
+                    className={`border-b px-3 py-2 ${processingFeeSetupError ? "border-red-200" : "border-[#ece7df]"}`}
+                  >
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={
+                        createForm.processingFeeConfig.ach.COMPANY.capAmount
+                      }
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          processingFeeConfig: updateProcessingFeeConfig(
+                            prev.processingFeeConfig,
+                            feeSettings,
+                            "ACH",
+                            "COMPANY",
+                            "capAmount",
+                            event.target.value,
+                          ),
+                        }))
+                      }
+                      className={`app-control w-full rounded-md px-3 py-2 text-[12px] ${processingFeeSetupError ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+                    />
+                  </div>
+                  <div
+                    className={`px-4 py-3 font-semibold ${processingFeeSetupError ? "text-red-700" : "text-slate-700"}`}
+                  >
+                    Client
+                  </div>
+                  <div className="px-3 py-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={
+                        createForm.processingFeeConfig.ach.CLIENT.ratePercent
+                      }
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          processingFeeConfig: updateProcessingFeeConfig(
+                            prev.processingFeeConfig,
+                            feeSettings,
+                            "ACH",
+                            "CLIENT",
+                            "ratePercent",
+                            event.target.value,
+                          ),
+                        }))
+                      }
+                      className={`app-control w-full rounded-md px-3 py-2 text-[12px] ${processingFeeSetupError ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+                    />
+                  </div>
+                  <div className="px-3 py-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={
+                        createForm.processingFeeConfig.ach.CLIENT.capAmount
+                      }
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          processingFeeConfig: updateProcessingFeeConfig(
+                            prev.processingFeeConfig,
+                            feeSettings,
+                            "ACH",
+                            "CLIENT",
+                            "capAmount",
+                            event.target.value,
+                          ),
+                        }))
+                      }
+                      className={`app-control w-full rounded-md px-3 py-2 text-[12px] ${processingFeeSetupError ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="px-4 py-3">
+                  Select a payment method to see fee rules.
+                </div>
+              )}
+            </div>
+            {processingFeeSetupError ? (
+              <p className="mt-2 text-[11px] font-medium text-red-600">
+                {processingFeeSetupError}
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-slate-500">
+                Changing one side automatically adjusts the other side to keep
+                the General Settings total unchanged.
+              </p>
+            )}
           </div>
 
           <label className="flex items-center gap-2 text-[13px] text-slate-700">
@@ -2513,49 +3151,66 @@ function BillingRunsPage() {
 
           {/* Run Summary - Invoice & Vendor Payable Totals */}
           {activePricingTerms.length > 0 && (
-            <div className="rounded-xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50/40 to-violet-50/30 p-3">
-              <h3 className="mb-2.5 text-[13px] font-semibold text-indigo-900">
+            <div className="rounded-lg border border-indigo-200/60 bg-gradient-to-br from-indigo-50/40 to-violet-50/30 p-3">
+              <h3 className="mb-2 text-sm font-semibold text-indigo-900">
                 Run Summary
               </h3>
-              <div className="grid grid-cols-4 gap-2">
-                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md bg-white/80 p-2 text-center shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
                     Net Services
                   </div>
-                  <div className="mt-1 text-[14px] font-bold text-slate-800">
+                  <div className="mt-1 text-sm font-bold text-slate-800">
                     {formatMoney(previewTotals.invoiceTotal)}
                   </div>
                 </div>
-                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+
+                <div className="rounded-md bg-white/80 p-2 text-center shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
                     Processing Fee
                   </div>
-                  <div className="mt-1 text-[14px] font-bold text-slate-800">
-                    {formatMoney(processingFeePreview.feeAmount)}
+                  <div className="mt-1 text-sm font-bold text-slate-800">
+                    {formatMoney(processingFeePreview.clientFeeAmount)}
                   </div>
                 </div>
-                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+
+                <div className="rounded-md bg-white/80 p-2 text-center shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                    Company Absorbed
+                  </div>
+                  <div className="mt-1 text-sm font-bold text-slate-800">
+                    {formatMoney(processingFeePreview.companyFeeAmount)}
+                  </div>
+                </div>
+
+                <div className="rounded-md bg-white/80 p-2 text-center shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
                     Vendor Payable
                   </div>
-                  <div className="mt-1 text-[14px] font-bold text-slate-600">
+                  <div className="mt-1 text-sm font-bold text-slate-600">
                     {formatMoney(previewTotals.vendorTotal)}
                   </div>
                 </div>
-                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+
+                <div className="rounded-md bg-white/80 p-2 text-center shadow-sm col-span-2">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
                     Gross Invoice
                   </div>
-                  <div className="mt-1 text-[14px] font-bold text-slate-800">
-                    {formatMoney(processingFeePreview.grossAmount)}
+                  <div className="mt-1 text-sm font-bold text-slate-800">
+                    {formatMoney(processingFeePreview.grossInvoiceAmount)}
                   </div>
                 </div>
               </div>
-              <div className="mt-2 flex items-center justify-between rounded-lg bg-white/70 px-3 py-2 text-[12px] text-slate-600">
+
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/70 px-3 py-2 text-xs text-slate-600">
                 <span>
-                  Payment method:{" "}
-                  {getPaymentMethodLabel(createForm.paymentMethod)}
+                  Payment:{" "}
+                  {createForm.paymentMethod
+                    ? getPaymentMethodLabel(createForm.paymentMethod)
+                    : "-"}
                 </span>
+
                 <span>Margin: {formatMoney(previewTotals.marginTotal)}</span>
               </div>
             </div>

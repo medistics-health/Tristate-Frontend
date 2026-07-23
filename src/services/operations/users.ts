@@ -14,6 +14,25 @@ export const settingsEndpoints = {
   UPDATE: BACKEND_URL + "/api/v1/settings",
 };
 
+export type SystemSettings = {
+  organizationName?: string;
+  domain?: string;
+  address?: string;
+  supportEmail?: string | null;
+  authorizedSigner?: string | null;
+  notifyTo?: string[];
+  creditCardCompanyRatePercent?: number;
+  creditCardCompanyFixedFee?: number;
+  creditCardClientRatePercent?: number;
+  creditCardClientFixedFee?: number;
+  achCompanyRatePercent?: number;
+  achCompanyCapAmount?: number;
+  achClientRatePercent?: number;
+  achClientCapAmount?: number;
+  invoiceDueDays?: number;
+  invoiceReminderDays?: number;
+};
+
 export async function getAllUsers() {
   try {
     const response = await apiConnector({
@@ -75,7 +94,7 @@ export async function getSystemSettingsApi() {
       url: settingsEndpoints.GET,
       credentials: true,
     });
-    return response.data.settings;
+    return response.data.settings as SystemSettings;
   } catch (error) {
     throw error;
   }
