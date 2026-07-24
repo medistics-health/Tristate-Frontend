@@ -81,6 +81,7 @@ import {
   buildPracticeLabelSettings,
   buildPracticeDefaultProcessingFeeSettings,
   buildProcessingFeeSettings,
+  buildResolvedProcessingFeeSettings,
   getAllocationPercent,
   roundToPrecision,
   type ProcessingFeeSettings,
@@ -167,19 +168,24 @@ function calculateProcessingAmounts(params: {
   baseAmount: number;
   paymentMethod: "ACH" | "CREDIT_CARD";
   settings: ProcessingFeeSettings;
+  totalsSource?: SystemSettings;
 }) {
   const baseAmount = roundMoney(Math.max(0, params.baseAmount));
+  const resolvedSettings = buildResolvedProcessingFeeSettings(
+    params.settings,
+    params.totalsSource,
+  );
   const clientFeeAmount = calculateConfiguredFee(
     baseAmount,
     params.paymentMethod,
     "CLIENT",
-    params.settings,
+    resolvedSettings,
   );
   const maxCompanyFeeAmount = calculateConfiguredFee(
     baseAmount,
     params.paymentMethod,
     "COMPANY",
-    params.settings,
+    resolvedSettings,
   );
 
   return {
@@ -366,11 +372,13 @@ function BillingRunsPage() {
       baseAmount: previewTotals.invoiceTotal,
       paymentMethod: createForm.paymentMethod,
       settings: createForm.processingFeeConfig,
+      totalsSource: systemSettings,
     });
   }, [
     createForm.paymentMethod,
     createForm.processingFeeConfig,
     previewTotals.invoiceTotal,
+    systemSettings,
   ]);
 
   useEffect(() => {
