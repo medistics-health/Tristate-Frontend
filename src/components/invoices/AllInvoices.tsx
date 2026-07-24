@@ -79,6 +79,23 @@ const initialFormState: InvoiceFormState = {
   dueDate: "",
 };
 
+function formatCurrency(value?: string | number | null) {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+
+  const amount = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(amount)) {
+    return String(value);
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
+
 function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
@@ -701,6 +718,90 @@ function AllInvoicePage() {
                 />
               );
             })()}
+
+            {false && <div className="mb-4 space-y-4">
+                <div className="rounded-2xl border border-[#ece7df] bg-white p-4">
+                  <h3 className="mb-3 text-[13px] font-semibold text-slate-800">
+                    Client Invoice Line Items
+                  </h3>
+                  {selectedInvoice?.lineItems?.length ? (
+                    <div className="space-y-2">
+                      {selectedInvoice.lineItems.map((item) => (
+                      <div
+                        key={`client-${item.id}`}
+                        className="flex items-start justify-between gap-3 rounded-lg border border-[#f1ede7] bg-[#fcfbf9] px-3 py-2.5"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-[12px] font-semibold text-slate-700">
+                            {item.description ||
+                              item.service?.name ||
+                              item.service?.code ||
+                              "Line Item"}
+                          </div>
+                          <div className="mt-1 text-[11px] text-slate-500">
+                            Qty: {item.quantity || 1}
+                            {" · "}
+                            Unit Price: {formatCurrency(item.unitPrice)}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-[12px] font-semibold text-slate-800">
+                          {formatCurrency(item.totalPrice)}
+                        </div>
+                      </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-[#e6dfd6] bg-[#fcfbf9] px-3 py-3 text-[12px] text-slate-500">
+                      No client invoice line items available for this invoice.
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-[#ece7df] bg-white p-4">
+                  <h3 className="mb-3 text-[13px] font-semibold text-slate-800">
+                    Tristate Invoice Line Items
+                  </h3>
+                  {selectedInvoice?.lineItems?.length ? (
+                    <div className="space-y-2">
+                      {selectedInvoice.lineItems.map((item) => (
+                      <div
+                        key={`internal-${item.id}`}
+                        className="rounded-lg border border-[#f1ede7] bg-[#fcfbf9] px-3 py-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[12px] font-semibold text-slate-700">
+                              {item.description ||
+                                item.service?.name ||
+                                item.service?.code ||
+                                "Line Item"}
+                            </div>
+                            <div className="mt-1 text-[11px] text-slate-500">
+                              Internal transfer amount
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-[12px] font-semibold text-slate-800">
+                            {formatCurrency(
+                              item.externalTotalPrice ?? item.totalPrice,
+                            )}
+                          </div>
+                        </div>
+                        {Number(item.companyFeeDeductionAmount || 0) > 0 && (
+                          <div className="mt-2 text-[11px] text-amber-700">
+                            Company absorbed:{" "}
+                            {formatCurrency(item.companyFeeDeductionAmount)}
+                          </div>
+                        )}
+                      </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-[#e6dfd6] bg-[#fcfbf9] px-3 py-3 text-[12px] text-slate-500">
+                      No Tristate invoice line items available for this invoice.
+                    </div>
+                  )}
+                </div>
+              </div>}
 
             <div className="space-y-4">
               {/*<div>

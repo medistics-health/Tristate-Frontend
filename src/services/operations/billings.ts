@@ -174,10 +174,6 @@ export type CreateBillingRunBody = {
   practiceId: string;
   periodStart: string;
   periodEnd: string;
-  paymentMethod: "ACH" | "CREDIT_CARD";
-  feeBearer: "CLIENT" | "COMPANY";
-  companyFeeAmountOverride?: number | string | null;
-  processingFeeConfig?: Record<string, unknown> | null;
   notes?: string | null;
   autoCalculate?: boolean;
   snapshots?: BillingSnapshotInput[];

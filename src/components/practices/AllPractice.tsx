@@ -63,6 +63,21 @@ import type { Company } from "../companies/types";
 import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
 import { canBusinessWrite, readStoredUser } from "../../utils/auth";
+import {
+  getSystemSettingsApi,
+  type SystemSettings,
+} from "../../services/operations/users";
+import {
+  buildGeneralSettingsTotals,
+  buildPracticeDefaultProcessingFeeSettings,
+  buildProcessingFeeSettings,
+  buildPracticeLabelSettings,
+  getAllocationPercent,
+  getProcessingFeeValidationError,
+  roundToPrecision,
+  updateFeeAllocation,
+  type ProcessingFeeSettings,
+} from "../../utils/processingFeeConfig";
 
 function isUserValue(value: PracticeCellValue): value is PracticeUserValue {
   return (
@@ -140,6 +155,8 @@ type PracticeFormData = {
   bucket: string;
   companyId: string;
   taxIdId: string;
+  billingPaymentMethod: "ACH" | "CREDIT_CARD" | "";
+  processingFeeConfig: ProcessingFeeSettings;
   groupNpis: GroupNpiFormEntry[];
 };
 
@@ -150,6 +167,8 @@ const initialFormData: PracticeFormData = {
   source: "DIRECT",
   bucket: "",
   taxIdId: "",
+  billingPaymentMethod: "",
+  processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(),
   groupNpis: [],
 };
 
@@ -190,6 +209,7 @@ export default function AllPracticePage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>({});
   const [companyTaxIds, setCompanyTaxIds] = useState<TaxIdOption[]>([]);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -215,6 +235,15 @@ export default function AllPracticePage() {
     useState<Partial<PracticeBody> | null>(null);
   const [selectedPracticeDetail, setSelectedPracticeDetail] =
     useState<Practice | null>(null);
+  const processingFeeValidationError = useMemo(
+    () =>
+      getProcessingFeeValidationError(
+        formData.processingFeeConfig,
+        systemSettings,
+        formData.billingPaymentMethod,
+      ),
+    [formData.processingFeeConfig, formData.billingPaymentMethod, systemSettings],
+  );
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
@@ -225,6 +254,14 @@ export default function AllPracticePage() {
 
   const disableMe =
     !filters.search && !filters.status && !filters.source && !filters.companyId;
+
+  useEffect(() => {
+    getSystemSettingsApi()
+      .then((settings) => setSystemSettings(settings))
+      .catch((err) =>
+        console.error("Failed to load system settings for practices:", err),
+      );
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -283,6 +320,13 @@ export default function AllPracticePage() {
           : String(values.bucket || ""),
         companyId: String(values.companyId || ""),
         taxIdId: String(values.taxIdId || ""),
+        billingPaymentMethod:
+          values.billingPaymentMethod === "CREDIT_CARD"
+            ? "CREDIT_CARD"
+            : "ACH",
+        processingFeeConfig: buildProcessingFeeSettings(
+          values.processingFeeConfig || systemSettings,
+        ),
         groupNpis: existingGroupNpis,
       });
 
@@ -306,7 +350,13 @@ export default function AllPracticePage() {
 
       setIsEditing(false);
     }
-  }, [selectedRow, selectedPracticeDetail, showCreateForm, companies]);
+  }, [
+    selectedRow,
+    selectedPracticeDetail,
+    showCreateForm,
+    companies,
+    systemSettings,
+  ]);
 
   const visibleFields = useMemo(() => {
     if (!viewData) return [];
@@ -562,7 +612,12 @@ export default function AllPracticePage() {
       toast.error("You do not have permission to create practices.");
       return;
     }
-    setFormData(initialFormData);
+    setFormData({
+      ...initialFormData,
+      processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(
+        systemSettings,
+      ),
+    });
     setGroupNpiEntries([]);
     setShowCreateForm(true);
     setShowDetailPanel(false);
@@ -582,7 +637,12 @@ export default function AllPracticePage() {
 
   function closeCreateForm() {
     setShowCreateForm(false);
-    setFormData(initialFormData);
+    setFormData({
+      ...initialFormData,
+      processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(
+        systemSettings,
+      ),
+    });
     setGroupNpiEntries([]);
   }
 
@@ -611,7 +671,12 @@ export default function AllPracticePage() {
     setSelectedRowId(null);
     setSelectedPracticeDetail(null);
     setIsEditing(false);
-    setFormData(initialFormData);
+    setFormData({
+      ...initialFormData,
+      processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(
+        systemSettings,
+      ),
+    });
     setGroupNpiEntries([]);
   }
 
@@ -675,6 +740,14 @@ export default function AllPracticePage() {
       toast.error("Practice name is required");
       return;
     }
+    if (!formData.billingPaymentMethod) {
+      toast.error("Billing payment method is required");
+      return;
+    }
+    if (processingFeeValidationError) {
+      toast.error(processingFeeValidationError);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -698,6 +771,8 @@ export default function AllPracticePage() {
           : [],
         companyId: formData.companyId?.trim() || undefined,
         taxIdId: formData.taxIdId?.trim() || undefined,
+        billingPaymentMethod: formData.billingPaymentMethod,
+        processingFeeConfig: formData.processingFeeConfig,
       };
 
       const result = await createPracticeApi(practiceData);
@@ -802,6 +877,14 @@ export default function AllPracticePage() {
       toast.error("Practice name is required");
       return;
     }
+    if (!formData.billingPaymentMethod) {
+      toast.error("Billing payment method is required");
+      return;
+    }
+    if (processingFeeValidationError) {
+      toast.error(processingFeeValidationError);
+      return;
+    }
 
     const wasActive = String(selectedRow.values.status) === "ACTIVE";
     const willBecomeActive = formData.status === "ACTIVE" && !wasActive;
@@ -853,6 +936,8 @@ export default function AllPracticePage() {
             : [],
           companyId: formData.companyId?.trim() || undefined,
           taxIdId: formData.taxIdId?.trim() || undefined,
+          billingPaymentMethod: formData.billingPaymentMethod,
+          processingFeeConfig: formData.processingFeeConfig,
         };
 
         setActivationPerson(eligiblePerson);
@@ -890,6 +975,8 @@ export default function AllPracticePage() {
           : [],
         companyId: formData.companyId?.trim() || undefined,
         taxIdId: formData.taxIdId?.trim() || undefined,
+        billingPaymentMethod: formData.billingPaymentMethod,
+        processingFeeConfig: formData.processingFeeConfig,
       };
 
       await updatePracticeApi(selectedRow.id, practiceData);
@@ -980,6 +1067,275 @@ export default function AllPracticePage() {
       setPendingActivationData(null);
       setActivationPerson(null);
     }
+  }
+
+  function renderProcessingFeeSetup(readOnly = false) {
+    const totals = buildGeneralSettingsTotals(systemSettings);
+    const creditCompanyLabel = buildPracticeLabelSettings(
+      formData.processingFeeConfig,
+      "CREDIT_CARD",
+      "COMPANY",
+      systemSettings,
+    );
+    const creditClientLabel = buildPracticeLabelSettings(
+      formData.processingFeeConfig,
+      "CREDIT_CARD",
+      "CLIENT",
+      systemSettings,
+    );
+    const achCompanyLabel = buildPracticeLabelSettings(
+      formData.processingFeeConfig,
+      "ACH",
+      "COMPANY",
+      systemSettings,
+    );
+    const achClientLabel = buildPracticeLabelSettings(
+      formData.processingFeeConfig,
+      "ACH",
+      "CLIENT",
+      systemSettings,
+    );
+
+    const renderInput = (
+      paymentMethod: "ACH" | "CREDIT_CARD",
+      feeBearer: "COMPANY" | "CLIENT",
+      field: "ratePercent" | "fixedFee" | "capAmount",
+      value: number,
+    ) => (
+      <div className="flex overflow-hidden rounded-md border border-[#ddd6cc] bg-white shadow-[inset_0_1px_2px_rgba(15,23,42,0.03)]">
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          value={value}
+          readOnly={readOnly}
+          onChange={(event) =>
+            setFormData((prev) => ({
+              ...prev,
+              processingFeeConfig: updateFeeAllocation(
+                prev.processingFeeConfig,
+                systemSettings,
+                paymentMethod,
+                feeBearer,
+              field,
+              event.target.value,
+            ),
+          }))
+        }
+          className={`w-full min-w-0 border-0 bg-transparent px-3 py-2 text-[12px] text-slate-700 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${readOnly ? "bg-slate-50 text-slate-500" : ""}`}
+        />
+        <span className="flex shrink-0 items-center border-l border-[#ece7df] bg-[#faf9f7] px-2 text-[11px] font-semibold text-slate-400">
+          %
+        </span>
+      </div>
+    );
+
+    return (
+      <div >
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">
+            Billing Payment Method <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={formData.billingPaymentMethod}
+            disabled={readOnly}
+            onChange={(event) =>
+              setFormData((prev) => ({
+                ...prev,
+                billingPaymentMethod: event.target.value as
+                  | "ACH"
+                  | "CREDIT_CARD"
+                  | "",
+              }))
+            }
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            required
+          >
+            <option value="" disabled>
+              Select payment method
+            </option>
+            <option value="ACH">ACH</option>
+            <option value="CREDIT_CARD">Credit Card</option>
+          </select>
+        </div>
+
+        <div className="space-y-4 text-[12px] text-slate-600">
+          {formData.billingPaymentMethod === "CREDIT_CARD" ? (
+            <div>
+              <p className="mb-2 font-semibold text-slate-700">
+                For credit card
+              </p>
+              <div className="overflow-hidden rounded-xl border border-[#ece7df]">
+                <table className="w-full border-collapse">
+                  <colgroup>
+                    <col className="w-[46%]" />
+                    <col className="w-[27%]" />
+                    <col className="w-[27%]" />
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-[#fcfbf9] text-[10px] uppercase tracking-wide text-slate-400">
+                      <th className="border-b border-[#ece7df] px-4 py-3 text-left">Bearer</th>
+                      <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                        Percentage Fee ({roundToPrecision(totals.creditCard.ratePercent, 2)}%)
+                      </th>
+                      <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                        Fixed Fee (${roundToPrecision(totals.creditCard.fixedFee, 2)})
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border-b border-[#ece7df] px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                        Company ({roundToPrecision(creditCompanyLabel.primary, 2)}%+${roundToPrecision(creditCompanyLabel.secondary, 2)})
+                      </td>
+                      <td className="border-b border-[#ece7df] px-3 py-2">
+                        {renderInput(
+                          "CREDIT_CARD",
+                          "COMPANY",
+                          "ratePercent",
+                          getAllocationPercent(
+                            formData.processingFeeConfig.creditCard.COMPANY.ratePercent,
+                            totals.creditCard.ratePercent,
+                          ),
+                        )}
+                      </td>
+                      <td className="border-b border-[#ece7df] px-3 py-2">
+                        {renderInput(
+                          "CREDIT_CARD",
+                          "COMPANY",
+                          "fixedFee",
+                          getAllocationPercent(
+                            formData.processingFeeConfig.creditCard.COMPANY.fixedFee,
+                            totals.creditCard.fixedFee,
+                          ),
+                        )}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                        Client ({roundToPrecision(creditClientLabel.primary, 2)}%+${roundToPrecision(creditClientLabel.secondary, 2)})
+                      </td>
+                      <td className="px-3 py-2">
+                        {renderInput(
+                          "CREDIT_CARD",
+                          "CLIENT",
+                          "ratePercent",
+                          getAllocationPercent(
+                            formData.processingFeeConfig.creditCard.CLIENT.ratePercent,
+                            totals.creditCard.ratePercent,
+                          ),
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {renderInput(
+                          "CREDIT_CARD",
+                          "CLIENT",
+                          "fixedFee",
+                          getAllocationPercent(
+                            formData.processingFeeConfig.creditCard.CLIENT.fixedFee,
+                            totals.creditCard.fixedFee,
+                          ),
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : formData.billingPaymentMethod === "ACH" ? (
+            <div>
+              <p className="mb-2 font-semibold text-slate-700">For ACH</p>
+              <div className="overflow-hidden rounded-xl border border-[#ece7df]">
+                <table className="w-full border-collapse">
+                  <colgroup>
+                    <col className="w-[46%]" />
+                    <col className="w-[27%]" />
+                    <col className="w-[27%]" />
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-[#fcfbf9] text-[10px] uppercase tracking-wide text-slate-400">
+                      <th className="border-b border-[#ece7df] px-4 py-3 text-left">Bearer</th>
+                      <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                        Percentage Fee ({roundToPrecision(totals.ach.ratePercent, 2)}%)
+                      </th>
+                      <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                        Cap Amount (${roundToPrecision(totals.ach.capAmount, 2)})
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border-b border-[#ece7df] px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                        Company ({roundToPrecision(achCompanyLabel.primary, 2)}% or ${roundToPrecision(achCompanyLabel.secondary, 2)} max)
+                      </td>
+                      <td className="border-b border-[#ece7df] px-3 py-2">
+                        {renderInput(
+                          "ACH",
+                          "COMPANY",
+                          "ratePercent",
+                          getAllocationPercent(
+                            formData.processingFeeConfig.ach.COMPANY.ratePercent,
+                            totals.ach.ratePercent,
+                          ),
+                        )}
+                      </td>
+                      <td className="border-b border-[#ece7df] px-3 py-2">
+                        {renderInput(
+                          "ACH",
+                          "COMPANY",
+                          "capAmount",
+                          getAllocationPercent(
+                            formData.processingFeeConfig.ach.COMPANY.capAmount,
+                            totals.ach.capAmount,
+                          ),
+                        )}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                        Client ({roundToPrecision(achClientLabel.primary, 2)}% or ${roundToPrecision(achClientLabel.secondary, 2)} max)
+                      </td>
+                      <td className="px-3 py-2">
+                        {renderInput(
+                          "ACH",
+                          "CLIENT",
+                          "ratePercent",
+                          getAllocationPercent(
+                            formData.processingFeeConfig.ach.CLIENT.ratePercent,
+                            totals.ach.ratePercent,
+                          ),
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {renderInput(
+                          "ACH",
+                          "CLIENT",
+                          "capAmount",
+                          getAllocationPercent(
+                            formData.processingFeeConfig.ach.CLIENT.capAmount,
+                            totals.ach.capAmount,
+                          ),
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-[#ece7df] bg-white px-4 py-3 text-[12px] text-slate-500 mt-2">
+              Select a payment method to view the processing fee setup.
+            </div>
+          )}
+          {processingFeeValidationError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-medium text-red-600">
+              {processingFeeValidationError}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
   }
 
   const views = [
@@ -1367,6 +1723,8 @@ export default function AllPracticePage() {
             )}
           </div>
         </div>
+
+        {renderProcessingFeeSetup(!canWritePractices)}
 
         {canWritePractices && (
           <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
@@ -1814,7 +2172,7 @@ export default function AllPracticePage() {
         </div>
 
         {showDetailPanel && selectedRow && (
-          <aside className="app-panel flex w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+          <aside className="app-panel flex w-[450px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
               <button
                 type="button"
@@ -1882,7 +2240,7 @@ export default function AllPracticePage() {
         )}
 
         {showCreateForm && (
-          <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+          <aside className="app-panel flex w-[450px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
               <h2 className="text-[15px] font-semibold text-slate-700">
                 Create Practice
@@ -2126,6 +2484,8 @@ export default function AllPracticePage() {
                     </button>
                   </div>
                 </div>
+
+                {renderProcessingFeeSetup(false)}
               </div>
 
               <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">

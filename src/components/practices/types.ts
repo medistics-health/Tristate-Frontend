@@ -20,6 +20,8 @@ export type PracticeBody = {
   bucket: string[];
   companyId?: string;
   taxIdId?: string;
+  billingPaymentMethod?: "ACH" | "CREDIT_CARD";
+  processingFeeConfig?: Record<string, unknown> | null;
   groupNpis?: GroupNpiEntry[];
 };
 
@@ -46,6 +48,8 @@ export type Practice = {
   bucket: string[];
   companyId?: string;
   taxIdId?: string;
+  billingPaymentMethod?: "ACH" | "CREDIT_CARD" | null;
+  processingFeeConfig?: Record<string, unknown> | null;
   ownerId: string;
   createdAt: string;
   updatedAt: string;

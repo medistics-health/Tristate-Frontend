@@ -62,6 +62,18 @@ export type Invoice = {
   } | null;
   lineItems?: Array<{
     id: string;
+    description?: string | null;
+    quantity?: number | string | null;
+    unitPrice?: string | null;
+    totalPrice?: string | null;
+    externalUnitPrice?: string | null;
+    externalTotalPrice?: string | null;
+    companyFeeDeductionAmount?: string | null;
+    service?: {
+      id: string;
+      name?: string | null;
+      code?: string | null;
+    } | null;
     billingRunItem?: {
       vendorAmount?: string | null;
       marginAmount?: string | null;

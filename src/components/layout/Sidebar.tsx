@@ -164,10 +164,13 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       {
-        label: "All Invoice Line Items",
-        to: "/invoice/all-invoice-line-items",
+        label: "Client Invoice Line Items",
+        to: "/invoice/client-invoice-line-items",
       },
-      { label: "All Line Items", to: "/invoice/all-line-items" },
+      {
+        label: "Tristate Invoice Line Items",
+        to: "/invoice/tristate-invoice-line-items",
+      },
     ],
   },
   {

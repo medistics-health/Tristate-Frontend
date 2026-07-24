@@ -52,7 +52,11 @@ import {
 } from "../../services/operations/agreements";
 import { activatePracticeWithAgreementEmail } from "../../services/operations/practiceActivation";
 import { getAllServices } from "../../services/operations/services";
-import { getAllUsers } from "../../services/operations/users";
+import {
+  getAllUsers,
+  getSystemSettingsApi,
+  type SystemSettings,
+} from "../../services/operations/users";
 import type {
   PracticeBody,
   PracticeSource,
@@ -77,6 +81,17 @@ import {
   isEditableDocusealField,
   type DocusealField,
 } from "../../utils/docuseal";
+import {
+  buildGeneralSettingsTotals,
+  buildPracticeDefaultProcessingFeeSettings,
+  buildPracticeLabelSettings,
+  buildProcessingFeeSettings,
+  getAllocationPercent,
+  getProcessingFeeValidationError,
+  roundToPrecision,
+  updateFeeAllocation,
+  type ProcessingFeeSettings,
+} from "../../utils/processingFeeConfig";
 
 type TaxIdFormState = {
   taxIdNumber: string;
@@ -121,6 +136,8 @@ type LeadFormState = {
   practiceSource: PracticeSource;
   practiceBucket: string;
   practiceTaxIdKey: string;
+  billingPaymentMethod: "ACH" | "CREDIT_CARD" | "";
+  processingFeeConfig: ProcessingFeeSettings;
 
   // Contact
   contactRelation: RelationType;
@@ -178,6 +195,8 @@ const initialFormState: LeadFormState = {
   practiceSource: "DIRECT",
   practiceBucket: "",
   practiceTaxIdKey: "",
+  billingPaymentMethod: "",
+  processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(),
 
   contactRelation: "new",
   selectedContactId: "",
@@ -204,6 +223,15 @@ const initialFormState: LeadFormState = {
     docusealFieldValues: {},
   },
 };
+
+function buildInitialLeadFormState(
+  settings?: SystemSettings,
+): LeadFormState {
+  return {
+    ...initialFormState,
+    processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(settings),
+  };
+}
 const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
 
 const AUTO_INCLUDE_TEMPLATE_NAMES = [
@@ -349,12 +377,19 @@ function CreateLeadPage() {
   const [form, setForm] = useState<LeadFormState>(initialFormState);
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>({});
   const [templates, setTemplates] = useState<DocusealTemplate[]>([]);
   const [existingAgreements, setExistingAgreements] = useState<Agreement[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [selectedPracticeLabel, setSelectedPracticeLabel] = useState("");
   const [isLoadingServices, setIsLoadingServices] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  const processingFeeValidationError = getProcessingFeeValidationError(
+    form.processingFeeConfig,
+    systemSettings,
+    form.billingPaymentMethod,
+  );
 
   // Template search state
   const [templateSearch, setTemplateSearch] = useState("");
@@ -524,6 +559,11 @@ function CreateLeadPage() {
             })),
           }),
           taxIdId: companyTaxIdId,
+          billingPaymentMethod:
+            form.billingPaymentMethod === "CREDIT_CARD"
+              ? "CREDIT_CARD"
+              : "ACH",
+          processingFeeConfig: form.processingFeeConfig,
         };
         const practiceRow = await createPracticeApi(practicePayload);
         practiceId = practiceRow.id;
@@ -923,6 +963,12 @@ function CreateLeadPage() {
       practiceRelation: relation,
       selectedPracticeId: relation === "new" ? "" : current.selectedPracticeId,
       practiceNpi: relation === "new" ? "" : current.practiceNpi,
+      billingPaymentMethod:
+        relation === "new" ? "" : current.billingPaymentMethod,
+      processingFeeConfig:
+        relation === "new"
+          ? buildPracticeDefaultProcessingFeeSettings(systemSettings)
+          : current.processingFeeConfig,
       agreement:
         relation === "new"
           ? {
@@ -1100,7 +1146,7 @@ function CreateLeadPage() {
   };
 
   const resetForm = () => {
-    setForm(initialFormState);
+    setForm(buildInitialLeadFormState(systemSettings));
   };
 
   const handleAddressSelect = (address: AddressData) => {
@@ -1290,6 +1336,14 @@ function CreateLeadPage() {
         toast.error("Practice name is required.");
         return;
       }
+      if (!form.billingPaymentMethod) {
+        toast.error("Billing Payment Method is required.");
+        return;
+      }
+      if (processingFeeValidationError) {
+        toast.error(processingFeeValidationError);
+        return;
+      }
     } else {
       if (!form.selectedPracticeId) {
         toast.error("Please select an existing practice.");
@@ -1426,11 +1480,295 @@ function CreateLeadPage() {
     performLeadCreation(form.interestedServiceIds.length > 0);
   };
 
+  function renderProcessingFeeSetup() {
+    const totals = buildGeneralSettingsTotals(systemSettings);
+    const creditCompanyLabel = buildPracticeLabelSettings(
+      form.processingFeeConfig,
+      "CREDIT_CARD",
+      "COMPANY",
+      systemSettings,
+    );
+    const creditClientLabel = buildPracticeLabelSettings(
+      form.processingFeeConfig,
+      "CREDIT_CARD",
+      "CLIENT",
+      systemSettings,
+    );
+    const achCompanyLabel = buildPracticeLabelSettings(
+      form.processingFeeConfig,
+      "ACH",
+      "COMPANY",
+      systemSettings,
+    );
+    const achClientLabel = buildPracticeLabelSettings(
+      form.processingFeeConfig,
+      "ACH",
+      "CLIENT",
+      systemSettings,
+    );
+
+    const renderInput = (
+      paymentMethod: "ACH" | "CREDIT_CARD",
+      feeBearer: "COMPANY" | "CLIENT",
+      field: "ratePercent" | "fixedFee" | "capAmount",
+      value: number,
+    ) => (
+      <div className="flex overflow-hidden rounded-md border border-[#ddd6cc] bg-white shadow-[inset_0_1px_2px_rgba(15,23,42,0.03)]">
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          value={value}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              processingFeeConfig: updateFeeAllocation(
+                prev.processingFeeConfig,
+                systemSettings,
+                paymentMethod,
+                feeBearer,
+                field,
+                event.target.value,
+              ),
+            }))
+          }
+          className="w-full min-w-0 border-0 bg-transparent px-3 py-2 text-[12px] text-slate-700 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <span className="flex shrink-0 items-center border-l border-[#ece7df] bg-[#faf9f7] px-2 text-[11px] font-semibold text-slate-400">
+          %
+        </span>
+      </div>
+    );
+
+    return (
+      <div className="md:col-span-2 space-y-4 border-t border-[#e8e4dc] pt-4">
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">
+            Billing Payment Method <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={form.billingPaymentMethod}
+            onChange={(event) =>
+              setForm((prev) => ({
+                ...prev,
+                billingPaymentMethod: event.target.value as
+                  | "ACH"
+                  | "CREDIT_CARD"
+                  | "",
+              }))
+            }
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            required
+          >
+            <option value="" disabled>
+              Select payment method
+            </option>
+            <option value="ACH">ACH</option>
+            <option value="CREDIT_CARD">Credit Card</option>
+          </select>
+        </div>
+
+        {form.billingPaymentMethod === "CREDIT_CARD" ? (
+          <div>
+            <p className="mb-2 text-[12px] font-semibold text-slate-700">
+              For credit card
+            </p>
+            <div className="overflow-hidden rounded-xl border border-[#ece7df]">
+              <table className="w-full border-collapse">
+                <colgroup>
+                  <col className="w-[46%]" />
+                  <col className="w-[27%]" />
+                  <col className="w-[27%]" />
+                </colgroup>
+                <thead>
+                  <tr className="bg-[#fcfbf9] text-[10px] uppercase tracking-wide text-slate-400">
+                    <th className="border-b border-[#ece7df] px-4 py-3 text-left">Bearer</th>
+                    <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                      Percentage Fee ({roundToPrecision(totals.creditCard.ratePercent, 2)}%)
+                    </th>
+                    <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                      Fixed Fee (${roundToPrecision(totals.creditCard.fixedFee, 2)})
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="border-b border-[#ece7df] px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                      Company ({roundToPrecision(creditCompanyLabel.primary, 2)}%+${roundToPrecision(creditCompanyLabel.secondary, 2)})
+                    </td>
+                    <td className="border-b border-[#ece7df] px-3 py-2">
+                      {renderInput(
+                        "CREDIT_CARD",
+                        "COMPANY",
+                        "ratePercent",
+                        getAllocationPercent(
+                          form.processingFeeConfig.creditCard.COMPANY.ratePercent,
+                          totals.creditCard.ratePercent,
+                        ),
+                      )}
+                    </td>
+                    <td className="border-b border-[#ece7df] px-3 py-2">
+                      {renderInput(
+                        "CREDIT_CARD",
+                        "COMPANY",
+                        "fixedFee",
+                        getAllocationPercent(
+                          form.processingFeeConfig.creditCard.COMPANY.fixedFee,
+                          totals.creditCard.fixedFee,
+                        ),
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                      Client ({roundToPrecision(creditClientLabel.primary, 2)}%+${roundToPrecision(creditClientLabel.secondary, 2)})
+                    </td>
+                    <td className="px-3 py-2">
+                      {renderInput(
+                        "CREDIT_CARD",
+                        "CLIENT",
+                        "ratePercent",
+                        getAllocationPercent(
+                          form.processingFeeConfig.creditCard.CLIENT.ratePercent,
+                          totals.creditCard.ratePercent,
+                        ),
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {renderInput(
+                        "CREDIT_CARD",
+                        "CLIENT",
+                        "fixedFee",
+                        getAllocationPercent(
+                          form.processingFeeConfig.creditCard.CLIENT.fixedFee,
+                          totals.creditCard.fixedFee,
+                        ),
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : form.billingPaymentMethod === "ACH" ? (
+          <div>
+            <p className="mb-2 text-[12px] font-semibold text-slate-700">For ACH</p>
+            <div className="overflow-hidden rounded-xl border border-[#ece7df]">
+              <table className="w-full border-collapse">
+                <colgroup>
+                  <col className="w-[46%]" />
+                  <col className="w-[27%]" />
+                  <col className="w-[27%]" />
+                </colgroup>
+                <thead>
+                  <tr className="bg-[#fcfbf9] text-[10px] uppercase tracking-wide text-slate-400">
+                    <th className="border-b border-[#ece7df] px-4 py-3 text-left">Bearer</th>
+                    <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                      Percentage Fee ({roundToPrecision(totals.ach.ratePercent, 2)}%)
+                    </th>
+                    <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                      Cap Amount (${roundToPrecision(totals.ach.capAmount, 2)})
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="border-b border-[#ece7df] px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                      Company ({roundToPrecision(achCompanyLabel.primary, 2)}% or ${roundToPrecision(achCompanyLabel.secondary, 2)} max)
+                    </td>
+                    <td className="border-b border-[#ece7df] px-3 py-2">
+                      {renderInput(
+                        "ACH",
+                        "COMPANY",
+                        "ratePercent",
+                        getAllocationPercent(
+                          form.processingFeeConfig.ach.COMPANY.ratePercent,
+                          totals.ach.ratePercent,
+                        ),
+                      )}
+                    </td>
+                    <td className="border-b border-[#ece7df] px-3 py-2">
+                      {renderInput(
+                        "ACH",
+                        "COMPANY",
+                        "capAmount",
+                        getAllocationPercent(
+                          form.processingFeeConfig.ach.COMPANY.capAmount,
+                          totals.ach.capAmount,
+                        ),
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                      Client ({roundToPrecision(achClientLabel.primary, 2)}% or ${roundToPrecision(achClientLabel.secondary, 2)} max)
+                    </td>
+                    <td className="px-3 py-2">
+                      {renderInput(
+                        "ACH",
+                        "CLIENT",
+                        "ratePercent",
+                        getAllocationPercent(
+                          form.processingFeeConfig.ach.CLIENT.ratePercent,
+                          totals.ach.ratePercent,
+                        ),
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {renderInput(
+                        "ACH",
+                        "CLIENT",
+                        "capAmount",
+                        getAllocationPercent(
+                          form.processingFeeConfig.ach.CLIENT.capAmount,
+                          totals.ach.capAmount,
+                        ),
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
+        {processingFeeValidationError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-medium text-red-600">
+            {processingFeeValidationError}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   const selectedServices = services.filter((service) =>
     form.interestedServiceIds.includes(service.id),
   );
 
   const navbarActions: NavbarAction[] = [LOGOUT_ACTION];
+
+  useEffect(() => {
+    getSystemSettingsApi()
+      .then((settings) => {
+        setSystemSettings(settings || {});
+        setForm((prev) => {
+          if (prev.practiceRelation !== "new") {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(
+              settings || {},
+            ),
+          };
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to load system settings:", error);
+      });
+  }, []);
 
   return (
     <AppLayout
@@ -1948,6 +2286,7 @@ function CreateLeadPage() {
                         </div>
                       ))}
                     </div>
+                    {renderProcessingFeeSetup()}
                   </div>
                 )}
               </div>
