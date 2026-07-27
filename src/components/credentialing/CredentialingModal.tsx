@@ -838,12 +838,13 @@ export default function CredentialingModal({
                 <label className="block">
                   <FieldLabel>Payer Provider ID (PID#)</FieldLabel>
                   <input
+                    
                     type="text"
                     value={form.payerProviderId}
                     onChange={(event) =>
                       updateField("payerProviderId", event.target.value)
                     }
-                    readOnly={isReadOnly}
+                    readOnly
                     placeholder="PID number"
                     className="app-control w-full rounded-xl px-3 py-2 text-[13px] disabled:bg-slate-50"
                   />
