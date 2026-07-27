@@ -38,13 +38,17 @@ import {
   type CredentialingOptionRecord,
 } from "../../services/operations/credentialing";
 import { getAllUsers } from "../../services/operations/users";
-import { getInsurancePlanOptionsApi } from "../../services/operations/insurance";
+import {
+  formatPayerDisplayLabel,
+  getClaimPayerOptionsApi,
+} from "../../services/operations/insurance";
 
 type Filters = {
   search: string;
   practice: string;
   provider: string;
   insuranceCompany: string;
+  payerLabel: string;
   status: string;
   credentialingType: string;
   contractType: string;
@@ -71,6 +75,7 @@ const defaultFilters: Filters = {
   practice: "",
   provider: "",
   insuranceCompany: "",
+  payerLabel: "",
   status: "",
   credentialingType: "",
   contractType: "",
@@ -154,7 +159,6 @@ function CredentialingListPage() {
   const [optionRecords, setOptionRecords] = useState<CredentialingOptionRecord[]>(
     [],
   );
-  const [payerOptions, setPayerOptions] = useState<SearchSelectOption[]>([]);
   const [assignedUserOptions, setAssignedUserOptions] = useState<SearchSelectOption[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -194,23 +198,12 @@ function CredentialingListPage() {
     let active = true;
     async function loadOptions() {
       try {
-        const [options, users, plans] = await Promise.all([
+        const [options, users] = await Promise.all([
           getCredentialingRequestOptions(),
           getAllUsers(),
-          getInsurancePlanOptionsApi(),
         ]);
         if (!active) return;
         setOptionRecords(options);
-        setPayerOptions(
-          plans
-            .map((plan) => ({
-              label: plan.planName,
-              value: plan.id,
-              subLabel: plan.planCode,
-            }))
-            .filter((entry) => Boolean(entry.value && entry.label))
-            .sort((a, b) => a.label.localeCompare(b.label)),
-        );
         setAssignedUserOptions(
           users
             .map((user: any) => {
@@ -228,7 +221,6 @@ function CredentialingListPage() {
       } catch {
         if (active) {
           setOptionRecords([]);
-          setPayerOptions([]);
           setAssignedUserOptions([]);
         }
       }
@@ -242,22 +234,11 @@ function CredentialingListPage() {
 
   async function loadFilterOptions() {
     try {
-      const [options, users, plans] = await Promise.all([
+      const [options, users] = await Promise.all([
         getCredentialingRequestOptions(),
         getAllUsers(),
-        getInsurancePlanOptionsApi(),
       ]);
       setOptionRecords(options);
-      setPayerOptions(
-        plans
-          .map((plan) => ({
-            label: plan.planName,
-            value: plan.id,
-            subLabel: plan.planCode,
-          }))
-          .filter((entry) => Boolean(entry.value && entry.label))
-          .sort((a, b) => a.label.localeCompare(b.label)),
-      );
       setAssignedUserOptions(
         users
           .map((user: any) => {
@@ -274,7 +255,6 @@ function CredentialingListPage() {
       );
     } catch {
       setOptionRecords([]);
-      setPayerOptions([]);
       setAssignedUserOptions([]);
     }
   }
@@ -299,16 +279,10 @@ function CredentialingListPage() {
   const searchProviders = useMemo(() => createLocalSearchOptions(uniqueProviders), [uniqueProviders]);
   const searchPayers = useMemo(
     () => async (query: string) => {
-      const normalized = query.trim().toLowerCase();
-      return payerOptions.filter((option) =>
-        normalized
-          ? option.label.toLowerCase().includes(normalized) ||
-            option.subLabel?.toLowerCase().includes(normalized) ||
-            option.value.toLowerCase().includes(normalized)
-          : true,
-      );
+      const options = await getClaimPayerOptionsApi(query.trim());
+      return options.sort((a, b) => a.label.localeCompare(b.label));
     },
-    [payerOptions],
+    [],
   );
   const searchAssignedUsers = useMemo(
     () => async (query: string) => {
@@ -384,6 +358,7 @@ function CredentialingListPage() {
         providerId: form.providerId || undefined,
         providerName: form.provider,
         insurancePayerName: form.insuranceCompany,
+        payerProviderId: form.payerProviderId || undefined,
         assignedToUserId: form.assignedUserId || undefined,
         assignedToUserName: form.assignedUser,
         requestType: form.credentialingType,
@@ -501,6 +476,7 @@ function CredentialingListPage() {
     filters.practice,
     filters.provider,
     filters.insuranceCompany,
+    filters.payerLabel,
     filters.status,
     filters.credentialingType,
     filters.contractType,
@@ -645,21 +621,25 @@ function CredentialingListPage() {
                 </label>
 
                 <label className="block">
-                  <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                    Insurance Plan
-                  </span>
-                  <SearchSelect
-                    value={filters.insuranceCompany}
-                    displayLabel={filters.insuranceCompany}
-                    onChange={(_, option) =>
-                      updateFilter("insuranceCompany", option?.label || "")
-                    }
-                    onSearch={searchPayers}
-                    clearable
-                    toggleOnSelectSame
-                    placeholder="Search insurance plan"
-                  />
-                </label>
+                <span className="mb-1 block text-[12px] font-medium text-slate-500">
+                  Payer Name (ID)
+                </span>
+                <SearchSelect
+                  value={filters.insuranceCompany}
+                  displayLabel={filters.payerLabel}
+                  onChange={(value, option) =>
+                    setFilters((current) => ({
+                      ...current,
+                      insuranceCompany: option?.label || "",
+                      payerLabel: formatPayerDisplayLabel(option?.label || "", value),
+                    }))
+                  }
+                  onSearch={searchPayers}
+                  clearable
+                  toggleOnSelectSame
+                  placeholder="Search payer"
+                />
+              </label>
 
                 <label className="block">
                   <span className="mb-1 block text-[12px] font-medium text-slate-500">
@@ -872,7 +852,10 @@ function CredentialingListPage() {
                         {record.provider}
                       </td>
                       <td className="border-b border-[#f4f1ec] px-4 py-3">
-                        {record.insuranceCompany}
+                        {formatPayerDisplayLabel(
+                          record.insuranceCompany,
+                          record.payerProviderId,
+                        )}
                       </td>
                       <td className="border-b border-[#f4f1ec] px-4 py-3">
                         {record.credentialingType}

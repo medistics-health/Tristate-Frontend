@@ -41,7 +41,10 @@ import {
   type FollowUpDirection,
   type LineOfBusiness,
 } from "./types";
-import { getInsurancePlanOptionsApi } from "../../services/operations/insurance";
+import {
+  formatPayerDisplayLabel,
+  getClaimPayerOptionsApi,
+} from "../../services/operations/insurance";
 import { getAllUsers } from "../../services/operations/users";
 import { getPersonsView } from "../../services/operations/persons";
 import { getPracticesView } from "../../services/operations/practices";
@@ -187,7 +190,6 @@ export default function CredentialingModal({
   const [practiceOptions, setPracticeOptions] = useState<SearchSelectOption[]>(
     [],
   );
-  const [payerOptions, setPayerOptions] = useState<SearchSelectOption[]>([]);
   const [providerOptions, setProviderOptions] = useState<SearchSelectOption[]>(
     [],
   );
@@ -219,9 +221,8 @@ export default function CredentialingModal({
     let active = true;
     async function loadOptions() {
       try {
-        const [practiceView, planView, users] = await Promise.all([
+        const [practiceView, users] = await Promise.all([
           getPracticesView({ limit: 1000 }),
-          getInsurancePlanOptionsApi(),
           getAllUsers(),
         ]);
 
@@ -232,16 +233,6 @@ export default function CredentialingModal({
             .map((row) => ({
               label: String(row.values.name || ""),
               value: String(row.values.id || ""),
-            }))
-            .filter((entry) => Boolean(entry.value && entry.label))
-            .sort((a, b) => a.label.localeCompare(b.label)),
-        );
-        setPayerOptions(
-          planView
-            .map((entry) => ({
-              label: entry.planName,
-              value: entry.id,
-              subLabel: entry.planCode,
             }))
             .filter((entry) => Boolean(entry.value && entry.label))
             .sort((a, b) => a.label.localeCompare(b.label)),
@@ -265,7 +256,6 @@ export default function CredentialingModal({
       } catch {
         if (!active) return;
         setPracticeOptions([]);
-        setPayerOptions([]);
         setProviderOptions([]);
         setSpecialistOptions([]);
       }
@@ -290,16 +280,10 @@ export default function CredentialingModal({
   );
   const searchPayerOptions = useMemo(
     () => async (query: string) => {
-      const normalized = query.trim().toLowerCase();
-      return payerOptions.filter((option) =>
-        normalized
-          ? option.label.toLowerCase().includes(normalized) ||
-            option.subLabel?.toLowerCase().includes(normalized) ||
-            option.value.toLowerCase().includes(normalized)
-          : true,
-      );
+      const options = await getClaimPayerOptionsApi(query.trim());
+      return options.sort((a, b) => a.label.localeCompare(b.label));
     },
-    [payerOptions],
+    [],
   );
   const searchProviderOptions = useMemo(
     () => async (query: string) => {
@@ -423,6 +407,12 @@ export default function CredentialingModal({
     updateField("provider", option?.label || value);
   }
 
+  function updatePayer(value: string, option?: SearchSelectOption) {
+    setFormMessage("");
+    updateField("payerProviderId", value);
+    updateField("insuranceCompany", option?.label || "");
+  }
+
   function hasPendingFollowUpDraft() {
     return [
       followUpDraft.referenceNumber,
@@ -435,7 +425,9 @@ export default function CredentialingModal({
     const missingFields: string[] = [];
     if (!form.practice.trim()) missingFields.push("Practice");
     if (!form.provider.trim()) missingFields.push("Provider");
-    if (!form.insuranceCompany.trim()) missingFields.push("Insurance Plan");
+    if (!form.insuranceCompany.trim() && !form.payerProviderId.trim()) {
+      missingFields.push("Insurance Plan");
+    }
     if (!form.credentialingType.trim()) missingFields.push("Request Type");
     if (!form.contractType.trim()) missingFields.push("Contract Type");
     if (!form.assignedUserId.trim()) missingFields.push("Assigned Specialist");
@@ -626,11 +618,12 @@ export default function CredentialingModal({
                 <label className="block">
                   <FieldLabel required>Insurance Plan</FieldLabel>
                   <SearchSelect
-                    value={form.insuranceCompany}
-                    displayLabel={form.insuranceCompany}
-                    onChange={(_, option) =>
-                      updateField("insuranceCompany", option?.label || "")
-                    }
+                    value={form.payerProviderId}
+                    displayLabel={formatPayerDisplayLabel(
+                      form.insuranceCompany,
+                      form.payerProviderId,
+                    )}
+                    onChange={updatePayer}
                     onSearch={searchPayerOptions}
                     disabled={isReadOnly}
                     clearable={false}

@@ -50,6 +50,94 @@ type InsurancePlanResponse = {
   plan: InsurancePlanRecord;
 };
 
+export type ClaimPayerRecord = {
+  payerid: string;
+  payer_name: string;
+  services?: string;
+  payer_type?: string;
+  payer_alt_names?: string;
+  payer_state?: string;
+  prime?: string | null;
+  [key: string]: unknown;
+};
+
+export type ClaimPayerListResponse = {
+  rows: ClaimPayerRecord[];
+  meta: {
+    total: number;
+    page: number;
+    pageSize: number;
+  };
+};
+
+export type ClaimPayerQuery = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  services?: string[];
+  type?: string;
+};
+
+export type ClaimPayerOption = {
+  label: string;
+  value: string;
+  subLabel?: string;
+};
+
+export function formatPayerDisplayLabel(
+  payerName?: string | null,
+  payerid?: string | null,
+) {
+  const name = payerName?.trim() || "";
+  const id = payerid?.trim() || "";
+  if (name && id) return `${name} (${id})`;
+  return name || id || "";
+}
+
+export async function getClaimPayersListApi(
+  params?: ClaimPayerQuery,
+): Promise<ClaimPayerListResponse> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: insuranceEndpoints.PAYERS_LIST,
+      credentials: true,
+      body: {
+        page: params?.page ?? 0,
+        pageSize: params?.pageSize ?? 20,
+        search: params?.search ?? "",
+        services: params?.services ?? [],
+        type: params?.type ?? "",
+      },
+    });
+    return response.data as ClaimPayerListResponse;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch payer list."));
+  }
+}
+
+export async function getClaimPayerOptionsApi(
+  search = "",
+): Promise<ClaimPayerOption[]> {
+  const response = await getClaimPayersListApi({
+    page: 0,
+    pageSize: 20,
+    search,
+  });
+
+  return response.rows.map((row) => ({
+    label: row.payer_name,
+    value: row.payerid,
+    subLabel: [
+      `ID: ${row.payerid}`,
+      row.payer_type ? `Type: ${row.payer_type}` : "",
+      row.services ? `Services: ${row.services}` : "",
+    ]
+      .filter(Boolean)
+      .join(" | "),
+  }));
+}
+
 export async function getInsuranceCarriersApi(params?: {
   search?: string;
   status?: string;
@@ -201,3 +289,5 @@ export async function deleteInsurancePlanApi(id: string) {
     );
   }
 }
+
+

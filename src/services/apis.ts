@@ -49,6 +49,7 @@ export const insuranceEndpoints = {
   CARRIERS: BACKEND_URL + "/api/v1/insurance/carriers",
   CARRIER_OPTIONS: BACKEND_URL + "/api/v1/insurance/carriers/options",
   PLAN_OPTIONS: BACKEND_URL + "/api/v1/insurance/plans/options",
+  PAYERS_LIST: BACKEND_URL + "/api/v1/insurance/payers/list",
   CREATE_CARRIER: BACKEND_URL + "/api/v1/insurance/carriers",
   UPDATE_CARRIER: (id: string) => BACKEND_URL + `/api/v1/insurance/carriers/${id}`,
   DELETE_CARRIER: (id: string) => BACKEND_URL + `/api/v1/insurance/carriers/${id}`,

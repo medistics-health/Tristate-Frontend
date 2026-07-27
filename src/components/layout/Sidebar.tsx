@@ -252,13 +252,6 @@ const sidebarSteps: SidebarItem[] = [
     ],
   },
   {
-    label: "Master",
-    requiredRoles: [...MODULE_ACCESS.CRM],
-    items: [
-      { label: "Insurance", to: "/master/insurance" },
-    ],
-  },
-  {
     label: "Settings",
     requiredRoles: [...MODULE_ACCESS.SETTINGS],
     items: [

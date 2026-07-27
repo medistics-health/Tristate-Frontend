@@ -52,16 +52,6 @@ function AllInvoiceLineItems({
           cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
             String(row.original.values.invoiceLabel || "-"),
         },
-        ...(isTristateView
-          ? ([
-              {
-                id: "sequence",
-                header: () => "Seq",
-                cell: ({ row }: { row: { index: number } }) =>
-                  String(row.index + 1),
-              },
-            ] as ColumnDef<InvoiceLineItemRow>[])
-          : []),
         {
           id: "serviceName",
           accessorFn: (row: InvoiceLineItemRow) => row.values.serviceName,
@@ -87,12 +77,11 @@ function AllInvoiceLineItems({
         ...(isTristateView
           ? ([
               {
-                id: "externalTotalPrice",
-                accessorFn: (row: InvoiceLineItemRow) =>
-                  row.values.externalTotalPrice,
-                header: () => "Transfer Total",
+                id: "totalPrice",
+                accessorFn: (row: InvoiceLineItemRow) => row.values.totalPrice,
+                header: () => "Total Price",
                 cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-                  String(row.original.values.externalTotalPrice || "-"),
+                  String(row.original.values.totalPrice || "-"),
               },
               {
                 id: "companyFeeDeductionAmount",
@@ -105,11 +94,12 @@ function AllInvoiceLineItems({
             ] as ColumnDef<InvoiceLineItemRow>[])
           : []),
         {
-          id: "totalPrice",
-          accessorFn: (row: InvoiceLineItemRow) => row.values.totalPrice,
-          header: () => "Total Price",
+          id: "externalTotalPrice",
+          accessorFn: (row: InvoiceLineItemRow) =>
+            row.values.externalTotalPrice,
+          header: () => "Transfer Total",
           cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-            String(row.original.values.totalPrice || "-"),
+            String(row.original.values.externalTotalPrice || "-"),
         },
         {
           id: "creationDate",
