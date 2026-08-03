@@ -156,6 +156,7 @@ type PracticeFormData = {
   companyId: string;
   taxIdId: string;
   billingPaymentMethod: "ACH" | "CREDIT_CARD" | "";
+  credentialingChargeAmount: string;
   processingFeeConfig: ProcessingFeeSettings;
   groupNpis: GroupNpiFormEntry[];
 };
@@ -168,6 +169,7 @@ const initialFormData: PracticeFormData = {
   bucket: "",
   taxIdId: "",
   billingPaymentMethod: "",
+  credentialingChargeAmount: "",
   processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(),
   groupNpis: [],
 };
@@ -324,6 +326,11 @@ export default function AllPracticePage() {
           values.billingPaymentMethod === "CREDIT_CARD"
             ? "CREDIT_CARD"
             : "ACH",
+        credentialingChargeAmount:
+          values.credentialingChargeAmount !== undefined &&
+          values.credentialingChargeAmount !== null
+            ? String(values.credentialingChargeAmount)
+            : "",
         processingFeeConfig: buildProcessingFeeSettings(
           values.processingFeeConfig || systemSettings,
         ),
@@ -772,6 +779,10 @@ export default function AllPracticePage() {
         companyId: formData.companyId?.trim() || undefined,
         taxIdId: formData.taxIdId?.trim() || undefined,
         billingPaymentMethod: formData.billingPaymentMethod,
+        credentialingChargeAmount:
+          formData.credentialingChargeAmount.trim() !== ""
+            ? Number(formData.credentialingChargeAmount)
+            : undefined,
         processingFeeConfig: formData.processingFeeConfig,
       };
 
@@ -937,6 +948,10 @@ export default function AllPracticePage() {
           companyId: formData.companyId?.trim() || undefined,
           taxIdId: formData.taxIdId?.trim() || undefined,
           billingPaymentMethod: formData.billingPaymentMethod,
+          credentialingChargeAmount:
+            formData.credentialingChargeAmount.trim() !== ""
+              ? Number(formData.credentialingChargeAmount)
+              : undefined,
           processingFeeConfig: formData.processingFeeConfig,
         };
 
@@ -976,6 +991,10 @@ export default function AllPracticePage() {
         companyId: formData.companyId?.trim() || undefined,
         taxIdId: formData.taxIdId?.trim() || undefined,
         billingPaymentMethod: formData.billingPaymentMethod,
+        credentialingChargeAmount:
+          formData.credentialingChargeAmount.trim() !== ""
+            ? Number(formData.credentialingChargeAmount)
+            : undefined,
         processingFeeConfig: formData.processingFeeConfig,
       };
 
@@ -1158,6 +1177,28 @@ export default function AllPracticePage() {
             <option value="ACH">ACH</option>
             <option value="CREDIT_CARD">Credit Card</option>
           </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">
+            Credentialing Charge Amount
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={formData.credentialingChargeAmount}
+            disabled={readOnly}
+            onChange={(event) =>
+              setFormData((prev) => ({
+                ...prev,
+                credentialingChargeAmount: event.target.value,
+              }))
+            }
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            placeholder="0.00"
+          />
         </div>
 
         <div className="space-y-4 text-[12px] text-slate-600">

@@ -93,14 +93,27 @@ function AllInvoiceLineItems({
               },
             ] as ColumnDef<InvoiceLineItemRow>[])
           : []),
-        {
-          id: "externalTotalPrice",
-          accessorFn: (row: InvoiceLineItemRow) =>
-            row.values.externalTotalPrice,
-          header: () => "Transfer Total",
-          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-            String(row.original.values.externalTotalPrice || "-"),
-        },
+        ...(!isTristateView
+          ? ([
+              {
+                id: "externalTotalPrice",
+                accessorFn: (row: InvoiceLineItemRow) =>
+                  row.values.externalTotalPrice,
+                header: () => "Total Price",
+                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
+                  String(row.original.values.totalPrice || "-"),
+              },
+            ] as ColumnDef<InvoiceLineItemRow>[])
+          : [
+              {
+                id: "externalTotalPrice",
+                accessorFn: (row: InvoiceLineItemRow) =>
+                  row.values.externalTotalPrice,
+                header: () => "Transfer Total",
+                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
+                  String(row.original.values.externalTotalPrice || "-"),
+              },
+            ]),
         {
           id: "creationDate",
           accessorFn: (row: InvoiceLineItemRow) => row.values.creationDate,

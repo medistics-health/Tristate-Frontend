@@ -137,6 +137,7 @@ type LeadFormState = {
   practiceBucket: string;
   practiceTaxIdKey: string;
   billingPaymentMethod: "ACH" | "CREDIT_CARD" | "";
+  credentialingChargeAmount: string;
   processingFeeConfig: ProcessingFeeSettings;
 
   // Contact
@@ -196,6 +197,7 @@ const initialFormState: LeadFormState = {
   practiceBucket: "",
   practiceTaxIdKey: "",
   billingPaymentMethod: "",
+  credentialingChargeAmount: "",
   processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(),
 
   contactRelation: "new",
@@ -563,6 +565,10 @@ function CreateLeadPage() {
             form.billingPaymentMethod === "CREDIT_CARD"
               ? "CREDIT_CARD"
               : "ACH",
+          credentialingChargeAmount:
+            form.credentialingChargeAmount.trim() !== ""
+              ? Number(form.credentialingChargeAmount)
+              : undefined,
           processingFeeConfig: form.processingFeeConfig,
         };
         const practiceRow = await createPracticeApi(practicePayload);
@@ -965,6 +971,8 @@ function CreateLeadPage() {
       practiceNpi: relation === "new" ? "" : current.practiceNpi,
       billingPaymentMethod:
         relation === "new" ? "" : current.billingPaymentMethod,
+      credentialingChargeAmount:
+        relation === "new" ? "" : current.credentialingChargeAmount,
       processingFeeConfig:
         relation === "new"
           ? buildPracticeDefaultProcessingFeeSettings(systemSettings)
@@ -1567,6 +1575,27 @@ function CreateLeadPage() {
             <option value="ACH">ACH</option>
             <option value="CREDIT_CARD">Credit Card</option>
           </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">
+            Credentialing Charge Amount
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={form.credentialingChargeAmount}
+            onChange={(event) =>
+              setForm((prev) => ({
+                ...prev,
+                credentialingChargeAmount: event.target.value,
+              }))
+            }
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            placeholder="0.00"
+          />
         </div>
 
         {form.billingPaymentMethod === "CREDIT_CARD" ? (

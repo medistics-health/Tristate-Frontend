@@ -21,6 +21,7 @@ export type PracticeBody = {
   companyId?: string;
   taxIdId?: string;
   billingPaymentMethod?: "ACH" | "CREDIT_CARD";
+  credentialingChargeAmount?: number | string | null;
   processingFeeConfig?: Record<string, unknown> | null;
   groupNpis?: GroupNpiEntry[];
 };
@@ -49,6 +50,7 @@ export type Practice = {
   companyId?: string;
   taxIdId?: string;
   billingPaymentMethod?: "ACH" | "CREDIT_CARD" | null;
+  credentialingChargeAmount?: number | null;
   processingFeeConfig?: Record<string, unknown> | null;
   ownerId: string;
   createdAt: string;

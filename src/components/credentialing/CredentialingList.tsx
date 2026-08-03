@@ -341,6 +341,7 @@ function CredentialingListPage() {
     setIsSaving(true);
     try {
       const documents = form.documents.map((document) => ({
+        id: document.id,
         fileName: document.fileName || document.name,
         documentType: document.documentType || document.type,
         fileUrl: document.fileUrl,
@@ -354,6 +355,10 @@ function CredentialingListPage() {
         ...form,
         practiceId: form.practiceId || undefined,
         documents,
+        followUpLogs: form.followUpLogs.map((entry) => ({
+          ...entry,
+          id: entry.id,
+        })),
         practiceName: form.practice,
         providerId: form.providerId || undefined,
         providerName: form.provider,

@@ -517,6 +517,25 @@ export default function CredentialingModal({
 
   const activityEntries = record?.activity || [];
 
+  function renderActivityDetails(details?: string) {
+    const items = (details || "")
+      .split(";")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (items.length === 0) {
+      return <div className="text-[12px] text-slate-500">Activity recorded</div>;
+    }
+
+    return (
+      <ul className="mt-1 list-disc space-y-1 pl-5 text-[12px] text-slate-500">
+        {items.map((item, index) => (
+          <li key={`${index}-${item}`}>{item}</li>
+        ))}
+      </ul>
+    );
+  }
+
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
       <div
@@ -1254,9 +1273,7 @@ export default function CredentialingModal({
                             {formatDateTimeLabel(entry.createdAt)}
                           </div>
                         </div>
-                        <div className="mt-1 text-[12px] text-slate-500">
-                          {entry.details || "Activity recorded"}
-                        </div>
+                        {renderActivityDetails(entry.details)}
                         <div className="mt-1 text-[11px] uppercase tracking-wide text-slate-400">
                           {entry.actor}
                         </div>

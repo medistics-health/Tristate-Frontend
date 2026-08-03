@@ -1317,8 +1317,29 @@ function CredentialingDashboardPage() {
                               {entry.provider || "Practice-level"} ·{" "}
                               {entry.payer}
                             </div>
-                            <div className="mt-1 text-[12px] text-slate-500">
-                              {entry.details || "Activity recorded"}
+                            <div className="mt-1">
+                              {(() => {
+                                const items = (entry.details || "")
+                                  .split(";")
+                                  .map((item) => item.trim())
+                                  .filter(Boolean);
+
+                                if (items.length === 0) {
+                                  return (
+                                    <div className="text-[12px] text-slate-500">
+                                      Activity recorded
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <ul className="list-disc space-y-1 pl-5 text-[12px] text-slate-500">
+                                    {items.map((item, index) => (
+                                      <li key={`${entry.id}-${index}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                );
+                              })()}
                             </div>
                           </div>
                         ))

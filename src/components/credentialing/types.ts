@@ -138,6 +138,8 @@ export type CredentialingRecord = {
   documents: CredentialingDocument[];
   followUpLogs: CredentialingFollowUp[];
   activity: CredentialingActivity[];
+  credentialingChargeBilledAt?: string | null;
+  credentialingChargeInvoiceLineItemId?: string | null;
   createdAt: string;
   updatedAt: string;
 };
