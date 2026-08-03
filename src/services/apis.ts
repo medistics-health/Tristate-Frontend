@@ -245,3 +245,7 @@ export const mercuryEndpoints = {
   SYNC: BACKEND_URL + "/api/v1/mercury/sync",
 };
 
+export const communicationEndpoints = {
+  SENT_EMAILS: BACKEND_URL + "/api/v1/emails/sent",
+};
+
