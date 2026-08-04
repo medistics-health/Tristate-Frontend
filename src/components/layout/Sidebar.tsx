@@ -84,6 +84,11 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.CRM],
   },
   {
+    label: "Communication",
+    to: "/communication/all-emails",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+  },
+  {
     label: "Practices",
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [

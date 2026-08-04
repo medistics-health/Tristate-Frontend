@@ -60,6 +60,7 @@ import OnboardingFormV5 from "./components/onboarding/OnboardingFormV5";
 import { BUSINESS_WRITE_ROLES, MODULE_ACCESS } from "./utils/auth";
 import CredentialingDashboardPage from "./components/credentialing/CredentialingDashboard";
 import CredentialingListPage from "./components/credentialing/CredentialingList";
+import CommunicationPage from "./components/communication/Communication";
 
 function App() {
   function ModuleRoute({
@@ -583,6 +584,14 @@ function App() {
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AllCompaniesPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/communication/all-emails"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <CommunicationPage />
           </ModuleRoute>
         }
       />
