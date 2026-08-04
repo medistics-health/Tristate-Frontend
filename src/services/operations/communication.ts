@@ -105,3 +105,29 @@ export async function getSentEmails(
     );
   }
 }
+
+export async function getEmailHistoryByPersonId(
+  personId: string,
+): Promise<SentEmail[]> {
+  try {
+    const response = await apiConnector({
+      method: "GET",
+      url: communicationEndpoints.HISTORY_BY_PERSON(personId),
+      credentials: true,
+    });
+
+    const payload = response.data as
+      | RawEmail[]
+      | { emails?: RawEmail[]; messages?: RawEmail[]; data?: RawEmail[] };
+
+    const records = Array.isArray(payload)
+      ? payload
+      : payload.emails || payload.messages || payload.data || [];
+
+    return records.map(normalizeEmailRecord);
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(error, "Unable to fetch person email history."),
+    );
+  }
+}
