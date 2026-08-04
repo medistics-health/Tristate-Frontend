@@ -26,6 +26,7 @@ import {
   credentialingStatusOptions,
   contractTypeOptions,
   requestTypeOptions,
+  canEditCredentialingStatus,
   type CredentialingFormState,
   type CredentialingRecord,
 } from "./types";
@@ -323,6 +324,11 @@ function CredentialingListPage() {
   }
 
   function openEditModal(record: CredentialingRecord) {
+    if (!canEditCredentialingStatus(record.status)) {
+      setSelectedRecord(record);
+      setModalMode("view");
+      return;
+    }
     setSelectedRecord(record);
     setModalMode("edit");
   }
@@ -897,14 +903,16 @@ function CredentialingListPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(record)}
-                            className="cursor-pointer rounded-lg border border-[#ece8e1] p-2 text-slate-500 hover:bg-[#f7f5f1]"
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
+                          {canEditCredentialingStatus(record.status) ? (
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(record)}
+                              className="cursor-pointer rounded-lg border border-[#ece8e1] p-2 text-slate-500 hover:bg-[#f7f5f1]"
+                              title="Edit"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          ) : null}
                           {/* <button
                             type="button"
                             onClick={() => {
@@ -977,7 +985,11 @@ function CredentialingListPage() {
           record={selectedRecord}
           onClose={closeModal}
           onSave={handleSave}
-          onRequestEdit={() => setModalMode("edit")}
+          onRequestEdit={
+            selectedRecord && canEditCredentialingStatus(selectedRecord.status)
+              ? () => setModalMode("edit")
+              : undefined
+          }
           onDelete={() => setDeleteTarget(selectedRecord)}
           isSaving={isSaving}
           isDeleting={isDeleting}

@@ -64,7 +64,9 @@ import type {
 } from "../practices/types";
 import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
-import AddressAutocomplete, { type AddressData } from "../shared/AddressAutocomplete";
+import AddressAutocomplete, {
+  type AddressData,
+} from "../shared/AddressAutocomplete";
 import ConfirmModal from "../shared/ConfirmModal";
 import {
   canManageSettings,
@@ -226,9 +228,7 @@ const initialFormState: LeadFormState = {
   },
 };
 
-function buildInitialLeadFormState(
-  settings?: SystemSettings,
-): LeadFormState {
+function buildInitialLeadFormState(settings?: SystemSettings): LeadFormState {
   return {
     ...initialFormState,
     processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(settings),
@@ -244,7 +244,12 @@ const AUTO_INCLUDE_TEMPLATE_NAMES = [
   // "Exhibit P",
 ];
 
-const HIDDEN_TEMPLATE_NAME_PATTERNS = ["Khan_", "Dr. Anil Patel", "Dr. Anul Patel", "Dr. Shah"];
+const HIDDEN_TEMPLATE_NAME_PATTERNS = [
+  "Khan_",
+  "Dr. Anil Patel",
+  "Dr. Anul Patel",
+  "Dr. Shah",
+];
 
 function isHiddenTemplate(name: string): boolean {
   const lower = name.toLowerCase();
@@ -321,10 +326,7 @@ function buildLeadAgreementDocusealPrefillValues(
     const fieldName = (field.name || "").toLowerCase();
     let value = "";
 
-    if (
-      fieldName.includes("first party") &&
-      fieldName.includes("name")
-    ) {
+    if (fieldName.includes("first party") && fieldName.includes("name")) {
       value = "Tristate";
     } else if (
       fieldName.includes("second party") &&
@@ -562,9 +564,7 @@ function CreateLeadPage() {
           }),
           taxIdId: companyTaxIdId,
           billingPaymentMethod:
-            form.billingPaymentMethod === "CREDIT_CARD"
-              ? "CREDIT_CARD"
-              : "ACH",
+            form.billingPaymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "ACH",
           credentialingChargeAmount:
             form.credentialingChargeAmount.trim() !== ""
               ? Number(form.credentialingChargeAmount)
@@ -813,7 +813,9 @@ function CreateLeadPage() {
         const userList = canReadUsers ? await getAllUsers() : [];
         setServices(serviceList.filter((service) => service.isActive));
         setUsers(userList);
-        setTemplates(templateRes.templates.data.filter((t) => !isHiddenTemplate(t.name)));
+        setTemplates(
+          templateRes.templates.data.filter((t) => !isHiddenTemplate(t.name)),
+        );
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unable to load services.";
@@ -866,7 +868,10 @@ function CreateLeadPage() {
         const template = templates.find((t) => String(t.id) === templateId);
         if (!template) continue;
 
-        const prefilled = buildLeadAgreementDocusealPrefillValues(template, prev);
+        const prefilled = buildLeadAgreementDocusealPrefillValues(
+          template,
+          prev,
+        );
         const currentValues = nextFieldValues[templateId] || {};
         const updatedValues = { ...currentValues };
 
@@ -890,7 +895,13 @@ function CreateLeadPage() {
         },
       };
     });
-  }, [form.practiceName, form.practiceNpi, form.agreement.effectiveDate, form.agreement.templateIds, templates]);
+  }, [
+    form.practiceName,
+    form.practiceNpi,
+    form.agreement.effectiveDate,
+    form.agreement.templateIds,
+    templates,
+  ]);
 
   // Fetch existing agreements when practice changes
   useEffect(() => {
@@ -1577,27 +1588,6 @@ function CreateLeadPage() {
           </select>
         </div>
 
-        <div>
-          <label className="mb-1 block text-[13px] font-medium text-slate-700">
-            Credentialing Charge Amount
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            inputMode="decimal"
-            value={form.credentialingChargeAmount}
-            onChange={(event) =>
-              setForm((prev) => ({
-                ...prev,
-                credentialingChargeAmount: event.target.value,
-              }))
-            }
-            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            placeholder="0.00"
-          />
-        </div>
-
         {form.billingPaymentMethod === "CREDIT_CARD" ? (
           <div>
             <p className="mb-2 text-[12px] font-semibold text-slate-700">
@@ -1612,19 +1602,24 @@ function CreateLeadPage() {
                 </colgroup>
                 <thead>
                   <tr className="bg-[#fcfbf9] text-[10px] uppercase tracking-wide text-slate-400">
-                    <th className="border-b border-[#ece7df] px-4 py-3 text-left">Bearer</th>
                     <th className="border-b border-[#ece7df] px-4 py-3 text-left">
-                      Percentage Fee ({roundToPrecision(totals.creditCard.ratePercent, 2)}%)
+                      Bearer
                     </th>
                     <th className="border-b border-[#ece7df] px-4 py-3 text-left">
-                      Fixed Fee (${roundToPrecision(totals.creditCard.fixedFee, 2)})
+                      Percentage Fee (
+                      {roundToPrecision(totals.creditCard.ratePercent, 2)}%)
+                    </th>
+                    <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                      Fixed Fee ($
+                      {roundToPrecision(totals.creditCard.fixedFee, 2)})
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td className="border-b border-[#ece7df] px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
-                      Company ({roundToPrecision(creditCompanyLabel.primary, 2)}%+${roundToPrecision(creditCompanyLabel.secondary, 2)})
+                      Company ({roundToPrecision(creditCompanyLabel.primary, 2)}
+                      %+${roundToPrecision(creditCompanyLabel.secondary, 2)})
                     </td>
                     <td className="border-b border-[#ece7df] px-3 py-2">
                       {renderInput(
@@ -1632,7 +1627,8 @@ function CreateLeadPage() {
                         "COMPANY",
                         "ratePercent",
                         getAllocationPercent(
-                          form.processingFeeConfig.creditCard.COMPANY.ratePercent,
+                          form.processingFeeConfig.creditCard.COMPANY
+                            .ratePercent,
                           totals.creditCard.ratePercent,
                         ),
                       )}
@@ -1651,7 +1647,8 @@ function CreateLeadPage() {
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
-                      Client ({roundToPrecision(creditClientLabel.primary, 2)}%+${roundToPrecision(creditClientLabel.secondary, 2)})
+                      Client ({roundToPrecision(creditClientLabel.primary, 2)}
+                      %+${roundToPrecision(creditClientLabel.secondary, 2)})
                     </td>
                     <td className="px-3 py-2">
                       {renderInput(
@@ -1659,7 +1656,8 @@ function CreateLeadPage() {
                         "CLIENT",
                         "ratePercent",
                         getAllocationPercent(
-                          form.processingFeeConfig.creditCard.CLIENT.ratePercent,
+                          form.processingFeeConfig.creditCard.CLIENT
+                            .ratePercent,
                           totals.creditCard.ratePercent,
                         ),
                       )}
@@ -1682,7 +1680,9 @@ function CreateLeadPage() {
           </div>
         ) : form.billingPaymentMethod === "ACH" ? (
           <div>
-            <p className="mb-2 text-[12px] font-semibold text-slate-700">For ACH</p>
+            <p className="mb-2 text-[12px] font-semibold text-slate-700">
+              For ACH
+            </p>
             <div className="overflow-hidden rounded-xl border border-[#ece7df]">
               <table className="w-full border-collapse">
                 <colgroup>
@@ -1692,9 +1692,12 @@ function CreateLeadPage() {
                 </colgroup>
                 <thead>
                   <tr className="bg-[#fcfbf9] text-[10px] uppercase tracking-wide text-slate-400">
-                    <th className="border-b border-[#ece7df] px-4 py-3 text-left">Bearer</th>
                     <th className="border-b border-[#ece7df] px-4 py-3 text-left">
-                      Percentage Fee ({roundToPrecision(totals.ach.ratePercent, 2)}%)
+                      Bearer
+                    </th>
+                    <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                      Percentage Fee (
+                      {roundToPrecision(totals.ach.ratePercent, 2)}%)
                     </th>
                     <th className="border-b border-[#ece7df] px-4 py-3 text-left">
                       Cap Amount (${roundToPrecision(totals.ach.capAmount, 2)})
@@ -1704,7 +1707,8 @@ function CreateLeadPage() {
                 <tbody>
                   <tr>
                     <td className="border-b border-[#ece7df] px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
-                      Company ({roundToPrecision(achCompanyLabel.primary, 2)}% or ${roundToPrecision(achCompanyLabel.secondary, 2)} max)
+                      Company ({roundToPrecision(achCompanyLabel.primary, 2)}%
+                      or ${roundToPrecision(achCompanyLabel.secondary, 2)} max)
                     </td>
                     <td className="border-b border-[#ece7df] px-3 py-2">
                       {renderInput(
@@ -1731,7 +1735,8 @@ function CreateLeadPage() {
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
-                      Client ({roundToPrecision(achClientLabel.primary, 2)}% or ${roundToPrecision(achClientLabel.secondary, 2)} max)
+                      Client ({roundToPrecision(achClientLabel.primary, 2)}% or
+                      ${roundToPrecision(achClientLabel.secondary, 2)} max)
                     </td>
                     <td className="px-3 py-2">
                       {renderInput(
@@ -1767,6 +1772,27 @@ function CreateLeadPage() {
             {processingFeeValidationError}
           </div>
         ) : null}
+
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">
+            Credentialing Amount
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={form.credentialingChargeAmount}
+            onChange={(event) =>
+              setForm((prev) => ({
+                ...prev,
+                credentialingChargeAmount: event.target.value,
+              }))
+            }
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            placeholder="0.00"
+          />
+        </div>
       </div>
     );
   }
@@ -1946,7 +1972,12 @@ function CreateLeadPage() {
                       <AddressAutocomplete
                         onSelect={handleAddressSelect}
                         value={
-                          [form.companyStreet, form.companyCity, form.companyState, form.companyZip]
+                          [
+                            form.companyStreet,
+                            form.companyCity,
+                            form.companyState,
+                            form.companyZip,
+                          ]
                             .filter(Boolean)
                             .join(", ") || ""
                         }
@@ -2423,19 +2454,19 @@ function CreateLeadPage() {
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
                         Phone
                       </span>
-                       <input
-                         type="tel"
-                         inputMode="numeric"
-                         maxLength={12}
-                         pattern="\d{3}-?\d{3}-?\d{4}"
-                         value={form.primaryContactPhone}
-                         onChange={(e) =>
-                           updateField(
-                             "primaryContactPhone",
-                             normalizePhoneInput(e.target.value),
-                           )
-                         }
-                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={12}
+                        pattern="\d{3}-?\d{3}-?\d{4}"
+                        value={form.primaryContactPhone}
+                        onChange={(e) =>
+                          updateField(
+                            "primaryContactPhone",
+                            normalizePhoneInput(e.target.value),
+                          )
+                        }
+                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                       />
                     </label>
                     <label className="block">

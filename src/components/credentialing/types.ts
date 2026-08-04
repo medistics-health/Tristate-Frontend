@@ -13,6 +13,17 @@ export const credentialingStatusOptions = [
 
 export type CredentialingStatus = (typeof credentialingStatusOptions)[number];
 
+export function isLockedCredentialingStatus(status?: string | null) {
+  return (
+    status === "Contracted - Direct" ||
+    status === "Contracted - IPA/Delegated"
+  );
+}
+
+export function canEditCredentialingStatus(status?: string | null) {
+  return !isLockedCredentialingStatus(status);
+}
+
 export const requestTypeOptions = [
   "New Credentialing",
   "Re-credentialing",

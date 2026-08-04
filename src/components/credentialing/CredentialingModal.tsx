@@ -28,6 +28,7 @@ import {
 import {
   allowedDocumentTypes,
   contractTypeOptions,
+  canEditCredentialingStatus,
   credentialingStatusOptions,
   followUpChannelOptions,
   followUpDirectionOptions,
@@ -365,14 +366,15 @@ export default function CredentialingModal({
     };
   }, [isOpen, form.practiceId]);
 
-  const isReadOnly = mode === "view";
-  const isEditMode = mode === "edit";
+  const canEditRecord = canEditCredentialingStatus(record?.status);
+  const isReadOnly = mode === "view" || !canEditRecord;
+  const isEditMode = mode === "edit" && canEditRecord;
 
   const title = useMemo(() => {
     if (mode === "create") return "Add Credentialing";
-    if (mode === "edit") return "Edit Credentialing";
+    if (mode === "edit" && canEditRecord) return "Edit Credentialing";
     return "View Credentialing";
-  }, [mode]);
+  }, [canEditRecord, mode]);
 
   if (!isOpen) return null;
 
@@ -1292,15 +1294,17 @@ export default function CredentialingModal({
           </div>
 
           <div className="flex items-center gap-3">
-            {mode === "view" ? (
+            {mode === "view" || !canEditRecord ? (
               <>
-                <button
-                  type="button"
-                  onClick={onRequestEdit}
-                  className="rounded-xl border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
-                >
-                  Edit
-                </button>
+                {onRequestEdit ? (
+                  <button
+                    type="button"
+                    onClick={onRequestEdit}
+                    className="rounded-xl border border-[#ece8e1] px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
+                  >
+                    Edit
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={onClose}

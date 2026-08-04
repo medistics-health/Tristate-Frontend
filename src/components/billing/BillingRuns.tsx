@@ -77,6 +77,7 @@ import {
   getSystemSettingsApi,
   type SystemSettings,
 } from "../../services/operations/users";
+import { formatDateLabel } from "../credentialing/credentialingStore";
 import type { CredentialingRecord } from "../credentialing/types";
 import {
   buildGeneralSettingsTotals,
@@ -110,6 +111,8 @@ type CreateRunFormState = {
   autoCalculate: boolean;
   agreementIds: string[];
   termInputs: Record<string, TermInputValues>;
+  selectedCredentialingRequestIds: string[];
+  credentialingChargeAmounts: Record<string, string>;
 };
 
 type CredentialingChargePreview = {
@@ -117,6 +120,18 @@ type CredentialingChargePreview = {
   amount: number;
   description: string;
 };
+
+const credentialingChargeEligibleStatuses = new Set([
+  "Contracted - Direct",
+  "CONTRACTED_DIRECT",
+  "Contracted - IPA/Delegated",
+  "CONTRACTED_IPA_DELEGATED",
+]);
+
+function isCredentialingChargeEligible(status?: string | null) {
+  console.log("Checking credentialing charge eligibility for status:", status);
+  return credentialingChargeEligibleStatuses.has(String(status || "").trim());
+}
 
 type PaymentAllocationRow = {
   invoiceId: string;
@@ -143,6 +158,8 @@ const initialCreateRunForm: CreateRunFormState = {
   autoCalculate: true,
   agreementIds: [],
   termInputs: {},
+  selectedCredentialingRequestIds: [],
+  credentialingChargeAmounts: {},
 };
 
 function roundMoney(value: number) {
@@ -309,15 +326,19 @@ function BillingRunsPage() {
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [practiceAgreements, setPracticeAgreements] = useState<Agreement[]>([]);
   const [loadedTerms, setLoadedTerms] = useState<AgreementServiceTerm[]>([]);
-  const [practiceCredentialingRequests, setPracticeCredentialingRequests] = useState<CredentialingRecord[]>([]);
+  const [practiceCredentialingRequests, setPracticeCredentialingRequests] =
+    useState<CredentialingRecord[]>([]);
   const [isLoadingAgreements, setIsLoadingAgreements] = useState(false);
   const [isLoadingTerms, setIsLoadingTerms] = useState(false);
-  const [isLoadingCredentialingRequests, setIsLoadingCredentialingRequests] = useState(false);
+  const [isLoadingCredentialingRequests, setIsLoadingCredentialingRequests] =
+    useState(false);
   const canPreviewBillingRun = selectedRun
     ? ["CALCULATED", "REVIEW_REQUIRED", "APPROVED"].includes(selectedRun.status)
     : false;
   const selectedPractice = useMemo(
-    () => practices.find((practice) => practice.id === createForm.practiceId) || null,
+    () =>
+      practices.find((practice) => practice.id === createForm.practiceId) ||
+      null,
     [practices, createForm.practiceId],
   );
 
@@ -348,57 +369,6 @@ function BillingRunsPage() {
     createForm.periodEnd,
   ]);
 
-  const previewTotals = useMemo(() => {
-    let invoiceTotal = 0;
-    let vendorTotal = 0;
-    let marginTotal = 0;
-    for (const term of activePricingTerms) {
-      const preview = computeTermPreview(
-        term,
-        createForm.termInputs[term.id] || {},
-      );
-      invoiceTotal += preview.clientAmount;
-      if (preview.vendorAmount !== null) vendorTotal += preview.vendorAmount;
-      if (preview.marginAmount !== null) marginTotal += preview.marginAmount;
-    }
-    return {
-      invoiceTotal: roundMoneyClient(invoiceTotal),
-      credentialingTotal: roundMoneyClient(
-        (practiceCredentialingRequests || []).reduce(
-          (sum, request) =>
-            sum +
-            Number(selectedPractice?.credentialingChargeAmount || 0),
-          0,
-        ),
-      ),
-      vendorTotal: roundMoneyClient(vendorTotal),
-      marginTotal: roundMoneyClient(marginTotal),
-    };
-  }, [activePricingTerms, createForm.termInputs, practiceCredentialingRequests, selectedPractice?.credentialingChargeAmount]);
-
-  const processingFeePreview = useMemo(() => {
-    if (!createForm.paymentMethod) {
-      return {
-        clientFeeAmount: 0,
-        companyFeeAmount: 0,
-        maxCompanyFeeAmount: 0,
-        grossInvoiceAmount: previewTotals.invoiceTotal,
-      };
-    }
-
-    return calculateProcessingAmounts({
-      baseAmount: previewTotals.invoiceTotal + previewTotals.credentialingTotal,
-      paymentMethod: createForm.paymentMethod,
-      settings: createForm.processingFeeConfig,
-      totalsSource: systemSettings,
-    });
-  }, [
-    createForm.paymentMethod,
-    createForm.processingFeeConfig,
-    previewTotals.invoiceTotal,
-    systemSettings,
-  ]);
-
   useEffect(() => {
     if (!createForm.practiceId) {
       return;
@@ -415,7 +385,8 @@ function BillingRunsPage() {
     setCreateForm((prev) => {
       if (
         prev.paymentMethod === nextPaymentMethod &&
-        JSON.stringify(prev.processingFeeConfig) === JSON.stringify(nextSettings)
+        JSON.stringify(prev.processingFeeConfig) ===
+          JSON.stringify(nextSettings)
       ) {
         return prev;
       }
@@ -465,9 +436,14 @@ function BillingRunsPage() {
     };
   }, [selectedRun]);
 
-  const credentialingChargePreviewItems = useMemo<CredentialingChargePreview[]>(() => {
-    const chargeAmount = Number(selectedPractice?.credentialingChargeAmount || 0);
-    if (!chargeAmount || practiceCredentialingRequests.length === 0) {
+  const effectiveCredentialingChargeAmount = useMemo(() => {
+    return Number(selectedPractice?.credentialingChargeAmount || 0);
+  }, [selectedPractice?.credentialingChargeAmount]);
+
+  const credentialingChargePreviewItems = useMemo<
+    CredentialingChargePreview[]
+  >(() => {
+    if (practiceCredentialingRequests.length === 0) {
       return [];
     }
 
@@ -476,41 +452,102 @@ function BillingRunsPage() {
         (request) =>
           request.practiceId === createForm.practiceId &&
           !request.credentialingChargeBilledAt &&
-          [
-            "Contracted - Direct",
-            "Contracted - IPA/Delegated",
-          ].includes(request.status),
+          isCredentialingChargeEligible(request.status),
       )
       .map((request) => ({
         request,
-        amount: roundMoney(chargeAmount),
-        description: `Credentialing charge for ${request.provider || request.credentialingId}`,
+        amount: roundMoney(
+          Number(
+            createForm.credentialingChargeAmounts[request.id] ||
+              selectedPractice?.credentialingChargeAmount ||
+              0,
+          ),
+        ),
+        description: `Credentialing Fee (${request.credentialingId})`,
       }));
   }, [
     createForm.practiceId,
+    createForm.credentialingChargeAmounts,
     practiceCredentialingRequests,
     selectedPractice?.credentialingChargeAmount,
   ]);
 
+  const selectedCredentialingChargePreviewItems = useMemo(
+    () =>
+      credentialingChargePreviewItems.filter((item) =>
+        createForm.selectedCredentialingRequestIds.includes(item.request.id),
+      ),
+    [
+      credentialingChargePreviewItems,
+      createForm.selectedCredentialingRequestIds,
+    ],
+  );
+
   const credentialingChargePreviewTotal = useMemo(
     () =>
       roundMoney(
-        credentialingChargePreviewItems.reduce((sum, item) => sum + item.amount, 0),
+        selectedCredentialingChargePreviewItems.reduce(
+          (sum, item) => sum + item.amount,
+          0,
+        ),
       ),
-    [credentialingChargePreviewItems],
+    [selectedCredentialingChargePreviewItems],
   );
+
+  const previewTotals = useMemo(() => {
+    let invoiceTotal = 0;
+    let vendorTotal = 0;
+    let marginTotal = 0;
+    for (const term of activePricingTerms) {
+      const preview = computeTermPreview(
+        term,
+        createForm.termInputs[term.id] || {},
+      );
+      invoiceTotal += preview.clientAmount;
+      if (preview.vendorAmount !== null) vendorTotal += preview.vendorAmount;
+      if (preview.marginAmount !== null) marginTotal += preview.marginAmount;
+    }
+    return {
+      invoiceTotal: roundMoneyClient(invoiceTotal),
+      credentialingTotal: roundMoneyClient(credentialingChargePreviewTotal),
+      vendorTotal: roundMoneyClient(vendorTotal),
+      marginTotal: roundMoneyClient(marginTotal),
+    };
+  }, [
+    activePricingTerms,
+    createForm.termInputs,
+    credentialingChargePreviewTotal,
+  ]);
+
+  const processingFeePreview = useMemo(() => {
+    if (!createForm.paymentMethod) {
+      return {
+        clientFeeAmount: 0,
+        companyFeeAmount: 0,
+        maxCompanyFeeAmount: 0,
+        grossInvoiceAmount: previewTotals.invoiceTotal,
+      };
+    }
+
+    return calculateProcessingAmounts({
+      baseAmount: previewTotals.invoiceTotal + previewTotals.credentialingTotal,
+      paymentMethod: createForm.paymentMethod,
+      settings: createForm.processingFeeConfig,
+      totalsSource: systemSettings,
+    });
+  }, [
+    createForm.paymentMethod,
+    createForm.processingFeeConfig,
+    previewTotals.credentialingTotal,
+    previewTotals.invoiceTotal,
+    systemSettings,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadCredentialingPreview() {
       if (!createForm.practiceId) {
-        setPracticeCredentialingRequests([]);
-        return;
-      }
-
-      const chargeAmount = Number(selectedPractice?.credentialingChargeAmount || 0);
-      if (!chargeAmount) {
         setPracticeCredentialingRequests([]);
         return;
       }
@@ -524,21 +561,36 @@ function BillingRunsPage() {
           sortOrder: "desc",
         });
         if (!cancelled) {
-          setPracticeCredentialingRequests(
-            response.credentialingRequests.filter(
-              (request) =>
-                request.practiceId === createForm.practiceId &&
-                !request.credentialingChargeBilledAt &&
-                [
-                  "Contracted - Direct",
-                  "Contracted - IPA/Delegated",
-                ].includes(request.status),
-            ),
+          const eligibleRequests = response.credentialingRequests.filter(
+            (request) =>
+              request.practiceId === createForm.practiceId &&
+              !request.credentialingChargeBilledAt &&
+              isCredentialingChargeEligible(request.status),
           );
+
+          setPracticeCredentialingRequests(eligibleRequests);
+          setCreateForm((prev) => ({
+            ...prev,
+            selectedCredentialingRequestIds: eligibleRequests.map(
+              (request) => request.id,
+            ),
+            credentialingChargeAmounts: Object.fromEntries(
+              eligibleRequests.map((request) => [
+                request.id,
+                prev.credentialingChargeAmounts[request.id] ||
+                  String(Number(selectedPractice?.credentialingChargeAmount || 0).toFixed(2)),
+              ]),
+            ),
+          }));
         }
       } catch {
         if (!cancelled) {
           setPracticeCredentialingRequests([]);
+          setCreateForm((prev) => ({
+            ...prev,
+            selectedCredentialingRequestIds: [],
+            credentialingChargeAmounts: {},
+          }));
         }
       } finally {
         if (!cancelled) {
@@ -813,9 +865,8 @@ function BillingRunsPage() {
     setCreateForm({
       ...initialCreateRunForm,
       practiceId,
-      processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(
-        systemSettings,
-      ),
+      processingFeeConfig:
+        buildPracticeDefaultProcessingFeeSettings(systemSettings),
     });
     setReadiness(null);
 
@@ -887,9 +938,8 @@ function BillingRunsPage() {
   function resetCreateForm() {
     setCreateForm({
       ...initialCreateRunForm,
-      processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(
-        systemSettings,
-      ),
+      processingFeeConfig:
+        buildPracticeDefaultProcessingFeeSettings(systemSettings),
     });
     setReadiness(null);
     setPracticeAgreements([]);
@@ -916,9 +966,8 @@ function BillingRunsPage() {
     setCreateForm({
       ...initialCreateRunForm,
       practiceId: preselectedPracticeId,
-      processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(
-        systemSettings,
-      ),
+      processingFeeConfig:
+        buildPracticeDefaultProcessingFeeSettings(systemSettings),
     });
     setReadiness(null);
     setPracticeAgreements([]);
@@ -978,6 +1027,9 @@ function BillingRunsPage() {
         autoCalculate: createForm.autoCalculate,
         snapshots,
         agreementIds: createForm.agreementIds,
+        selectedCredentialingRequestIds:
+          createForm.selectedCredentialingRequestIds,
+        credentialingChargeAmounts: createForm.credentialingChargeAmounts,
       });
       await refreshRows(1);
       setPagination((prev) => ({ ...prev, page: 1 }));
@@ -1309,7 +1361,9 @@ function BillingRunsPage() {
             </div>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            This setup is read from the selected practice. To change please update the practice's payment method and processing fee configuration in the practice settings.
+            This setup is read from the selected practice. To change please
+            update the practice's payment method and processing fee
+            configuration in the practice settings.
           </p>
         </div>
       </div>
@@ -2916,56 +2970,138 @@ function BillingRunsPage() {
             </div>
           )}
 
-          {createForm.practiceId &&
-            selectedPractice?.credentialingChargeAmount &&
-            selectedPractice.credentialingChargeAmount > 0 &&
-            credentialingChargePreviewItems.length > 0 && (
+          {createForm.practiceId && (
               <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-[13px] font-medium text-slate-700">
-                      Credentialing Charges{" "}
+                      Credentialing{" "}
                       <span className="ml-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                        {selectedCredentialingChargePreviewItems.length}/
                         {credentialingChargePreviewItems.length}
                       </span>
                     </h3>
                     <p className="mt-1 text-[12px] text-slate-400">
-                      Shows unbilled credentialing requests with status Contracted - Direct or Contracted - IPA/Delegated.
+                      Select the requests to include on the invoice line.
+                      Unchecked requests stay out of the run.
                     </p>
                   </div>
                 </div>
-                  <div className="space-y-2">
-                    {credentialingChargePreviewItems.map(({ request, amount, description }) => (
-                      <div
-                        key={request.id}
-                        className="rounded-lg border border-[#ece7df] bg-white px-3 py-2"
-                      >
-                        <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2">
+                  {credentialingChargePreviewItems.length > 0 ? credentialingChargePreviewItems.map(
+                    ({ request, amount, description }) => {
+                      const isSelected =
+                        createForm.selectedCredentialingRequestIds.includes(
+                          request.id,
+                        );
+
+                      return (
+                        <label
+                          key={request.id}
+                          className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 transition ${
+                            isSelected
+                              ? "border-[#ece7df] bg-white"
+                              : "border-dashed border-slate-200 bg-slate-50/70 opacity-70"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(event) =>
+                              setCreateForm((prev) => ({
+                                ...prev,
+                                selectedCredentialingRequestIds: event.target
+                                  .checked
+                                  ? Array.from(
+                                      new Set([
+                                        ...prev.selectedCredentialingRequestIds,
+                                        request.id,
+                                      ]),
+                                    )
+                                  : prev.selectedCredentialingRequestIds.filter(
+                                      (id) => id !== request.id,
+                                    ),
+                              }))
+                            }
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
                           <div className="min-w-0 flex-1">
                             <div className="text-[12px] font-semibold text-slate-800">
-                              {request.provider || request.credentialingId}
-                            </div>
-                            <div className="mt-0.5 text-[11px] text-slate-500">
                               {description}
                             </div>
+
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-slate-500 sm:grid-cols-1">
+                             
+                              <div>
+                                <div className="uppercase tracking-wide text-slate-400">
+                                  Credentialing Type
+                                </div>
+                                <div className="mt-0.5 font-medium text-slate-700">
+                                  {request.credentialingType || "-"}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="uppercase tracking-wide text-slate-400">
+                                  Status
+                                </div>
+                                <div className="mt-0.5 font-medium text-slate-700">
+                                  <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">
+                                    {request.status}
+                                  </span>
+                                </div>
+                              </div>
+                              <div>
+                                <div className="uppercase tracking-wide text-slate-400">
+                                  Last Updated
+                                </div>
+                                <div className="mt-0.5 font-medium text-slate-700">
+                                  {formatDateLabel(request.updatedAt)}
+                                </div>
+                              </div>
+                            </div>
                             <div className="mt-1 flex flex-wrap gap-2 text-[10px]">
-                              <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
-                                {request.status}
-                              </span>
-                              <span className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700">
-                                Charge per request
-                              </span>
+                              
+                              {!isSelected && (
+                                <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700">
+                                  Excluded
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="shrink-0 text-right">
-                            <div className="text-[13px] font-bold text-slate-800">
-                              {formatMoney(amount)}
-                            </div>
+                            <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                              Amount
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={
+                                createForm.credentialingChargeAmounts[request.id] ||
+                                amount.toFixed(2)
+                              }
+                              disabled={!isSelected}
+                              onChange={(event) =>
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  credentialingChargeAmounts: {
+                                    ...prev.credentialingChargeAmounts,
+                                    [request.id]: event.target.value,
+                                  },
+                                }))
+                              }
+                              className="app-control w-28 rounded-md px-2 py-1 text-right text-[13px] font-bold text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
+                            />
                           </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        </label>
+                      );
+                    },
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-3 text-[12px] text-slate-500">
+                      No credentialing requests found for this practice.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -2982,7 +3118,10 @@ function BillingRunsPage() {
                     Net Services
                   </div>
                   <div className="mt-1 text-sm font-bold text-slate-800">
-                    {formatMoney(previewTotals.invoiceTotal + credentialingChargePreviewTotal)}
+                    {formatMoney(
+                      previewTotals.invoiceTotal +
+                        credentialingChargePreviewTotal,
+                    )}
                   </div>
                 </div>
 
@@ -3050,6 +3189,10 @@ function BillingRunsPage() {
             disabled={
               isSubmitting ||
               isReadinessLoading ||
+              (Boolean(
+                effectiveCredentialingChargeAmount > 0,
+              ) &&
+                isLoadingCredentialingRequests) ||
               (readiness !== null && !readiness.isReady)
             }
             className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"

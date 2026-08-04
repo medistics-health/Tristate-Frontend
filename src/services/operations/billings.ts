@@ -178,6 +178,8 @@ export type CreateBillingRunBody = {
   autoCalculate?: boolean;
   snapshots?: BillingSnapshotInput[];
   agreementIds?: string[];
+  selectedCredentialingRequestIds?: string[];
+  credentialingChargeAmountOverride?: number | string | null;
 };
 
 export type UpsertBillingSnapshotsBody = {
