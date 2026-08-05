@@ -1796,10 +1796,20 @@ export default function PracticeProfilePage() {
                           {person.email || "No email"}
                         </p>
                       </div>
-                      <span className="rounded-full bg-[#f3f0ea] px-3 py-1 text-xs font-semibold text-slate-600">
-                        {personEmails.length} email
-                        {personEmails.length === 1 ? "" : "s"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {person.email ? (
+                          <Link
+                            to={`/communication/all-emails?toEmail=${encodeURIComponent(person.email)}`}
+                            className="inline-flex items-center rounded-full border border-[#d7d1c8] bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                          >
+                            View All
+                          </Link>
+                        ) : null}
+                        <span className="rounded-full bg-[#f3f0ea] px-3 py-1 text-xs font-semibold text-slate-600">
+                          {personEmails.length} email
+                          {personEmails.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
                     </div>
 
                     {isEmailLoading ? (

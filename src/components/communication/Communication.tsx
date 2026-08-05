@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Mail, RefreshCw, Search, X } from "lucide-react";
 import toast from "react-hot-toast";
+import { useSearchParams } from "react-router-dom";
 import AppLayout from "../layout/AppLayout";
 import {
   getSentEmails,
@@ -50,15 +51,19 @@ function collectRecipientEmails(records: SentEmail[]) {
 
 export default function CommunicationPage() {
   const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+  const [searchParams] = useSearchParams();
+  const initialToEmail = searchParams.get("toEmail")?.trim() || "";
+  const initialSentFrom = searchParams.get("sentFrom")?.trim() || "";
+  const initialSentTo = searchParams.get("sentTo")?.trim() || "";
   const [emails, setEmails] = useState<SentEmail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<SentEmail | null>(null);
-  const [sentFromDate, setSentFromDate] = useState("");
-  const [sentToDate, setSentToDate] = useState("");
-  const [recipientInput, setRecipientInput] = useState("");
-  const [selectedRecipientEmail, setSelectedRecipientEmail] = useState("");
+  const [sentFromDate, setSentFromDate] = useState(initialSentFrom);
+  const [sentToDate, setSentToDate] = useState(initialSentTo);
+  const [recipientInput, setRecipientInput] = useState(initialToEmail);
+  const [selectedRecipientEmail, setSelectedRecipientEmail] = useState(initialToEmail);
   const [knownRecipients, setKnownRecipients] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(25);
