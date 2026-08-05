@@ -40,6 +40,13 @@ export type SentEmail = {
   internetMessageId: string;
 };
 
+export type SentEmailFilters = {
+  sender?: string;
+  toEmail?: string;
+  sentFrom?: string;
+  sentTo?: string;
+};
+
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as
@@ -80,14 +87,27 @@ function normalizeEmailRecord(email: RawEmail, index: number): SentEmail {
 }
 
 export async function getSentEmails(
-  sender = "noreply@tristatemso.com",
+  filters: SentEmailFilters = {},
 ): Promise<SentEmail[]> {
   try {
+    const params: SentEmailFilters = {
+      sender: filters.sender?.trim() || "noreply@tristatemso.com",
+    };
+    if (filters.toEmail?.trim()) {
+      params.toEmail = filters.toEmail.trim();
+    }
+    if (filters.sentFrom?.trim()) {
+      params.sentFrom = filters.sentFrom.trim();
+    }
+    if (filters.sentTo?.trim()) {
+      params.sentTo = filters.sentTo.trim();
+    }
+
     const response = await apiConnector({
       method: "GET",
       url: communicationEndpoints.SENT_EMAILS,
       credentials: true,
-      params: { sender },
+      params,
     });
 
     const payload = response.data as
