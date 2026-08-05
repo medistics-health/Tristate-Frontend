@@ -227,3 +227,52 @@ export async function deletePersonApi(id: string): Promise<void> {
     throw new Error(getErrorMessage(error, "Unable to delete person."));
   }
 }
+
+export async function getAllPersonEmails(): Promise<string[]> {
+  try {
+    const dedupedEmails = new Map<string, string>();
+    const limit = 1000;
+    let currentPage = 1;
+    let totalPages = 1;
+
+    while (currentPage <= totalPages) {
+      const queryString = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(limit),
+      });
+      const response = await apiConnector({
+        method: "GET",
+        url: `${LIST}?${queryString.toString()}`,
+        credentials: true,
+      });
+
+      const payload = response.data as {
+        persons?: Array<{ email?: string | null }>;
+        pagination?: { totalPages?: number };
+      };
+
+      const persons = Array.isArray(payload.persons) ? payload.persons : [];
+      for (const person of persons) {
+        const email = person.email?.trim();
+        if (!email) continue;
+        const lower = email.toLowerCase();
+        if (!dedupedEmails.has(lower)) {
+          dedupedEmails.set(lower, email);
+        }
+      }
+
+      const nextTotalPages = payload.pagination?.totalPages;
+      totalPages =
+        typeof nextTotalPages === "number" && Number.isFinite(nextTotalPages)
+          ? Math.max(1, nextTotalPages)
+          : currentPage;
+      currentPage += 1;
+    }
+
+    return Array.from(dedupedEmails.values()).sort((a, b) =>
+      a.localeCompare(b),
+    );
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch person emails."));
+  }
+}
