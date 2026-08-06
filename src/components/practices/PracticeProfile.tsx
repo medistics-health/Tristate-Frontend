@@ -887,93 +887,7 @@ export default function PracticeProfilePage() {
           </Card>
         </div>
 
-        <Card
-          title="Practice Communication"
-          description="Email history sent to people associated with this practice."
-          scrollable
-        >
-          {practice.persons?.length ? (
-            <div className="space-y-3">
-              {practice.persons.map((person) => {
-                const personName =
-                  [person.firstName, person.lastName].filter(Boolean).join(" ") ||
-                  "Unnamed contact";
-                const personEmails = person.id ? personEmailsById[person.id] || [] : [];
-                const isEmailLoading = person.id
-                  ? Boolean(emailsLoadingByPersonId[person.id])
-                  : false;
-
-                return (
-                  <div
-                    key={person.id}
-                    className="rounded-2xl border border-[#ece8e1] bg-white p-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-slate-900">{personName}</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {person.email || "No email"}
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-[#f3f0ea] px-3 py-1 text-xs font-semibold text-slate-600">
-                        {personEmails.length} email
-                        {personEmails.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-
-                    {isEmailLoading ? (
-                      <p className="mt-3 text-sm text-slate-500">
-                        Loading email history...
-                      </p>
-                    ) : personEmails.length ? (
-                      <div className="mt-3 space-y-2">
-                        {personEmails.slice(0, 5).map((mail) => {
-                          const preview = mail.bodyPreview || stripHtml(mail.bodyHtml);
-                          return (
-                            <button
-                              key={`${person.id}-${mail.id}`}
-                              type="button"
-                              onClick={() =>
-                                setSelectedPersonEmail({
-                                  personName,
-                                  email: mail,
-                                })
-                              }
-                              className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-3 py-2 text-left transition hover:border-slate-300 hover:bg-white"
-                            >
-                              <p className="truncate text-sm font-semibold text-slate-800">
-                                {mail.subject}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {formatDateTime(mail.sentDateTime)}
-                              </p>
-                              <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                                {preview || "-"}
-                              </p>
-                            </button>
-                          );
-                        })}
-                        {personEmails.length > 5 ? (
-                          <p className="text-xs text-slate-400">
-                            Showing latest 5 of {personEmails.length} emails
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <p className="mt-3 rounded-xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] px-3 py-2 text-sm text-slate-500">
-                        No emails found for this person.
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="rounded-2xl bg-[#fbfaf8] p-4 text-sm text-slate-500">
-              No people linked to this practice.
-            </p>
-          )}
-        </Card>
+      
 
         <Card
           title="Associated Companies"
@@ -1853,6 +1767,99 @@ export default function PracticeProfilePage() {
             </div>
           </Card>
         ) : null}
+
+<Card
+          title="Practice Communication"
+          description="Email history sent to people associated with this practice."
+          scrollable
+        >
+          {practice.persons?.length ? (
+            <div className="space-y-3">
+              {practice.persons.map((person) => {
+                const personName =
+                  [person.firstName, person.lastName].filter(Boolean).join(" ") ||
+                  "Unnamed contact";
+                const personEmails = person.id ? personEmailsById[person.id] || [] : [];
+                const isEmailLoading = person.id
+                  ? Boolean(emailsLoadingByPersonId[person.id])
+                  : false;
+
+                return (
+                  <div
+                    key={person.id}
+                    className="rounded-2xl border border-[#ece8e1] bg-white p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-slate-900">{personName}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {person.email || "No email"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {person.email ? (
+                          <Link
+                            to={`/communication/all-emails?toEmail=${encodeURIComponent(person.email)}`}
+                            className="inline-flex items-center rounded-full border border-[#d7d1c8] bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                          >
+                            View All
+                          </Link>
+                        ) : null}
+                        <span className="rounded-full bg-[#f3f0ea] px-3 py-1 text-xs font-semibold text-slate-600">
+                          {personEmails.length} email
+                          {personEmails.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isEmailLoading ? (
+                      <p className="mt-3 text-sm text-slate-500">
+                        Loading email history...
+                      </p>
+                    ) : personEmails.length ? (
+                      <div className="mt-3 space-y-2">
+                        {personEmails.map((mail) => {
+                          const preview = mail.bodyPreview || stripHtml(mail.bodyHtml);
+                          return (
+                            <button
+                              key={`${person.id}-${mail.id}`}
+                              type="button"
+                              onClick={() =>
+                                setSelectedPersonEmail({
+                                  personName,
+                                  email: mail,
+                                })
+                              }
+                              className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-3 py-2 text-left transition hover:border-slate-300 hover:bg-white"
+                            >
+                              <p className="truncate text-sm font-semibold text-slate-800">
+                                {mail.subject}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatDateTime(mail.sentDateTime)}
+                              </p>
+                              <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                                {preview || "-"}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-3 rounded-xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] px-3 py-2 text-sm text-slate-500">
+                        No emails found for this person.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="rounded-2xl bg-[#fbfaf8] p-4 text-sm text-slate-500">
+              No people linked to this practice.
+            </p>
+          )}
+        </Card>
       </div>
       {selectedPersonEmail ? (
         <div
