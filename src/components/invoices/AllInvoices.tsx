@@ -96,6 +96,15 @@ function formatCurrency(value?: string | number | null) {
   }).format(amount);
 }
 
+function parseCurrencyToNumber(value?: string | number | null) {
+  if (value === undefined || value === null || value === "") return 0;
+  if (typeof value === "number") return value;
+  // Remove any characters except digits, dot, and minus
+  const cleaned = String(value).replace(/[^0-9.-]+/g, "");
+  const n = Number(cleaned);
+  return Number.isNaN(n) ? 0 : n;
+}
+
 function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
@@ -105,6 +114,13 @@ function formatDateForInput(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString();
 }
 
 function buildFormState(invoice?: Invoice | null): InvoiceFormState {
@@ -280,8 +296,28 @@ function AllInvoicePage() {
           id: "companyAbsorbed",
           accessorFn: (row: InvoiceRow) => row.values.companyAbsorbed,
           header: () => "Company Absorbed",
-          cell: ({ row }: { row: { original: InvoiceRow } }) =>
-            String(row.original.values.companyAbsorbed || "-"),
+          cell: ({ row }: { row: { original: InvoiceRow } }) => {
+            const vals = row.original.values as any;
+            const rawCompany = vals.companyAbsorbed;
+            const companyNum = parseCurrencyToNumber(rawCompany);
+            const netServicesNum = parseCurrencyToNumber(vals.netServices);
+            const netAmountNum = parseCurrencyToNumber(vals.netAmount);
+
+            // If Net Services or Net Amount is zero, force display $0.00 per UX request
+            if (netServicesNum === 0 || netAmountNum === 0) {
+              return formatCurrency(0);
+            }
+
+            if (rawCompany !== undefined && rawCompany !== null && String(rawCompany).trim() !== "") {
+              return String(formatCurrency(rawCompany));
+            }
+
+            if (netServicesNum === 0 && netAmountNum === 0) {
+              return formatCurrency(0);
+            }
+
+            return "-";
+          },
         },
         {
           id: "paymentMethod",
@@ -294,8 +330,22 @@ function AllInvoicePage() {
           id: "netAmount",
           accessorFn: (row: InvoiceRow) => row.values.netAmount,
           header: () => "Net Amount",
-          cell: ({ row }: { row: { original: InvoiceRow } }) =>
-            String(row.original.values.netAmount || "-"),
+          cell: ({ row }: { row: { original: InvoiceRow } }) => {
+            const vals = row.original.values as any;
+            const netServicesNum = parseCurrencyToNumber(vals.netServices);
+            const netAmountRaw = vals.netAmount;
+            const netAmountNum = parseCurrencyToNumber(netAmountRaw);
+
+            if (netServicesNum === 0) {
+              return formatCurrency(0);
+            }
+
+            if (netAmountRaw !== undefined && netAmountRaw !== null && String(netAmountRaw).trim() !== "") {
+              return formatCurrency(netAmountNum);
+            }
+
+            return "-";
+          },
         },
         {
           id: "dueDate",
@@ -703,6 +753,22 @@ function AllInvoicePage() {
                             value: new Date(
                               selectedInvoice.dueDate,
                             ).toLocaleDateString(),
+                          },
+                        ]
+                      : []),
+                    ...(selectedInvoice?.paidAt
+                      ? [
+                          {
+                            label: "Paid At",
+                            value: formatDateTime(selectedInvoice.paidAt),
+                          },
+                        ]
+                      : []),
+                    ...(selectedInvoice?.payerEmail
+                      ? [
+                          {
+                            label: "Payer Email",
+                            value: selectedInvoice.payerEmail,
                           },
                         ]
                       : []),

@@ -129,7 +129,6 @@ const credentialingChargeEligibleStatuses = new Set([
 ]);
 
 function isCredentialingChargeEligible(status?: string | null) {
-  console.log("Checking credentialing charge eligibility for status:", status);
   return credentialingChargeEligibleStatuses.has(String(status || "").trim());
 }
 
@@ -483,6 +482,17 @@ function BillingRunsPage() {
     ],
   );
 
+  const alreadyApprovedCredentialingRequests = useMemo(
+    () =>
+      practiceCredentialingRequests.filter(
+        (request) =>
+          Boolean(request.credentialingChargeBilledAt) &&
+          !request.credentialingChargeInvoiceLineItemId &&
+          isCredentialingChargeEligible(request.status),
+      ),
+    [practiceCredentialingRequests],
+  );
+
   const credentialingChargePreviewTotal = useMemo(
     () =>
       roundMoney(
@@ -519,6 +529,38 @@ function BillingRunsPage() {
     credentialingChargePreviewTotal,
   ]);
 
+  const selectedAgreementNames = useMemo(() => {
+    return practiceAgreements
+      .filter((a) => createForm.agreementIds.includes(a.id))
+      .map((a) => a.type || a.name || a.id);
+  }, [practiceAgreements, createForm.agreementIds]);
+
+  const runProviderNames = useMemo(() => {
+    return Array.from(
+      new Set(
+        (selectedRun?.items || [])
+          .map(
+            (i: any) => i.provider?.name || i.provider || i.practitioner?.name,
+          )
+          .filter(Boolean),
+      ),
+    );
+  }, [selectedRun]);
+
+  const runPlanNames = useMemo(() => {
+    return Array.from(
+      new Set(
+        (selectedRun?.items || [])
+          .map(
+            (i: any) =>
+              i.agreementServiceTerm?.agreement?.type ||
+              i.agreementServiceTerm?.agreement?.name,
+          )
+          .filter(Boolean),
+      ),
+    );
+  }, [selectedRun]);
+
   const processingFeePreview = useMemo(() => {
     if (!createForm.paymentMethod) {
       return {
@@ -543,6 +585,8 @@ function BillingRunsPage() {
     systemSettings,
   ]);
 
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -561,14 +605,17 @@ function BillingRunsPage() {
           sortOrder: "desc",
         });
         if (!cancelled) {
-          const eligibleRequests = response.credentialingRequests.filter(
+          const practiceRequests = response.credentialingRequests.filter(
             (request) =>
               request.practiceId === createForm.practiceId &&
-              !request.credentialingChargeBilledAt &&
               isCredentialingChargeEligible(request.status),
           );
 
-          setPracticeCredentialingRequests(eligibleRequests);
+          const eligibleRequests = practiceRequests.filter(
+            (request) => !request.credentialingChargeBilledAt,
+          );
+
+          setPracticeCredentialingRequests(practiceRequests);
           setCreateForm((prev) => ({
             ...prev,
             selectedCredentialingRequestIds: eligibleRequests.map(
@@ -578,7 +625,11 @@ function BillingRunsPage() {
               eligibleRequests.map((request) => [
                 request.id,
                 prev.credentialingChargeAmounts[request.id] ||
-                  String(Number(selectedPractice?.credentialingChargeAmount || 0).toFixed(2)),
+                  String(
+                    Number(
+                      selectedPractice?.credentialingChargeAmount || 0,
+                    ).toFixed(2),
+                  ),
               ]),
             ),
           }));
@@ -1545,7 +1596,11 @@ function BillingRunsPage() {
                     Company Absorbed
                   </span>
                   <span className="font-bold text-slate-700">
-                    {formatMoney(detailTotals.companyFeeAmount)}
+                    {formatMoney(
+                      detailTotals.netServicesTotal === 0
+                        ? 0
+                        : detailTotals.companyFeeAmount,
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1892,7 +1947,7 @@ function BillingRunsPage() {
                           type="button"
                           onClick={() =>
                             window.open(
-                              billingEndpoints.INVOICE_PREVIEW(selectedRun.id),
+                              billingEndpoints.INVOICE_PREVIEW(selectedRun!.id),
                               "_blank",
                               "noopener,noreferrer",
                             )
@@ -1935,6 +1990,51 @@ function BillingRunsPage() {
                           </div>
                           <div className="mt-1 text-[12px] text-slate-400">
                             {invoice.status}
+                          </div>
+                          <div className="mt-1 text-[11px] text-slate-500">
+                            <div>
+                              Provider:{" "}
+                              <span className="font-medium text-slate-700">
+                                {runProviderNames.length > 0
+                                  ? runProviderNames.join(", ")
+                                  : invoice.providerName ||
+                                    selectedRun.practice?.name ||
+                                    "-"}
+                              </span>
+                            </div>
+                            {invoice.paidAt && (
+                              <div>
+                                Payment:{" "}
+                                <span className="font-medium text-slate-700">
+                                  {formatDateTime(invoice.paidAt)}
+                                </span>
+                              </div>
+                            )}
+                            {invoice.payerEmail && (
+                              <div>
+                                Payer Email:{" "}
+                                <span className="font-medium text-slate-700">
+                                  {invoice.payerEmail}
+                                </span>
+                              </div>
+                            )}
+                            {pdfUrl && (
+                              <div className="mt-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    window.open(
+                                      pdfUrl,
+                                      "_blank",
+                                      "noopener,noreferrer",
+                                    )
+                                  }
+                                  className="rounded-md border border-[#e2e8f0] px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                                >
+                                  View PDF
+                                </button>
+                              </div>
+                            )}
                           </div>
                           {/* {canViewInvoicePdf && (
                           <div className="mt-2">
@@ -2971,24 +3071,105 @@ function BillingRunsPage() {
           )}
 
           {createForm.practiceId && (
-              <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-[13px] font-medium text-slate-700">
-                      Credentialing{" "}
-                      <span className="ml-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        {selectedCredentialingChargePreviewItems.length}/
-                        {credentialingChargePreviewItems.length}
-                      </span>
-                    </h3>
-                    <p className="mt-1 text-[12px] text-slate-400">
-                      Select the requests to include on the invoice line.
-                      Unchecked requests stay out of the run.
-                    </p>
+            <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-[13px] font-medium text-slate-700">
+                    Credentialing{" "}
+                    <span className="ml-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                      {selectedCredentialingChargePreviewItems.length}/
+                      {credentialingChargePreviewItems.length}
+                    </span>
+                  </h3>
+                  <p className="mt-1 text-[12px] text-slate-400">
+                    Select the requests to include on the invoice line.
+                    Unchecked requests stay out of the run.
+                  </p>
+                </div>
+              </div>
+              {alreadyApprovedCredentialingRequests.length > 0 && (
+                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-[12px] font-semibold text-slate-800">
+                        Previously approved credentialing requests{" "}
+                        <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                          {alreadyApprovedCredentialingRequests.length} Pending
+                        </span>
+                      </h4>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        These items were approved in an earlier billing run and
+                        are pending invoice posting. They will not be included
+                        again in this new run.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {alreadyApprovedCredentialingRequests.map((request) => (
+                      <div
+                        key={request.id}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px]"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-medium text-slate-800">
+                            {request.credentialingId || request.provider}
+                            <div className="text-[11px] text-slate-500">
+                              Provider:{" "}
+                              <span className="font-medium text-slate-700">
+                                {request.provider || "-"}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                            Approved
+                          </span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-slate-500 sm:grid-cols-1">
+                          <div>
+                            <div className="uppercase tracking-wide text-slate-400">
+                              Credentialing Type
+                            </div>
+                            <div className="mt-0.5 font-medium text-slate-700">
+                              {request.credentialingType || "-"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="uppercase tracking-wide text-slate-400">
+                              Insurance Plan
+                            </div>
+                            <div className="mt-0.5 font-medium text-slate-700">
+                              {request.insuranceCompany || "-"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="uppercase tracking-wide text-slate-400">
+                              Status
+                            </div>
+                            <div className="mt-0.5 font-medium text-slate-700">
+                              <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+                                {request.status}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="uppercase tracking-wide text-slate-400">
+                              Approved At
+                            </div>
+                            <div className="mt-0.5 font-medium text-slate-700">
+                              {formatDateLabel(
+                                request.credentialingChargeBilledAt,
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  {credentialingChargePreviewItems.length > 0 ? credentialingChargePreviewItems.map(
+              )}
+              <div className="space-y-2">
+                {credentialingChargePreviewItems.length > 0 ? (
+                  credentialingChargePreviewItems.map(
                     ({ request, amount, description }) => {
                       const isSelected =
                         createForm.selectedCredentialingRequestIds.includes(
@@ -3030,14 +3211,30 @@ function BillingRunsPage() {
                               {description}
                             </div>
 
+                            <div className="mt-1 text-[11px] text-slate-500">
+                              <span className="mr-3">
+                                Provider:{" "}
+                                <span className="font-medium text-slate-700">
+                                  {request.provider || "-"}
+                                </span>
+                              </span>
+                            </div>
+
                             <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-slate-500 sm:grid-cols-1">
-                             
                               <div>
                                 <div className="uppercase tracking-wide text-slate-400">
                                   Credentialing Type
                                 </div>
                                 <div className="mt-0.5 font-medium text-slate-700">
                                   {request.credentialingType || "-"}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="uppercase tracking-wide text-slate-400">
+                                  Insurance Plan
+                                </div>
+                                <div className="mt-0.5 font-medium text-slate-700">
+                                  {request.insuranceCompany || "-"}
                                 </div>
                               </div>
                               <div>
@@ -3060,7 +3257,6 @@ function BillingRunsPage() {
                               </div>
                             </div>
                             <div className="mt-1 flex flex-wrap gap-2 text-[10px]">
-                              
                               {!isSelected && (
                                 <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700">
                                   Excluded
@@ -3077,8 +3273,9 @@ function BillingRunsPage() {
                               min="0"
                               step="0.01"
                               value={
-                                createForm.credentialingChargeAmounts[request.id] ||
-                                amount.toFixed(2)
+                                createForm.credentialingChargeAmounts[
+                                  request.id
+                                ] || amount.toFixed(2)
                               }
                               disabled={!isSelected}
                               onChange={(event) =>
@@ -3096,14 +3293,15 @@ function BillingRunsPage() {
                         </label>
                       );
                     },
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-3 text-[12px] text-slate-500">
-                      No credentialing requests found for this practice.
-                    </div>
-                  )}
-                </div>
+                  )
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-3 text-[12px] text-slate-500">
+                    No credentialing requests found for this practice.
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+          )}
 
           {/* Run Summary - Invoice & Vendor Payable Totals */}
           {activePricingTerms.length > 0 && (
@@ -3139,7 +3337,16 @@ function BillingRunsPage() {
                     Company Absorbed
                   </div>
                   <div className="mt-1 text-sm font-bold text-slate-800">
-                    {formatMoney(processingFeePreview.companyFeeAmount)}
+                    {(() => {
+                      const runNetServices =
+                        previewTotals.invoiceTotal +
+                        credentialingChargePreviewTotal;
+                      return formatMoney(
+                        runNetServices === 0
+                          ? 0
+                          : processingFeePreview.companyFeeAmount,
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -3189,9 +3396,7 @@ function BillingRunsPage() {
             disabled={
               isSubmitting ||
               isReadinessLoading ||
-              (Boolean(
-                effectiveCredentialingChargeAmount > 0,
-              ) &&
+              (Boolean(effectiveCredentialingChargeAmount > 0) &&
                 isLoadingCredentialingRequests) ||
               (readiness !== null && !readiness.isReady)
             }

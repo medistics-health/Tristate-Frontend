@@ -180,6 +180,7 @@ export type CreateBillingRunBody = {
   agreementIds?: string[];
   selectedCredentialingRequestIds?: string[];
   credentialingChargeAmountOverride?: number | string | null;
+  credentialingChargeAmounts?: any
 };
 
 export type UpsertBillingSnapshotsBody = {

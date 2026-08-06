@@ -604,8 +604,11 @@ export default function AddPricingTermWizard({
     preview.requiresApproval = comps.some((c, idx) => {
       const clientVal = parseAmount(c.value) ?? 0;
       const vendorVal = hasVendor ? (parseAmount(vendorComps[idx]?.value) ?? 0) : 0;
+      if (clientVal <= 0) {
+        return vendorVal > 0;
+      }
       const marginVal = clientVal - vendorVal;
-      const marginPct = clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
+      const marginPct = (marginVal / clientVal) * 100;
       return marginPct < 20;
     });
   }
@@ -819,8 +822,11 @@ export default function AddPricingTermWizard({
       p.requiresApproval = comps.some((c, idx) => {
         const clientVal = parseAmount(c.value) ?? 0;
         const vendorVal = hasVendor ? (parseAmount(vendorComps[idx]?.value) ?? 0) : 0;
+        if (clientVal <= 0) {
+          return vendorVal > 0;
+        }
         const marginVal = clientVal - vendorVal;
-        const marginPct = clientVal > 0 ? (marginVal / clientVal) * 100 : 0;
+        const marginPct = (marginVal / clientVal) * 100;
         return marginPct < 20;
       });
       return {
