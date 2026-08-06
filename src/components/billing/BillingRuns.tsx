@@ -521,7 +521,9 @@ function BillingRunsPage() {
       invoiceTotal: roundMoneyClient(invoiceTotal),
       credentialingTotal: roundMoneyClient(credentialingChargePreviewTotal),
       vendorTotal: roundMoneyClient(vendorTotal),
-      marginTotal: roundMoneyClient(marginTotal),
+      marginTotal: roundMoneyClient(
+        marginTotal + credentialingChargePreviewTotal,
+      ),
     };
   }, [
     activePricingTerms,
@@ -1579,7 +1581,7 @@ function BillingRunsPage() {
                   <span className="text-slate-500 font-medium">
                     Net Services
                   </span>
-                  <span className="font-bold text-slate-800 text-[15px]">
+                  <span className="font-bold text-slate-800">
                     {formatMoney(detailTotals.netServicesTotal)}
                   </span>
                 </div>
@@ -1605,10 +1607,10 @@ function BillingRunsPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 font-medium">
-                    Gross Invoice Total
+                    Total Margin
                   </span>
                   <span className="font-bold text-slate-800">
-                    {formatMoney(detailTotals.grossInvoiceTotal)}
+                    {formatMoney(detailTotals.margin)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1629,12 +1631,12 @@ function BillingRunsPage() {
                 </div>
                 <div className="flex items-center justify-between border-t border-[#eadfcd]/40 pt-2.5">
                   <span className="text-slate-500 font-medium">
-                    Total Margin
+                    Gross Invoice Total
                   </span>
                   <span
                     className={`font-extrabold text-[14px] ${detailTotals.margin < 0 ? "text-rose-600" : "text-emerald-600"}`}
                   >
-                    {formatMoney(detailTotals.margin)}
+                    {formatMoney(detailTotals.grossInvoiceTotal)}
                   </span>
                 </div>
               </div>
