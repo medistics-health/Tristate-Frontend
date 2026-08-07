@@ -74,6 +74,12 @@ export default function CommunicationPage() {
   const hasInvalidDateRange = Boolean(
     sentFromDate && sentToDate && sentFromDate > sentToDate,
   );
+  const hasAnyFilterApplied = Boolean(
+    searchText.trim() ||
+      selectedRecipientEmail.trim() ||
+      sentFromDate.trim() ||
+      sentToDate.trim(),
+  );
 
   const visibleEmails = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -390,7 +396,7 @@ export default function CommunicationPage() {
                 Sent From date cannot be after Sent To date.
               </p>
             ) : null}
-            {!isLoading ? (
+            {!isLoading && hasAnyFilterApplied ? (
               <p className="mt-2 text-[12px] text-slate-500">
                 Showing{" "}
                 <span className="font-semibold text-slate-700">
