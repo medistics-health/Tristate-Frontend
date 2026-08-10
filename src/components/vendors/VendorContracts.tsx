@@ -241,7 +241,7 @@ function VendorContractPage() {
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
       navbarActions={navbarActions}
     >
-      <div className="flex h-full gap-2">
+      <div className="app-split">
         <div className="app-panel min-w-0 flex-1 overflow-hidden rounded-2xl">
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <button
@@ -270,7 +270,7 @@ function VendorContractPage() {
             </div>
           </div>
 
-          <div className="min-h-0 overflow-auto">
+          <div className="app-kanban-scroll min-h-0 overflow-auto">
             <div className="grid min-w-[1050px] auto-cols-fr grid-flow-col">
               {visibleLanes.map((lane) => (
                 <section
@@ -332,7 +332,7 @@ function VendorContractPage() {
         </div>
 
         {showDetailPanel && selectedAudit ? (
-          <aside className="app-panel flex w-[340px] flex-col overflow-hidden rounded-2xl">
+          <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[340px] flex-col overflow-hidden rounded-2xl">
             <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
               <button
                 type="button"

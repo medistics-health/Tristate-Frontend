@@ -260,9 +260,9 @@ function StandardEntityListPage({
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
       navbarActions={getStandardNavbarActions(addRow)}
     >
-      <div className="flex h-full gap-2">
+      <div className="app-split">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
+          <div className="app-toolbar justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <div className="relative">
               <LayoutGrid className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
@@ -279,7 +279,7 @@ function StandardEntityListPage({
               </select>
             </div>
 
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
+            <div className="app-toolbar text-[14px] text-slate-500">
               <button type="button">Filter</button>
               <button
                 type="button"

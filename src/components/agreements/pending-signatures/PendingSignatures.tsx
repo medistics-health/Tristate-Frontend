@@ -493,7 +493,7 @@ function AgreementPendingSignaturesPage() {
       activeModule="Agreements"
       activeSubItem="Pending Signatures"
     >
-      <div className="grid h-full gap-3 lg:grid-cols-[500px_minmax(0,1fr)] font-app-sans">
+      <div className="grid h-full min-w-0 gap-3 lg:grid-cols-[minmax(0,500px)_minmax(0,1fr)] font-app-sans">
         <section className="overflow-hidden rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
             <div>

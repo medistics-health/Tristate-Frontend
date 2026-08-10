@@ -1438,9 +1438,9 @@ export default function AllPracticePage() {
         canWritePractices ? getStandardNavbarActions(openCreateForm) : []
       }
     >
-      <div className="flex h-full gap-2">
+      <div className="app-split">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
+          <div className="app-toolbar justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <div className="relative">
               <LayoutGrid className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <div className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none">
@@ -1814,7 +1814,7 @@ export default function AllPracticePage() {
         </div>
 
         {showDetailPanel && selectedRow && (
-          <aside className="app-panel flex w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+          <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
               <button
                 type="button"
@@ -1882,7 +1882,7 @@ export default function AllPracticePage() {
         )}
 
         {showCreateForm && (
-          <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+          <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
               <h2 className="text-[15px] font-semibold text-slate-700">
                 Create Practice

@@ -139,7 +139,7 @@ function AgreementsContent() {
         </div>
       </div>
 
-      <aside className="w-[348px] border-l border-[#efebe4] bg-[#fcfbf9] shadow-[-8px_0_24px_rgba(15,23,42,0.06)]">
+      <aside className="app-detail-panel w-full max-w-full lg:w-[348px] border-l border-[#efebe4] bg-[#fcfbf9] shadow-[-8px_0_24px_rgba(15,23,42,0.06)]">
         <div className="flex items-center gap-3 border-b border-[#efebe4] px-4 py-3">
           <button className="text-xl leading-none text-slate-400">×</button>
           <h2 className="text-[15px] font-medium text-slate-700">Filter</h2>

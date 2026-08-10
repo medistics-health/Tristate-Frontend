@@ -355,7 +355,7 @@ function AssessmentProgressPage() {
     : [];
 
   const detailPanel = (
-    <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+    <aside className="app-panel app-detail-panel relative flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
         <button
           type="button"
@@ -475,7 +475,7 @@ function AssessmentProgressPage() {
   );
 
   const createPanel = (
-    <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+    <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
         <h2 className="text-[15px] font-semibold text-slate-700">
           Create Assessment
@@ -592,7 +592,7 @@ function AssessmentProgressPage() {
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
       navbarActions={navbarActions}
     >
-      <div className="flex h-full gap-2 font-app-sans">
+      <div className="app-split font-app-sans">
         <div className="app-panel min-w-0 flex-1 overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <button
@@ -624,7 +624,7 @@ function AssessmentProgressPage() {
             </div>
           </div>
 
-          <div className="min-h-0 h-full overflow-auto">
+          <div className="app-kanban-scroll min-h-0 h-full">
             {assessments.length === 0 ? (
               <div className="relative flex min-h-[400px] items-center justify-center">
                 <div className="flex max-w-md flex-col items-center px-6 text-center">

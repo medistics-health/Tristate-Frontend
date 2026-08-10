@@ -163,9 +163,9 @@ function CompactViewPage({
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
       navbarActions={navbarActions}
     >
-      <div className="flex h-full gap-2 font-app-sans">
+      <div className="app-split font-app-sans">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
+          <div className="app-toolbar justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <div className="flex items-center gap-2 text-[14px] font-medium text-slate-700">
               <Circle className="h-3.5 w-3.5 text-slate-400" />
               <button
@@ -179,7 +179,7 @@ function CompactViewPage({
               </button>
             </div>
 
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
+            <div className="app-toolbar text-[14px] text-slate-500">
               <button
                 type="button"
                 onClick={() => setFilterCount((count) => count + 1)}
@@ -201,7 +201,7 @@ function CompactViewPage({
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2 text-[13px]">
+          <div className="app-toolbar justify-between border-b border-[#f0ece6] px-4 py-2 text-[13px]">
             <button
               type="button"
               onClick={() => setFilterCount((count) => count + 1)}
@@ -211,7 +211,7 @@ function CompactViewPage({
               {filterCount > 0 ? ` (${filterCount})` : ""}
             </button>
 
-            <div className="flex items-center gap-4">
+            <div className="app-toolbar">
               <button
                 type="button"
                 onClick={resetView}

@@ -240,9 +240,9 @@ function MetricFilterTablePage({
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
       navbarActions={getStandardNavbarActions(addRow)}
     >
-      <div className="flex h-full gap-2">
+      <div className="app-split">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
-          <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
+          <div className="app-toolbar border-b border-[#f0ece6] px-4 py-3">
             <span className="text-[15px] font-medium text-slate-700">
               {tableHeading}
             </span>
@@ -250,7 +250,7 @@ function MetricFilterTablePage({
               . {table.getRowModel().rows.length}
             </span>
 
-            <div className="ml-auto flex items-center gap-6 text-[14px] text-slate-500">
+            <div className="ml-auto app-toolbar text-[14px] text-slate-500">
               <button
                 type="button"
                 onClick={() => setShowOnlyHighValue((current) => !current)}
