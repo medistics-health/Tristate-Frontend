@@ -1805,10 +1805,10 @@ export default function PracticeProfilePage() {
                             View All
                           </Link>
                         ) : null}
-                        <span className="rounded-full bg-[#f3f0ea] px-3 py-1 text-xs font-semibold text-slate-600">
+                        {/* <span className="rounded-full bg-[#f3f0ea] px-3 py-1 text-xs font-semibold text-slate-600">
                           {personEmails.length} email
                           {personEmails.length === 1 ? "" : "s"}
-                        </span>
+                        </span> */}
                       </div>
                     </div>
 
@@ -1832,12 +1832,14 @@ export default function PracticeProfilePage() {
                               }
                               className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-3 py-2 text-left transition hover:border-slate-300 hover:bg-white"
                             >
+                              <div className="flex items-center justify-between pb-2">
                               <p className="truncate text-sm font-semibold text-slate-800">
                                 {mail.subject}
                               </p>
                               <p className="mt-1 text-xs text-slate-500">
                                 {formatDateTime(mail.sentDateTime)}
                               </p>
+                              </div>
                               <p className="mt-1 line-clamp-2 text-xs text-slate-500">
                                 {preview || "-"}
                               </p>
