@@ -331,7 +331,13 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
-function SidebarLeafItem({ item }: { item: SidebarItem }) {
+function SidebarLeafItem({
+  item,
+  onNavigate,
+}: {
+  item: SidebarItem;
+  onNavigate?: () => void;
+}) {
   const baseClass =
     "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px]";
 
@@ -356,6 +362,7 @@ function SidebarLeafItem({ item }: { item: SidebarItem }) {
     return (
       <NavLink
         to={item.to}
+        onClick={onNavigate}
         className={({ isActive }) =>
           `${baseClass} ${
             isActive
@@ -381,9 +388,10 @@ function SidebarLeafItem({ item }: { item: SidebarItem }) {
 type SidebarProps = {
   activeModule?: string;
   activeSubItem?: string;
+  onNavigate?: () => void;
 };
 
-function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
+function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const userRole = readStoredUser()?.role as string | undefined;
@@ -437,8 +445,13 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
       <div className="mt-1 flex-1 overflow-y-auto px-3 pb-5 space-y-1">
         {sidebarSteps.filter(canRenderItem).map((step) => {
           if (step.to) {
-            // Render direct link
-            return <SidebarLeafItem key={step.label} item={step} />;
+            return (
+              <SidebarLeafItem
+                key={step.label}
+                item={step}
+                onNavigate={onNavigate}
+              />
+            );
           }
 
           // Render collapsible menu
@@ -547,6 +560,7 @@ function Sidebar({ activeModule, activeSubItem }: SidebarProps) {
                       <NavLink
                         key={item.label}
                         to={item.to}
+                        onClick={onNavigate}
                         className={`mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] ${
                           isActive
                             ? "bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"

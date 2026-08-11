@@ -697,7 +697,7 @@ function CredentialingDashboardPage() {
         },
       ]}
     >
-      <div className="flex h-full gap-2 font-app-sans">
+      <div className="app-split font-app-sans">
         <section className="app-panel min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
           <div className="border-b border-[#f0ece6] bg-[linear-gradient(135deg,#ffffff_0%,#fbfaf8_55%,#f5f1e8_100%)] px-5 py-4">
             <div className="flex flex-wrap items-center gap-3">

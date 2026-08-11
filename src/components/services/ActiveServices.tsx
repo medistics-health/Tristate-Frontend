@@ -292,7 +292,7 @@ function ActiveServicePage() {
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
       navbarActions={navbarActions}
     >
-      <div className="flex h-full gap-2 font-app-sans">
+      <div className="app-split font-app-sans">
         <section className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <button
@@ -391,7 +391,7 @@ function ActiveServicePage() {
         </section>
 
         {showDetailPanel && selectedService ? (
-          <aside className="app-panel relative flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+          <aside className="app-panel app-detail-panel relative flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
               <button
                 type="button"

@@ -111,7 +111,7 @@ export function DetailSidePanel({
   if (!isOpen) return null;
 
   return (
-    <aside className="app-panel relative flex w-[340px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm font-app-sans">
+    <aside className="app-panel app-detail-panel relative flex w-full max-w-full lg:w-[340px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm font-app-sans">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
         <button

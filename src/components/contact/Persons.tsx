@@ -1196,7 +1196,7 @@ export default function PersonsPage() {
         canWritePersons ? getStandardNavbarActions(openCreateForm) : []
       }
     >
-      <div className="flex h-full gap-2">
+      <div className="app-split">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
           <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
             <div className="relative">
@@ -1484,7 +1484,7 @@ export default function PersonsPage() {
         </div>
 
         {showDetailPanel && selectedRow && (
-          <aside className="app-panel flex w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+          <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
               <button
                 type="button"
@@ -1560,7 +1560,7 @@ export default function PersonsPage() {
         )}
 
         {showCreateForm && (
-          <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+          <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
               <h2 className="text-[15px] font-semibold text-slate-700">
                 Create Person

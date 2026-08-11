@@ -611,7 +611,7 @@ export default function PricingEnginePage() {
           : []
       }
     >
-      <div className="flex h-full gap-2">
+      <div className="app-split">
         {/* ── Main table panel ── */}
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white">
           {/* Toolbar */}
@@ -1187,7 +1187,7 @@ function TermDetailPanel({
   const signerEmailsText = formatSigners((cfg as any)?.signerEmails);
 
   return (
-    <aside className="app-panel flex w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+    <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
         <button
           type="button"

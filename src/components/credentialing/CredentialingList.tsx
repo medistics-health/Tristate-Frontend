@@ -518,7 +518,7 @@ function CredentialingListPage() {
         },
       ]}
     >
-      <div className="flex h-full gap-2 font-app-sans">
+      <div className="app-split font-app-sans">
         <section className="app-panel min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm">
           <div className="border-b border-[#f0ece6] bg-gradient-to-r from-white via-[#fcfbf8] to-[#f7f3eb] px-5 py-4">
             <div className="flex flex-wrap items-center gap-3">
