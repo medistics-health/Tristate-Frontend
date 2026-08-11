@@ -519,15 +519,25 @@ export default function CredentialingModal({
 
   const activityEntries = record?.activity || [];
 
-  function renderActivityDetails(details?: string) {
+  function renderActivityDetails(details?: string, action?: string) {
     const cleanedDetails = (details || "").replace(/\[reminderKey:[^\]]+\]\s*/g, "").trim();
+    const actionNorm = (action || "").toLowerCase().trim();
+
     const items = cleanedDetails
       .split(";")
       .map((item) => item.trim())
-      .filter(Boolean);
+      .filter((item) => {
+        if (!item) return false;
+        const norm = item.toLowerCase();
+        if (norm === "activity recorded") return false;
+        if (norm === "follow-up created" || norm === "follow-up logged") return false;
+        if (norm === "document uploaded" || norm === "document updated") return false;
+        if (actionNorm && norm === actionNorm) return false;
+        return true;
+      });
 
     if (items.length === 0) {
-      return <div className="text-[12px] text-slate-500">Activity recorded</div>;
+      return null;
     }
 
     return (
@@ -1304,7 +1314,7 @@ export default function CredentialingModal({
                             {formatDateTimeLabel(entry.createdAt)}
                           </div>
                         </div>
-                        {renderActivityDetails(entry.details)}
+                        {renderActivityDetails(entry.details, entry.action)}
                         <div className="mt-1 text-[11px] uppercase tracking-wide text-slate-400">
                           {entry.actor}
                         </div>
