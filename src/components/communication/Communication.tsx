@@ -49,6 +49,14 @@ function collectRecipientEmails(records: SentEmail[]) {
   return Array.from(deduped.values()).sort((a, b) => a.localeCompare(b));
 }
 
+function getFilterSignature(filters: SentEmailFilters) {
+  return JSON.stringify({
+    toEmail: (filters.toEmail || "").trim().toLowerCase(),
+    sentFrom: (filters.sentFrom || "").trim(),
+    sentTo: (filters.sentTo || "").trim(),
+  });
+}
+
 export default function CommunicationPage() {
   const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
   const [searchParams] = useSearchParams();
@@ -65,6 +73,7 @@ export default function CommunicationPage() {
   const [recipientInput, setRecipientInput] = useState(initialToEmail);
   const [selectedRecipientEmail, setSelectedRecipientEmail] = useState(initialToEmail);
   const [knownRecipients, setKnownRecipients] = useState<string[]>([]);
+  const [lastSuccessfulFilterSignature, setLastSuccessfulFilterSignature] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(25);
   const didRunInitialLoad = useRef(false);
@@ -73,6 +82,12 @@ export default function CommunicationPage() {
 
   const hasInvalidDateRange = Boolean(
     sentFromDate && sentToDate && sentFromDate > sentToDate,
+  );
+  const hasAnyFilterApplied = Boolean(
+    searchText.trim() ||
+      selectedRecipientEmail.trim() ||
+      sentFromDate.trim() ||
+      sentToDate.trim(),
   );
 
   const visibleEmails = useMemo(() => {
@@ -116,6 +131,12 @@ export default function CommunicationPage() {
     }),
     [selectedRecipientEmail, sentFromDate, sentToDate],
   );
+  const currentFilterSignature = useMemo(
+    () => getFilterSignature(activeFilters),
+    [activeFilters],
+  );
+  const hasFetchedCurrentFilters =
+    currentFilterSignature === lastSuccessfulFilterSignature;
 
   const loadEmails = useCallback(
     async ({
@@ -133,6 +154,7 @@ export default function CommunicationPage() {
         }
         const data = await getSentEmails(filters);
         setEmails(data);
+        setLastSuccessfulFilterSignature(getFilterSignature(filters));
         setKnownRecipients((previous) => {
           const byLowercase = new Map<string, string>();
           for (const existingRecipient of previous) {
@@ -390,7 +412,7 @@ export default function CommunicationPage() {
                 Sent From date cannot be after Sent To date.
               </p>
             ) : null}
-            {!isLoading ? (
+            {!isLoading && !refreshing && hasAnyFilterApplied && hasFetchedCurrentFilters ? (
               <p className="mt-2 text-[12px] text-slate-500">
                 Showing{" "}
                 <span className="font-semibold text-slate-700">
