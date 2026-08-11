@@ -48,6 +48,7 @@ import {
 } from "../../services/operations/invoices";
 import { getAllPractices } from "../../services/operations/practices";
 import { getAllServices } from "../../services/operations/services";
+import { getCredentialingRequestsView } from "../../services/operations/credentialing";
 import {
   approveBillingRunApi,
   billingRunStatusOptions,
@@ -64,6 +65,7 @@ import {
   type BillingRunRow,
   type BillingRunStatus,
   type BillingSnapshotInput,
+  getBillingRunProcessingSummary,
 } from "../../services/operations/billings";
 import {
   canFinanceWrite,
@@ -71,6 +73,22 @@ import {
   readStoredUser,
 } from "../../utils/auth";
 import { billingEndpoints } from "../../services/apis";
+import {
+  getSystemSettingsApi,
+  type SystemSettings,
+} from "../../services/operations/users";
+import { formatDateLabel } from "../credentialing/credentialingStore";
+import type { CredentialingRecord } from "../credentialing/types";
+import {
+  buildGeneralSettingsTotals,
+  buildPracticeLabelSettings,
+  buildPracticeDefaultProcessingFeeSettings,
+  buildProcessingFeeSettings,
+  buildResolvedProcessingFeeSettings,
+  getAllocationPercent,
+  roundToPrecision,
+  type ProcessingFeeSettings,
+} from "../../utils/processingFeeConfig";
 
 const statusStyles: Record<BillingRunStatus, string> = {
   PENDING: "bg-slate-100 text-slate-700",
@@ -87,49 +105,31 @@ type CreateRunFormState = {
   practiceId: string;
   periodStart: string;
   periodEnd: string;
+  paymentMethod: "ACH" | "CREDIT_CARD" | "";
+  processingFeeConfig: ProcessingFeeSettings;
   notes: string;
   autoCalculate: boolean;
   agreementIds: string[];
   termInputs: Record<string, TermInputValues>;
+  selectedCredentialingRequestIds: string[];
+  credentialingChargeAmounts: Record<string, string>;
 };
 
-type AutoDerivedField = "baseAmount" | "collectionsBase";
-type AutoDerivedFieldState = Record<
-  string,
-  Partial<Record<AutoDerivedField, boolean>>
->;
+type CredentialingChargePreview = {
+  request: CredentialingRecord;
+  amount: number;
+  description: string;
+};
 
-const AUTO_DERIVED_TERM_NAMES = new Set([
-  "credit card charges",
-  "percent of collections",
+const credentialingChargeEligibleStatuses = new Set([
+  "Contracted - Direct",
+  "CONTRACTED_DIRECT",
+  "Contracted - IPA/Delegated",
+  "CONTRACTED_IPA_DELEGATED",
 ]);
 
-function normalizeTermName(value?: string | null) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function isAutoDerivedTerm(term: AgreementServiceTerm) {
-  return AUTO_DERIVED_TERM_NAMES.has(
-    normalizeTermName(term.service?.name || term.externalReference),
-  );
-}
-
-function getAutoDerivedField(term: AgreementServiceTerm): AutoDerivedField | null {
-  const config = (term.pricingConfig || {}) as Record<string, any>;
-  const hasCollectionsComponent =
-    term.pricingModel === "HYBRID" &&
-    Array.isArray(config.components) &&
-    config.components.some((component: any) => component?.type === "% Collections");
-
-  if (term.pricingModel === "HYBRID") {
-    return hasCollectionsComponent ? "collectionsBase" : null;
-  }
-
-  if (term.pricingModel === "PERCENT_COLLECTIONS") {
-    return "baseAmount";
-  }
-
-  return "baseAmount";
+function isCredentialingChargeEligible(status?: string | null) {
+  return credentialingChargeEligibleStatuses.has(String(status || "").trim());
 }
 
 type PaymentAllocationRow = {
@@ -151,11 +151,78 @@ const initialCreateRunForm: CreateRunFormState = {
   practiceId: "",
   periodStart: "",
   periodEnd: "",
+  paymentMethod: "",
+  processingFeeConfig: buildProcessingFeeSettings(),
   notes: "",
-  autoCalculate: false,
+  autoCalculate: true,
   agreementIds: [],
   termInputs: {},
+  selectedCredentialingRequestIds: [],
+  credentialingChargeAmounts: {},
 };
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function calculateConfiguredFee(
+  baseAmount: number,
+  paymentMethod: "ACH" | "CREDIT_CARD",
+  feeBearer: "CLIENT" | "COMPANY",
+  settings: ProcessingFeeSettings,
+) {
+  const normalizedBase = roundMoney(Math.max(0, baseAmount));
+  if (paymentMethod === "CREDIT_CARD") {
+    const rule = settings.creditCard[feeBearer];
+    return roundMoney(
+      normalizedBase * (rule.ratePercent / 100) + rule.fixedFee,
+    );
+  }
+
+  const rule = settings.ach[feeBearer];
+  return roundMoney(
+    Math.min(
+      roundMoney(normalizedBase * (rule.ratePercent / 100)),
+      Math.max(0, rule.capAmount),
+    ),
+  );
+}
+
+function calculateProcessingAmounts(params: {
+  baseAmount: number;
+  paymentMethod: "ACH" | "CREDIT_CARD";
+  settings: ProcessingFeeSettings;
+  totalsSource?: SystemSettings;
+}) {
+  const baseAmount = roundMoney(Math.max(0, params.baseAmount));
+  const resolvedSettings = buildResolvedProcessingFeeSettings(
+    params.settings,
+    params.totalsSource,
+  );
+  const clientFeeAmount = calculateConfiguredFee(
+    baseAmount,
+    params.paymentMethod,
+    "CLIENT",
+    resolvedSettings,
+  );
+  const maxCompanyFeeAmount = calculateConfiguredFee(
+    baseAmount,
+    params.paymentMethod,
+    "COMPANY",
+    resolvedSettings,
+  );
+
+  return {
+    clientFeeAmount,
+    companyFeeAmount: maxCompanyFeeAmount,
+    maxCompanyFeeAmount,
+    grossInvoiceAmount: roundMoney(baseAmount + clientFeeAmount),
+  };
+}
+
+function getPaymentMethodLabel(paymentMethod: "ACH" | "CREDIT_CARD") {
+  return paymentMethod === "CREDIT_CARD" ? "Credit Card" : "ACH";
+}
 
 const initialPaymentForm: PaymentFormState = {
   practiceId: "",
@@ -183,6 +250,14 @@ function formatMoney(value?: string | number | null) {
     currency: "USD",
     minimumFractionDigits: 2,
   }).format(numericValue);
+}
+
+function formatPercentValue(value: number) {
+  return `${Number(value).toFixed(2).replace(/\.00$/, "")}%`;
+}
+
+function formatCurrencyValue(value: number) {
+  return formatMoney(value);
 }
 
 function formatStatusLabel(status: string) {
@@ -222,10 +297,9 @@ function BillingRunsPage() {
   const [practices, setPractices] = useState<Practice[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>({});
   const [createForm, setCreateForm] =
     useState<CreateRunFormState>(initialCreateRunForm);
-  const [manualDerivedFields, setManualDerivedFields] =
-    useState<AutoDerivedFieldState>({});
   const [paymentForm, setPaymentForm] =
     useState<PaymentFormState>(initialPaymentForm);
   const [pagination, setPagination] = useState({
@@ -251,11 +325,21 @@ function BillingRunsPage() {
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [practiceAgreements, setPracticeAgreements] = useState<Agreement[]>([]);
   const [loadedTerms, setLoadedTerms] = useState<AgreementServiceTerm[]>([]);
+  const [practiceCredentialingRequests, setPracticeCredentialingRequests] =
+    useState<CredentialingRecord[]>([]);
   const [isLoadingAgreements, setIsLoadingAgreements] = useState(false);
   const [isLoadingTerms, setIsLoadingTerms] = useState(false);
+  const [isLoadingCredentialingRequests, setIsLoadingCredentialingRequests] =
+    useState(false);
   const canPreviewBillingRun = selectedRun
     ? ["CALCULATED", "REVIEW_REQUIRED", "APPROVED"].includes(selectedRun.status)
     : false;
+  const selectedPractice = useMemo(
+    () =>
+      practices.find((practice) => practice.id === createForm.practiceId) ||
+      null,
+    [practices, createForm.practiceId],
+  );
 
   const activePricingTerms = useMemo(() => {
     if (
@@ -284,59 +368,141 @@ function BillingRunsPage() {
     createForm.periodEnd,
   ]);
 
-  const autoDerivedBaseTotal = useMemo(() => {
-    if (activePricingTerms.length === 0) return 0;
-
-    let total = 0;
-    for (const term of activePricingTerms) {
-      if (isAutoDerivedTerm(term)) {
-        continue;
-      }
-
-      const preview = computeTermPreview(
-        term,
-        createForm.termInputs[term.id] || {},
-      );
-      total += preview.clientAmount;
+  useEffect(() => {
+    if (!createForm.practiceId) {
+      return;
     }
 
-    return roundMoneyClient(total);
-  }, [activePricingTerms, createForm.termInputs]);
-
-  useEffect(() => {
-    if (!showCreateForm || activePricingTerms.length === 0) return;
-
-    const autoValue = autoDerivedBaseTotal.toFixed(2);
+    const nextPaymentMethod =
+      selectedPractice?.billingPaymentMethod === "CREDIT_CARD"
+        ? "CREDIT_CARD"
+        : "ACH";
+    const nextSettings = buildProcessingFeeSettings(
+      selectedPractice?.processingFeeConfig || systemSettings,
+    );
 
     setCreateForm((prev) => {
-      let changed = false;
-      const nextTermInputs = { ...prev.termInputs };
-
-      for (const term of activePricingTerms) {
-        if (!isAutoDerivedTerm(term)) continue;
-
-        const current = nextTermInputs[term.id] || {};
-        const targetField = getAutoDerivedField(term);
-        if (!targetField) continue;
-
-        const isManuallySet = manualDerivedFields[term.id]?.[targetField];
-        if (!isManuallySet && current[targetField] !== autoValue) {
-          nextTermInputs[term.id] = {
-            ...current,
-            [targetField]: autoValue,
-          };
-          changed = true;
-        }
+      if (
+        prev.paymentMethod === nextPaymentMethod &&
+        JSON.stringify(prev.processingFeeConfig) ===
+          JSON.stringify(nextSettings)
+      ) {
+        return prev;
       }
 
-      return changed ? { ...prev, termInputs: nextTermInputs } : prev;
+      return {
+        ...prev,
+        paymentMethod: nextPaymentMethod,
+        processingFeeConfig: nextSettings,
+      };
     });
   }, [
-    activePricingTerms,
-    autoDerivedBaseTotal,
-    manualDerivedFields,
-    showCreateForm,
+    createForm.practiceId,
+    selectedPractice?.billingPaymentMethod,
+    selectedPractice?.processingFeeConfig,
+    systemSettings,
   ]);
+
+  const detailTotals = useMemo(() => {
+    if (!selectedRun || !selectedRun.items || selectedRun.items.length === 0) {
+      return null;
+    }
+    const summary = getBillingRunProcessingSummary({
+      paymentMethod:
+        selectedRun.paymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "ACH",
+      processingFeeConfig: selectedRun.processingFeeConfig || {},
+      items: selectedRun.items.map((item) => ({
+        clientAmount: String(item.clientAmount || 0),
+        vendorAmount:
+          item.vendorAmount !== undefined && item.vendorAmount !== null
+            ? String(item.vendorAmount)
+            : null,
+        marginAmount:
+          item.marginAmount !== undefined && item.marginAmount !== null
+            ? String(item.marginAmount)
+            : null,
+      })),
+    });
+    return {
+      netServicesTotal: summary.netServices,
+      paymentMethod:
+        selectedRun.paymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "ACH",
+      processingFeeAmount: summary.processingFee,
+      companyFeeAmount: summary.companyAbsorbed,
+      grossInvoiceTotal: summary.grossInvoiceTotal,
+      vendorPayable: summary.vendorPayable,
+      margin: summary.totalMargin,
+    };
+  }, [selectedRun]);
+
+  const effectiveCredentialingChargeAmount = useMemo(() => {
+    return Number(selectedPractice?.credentialingChargeAmount || 0);
+  }, [selectedPractice?.credentialingChargeAmount]);
+
+  const credentialingChargePreviewItems = useMemo<
+    CredentialingChargePreview[]
+  >(() => {
+    if (practiceCredentialingRequests.length === 0) {
+      return [];
+    }
+
+    return practiceCredentialingRequests
+      .filter(
+        (request) =>
+          request.practiceId === createForm.practiceId &&
+          !request.credentialingChargeBilledAt &&
+          isCredentialingChargeEligible(request.status),
+      )
+      .map((request) => ({
+        request,
+        amount: roundMoney(
+          Number(
+            createForm.credentialingChargeAmounts[request.id] ||
+              selectedPractice?.credentialingChargeAmount ||
+              0,
+          ),
+        ),
+        description: `Credentialing Fee (${request.credentialingId})`,
+      }));
+  }, [
+    createForm.practiceId,
+    createForm.credentialingChargeAmounts,
+    practiceCredentialingRequests,
+    selectedPractice?.credentialingChargeAmount,
+  ]);
+
+  const selectedCredentialingChargePreviewItems = useMemo(
+    () =>
+      credentialingChargePreviewItems.filter((item) =>
+        createForm.selectedCredentialingRequestIds.includes(item.request.id),
+      ),
+    [
+      credentialingChargePreviewItems,
+      createForm.selectedCredentialingRequestIds,
+    ],
+  );
+
+  const alreadyApprovedCredentialingRequests = useMemo(
+    () =>
+      practiceCredentialingRequests.filter(
+        (request) =>
+          Boolean(request.credentialingChargeBilledAt) &&
+          !request.credentialingChargeInvoiceLineItemId &&
+          isCredentialingChargeEligible(request.status),
+      ),
+    [practiceCredentialingRequests],
+  );
+
+  const credentialingChargePreviewTotal = useMemo(
+    () =>
+      roundMoney(
+        selectedCredentialingChargePreviewItems.reduce(
+          (sum, item) => sum + item.amount,
+          0,
+        ),
+      ),
+    [selectedCredentialingChargePreviewItems],
+  );
 
   const previewTotals = useMemo(() => {
     let invoiceTotal = 0;
@@ -353,29 +519,154 @@ function BillingRunsPage() {
     }
     return {
       invoiceTotal: roundMoneyClient(invoiceTotal),
+      credentialingTotal: roundMoneyClient(credentialingChargePreviewTotal),
       vendorTotal: roundMoneyClient(vendorTotal),
-      marginTotal: roundMoneyClient(marginTotal),
+      marginTotal: roundMoneyClient(
+        marginTotal + credentialingChargePreviewTotal,
+      ),
     };
-  }, [activePricingTerms, createForm.termInputs]);
+  }, [
+    activePricingTerms,
+    createForm.termInputs,
+    credentialingChargePreviewTotal,
+  ]);
 
-  const detailTotals = useMemo(() => {
-    if (!selectedRun || !selectedRun.items || selectedRun.items.length === 0) {
-      return null;
-    }
-    let invoiceTotal = 0;
-    let vendorPayable = 0;
-    let margin = 0;
-    for (const item of selectedRun.items) {
-      invoiceTotal += Number(item.clientAmount || 0);
-      vendorPayable += Number(item.vendorAmount || 0);
-      margin += Number(item.marginAmount || 0);
-    }
-    return {
-      invoiceTotal,
-      vendorPayable,
-      margin,
-    };
+  const selectedAgreementNames = useMemo(() => {
+    return practiceAgreements
+      .filter((a) => createForm.agreementIds.includes(a.id))
+      .map((a) => a.type || a.name || a.id);
+  }, [practiceAgreements, createForm.agreementIds]);
+
+  const runProviderNames = useMemo(() => {
+    return Array.from(
+      new Set(
+        (selectedRun?.items || [])
+          .map(
+            (i: any) => i.provider?.name || i.provider || i.practitioner?.name,
+          )
+          .filter(Boolean),
+      ),
+    );
   }, [selectedRun]);
+
+  const runPlanNames = useMemo(() => {
+    return Array.from(
+      new Set(
+        (selectedRun?.items || [])
+          .map(
+            (i: any) =>
+              i.agreementServiceTerm?.agreement?.type ||
+              i.agreementServiceTerm?.agreement?.name,
+          )
+          .filter(Boolean),
+      ),
+    );
+  }, [selectedRun]);
+
+  const processingFeePreview = useMemo(() => {
+    if (!createForm.paymentMethod) {
+      return {
+        clientFeeAmount: 0,
+        companyFeeAmount: 0,
+        maxCompanyFeeAmount: 0,
+        grossInvoiceAmount: previewTotals.invoiceTotal,
+      };
+    }
+
+    return calculateProcessingAmounts({
+      baseAmount: previewTotals.invoiceTotal + previewTotals.credentialingTotal,
+      paymentMethod: createForm.paymentMethod,
+      settings: createForm.processingFeeConfig,
+      totalsSource: systemSettings,
+    });
+  }, [
+    createForm.paymentMethod,
+    createForm.processingFeeConfig,
+    previewTotals.credentialingTotal,
+    previewTotals.invoiceTotal,
+    systemSettings,
+  ]);
+
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCredentialingPreview() {
+      if (!createForm.practiceId) {
+        setPracticeCredentialingRequests([]);
+        return;
+      }
+
+      setIsLoadingCredentialingRequests(true);
+      try {
+        const response = await getCredentialingRequestsView({
+          practice: selectedPractice?.name || undefined,
+          limit: 5000,
+          sortBy: "updatedAt",
+          sortOrder: "desc",
+        });
+        if (!cancelled) {
+          const practiceRequests = response.credentialingRequests.filter(
+            (request) =>
+              request.practiceId === createForm.practiceId &&
+              isCredentialingChargeEligible(request.status),
+          );
+
+          const eligibleRequests = practiceRequests.filter(
+            (request) => !request.credentialingChargeBilledAt,
+          );
+
+          setPracticeCredentialingRequests(practiceRequests);
+          setCreateForm((prev) => ({
+            ...prev,
+            selectedCredentialingRequestIds: eligibleRequests.map(
+              (request) => request.id,
+            ),
+            credentialingChargeAmounts: Object.fromEntries(
+              eligibleRequests.map((request) => [
+                request.id,
+                prev.credentialingChargeAmounts[request.id] ||
+                  String(
+                    Number(
+                      selectedPractice?.credentialingChargeAmount || 0,
+                    ).toFixed(2),
+                  ),
+              ]),
+            ),
+          }));
+        }
+      } catch {
+        if (!cancelled) {
+          setPracticeCredentialingRequests([]);
+          setCreateForm((prev) => ({
+            ...prev,
+            selectedCredentialingRequestIds: [],
+            credentialingChargeAmounts: {},
+          }));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingCredentialingRequests(false);
+        }
+      }
+    }
+
+    void loadCredentialingPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    createForm.practiceId,
+    selectedPractice?.name,
+    selectedPractice?.credentialingChargeAmount,
+  ]);
+
+  const feeTotals = useMemo(
+    () => buildGeneralSettingsTotals(systemSettings),
+    [systemSettings],
+  );
 
   const filteredInvoices = useMemo(
     () =>
@@ -420,11 +711,32 @@ function BillingRunsPage() {
             row.original.values.period,
         },
         {
-          id: "invoiceTotal",
-          accessorFn: (row: BillingRunRow) => row.values.invoiceTotal,
-          header: () => "Invoice Total",
+          id: "netServices",
+          accessorFn: (row: BillingRunRow) => row.values.netServices,
+          header: () => "Net Services",
           cell: ({ row }: { row: { original: BillingRunRow } }) =>
-            formatMoney(row.original.values.invoiceTotal),
+            formatMoney(row.original.values.netServices),
+        },
+        {
+          id: "grossInvoiceTotal",
+          accessorFn: (row: BillingRunRow) => row.values.grossInvoiceTotal,
+          header: () => "Gross Invoice Total",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.grossInvoiceTotal),
+        },
+        {
+          id: "processingFee",
+          accessorFn: (row: BillingRunRow) => row.values.processingFee,
+          header: () => "Processing Fee",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.processingFee),
+        },
+        {
+          id: "companyAbsorbed",
+          accessorFn: (row: BillingRunRow) => row.values.companyAbsorbed,
+          header: () => "Company Absorbed",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            formatMoney(row.original.values.companyAbsorbed),
         },
         {
           id: "vendorPayable",
@@ -440,7 +752,13 @@ function BillingRunsPage() {
           cell: ({ row }: { row: { original: BillingRunRow } }) =>
             formatMoney(row.original.values.totalMargin),
         },
-
+        {
+          id: "paymentMethod",
+          accessorFn: (row: BillingRunRow) => row.values.paymentMethod,
+          header: () => "Payment Method",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            row.original.values.paymentMethod,
+        },
         {
           id: "itemCount",
           accessorFn: (row: BillingRunRow) => row.values.itemCount,
@@ -505,11 +823,17 @@ function BillingRunsPage() {
       (showCreateForm || showPaymentForm || showDetailPanel) &&
       practices.length === 0
     ) {
-      Promise.all([getAllPractices(), getAllInvoices(), getAllServices()])
-        .then(([practiceList, invoiceList, serviceList]) => {
+      Promise.all([
+        getAllPractices(),
+        getAllInvoices(),
+        getAllServices(),
+        getSystemSettingsApi(),
+      ])
+        .then(([practiceList, invoiceList, serviceList, settings]) => {
           setPractices(practiceList);
           setInvoices(invoiceList);
           setServices(serviceList);
+          setSystemSettings(settings);
         })
         .catch((err) => {
           const message =
@@ -529,11 +853,10 @@ function BillingRunsPage() {
       return;
     }
     setIsLoadingAgreements(true);
-      getAgreementsByPractice(createForm.practiceId)
+    getAgreementsByPractice(createForm.practiceId)
       .then((agreements) => {
         const active = agreements.filter((a) => a.status === "ACTIVE");
         setPracticeAgreements(active);
-        setManualDerivedFields({});
         setCreateForm((prev) => ({
           ...prev,
           agreementIds: active.map((a) => a.id),
@@ -589,22 +912,29 @@ function BillingRunsPage() {
     setProfileCreateHandled(true);
     setShowCreateForm(true);
     setShowDetailPanel(false);
-      setShowPaymentForm(false);
-      setSelectedRowId(null);
-      setSelectedRun(null);
-      setManualDerivedFields({});
-      setCreateForm({
-        ...initialCreateRunForm,
-        practiceId,
-      });
+    setShowPaymentForm(false);
+    setSelectedRowId(null);
+    setSelectedRun(null);
+    setCreateForm({
+      ...initialCreateRunForm,
+      practiceId,
+      processingFeeConfig:
+        buildPracticeDefaultProcessingFeeSettings(systemSettings),
+    });
     setReadiness(null);
 
     if (practices.length === 0) {
-      Promise.all([getAllPractices(), getAllInvoices(), getAllServices()])
-        .then(([practiceList, invoiceList, serviceList]) => {
+      Promise.all([
+        getAllPractices(),
+        getAllInvoices(),
+        getAllServices(),
+        getSystemSettingsApi(),
+      ])
+        .then(([practiceList, invoiceList, serviceList, settings]) => {
           setPractices(practiceList);
           setInvoices(invoiceList);
           setServices(serviceList);
+          setSystemSettings(settings);
         })
         .catch((err) => {
           const message =
@@ -659,8 +989,11 @@ function BillingRunsPage() {
   }
 
   function resetCreateForm() {
-    setManualDerivedFields({});
-    setCreateForm(initialCreateRunForm);
+    setCreateForm({
+      ...initialCreateRunForm,
+      processingFeeConfig:
+        buildPracticeDefaultProcessingFeeSettings(systemSettings),
+    });
     setReadiness(null);
     setPracticeAgreements([]);
     setLoadedTerms([]);
@@ -683,10 +1016,11 @@ function BillingRunsPage() {
     setShowPaymentForm(false);
     setSelectedRowId(null);
     setSelectedRun(null);
-    setManualDerivedFields({});
     setCreateForm({
       ...initialCreateRunForm,
       practiceId: preselectedPracticeId,
+      processingFeeConfig:
+        buildPracticeDefaultProcessingFeeSettings(systemSettings),
     });
     setReadiness(null);
     setPracticeAgreements([]);
@@ -715,7 +1049,8 @@ function BillingRunsPage() {
     if (
       !createForm.practiceId ||
       !createForm.periodStart ||
-      !createForm.periodEnd
+      !createForm.periodEnd ||
+      !createForm.paymentMethod
     ) {
       toast.error("Practice and billing period are required");
       return;
@@ -745,6 +1080,9 @@ function BillingRunsPage() {
         autoCalculate: createForm.autoCalculate,
         snapshots,
         agreementIds: createForm.agreementIds,
+        selectedCredentialingRequestIds:
+          createForm.selectedCredentialingRequestIds,
+        credentialingChargeAmounts: createForm.credentialingChargeAmounts,
       });
       await refreshRows(1);
       setPagination((prev) => ({ ...prev, page: 1 }));
@@ -936,6 +1274,155 @@ function BillingRunsPage() {
     }
   }
 
+  function renderPracticeFeeSetupReadonly() {
+    if (!createForm.paymentMethod) {
+      return (
+        <div className="rounded-lg border border-dashed border-[#ece7df] px-4 py-3 text-[12px] text-slate-500">
+          Select a practice to load the payment method and processing fee setup.
+        </div>
+      );
+    }
+
+    const companyLabel = buildPracticeLabelSettings(
+      createForm.processingFeeConfig,
+      createForm.paymentMethod,
+      "COMPANY",
+      systemSettings,
+    );
+    const clientLabel = buildPracticeLabelSettings(
+      createForm.processingFeeConfig,
+      createForm.paymentMethod,
+      "CLIENT",
+      systemSettings,
+    );
+
+    const companyPrimary =
+      createForm.paymentMethod === "CREDIT_CARD"
+        ? createForm.processingFeeConfig.creditCard.COMPANY.ratePercent
+        : createForm.processingFeeConfig.ach.COMPANY.ratePercent;
+    const companySecondary =
+      createForm.paymentMethod === "CREDIT_CARD"
+        ? createForm.processingFeeConfig.creditCard.COMPANY.fixedFee
+        : createForm.processingFeeConfig.ach.COMPANY.capAmount;
+    const clientPrimary =
+      createForm.paymentMethod === "CREDIT_CARD"
+        ? createForm.processingFeeConfig.creditCard.CLIENT.ratePercent
+        : createForm.processingFeeConfig.ach.CLIENT.ratePercent;
+    const clientSecondary =
+      createForm.paymentMethod === "CREDIT_CARD"
+        ? createForm.processingFeeConfig.creditCard.CLIENT.fixedFee
+        : createForm.processingFeeConfig.ach.CLIENT.capAmount;
+
+    return (
+      <div className="space-y-3">
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">
+            Payment Method
+          </label>
+          <div className="app-control w-full rounded-md px-3 py-2 text-[13px] text-slate-700 bg-slate-50">
+            {getPaymentMethodLabel(createForm.paymentMethod)}
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">
+            Processing Fee Setup
+          </label>
+          <div className="overflow-hidden rounded-lg border border-[#ece7df] bg-[#faf9f7] text-[12px] text-slate-600">
+            <div className="grid grid-cols-[35%_38%_30%] items-center">
+              <div className="border-b border-[#ece7df] bg-[#fcfbf9] px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                Bearer
+              </div>
+              <div className="border-b border-[#ece7df] bg-[#fcfbf9] px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                {createForm.paymentMethod === "CREDIT_CARD"
+                  ? `Percentage Fee (${roundToPrecision(feeTotals.creditCard.ratePercent, 2)}%)`
+                  : `Percentage Fee (${roundToPrecision(feeTotals.ach.ratePercent, 2)}%)`}
+              </div>
+              <div className="border-b border-[#ece7df] bg-[#fcfbf9] px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                {createForm.paymentMethod === "CREDIT_CARD"
+                  ? `Fixed Fee ($${roundToPrecision(feeTotals.creditCard.fixedFee, 2)})`
+                  : `Cap Amount ($${roundToPrecision(feeTotals.ach.capAmount, 2)})`}
+              </div>
+
+              <div className="border-b border-[#ece7df] px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                {createForm.paymentMethod === "CREDIT_CARD"
+                  ? `Company (${roundToPrecision(companyLabel.primary, 2)}%+$${roundToPrecision(companyLabel.secondary, 2)})`
+                  : `Company (${roundToPrecision(companyLabel.primary, 2)}% or $${roundToPrecision(companyLabel.secondary, 2)} max)`}
+              </div>
+              <div className="border-b border-[#ece7df] px-4 py-3">
+                <span className="inline-flex min-w-[78px] items-center justify-end rounded-md border border-[#ddd6cc] bg-white px-3 py-2 text-[12px] font-medium text-slate-700">
+                  {roundToPrecision(
+                    getAllocationPercent(
+                      companyPrimary,
+                      createForm.paymentMethod === "CREDIT_CARD"
+                        ? feeTotals.creditCard.ratePercent
+                        : feeTotals.ach.ratePercent,
+                    ),
+                    2,
+                  )}
+                  <span className="ml-1 text-[11px] text-slate-400">%</span>
+                </span>
+              </div>
+              <div className="border-b border-[#ece7df] px-4 py-3">
+                <span className="inline-flex min-w-[78px] items-center justify-end rounded-md border border-[#ddd6cc] bg-white px-3 py-2 text-[12px] font-medium text-slate-700">
+                  {roundToPrecision(
+                    getAllocationPercent(
+                      companySecondary,
+                      createForm.paymentMethod === "CREDIT_CARD"
+                        ? feeTotals.creditCard.fixedFee
+                        : feeTotals.ach.capAmount,
+                    ),
+                    2,
+                  )}
+                  <span className="ml-1 text-[11px] text-slate-400">%</span>
+                </span>
+              </div>
+
+              <div className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                {createForm.paymentMethod === "CREDIT_CARD"
+                  ? `Client (${roundToPrecision(clientLabel.primary, 2)}%+$${roundToPrecision(clientLabel.secondary, 2)})`
+                  : `Client (${roundToPrecision(clientLabel.primary, 2)}% or $${roundToPrecision(clientLabel.secondary, 2)} max)`}
+              </div>
+              <div className="px-4 py-3">
+                <span className="inline-flex min-w-[78px] items-center justify-end rounded-md border border-[#ddd6cc] bg-white px-3 py-2 text-[12px] font-medium text-slate-700">
+                  {roundToPrecision(
+                    getAllocationPercent(
+                      clientPrimary,
+                      createForm.paymentMethod === "CREDIT_CARD"
+                        ? feeTotals.creditCard.ratePercent
+                        : feeTotals.ach.ratePercent,
+                    ),
+                    2,
+                  )}
+                  <span className="ml-1 text-[11px] text-slate-400">%</span>
+                </span>
+              </div>
+              <div className="px-4 py-3">
+                <span className="inline-flex min-w-[78px] items-center justify-end rounded-md border border-[#ddd6cc] bg-white px-3 py-2 text-[12px] font-medium text-slate-700">
+                  {roundToPrecision(
+                    getAllocationPercent(
+                      clientSecondary,
+                      createForm.paymentMethod === "CREDIT_CARD"
+                        ? feeTotals.creditCard.fixedFee
+                        : feeTotals.ach.capAmount,
+                    ),
+                    2,
+                  )}
+                  <span className="ml-1 text-[11px] text-slate-400">%</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            This setup is read from the selected practice. To change please
+            update the practice's payment method and processing fee
+            configuration in the practice settings.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const navbarActions = [
     ...(canFinanceActions
       ? [
@@ -1012,7 +1499,9 @@ function BillingRunsPage() {
                 type="button"
                 disabled={
                   isActionLoading !== null ||
-                  !["CALCULATED", "REVIEW_REQUIRED"].includes(selectedRun.status)
+                  !["CALCULATED", "REVIEW_REQUIRED"].includes(
+                    selectedRun.status,
+                  )
                 }
                 onClick={() => handleRunAction("approve")}
                 className="inline-flex items-center gap-2 rounded-md bg-[#4f63ea] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
@@ -1090,10 +1579,38 @@ function BillingRunsPage() {
                 </h3>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 font-medium">
-                    Invoice Total
+                    Net Services
                   </span>
-                  <span className="font-bold text-slate-800 text-[15px]">
-                    {formatMoney(detailTotals.invoiceTotal)}
+                  <span className="font-bold text-slate-800">
+                    {formatMoney(detailTotals.netServicesTotal)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">
+                    Processing Fee
+                  </span>
+                  <span className="font-bold text-slate-700">
+                    {formatMoney(detailTotals.processingFeeAmount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">
+                    Company Absorbed
+                  </span>
+                  <span className="font-bold text-slate-700">
+                    {formatMoney(
+                      detailTotals.netServicesTotal === 0
+                        ? 0
+                        : detailTotals.companyFeeAmount,
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">
+                    Total Margin
+                  </span>
+                  <span className="font-bold text-slate-800">
+                    {formatMoney(detailTotals.margin)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1104,14 +1621,22 @@ function BillingRunsPage() {
                     {formatMoney(detailTotals.vendorPayable)}
                   </span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">
+                    Payment Method
+                  </span>
+                  <span className="font-bold text-slate-700">
+                    {getPaymentMethodLabel(detailTotals.paymentMethod)}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between border-t border-[#eadfcd]/40 pt-2.5">
                   <span className="text-slate-500 font-medium">
-                    Total Margin
+                    Gross Invoice Total
                   </span>
                   <span
                     className={`font-extrabold text-[14px] ${detailTotals.margin < 0 ? "text-rose-600" : "text-emerald-600"}`}
                   >
-                    {formatMoney(detailTotals.margin)}
+                    {formatMoney(detailTotals.grossInvoiceTotal)}
                   </span>
                 </div>
               </div>
@@ -1406,7 +1931,7 @@ function BillingRunsPage() {
                     const canPreviewInvoice =
                       selectedRun.status !== "POSTED" &&
                       selectedRun.status !== "CLOSED" &&
-                      selectedRun.status !== "PENDING"
+                      selectedRun.status !== "PENDING";
                     const linkedInvoices = Array.from(
                       new Map(
                         (selectedRun.items || [])
@@ -1422,11 +1947,21 @@ function BillingRunsPage() {
                       return canPreviewInvoice ? (
                         <button
                           type="button"
-                          onClick={() => window.open(billingEndpoints.INVOICE_PREVIEW(selectedRun.id), "_blank", "noopener,noreferrer")}
+                          onClick={() =>
+                            window.open(
+                              billingEndpoints.INVOICE_PREVIEW(selectedRun!.id),
+                              "_blank",
+                              "noopener,noreferrer",
+                            )
+                          }
                           className="w-full rounded-lg border border-[#c7d2fe] bg-indigo-50 px-3 py-3 text-left text-indigo-700 transition-colors hover:bg-indigo-100"
                         >
-                          <div className="text-[13px] font-semibold">Preview Invoice PDF</div>
-                          <div className="text-[11px] text-indigo-500">Generated from calculated items before posting.</div>
+                          <div className="text-[13px] font-semibold">
+                            Preview Invoice PDF
+                          </div>
+                          <div className="text-[11px] text-indigo-500">
+                            Generated from calculated items before posting.
+                          </div>
                         </button>
                       ) : (
                         <div className="rounded-lg border border-dashed border-[#e9e3db] px-3 py-3 text-slate-400">
@@ -1442,23 +1977,68 @@ function BillingRunsPage() {
                           ? invoice.receiptPdfBlobUrl
                           : invoice.invoicePdfBlobUrl;
                       return (
-                      <div
-                        key={invoice.id}
-                        className="rounded-lg border border-[#f0ece6] px-3 py-2"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-slate-700">
-                            {invoice.invoiceNumber ||
-                              invoice.id.slice(0, 8).toUpperCase()}
-                          </span>
-                          <span className="text-slate-700">
-                            {formatMoney(invoice.totalAmount)}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-[12px] text-slate-400">
-                          {invoice.status}
-                        </div>
-                        {/* {canViewInvoicePdf && (
+                        <div
+                          key={invoice.id}
+                          className="rounded-lg border border-[#f0ece6] px-3 py-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-slate-700">
+                              {invoice.invoiceNumber ||
+                                invoice.id.slice(0, 8).toUpperCase()}
+                            </span>
+                            <span className="text-slate-700">
+                              {formatMoney(invoice.totalAmount)}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-[12px] text-slate-400">
+                            {invoice.status}
+                          </div>
+                          <div className="mt-1 text-[11px] text-slate-500">
+                            <div>
+                              Provider:{" "}
+                              <span className="font-medium text-slate-700">
+                                {runProviderNames.length > 0
+                                  ? runProviderNames.join(", ")
+                                  : invoice.providerName ||
+                                    selectedRun.practice?.name ||
+                                    "-"}
+                              </span>
+                            </div>
+                            {invoice.paidAt && (
+                              <div>
+                                Payment:{" "}
+                                <span className="font-medium text-slate-700">
+                                  {formatDateTime(invoice.paidAt)}
+                                </span>
+                              </div>
+                            )}
+                            {invoice.payerEmail && (
+                              <div>
+                                Payer Email:{" "}
+                                <span className="font-medium text-slate-700">
+                                  {invoice.payerEmail}
+                                </span>
+                              </div>
+                            )}
+                            {pdfUrl && (
+                              <div className="mt-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    window.open(
+                                      pdfUrl,
+                                      "_blank",
+                                      "noopener,noreferrer",
+                                    )
+                                  }
+                                  className="rounded-md border border-[#e2e8f0] px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                                >
+                                  View PDF
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          {/* {canViewInvoicePdf && (
                           <div className="mt-2">
                             <button
                               type="button"
@@ -1476,8 +2056,8 @@ function BillingRunsPage() {
                             </button>
                           </div>
                         )} */}
-                      </div>
-                    );
+                        </div>
+                      );
                     });
                   })()}
                 </div>
@@ -1546,17 +2126,14 @@ function BillingRunsPage() {
             </label>
             <select
               value={createForm.practiceId}
-              onChange={(event) =>
-                {
-                  setManualDerivedFields({});
-                  setCreateForm((prev) => ({
-                    ...prev,
-                    practiceId: event.target.value,
-                    agreementIds: [],
-                    termInputs: {},
-                  }));
-                }
-              }
+              onChange={(event) => {
+                setCreateForm((prev) => ({
+                  ...prev,
+                  practiceId: event.target.value,
+                  agreementIds: [],
+                  termInputs: {},
+                }));
+              }}
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
               required
             >
@@ -1606,6 +2183,23 @@ function BillingRunsPage() {
             </div>
           </div>
 
+          {renderPracticeFeeSetupReadonly()}
+
+          <label className="flex items-center gap-2 text-[13px] text-slate-700">
+            <input
+              type="checkbox"
+              checked={createForm.autoCalculate}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  autoCalculate: event.target.checked,
+                }))
+              }
+              className="h-4 w-4 rounded border border-[#d8d2ca]"
+            />
+            Auto calculate after creation
+          </label>
+
           <div>
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
               Notes
@@ -1622,21 +2216,6 @@ function BillingRunsPage() {
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>
-
-          <label className="flex items-center gap-2 text-[13px] text-slate-700">
-            <input
-              type="checkbox"
-              checked={createForm.autoCalculate}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  autoCalculate: event.target.checked,
-                }))
-              }
-              className="h-4 w-4 rounded border border-[#d8d2ca]"
-            />
-            Auto calculate after creation
-          </label>
 
           {/* Agreements Selection */}
           {createForm.practiceId && (
@@ -2006,7 +2585,7 @@ function BillingRunsPage() {
                                 </span>
                               </span>
                             )}
-                            
+
                             {config.vendorPricing?.minimumFee && (
                               <span className="text-slate-500">
                                 Vendor min fee:{" "}
@@ -2102,28 +2681,17 @@ function BillingRunsPage() {
                                               ?.collectionsBase || ""
                                           }
                                           onChange={(event) =>
-                                            {
-                                              const nextValue =
-                                                event.target.value;
-                                              setManualDerivedFields((prev) => ({
-                                                ...prev,
+                                            setCreateForm((prev) => ({
+                                              ...prev,
+                                              termInputs: {
+                                                ...prev.termInputs,
                                                 [term.id]: {
-                                                  ...prev[term.id],
+                                                  ...prev.termInputs[term.id],
                                                   collectionsBase:
-                                                    nextValue.trim() !== "",
+                                                    event.target.value,
                                                 },
-                                              }));
-                                              setCreateForm((prev) => ({
-                                                ...prev,
-                                                termInputs: {
-                                                  ...prev.termInputs,
-                                                  [term.id]: {
-                                                    ...prev.termInputs[term.id],
-                                                    collectionsBase: nextValue,
-                                                  },
-                                                },
-                                              }));
-                                            }
+                                              },
+                                            }))
                                           }
                                           placeholder="0.00"
                                           title="Auto-fills from the other line items, but you can override it."
@@ -2275,12 +2843,12 @@ function BillingRunsPage() {
                                   const isPercentCollections =
                                     term.pricingModel === "PERCENT_COLLECTIONS";
                                   if (isPercentCollections) {
-                                      const currentLines = createForm.termInputs[
+                                    const currentLines = createForm.termInputs[
                                       term.id
                                     ]?.collectionsLines || [
                                       {
                                         id: "1",
-                                        label: "Credit card charges",
+                                        label: "Collections",
                                         amount:
                                           createForm.termInputs[term.id]
                                             ?.baseAmount || "",
@@ -2295,13 +2863,6 @@ function BillingRunsPage() {
                                           sum + (parseFloat(line.amount) || 0),
                                         0,
                                       );
-                                      setManualDerivedFields((prev) => ({
-                                        ...prev,
-                                        [term.id]: {
-                                          ...prev[term.id],
-                                          baseAmount: true,
-                                        },
-                                      }));
                                       setCreateForm((prev) => ({
                                         ...prev,
                                         termInputs: {
@@ -2420,28 +2981,16 @@ function BillingRunsPage() {
                                             ?.baseAmount || ""
                                         }
                                         onChange={(event) =>
-                                          {
-                                            const nextValue =
-                                              event.target.value;
-                                            setManualDerivedFields((prev) => ({
-                                              ...prev,
+                                          setCreateForm((prev) => ({
+                                            ...prev,
+                                            termInputs: {
+                                              ...prev.termInputs,
                                               [term.id]: {
-                                                ...prev[term.id],
-                                                baseAmount:
-                                                  nextValue.trim() !== "",
+                                                ...prev.termInputs[term.id],
+                                                baseAmount: event.target.value,
                                               },
-                                            }));
-                                            setCreateForm((prev) => ({
-                                              ...prev,
-                                              termInputs: {
-                                                ...prev.termInputs,
-                                                [term.id]: {
-                                                  ...prev.termInputs[term.id],
-                                                  baseAmount: nextValue,
-                                                },
-                                              },
-                                            }));
-                                          }
+                                            },
+                                          }))
                                         }
                                         placeholder="0.00"
                                         title="Auto-fills from the other line items, but you can override it."
@@ -2464,7 +3013,7 @@ function BillingRunsPage() {
                                     createForm.termInputs[term.id]?.quantity ||
                                     ""
                                   }
-              onChange={(event) =>
+                                  onChange={(event) =>
                                     setCreateForm((prev) => ({
                                       ...prev,
                                       termInputs: {
@@ -2523,43 +3072,314 @@ function BillingRunsPage() {
             </div>
           )}
 
-          {/* Run Summary - Invoice & Vendor Payable Totals */}
-          {activePricingTerms.length > 0 && (
-            <div className="rounded-xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50/40 to-violet-50/30 p-3">
-              <h3 className="mb-2.5 text-[13px] font-semibold text-indigo-900">
-                Run Summary
-              </h3>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                    Invoice Total
+          {createForm.practiceId && (
+            <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-[13px] font-medium text-slate-700">
+                    Credentialing{" "}
+                    <span className="ml-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                      {selectedCredentialingChargePreviewItems.length}/
+                      {credentialingChargePreviewItems.length}
+                    </span>
+                  </h3>
+                  <p className="mt-1 text-[12px] text-slate-400">
+                    Select the requests to include on the invoice line.
+                    Unchecked requests stay out of the run.
+                  </p>
+                </div>
+              </div>
+              {alreadyApprovedCredentialingRequests.length > 0 && (
+                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-[12px] font-semibold text-slate-800">
+                        Previously approved credentialing requests{" "}
+                        <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                          {alreadyApprovedCredentialingRequests.length} Pending
+                        </span>
+                      </h4>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        These items were approved in an earlier billing run and
+                        are pending invoice posting. They will not be included
+                        again in this new run.
+                      </p>
+                    </div>
                   </div>
-                  <div className="mt-1 text-[14px] font-bold text-slate-800">
-                    {formatMoney(previewTotals.invoiceTotal)}
+                  <div className="space-y-2">
+                    {alreadyApprovedCredentialingRequests.map((request) => (
+                      <div
+                        key={request.id}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px]"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-medium text-slate-800">
+                            {request.credentialingId || request.provider}
+                            <div className="text-[11px] text-slate-500">
+                              Provider:{" "}
+                              <span className="font-medium text-slate-700">
+                                {request.provider || "-"}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                            Approved
+                          </span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-slate-500 sm:grid-cols-1">
+                          <div>
+                            <div className="uppercase tracking-wide text-slate-400">
+                              Credentialing Type
+                            </div>
+                            <div className="mt-0.5 font-medium text-slate-700">
+                              {request.credentialingType || "-"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="uppercase tracking-wide text-slate-400">
+                              Insurance Plan
+                            </div>
+                            <div className="mt-0.5 font-medium text-slate-700">
+                              {request.insuranceCompany || "-"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="uppercase tracking-wide text-slate-400">
+                              Status
+                            </div>
+                            <div className="mt-0.5 font-medium text-slate-700">
+                              <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+                                {request.status}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="uppercase tracking-wide text-slate-400">
+                              Approved At
+                            </div>
+                            <div className="mt-0.5 font-medium text-slate-700">
+                              {formatDateLabel(
+                                request.credentialingChargeBilledAt,
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+              )}
+              <div className="space-y-2">
+                {credentialingChargePreviewItems.length > 0 ? (
+                  credentialingChargePreviewItems.map(
+                    ({ request, amount, description }) => {
+                      const isSelected =
+                        createForm.selectedCredentialingRequestIds.includes(
+                          request.id,
+                        );
+
+                      return (
+                        <label
+                          key={request.id}
+                          className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 transition ${
+                            isSelected
+                              ? "border-[#ece7df] bg-white"
+                              : "border-dashed border-slate-200 bg-slate-50/70 opacity-70"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(event) =>
+                              setCreateForm((prev) => ({
+                                ...prev,
+                                selectedCredentialingRequestIds: event.target
+                                  .checked
+                                  ? Array.from(
+                                      new Set([
+                                        ...prev.selectedCredentialingRequestIds,
+                                        request.id,
+                                      ]),
+                                    )
+                                  : prev.selectedCredentialingRequestIds.filter(
+                                      (id) => id !== request.id,
+                                    ),
+                              }))
+                            }
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[12px] font-semibold text-slate-800">
+                              {description}
+                            </div>
+
+                            <div className="mt-1 text-[11px] text-slate-500">
+                              <span className="mr-3">
+                                Provider:{" "}
+                                <span className="font-medium text-slate-700">
+                                  {request.provider || "-"}
+                                </span>
+                              </span>
+                            </div>
+
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-slate-500 sm:grid-cols-1">
+                              <div>
+                                <div className="uppercase tracking-wide text-slate-400">
+                                  Credentialing Type
+                                </div>
+                                <div className="mt-0.5 font-medium text-slate-700">
+                                  {request.credentialingType || "-"}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="uppercase tracking-wide text-slate-400">
+                                  Insurance Plan
+                                </div>
+                                <div className="mt-0.5 font-medium text-slate-700">
+                                  {request.insuranceCompany || "-"}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="uppercase tracking-wide text-slate-400">
+                                  Status
+                                </div>
+                                <div className="mt-0.5 font-medium text-slate-700">
+                                  <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">
+                                    {request.status}
+                                  </span>
+                                </div>
+                              </div>
+                              <div>
+                                <div className="uppercase tracking-wide text-slate-400">
+                                  Last Updated
+                                </div>
+                                <div className="mt-0.5 font-medium text-slate-700">
+                                  {formatDateLabel(request.updatedAt)}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-1 flex flex-wrap gap-2 text-[10px]">
+                              {!isSelected && (
+                                <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700">
+                                  Excluded
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                              Amount
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={
+                                createForm.credentialingChargeAmounts[
+                                  request.id
+                                ] || amount.toFixed(2)
+                              }
+                              disabled={!isSelected}
+                              onChange={(event) =>
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  credentialingChargeAmounts: {
+                                    ...prev.credentialingChargeAmounts,
+                                    [request.id]: event.target.value,
+                                  },
+                                }))
+                              }
+                              className="app-control w-28 rounded-md px-2 py-1 text-right text-[13px] font-bold text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
+                            />
+                          </div>
+                        </label>
+                      );
+                    },
+                  )
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-3 text-[12px] text-slate-500">
+                    No credentialing requests found for this practice.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Run Summary - Invoice & Vendor Payable Totals */}
+          {activePricingTerms.length > 0 && (
+            <div className="rounded-lg border border-indigo-200/60 bg-gradient-to-br from-indigo-50/40 to-violet-50/30 p-3">
+              <h3 className="mb-2 text-sm font-semibold text-indigo-900">
+                Run Summary
+              </h3>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md bg-white/80 p-2 text-center shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                    Net Services
+                  </div>
+                  <div className="mt-1 text-sm font-bold text-slate-800">
+                    {formatMoney(
+                      previewTotals.invoiceTotal +
+                        credentialingChargePreviewTotal,
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-md bg-white/80 p-2 text-center shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                    Processing Fee
+                  </div>
+                  <div className="mt-1 text-sm font-bold text-slate-800">
+                    {formatMoney(processingFeePreview.clientFeeAmount)}
+                  </div>
+                </div>
+
+                <div className="rounded-md bg-white/80 p-2 text-center shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                    Company Absorbed
+                  </div>
+                  <div className="mt-1 text-sm font-bold text-slate-800">
+                    {(() => {
+                      const runNetServices =
+                        previewTotals.invoiceTotal +
+                        credentialingChargePreviewTotal;
+                      return formatMoney(
+                        runNetServices === 0
+                          ? 0
+                          : processingFeePreview.companyFeeAmount,
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                <div className="rounded-md bg-white/80 p-2 text-center shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
                     Vendor Payable
                   </div>
-                  <div className="mt-1 text-[14px] font-bold text-slate-600">
+                  <div className="mt-1 text-sm font-bold text-slate-600">
                     {formatMoney(previewTotals.vendorTotal)}
                   </div>
                 </div>
-                <div className="rounded-lg bg-white/80 px-3 py-2 text-center shadow-sm">
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                    Total Margin
+
+                <div className="rounded-md bg-white/80 p-2 text-center shadow-sm col-span-2">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                    Gross Invoice
                   </div>
-                  <div
-                    className={`mt-1 text-[14px] font-bold ${
-                      previewTotals.marginTotal >= 0
-                        ? "text-emerald-600"
-                        : "text-rose-600"
-                    }`}
-                  >
-                    {formatMoney(previewTotals.marginTotal)}
+                  <div className="mt-1 text-sm font-bold text-slate-800">
+                    {formatMoney(processingFeePreview.grossInvoiceAmount)}
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/70 px-3 py-2 text-xs text-slate-600">
+                <span>
+                  Payment:{" "}
+                  {createForm.paymentMethod
+                    ? getPaymentMethodLabel(createForm.paymentMethod)
+                    : "-"}
+                </span>
+
+                <span>Margin: {formatMoney(previewTotals.marginTotal)}</span>
               </div>
             </div>
           )}
@@ -2578,6 +3398,8 @@ function BillingRunsPage() {
             disabled={
               isSubmitting ||
               isReadinessLoading ||
+              (Boolean(effectiveCredentialingChargeAmount > 0) &&
+                isLoadingCredentialingRequests) ||
               (readiness !== null && !readiness.isReady)
             }
             className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] disabled:opacity-50"

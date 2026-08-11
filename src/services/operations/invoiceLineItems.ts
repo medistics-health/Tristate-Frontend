@@ -41,6 +41,9 @@ export type InvoiceLineItem = {
   quantity: number;
   unitPrice: string;
   totalPrice: string;
+  externalUnitPrice?: string | null;
+  externalTotalPrice?: string | null;
+  companyFeeDeductionAmount?: string | null;
   description?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -58,6 +61,9 @@ export type InvoiceLineItemRow = {
     quantity: number;
     unitPrice: string;
     totalPrice: string;
+    externalUnitPrice: string;
+    externalTotalPrice: string;
+    companyFeeDeductionAmount: string;
     creationDate: string;
     lastUpdate: string;
   };
@@ -77,6 +83,7 @@ export type InvoiceLineItemQueryParams = {
   page?: number;
   limit?: number;
   invoiceId?: string;
+  invoiceNumber?: string;
 };
 
 function formatCurrency(amount: string | number) {
@@ -118,6 +125,15 @@ function lineItemToRow(lineItem: InvoiceLineItem): InvoiceLineItemRow {
       quantity: lineItem.quantity,
       unitPrice: formatCurrency(lineItem.unitPrice),
       totalPrice: formatCurrency(lineItem.totalPrice),
+      externalUnitPrice: formatCurrency(
+        lineItem.externalUnitPrice ?? lineItem.unitPrice,
+      ),
+      externalTotalPrice: formatCurrency(
+        lineItem.externalTotalPrice ?? lineItem.totalPrice,
+      ),
+      companyFeeDeductionAmount: formatCurrency(
+        lineItem.companyFeeDeductionAmount ?? 0,
+      ),
       creationDate: new Date(lineItem.createdAt).toLocaleString(),
       lastUpdate: new Date(lineItem.updatedAt).toLocaleString(),
     },
@@ -132,6 +148,8 @@ export async function getInvoiceLineItemsView(
     if (params?.page) queryString.set("page", String(params.page));
     if (params?.limit) queryString.set("limit", String(params.limit));
     if (params?.invoiceId) queryString.set("invoiceId", params.invoiceId);
+    if (params?.invoiceNumber)
+      queryString.set("invoiceNumber", params.invoiceNumber);
 
     const url = queryString.toString()
       ? `${LINE_ITEMS_LIST}?${queryString.toString()}`

@@ -8,8 +8,10 @@ import {
   DollarSign,
   FileSignature,
   FileText,
+  Mail,
   RefreshCw,
   Users,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
@@ -43,6 +45,10 @@ import {
 } from "../../services/operations/practices";
 import { getDealsByPractice, type Deal } from "../../services/operations/deals";
 import { getPricingTerms } from "../../services/operations/pricingEngine";
+import {
+  getEmailHistoryByPersonId,
+  type SentEmail,
+} from "../../services/operations/communication";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -258,6 +264,15 @@ function formatOnboardingLocation(location: {
   return location.locationName || address;
 }
 
+function stripHtml(html: string) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function Card({
   title,
   description,
@@ -352,6 +367,16 @@ export default function PracticeProfilePage() {
     null,
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [personEmailsById, setPersonEmailsById] = useState<
+    Record<string, SentEmail[]>
+  >({});
+  const [emailsLoadingByPersonId, setEmailsLoadingByPersonId] = useState<
+    Record<string, boolean>
+  >({});
+  const [selectedPersonEmail, setSelectedPersonEmail] = useState<{
+    personName: string;
+    email: SentEmail;
+  } | null>(null);
 
   const practiceId = id ?? "";
 
@@ -467,6 +492,15 @@ export default function PracticeProfilePage() {
     return `/pricing-engine/rate-finalization?${params.toString()}`;
   }, [practiceId, selectedAgreementId, selectedVersionId]);
 
+  const totalPracticeEmails = useMemo(
+    () =>
+      Object.values(personEmailsById).reduce(
+        (total, personEmails) => total + personEmails.length,
+        0,
+      ),
+    [personEmailsById],
+  );
+
   function toggleAgreementDetails(agreementId: string) {
     setDrawerAgreementId((current) =>
       current === agreementId ? null : agreementId,
@@ -524,6 +558,24 @@ export default function PracticeProfilePage() {
       setAssociatedCompanies(
         companies.filter((company): company is Company => Boolean(company)),
       );
+      const peopleWithEmail = (practiceData.persons || []).filter(
+        (person) => person.id && person.email,
+      );
+      setEmailsLoadingByPersonId(
+        Object.fromEntries(peopleWithEmail.map((person) => [person.id, true])),
+      );
+      const emailHistoryResults = await Promise.all(
+        peopleWithEmail.map(async (person) => {
+          try {
+            const personEmails = await getEmailHistoryByPersonId(person.id);
+            return [person.id, personEmails] as const;
+          } catch {
+            return [person.id, []] as const;
+          }
+        }),
+      );
+      setPersonEmailsById(Object.fromEntries(emailHistoryResults));
+      setEmailsLoadingByPersonId({});
       setBillingRuns(billingData.rows);
       const billingDetails = await Promise.all(
         billingData.rows.map((run) => getBillingRun(run.id).catch(() => null)),
@@ -733,6 +785,11 @@ export default function PracticeProfilePage() {
             value={practice.persons?.length ?? 0}
             icon={<Users className="h-5 w-5" />}
           />
+          <StatCard
+            label="Person Emails"
+            value={totalPracticeEmails}
+            icon={<Mail className="h-5 w-5" />}
+          />
           {canUsePricingAndBilling ? (
             <>
               <StatCard
@@ -829,6 +886,8 @@ export default function PracticeProfilePage() {
             </div>
           </Card>
         </div>
+
+      
 
         <Card
           title="Associated Companies"
@@ -1708,7 +1767,163 @@ export default function PracticeProfilePage() {
             </div>
           </Card>
         ) : null}
+
+<Card
+          title="Practice Communication"
+          description="Email history sent to people associated with this practice."
+          scrollable
+        >
+          {practice.persons?.length ? (
+            <div className="space-y-3">
+              {practice.persons.map((person) => {
+                const personName =
+                  [person.firstName, person.lastName].filter(Boolean).join(" ") ||
+                  "Unnamed contact";
+                const personEmails = person.id ? personEmailsById[person.id] || [] : [];
+                const isEmailLoading = person.id
+                  ? Boolean(emailsLoadingByPersonId[person.id])
+                  : false;
+
+                return (
+                  <div
+                    key={person.id}
+                    className="rounded-2xl border border-[#ece8e1] bg-white p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-slate-900">{personName}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {person.email || "No email"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {person.email ? (
+                          <Link
+                            to={`/communication/all-emails?toEmail=${encodeURIComponent(person.email)}`}
+                            className="inline-flex items-center rounded-full border border-[#d7d1c8] bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                          >
+                            View All
+                          </Link>
+                        ) : null}
+                        {/* <span className="rounded-full bg-[#f3f0ea] px-3 py-1 text-xs font-semibold text-slate-600">
+                          {personEmails.length} email
+                          {personEmails.length === 1 ? "" : "s"}
+                        </span> */}
+                      </div>
+                    </div>
+
+                    {isEmailLoading ? (
+                      <p className="mt-3 text-sm text-slate-500">
+                        Loading email history...
+                      </p>
+                    ) : personEmails.length ? (
+                      <div className="mt-3 space-y-2">
+                        {personEmails.map((mail) => {
+                          const preview = mail.bodyPreview || stripHtml(mail.bodyHtml);
+                          return (
+                            <button
+                              key={`${person.id}-${mail.id}`}
+                              type="button"
+                              onClick={() =>
+                                setSelectedPersonEmail({
+                                  personName,
+                                  email: mail,
+                                })
+                              }
+                              className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-3 py-2 text-left transition hover:border-slate-300 hover:bg-white"
+                            >
+                              <div className="flex items-center justify-between pb-2">
+                              <p className="truncate text-sm font-semibold text-slate-800">
+                                {mail.subject}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatDateTime(mail.sentDateTime)}
+                              </p>
+                              </div>
+                              <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                                {preview || "-"}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-3 rounded-xl border border-dashed border-[#ded8cf] bg-[#fbfaf8] px-3 py-2 text-sm text-slate-500">
+                        No emails found for this person.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="rounded-2xl bg-[#fbfaf8] p-4 text-sm text-slate-500">
+              No people linked to this practice.
+            </p>
+          )}
+        </Card>
       </div>
+      {selectedPersonEmail ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => setSelectedPersonEmail(null)}
+        >
+          <div
+            className="flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[#f0ece6] px-5 py-4">
+              <div className="min-w-0">
+                <h2 className="truncate text-[18px] font-semibold text-slate-800">
+                  {selectedPersonEmail.email.subject}
+                </h2>
+                <p className="mt-1 text-[12px] text-slate-500">
+                  Contact: {selectedPersonEmail.personName}
+                </p>
+                <p className="mt-1 text-[12px] text-slate-500">
+                  From: {selectedPersonEmail.email.from || "noreply@tristatemso.com"}
+                </p>
+                <p className="mt-1 text-[12px] text-slate-500">
+                  To:{" "}
+                  {selectedPersonEmail.email.to.length
+                    ? selectedPersonEmail.email.to.join(", ")
+                    : "-"}
+                </p>
+                {selectedPersonEmail.email.cc.length ? (
+                  <p className="mt-1 text-[12px] text-slate-500">
+                    Cc: {selectedPersonEmail.email.cc.join(", ")}
+                  </p>
+                ) : null}
+                <p className="mt-1 text-[12px] text-slate-500">
+                  Sent: {formatDateTime(selectedPersonEmail.email.sentDateTime)}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                onClick={() => setSelectedPersonEmail(null)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto bg-[#fbfaf8] p-5">
+              {selectedPersonEmail.email.bodyHtml ? (
+                <div
+                  className="rounded-xl border border-[#ece8e1] bg-white p-4 text-[13px] text-slate-700"
+                  dangerouslySetInnerHTML={{
+                    __html: selectedPersonEmail.email.bodyHtml,
+                  }}
+                />
+              ) : (
+                <div className="rounded-xl border border-[#ece8e1] bg-white p-4 text-[13px] text-slate-500">
+                  {selectedPersonEmail.email.bodyPreview ||
+                    "No body content available."}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AppLayout>
   );
 }

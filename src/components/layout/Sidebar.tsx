@@ -84,6 +84,11 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.CRM],
   },
   {
+    label: "Communication",
+    to: "/communication/all-emails",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+  },
+  {
     label: "Practices",
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
@@ -164,10 +169,13 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       {
-        label: "All Invoice Line Items",
-        to: "/invoice/all-invoice-line-items",
+        label: "Client Invoice Line Items",
+        to: "/invoice/client-invoice-line-items",
       },
-      { label: "All Line Items", to: "/invoice/all-line-items" },
+      {
+        label: "Tristate Invoice Line Items",
+        to: "/invoice/tristate-invoice-line-items",
+      },
     ],
   },
   {
@@ -246,7 +254,6 @@ const sidebarSteps: SidebarItem[] = [
     items: [
       { label: "Dashboard", to: "/credentialing/dashboard" },
       { label: "All Credentialing", to: "/credentialing/list" },
-      { label: "Insurance", to: "/credentialing/insurance" },
     ],
   },
   {
@@ -487,6 +494,8 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
                       return <ClipboardCheck className="h-3.5 w-3.5" />;
                     if (label.includes("credential"))
                       return <Stethoscope className="h-3.5 w-3.5" />;
+                    if (label.includes("master"))
+                      return <Settings2 className="h-3.5 w-3.5" />;
                     if (label.includes("assessment"))
                       return <BarChart3 className="h-3.5 w-3.5" />;
                     if (label.includes("pricing"))

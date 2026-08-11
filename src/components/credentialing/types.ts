@@ -13,6 +13,17 @@ export const credentialingStatusOptions = [
 
 export type CredentialingStatus = (typeof credentialingStatusOptions)[number];
 
+export function isLockedCredentialingStatus(status?: string | null) {
+  return (
+    status === "Contracted - Direct" ||
+    status === "Contracted - IPA/Delegated"
+  );
+}
+
+export function canEditCredentialingStatus(status?: string | null) {
+  return !isLockedCredentialingStatus(status);
+}
+
 export const requestTypeOptions = [
   "New Credentialing",
   "Re-credentialing",
@@ -111,7 +122,9 @@ export type CredentialingFollowUp = {
 export type CredentialingRecord = {
   id: string;
   credentialingId: string;
+  practiceId?: string;
   practice: string;
+  providerId?: string;
   provider: string;
   insuranceCompany: string;
   credentialingType: RequestType;
@@ -136,12 +149,16 @@ export type CredentialingRecord = {
   documents: CredentialingDocument[];
   followUpLogs: CredentialingFollowUp[];
   activity: CredentialingActivity[];
+  credentialingChargeBilledAt?: string | null;
+  credentialingChargeInvoiceLineItemId?: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type CredentialingFormState = {
+  practiceId: string;
   practice: string;
+  providerId: string;
   provider: string;
   insuranceCompany: string;
   credentialingType: RequestType;

@@ -69,7 +69,9 @@ export function createCredentialingFormState(
   record?: CredentialingRecord | null,
 ): CredentialingFormState {
   return {
+    practiceId: record?.practiceId || "",
     practice: record?.practice || "",
+    providerId: record?.providerId || "",
     provider: record?.provider || "",
     insuranceCompany: record?.insuranceCompany || "",
     credentialingType: record?.credentialingType || requestTypeOptions[0],

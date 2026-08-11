@@ -15,7 +15,6 @@ import ProtectedRoute from "./components/auth/ProtectedRoute";
 import CRMDashboardPage from "./components/dashoard/CRMDashboard";
 import AssessmentsPage from "./components/assessments/AllAssessments";
 import AllInvoiceLineItems from "./components/invoice-line-items/AllInvoiceLineItems";
-import AllLineItems from "./components/invoice-line-items/AllLineItems";
 import AllServices from "./components/services/AllServices";
 import ServiceCatalogPage from "./components/services/ServiceCatalog";
 import ActiveServicePage from "./components/services/ActiveServices";
@@ -61,7 +60,7 @@ import OnboardingFormV5 from "./components/onboarding/OnboardingFormV5";
 import { BUSINESS_WRITE_ROLES, MODULE_ACCESS } from "./utils/auth";
 import CredentialingDashboardPage from "./components/credentialing/CredentialingDashboard";
 import CredentialingListPage from "./components/credentialing/CredentialingList";
-import InsuranceListPage from "./components/credentialing/insurance/InsuranceList";
+import CommunicationPage from "./components/communication/Communication";
 
 function App() {
   function ModuleRoute({
@@ -347,22 +346,21 @@ function App() {
       />
 
       <Route
-        path="/invoice/all-invoice-line-items"
+        path="/invoice/client-invoice-line-items"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
-            <AllInvoiceLineItems />
+            <AllInvoiceLineItems viewMode="client" />
           </ModuleRoute>
         }
       />
       <Route
-        path="/invoice/all-line-items"
+        path="/invoice/tristate-invoice-line-items"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.OPERATIONS_AND_FINANCE}>
-            <AllLineItems />
+            <AllInvoiceLineItems viewMode="tristate" />
           </ModuleRoute>
         }
       />
-
       <Route
         path="/service/all-services"
         element={
@@ -558,14 +556,6 @@ function App() {
         }
       />
       <Route
-        path="/credentialing/insurance"
-        element={
-          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
-            <InsuranceListPage />
-          </ModuleRoute>
-        }
-      />
-      <Route
         path="/practice/reminder-dues"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
@@ -594,6 +584,14 @@ function App() {
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AllCompaniesPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/communication/all-emails"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <CommunicationPage />
           </ModuleRoute>
         }
       />

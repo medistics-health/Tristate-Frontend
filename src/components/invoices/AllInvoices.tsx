@@ -79,6 +79,32 @@ const initialFormState: InvoiceFormState = {
   dueDate: "",
 };
 
+function formatCurrency(value?: string | number | null) {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+
+  const amount = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(amount)) {
+    return String(value);
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
+
+function parseCurrencyToNumber(value?: string | number | null) {
+  if (value === undefined || value === null || value === "") return 0;
+  if (typeof value === "number") return value;
+  // Remove any characters except digits, dot, and minus
+  const cleaned = String(value).replace(/[^0-9.-]+/g, "");
+  const n = Number(cleaned);
+  return Number.isNaN(n) ? 0 : n;
+}
+
 function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
@@ -88,6 +114,13 @@ function formatDateForInput(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString();
 }
 
 function buildFormState(invoice?: Invoice | null): InvoiceFormState {
@@ -239,11 +272,80 @@ function AllInvoicePage() {
           },
         },
         {
-          id: "totalAmount",
-          accessorFn: (row: InvoiceRow) => row.values.totalAmount,
-          header: () => "Total Amount",
+          id: "netServices",
+          accessorFn: (row: InvoiceRow) => row.values.netServices,
+          header: () => "Net Services",
           cell: ({ row }: { row: { original: InvoiceRow } }) =>
-            String(row.original.values.totalAmount || "-"),
+            String(row.original.values.netServices || "-"),
+        },
+        {
+          id: "grossInvoiceTotal",
+          accessorFn: (row: InvoiceRow) => row.values.grossInvoiceTotal,
+          header: () => "Gross Invoice Total",
+          cell: ({ row }: { row: { original: InvoiceRow } }) =>
+            String(row.original.values.grossInvoiceTotal || "-"),
+        },
+        {
+          id: "processingFee",
+          accessorFn: (row: InvoiceRow) => row.values.processingFee,
+          header: () => "Processing Fee",
+          cell: ({ row }: { row: { original: InvoiceRow } }) =>
+            String(row.original.values.processingFee || "-"),
+        },
+        {
+          id: "companyAbsorbed",
+          accessorFn: (row: InvoiceRow) => row.values.companyAbsorbed,
+          header: () => "Company Absorbed",
+          cell: ({ row }: { row: { original: InvoiceRow } }) => {
+            const vals = row.original.values as any;
+            const rawCompany = vals.companyAbsorbed;
+            const companyNum = parseCurrencyToNumber(rawCompany);
+            const netServicesNum = parseCurrencyToNumber(vals.netServices);
+            const netAmountNum = parseCurrencyToNumber(vals.netAmount);
+
+            // If Net Services or Net Amount is zero, force display $0.00 per UX request
+            if (netServicesNum === 0 || netAmountNum === 0) {
+              return formatCurrency(0);
+            }
+
+            if (rawCompany !== undefined && rawCompany !== null && String(rawCompany).trim() !== "") {
+              return String(formatCurrency(rawCompany));
+            }
+
+            if (netServicesNum === 0 && netAmountNum === 0) {
+              return formatCurrency(0);
+            }
+
+            return "-";
+          },
+        },
+        {
+          id: "paymentMethod",
+          accessorFn: (row: InvoiceRow) => row.values.paymentMethod,
+          header: () => "Payment Method",
+          cell: ({ row }: { row: { original: InvoiceRow } }) =>
+            String(row.original.values.paymentMethod || "-"),
+        },
+        {
+          id: "netAmount",
+          accessorFn: (row: InvoiceRow) => row.values.netAmount,
+          header: () => "Net Amount",
+          cell: ({ row }: { row: { original: InvoiceRow } }) => {
+            const vals = row.original.values as any;
+            const netServicesNum = parseCurrencyToNumber(vals.netServices);
+            const netAmountRaw = vals.netAmount;
+            const netAmountNum = parseCurrencyToNumber(netAmountRaw);
+
+            if (netServicesNum === 0) {
+              return formatCurrency(0);
+            }
+
+            if (netAmountRaw !== undefined && netAmountRaw !== null && String(netAmountRaw).trim() !== "") {
+              return formatCurrency(netAmountNum);
+            }
+
+            return "-";
+          },
         },
         {
           id: "dueDate",
@@ -512,7 +614,11 @@ function AllInvoicePage() {
       const refreshed = await getInvoice(invoiceId);
       setSelectedInvoice(refreshed);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to sync payment to QuickBooks.");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to sync payment to QuickBooks.",
+      );
     } finally {
       setActionState(invoiceId, "syncPayment", false);
     }
@@ -531,7 +637,9 @@ function AllInvoicePage() {
       const refreshed = await getInvoice(invoiceId);
       setSelectedInvoice(refreshed);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to quick-sync payment.");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to quick-sync payment.",
+      );
     } finally {
       setActionState(invoiceId, "syncPayment", false);
     }
@@ -565,7 +673,7 @@ function AllInvoicePage() {
     window.open(target, "_blank", "noopener,noreferrer");
   }
 
-  const navbarActions:any[] = [
+  const navbarActions: any[] = [
     // {
     //   label: "New record",
     //   icon: <Plus className="h-4 w-4" />,
@@ -611,20 +719,155 @@ function AllInvoicePage() {
               return (
                 <DetailCard
                   title={selectedInvoice?.invoiceNumber || "Invoice"}
-                  badge={invStatus ? { label: invStatus, className: invStatusColors[invStatus] || "bg-gray-100 text-gray-700" } : null}
+                  badge={
+                    invStatus
+                      ? {
+                          label: invStatus,
+                          className:
+                            invStatusColors[invStatus] ||
+                            "bg-gray-100 text-gray-700",
+                        }
+                      : null
+                  }
                   infoRows={[
-                    ...(selectedInvoice?.practice?.name ? [{ label: "Practice", value: selectedInvoice.practice.name }] : []),
-                    ...(selectedInvoice?.totalAmount ? [{ label: "Total Amount", value: String(selectedInvoice.totalAmount) }] : []),
-                    ...(selectedInvoice?.dueDate ? [{ label: "Due Date", value: new Date(selectedInvoice.dueDate).toLocaleDateString() }] : []),
+                    ...(selectedInvoice?.practice?.name
+                      ? [
+                          {
+                            label: "Practice",
+                            value: selectedInvoice.practice.name,
+                          },
+                        ]
+                      : []),
+                    ...(selectedInvoice?.totalAmount
+                      ? [
+                          {
+                            label: "Total Amount",
+                            value: String(selectedInvoice.totalAmount),
+                          },
+                        ]
+                      : []),
+                    ...(selectedInvoice?.dueDate
+                      ? [
+                          {
+                            label: "Due Date",
+                            value: new Date(
+                              selectedInvoice.dueDate,
+                            ).toLocaleDateString(),
+                          },
+                        ]
+                      : []),
+                    ...(selectedInvoice?.paidAt
+                      ? [
+                          {
+                            label: "Paid At",
+                            value: formatDateTime(selectedInvoice.paidAt),
+                          },
+                        ]
+                      : []),
+                    ...(selectedInvoice?.payerEmail
+                      ? [
+                          {
+                            label: "Payer Email",
+                            value: selectedInvoice.payerEmail,
+                          },
+                        ]
+                      : []),
                   ]}
                   metric={
                     selectedInvoice?.lineItems?.length !== undefined
-                      ? { label: "Line Items", value: String(selectedInvoice.lineItems.length) }
+                      ? {
+                          label: "Line Items",
+                          value: String(selectedInvoice.lineItems.length),
+                        }
                       : null
                   }
                 />
               );
             })()}
+
+            {false && <div className="mb-4 space-y-4">
+                <div className="rounded-2xl border border-[#ece7df] bg-white p-4">
+                  <h3 className="mb-3 text-[13px] font-semibold text-slate-800">
+                    Client Invoice Line Items
+                  </h3>
+                  {selectedInvoice?.lineItems?.length ? (
+                    <div className="space-y-2">
+                      {selectedInvoice.lineItems.map((item) => (
+                      <div
+                        key={`client-${item.id}`}
+                        className="flex items-start justify-between gap-3 rounded-lg border border-[#f1ede7] bg-[#fcfbf9] px-3 py-2.5"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-[12px] font-semibold text-slate-700">
+                            {item.description ||
+                              item.service?.name ||
+                              item.service?.code ||
+                              "Line Item"}
+                          </div>
+                          <div className="mt-1 text-[11px] text-slate-500">
+                            Qty: {item.quantity || 1}
+                            {" · "}
+                            Unit Price: {formatCurrency(item.unitPrice)}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-[12px] font-semibold text-slate-800">
+                          {formatCurrency(item.totalPrice)}
+                        </div>
+                      </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-[#e6dfd6] bg-[#fcfbf9] px-3 py-3 text-[12px] text-slate-500">
+                      No client invoice line items available for this invoice.
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-[#ece7df] bg-white p-4">
+                  <h3 className="mb-3 text-[13px] font-semibold text-slate-800">
+                    Tristate Invoice Line Items
+                  </h3>
+                  {selectedInvoice?.lineItems?.length ? (
+                    <div className="space-y-2">
+                      {selectedInvoice.lineItems.map((item) => (
+                      <div
+                        key={`internal-${item.id}`}
+                        className="rounded-lg border border-[#f1ede7] bg-[#fcfbf9] px-3 py-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[12px] font-semibold text-slate-700">
+                              {item.description ||
+                                item.service?.name ||
+                                item.service?.code ||
+                                "Line Item"}
+                            </div>
+                            <div className="mt-1 text-[11px] text-slate-500">
+                              Internal transfer amount
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-[12px] font-semibold text-slate-800">
+                            {formatCurrency(
+                              item.externalTotalPrice ?? item.totalPrice,
+                            )}
+                          </div>
+                        </div>
+                        {Number(item.companyFeeDeductionAmount || 0) > 0 && (
+                          <div className="mt-2 text-[11px] text-amber-700">
+                            Company absorbed:{" "}
+                            {formatCurrency(item.companyFeeDeductionAmount)}
+                          </div>
+                        )}
+                      </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-[#e6dfd6] bg-[#fcfbf9] px-3 py-3 text-[12px] text-slate-500">
+                      No Tristate invoice line items available for this invoice.
+                    </div>
+                  )}
+                </div>
+              </div>}
 
             <div className="space-y-4">
               {/*<div>
@@ -764,8 +1007,6 @@ function AllInvoicePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 border-t border-[#f1f5f9] px-2 py-3 bg-white sticky bottom-0 z-20">
-           
-
             {/* Sync QB Button */}
             {canIntegrationActions && (
               <button
@@ -783,8 +1024,12 @@ function AllInvoicePage() {
                   className="h-4 w-4 shrink-0 rounded-sm"
                 />
                 <div className="flex flex-col items-start leading-none gap-0">
-                  <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Sync</span>
-                  <span className="text-[12px] font-extrabold text-slate-800">INV</span>
+                  <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">
+                    Sync
+                  </span>
+                  <span className="text-[12px] font-extrabold text-slate-800">
+                    INV
+                  </span>
                 </div>
               </button>
             )}
@@ -794,30 +1039,44 @@ function AllInvoicePage() {
               <button
                 type="button"
                 onClick={() => {
-                  const paymentId = selectedInvoice.paymentAllocations?.[0]?.payment?.id;
+                  const paymentId =
+                    selectedInvoice.paymentAllocations?.[0]?.payment?.id;
                   if (paymentId) {
                     handleSyncPaymentToQB(paymentId, selectedInvoice.id);
                   } else {
                     handleQuickSyncPaymentToQB(selectedInvoice.id);
                   }
                 }}
-                disabled={isActionLoading(selectedInvoice?.id || "", "syncPayment") || !!selectedInvoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId}
-                className={`flex h-9 shrink-0 items-center gap-2 rounded-lg border px-2.5 transition-all shadow-sm ${selectedInvoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId
+                disabled={
+                  isActionLoading(selectedInvoice?.id || "", "syncPayment") ||
+                  !!selectedInvoice.paymentAllocations?.[0]?.payment
+                    ?.quickbooksPaymentId
+                }
+                className={`flex h-9 shrink-0 items-center gap-2 rounded-lg border px-2.5 transition-all shadow-sm ${
+                  selectedInvoice.paymentAllocations?.[0]?.payment
+                    ?.quickbooksPaymentId
                     ? "bg-emerald-50 border-emerald-100 text-emerald-700"
                     : "bg-white border-[#e2e8f0] hover:bg-slate-50"
-                  } disabled:opacity-50`}
+                } disabled:opacity-50`}
                 title={
-                  !selectedInvoice.paymentAllocations?.length 
-                    ? "No payment record found" 
-                    : selectedInvoice.paymentAllocations[0].payment.quickbooksPaymentId 
-                      ? "Payment already synced" 
+                  !selectedInvoice.paymentAllocations?.length
+                    ? "No payment record found"
+                    : selectedInvoice.paymentAllocations[0].payment
+                          .quickbooksPaymentId
+                      ? "Payment already synced"
                       : "Sync Payment to QuickBooks"
                 }
               >
-                <CheckCircle2 className={`h-4 w-4 shrink-0 ${selectedInvoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId ? "text-emerald-500" : "text-slate-400"}`} />
+                <CheckCircle2
+                  className={`h-4 w-4 shrink-0 ${selectedInvoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId ? "text-emerald-500" : "text-slate-400"}`}
+                />
                 <div className="flex flex-col items-start leading-none gap-0 text-left">
-                  <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">Sync</span>
-                  <span className="text-[12px] font-extrabold text-slate-800">PMT</span>
+                  <span className="text-[8px] font-bold text-[#94a3b8] uppercase tracking-tighter">
+                    Sync
+                  </span>
+                  <span className="text-[12px] font-extrabold text-slate-800">
+                    PMT
+                  </span>
                 </div>
               </button>
             )}
@@ -832,8 +1091,12 @@ function AllInvoicePage() {
               >
                 <Trash2 className="h-4 w-4 shrink-0" />
                 <div className="flex flex-col items-start leading-none gap-0 text-left">
-                  <span className="text-[8px] font-bold text-[#fca5a5] uppercase tracking-tighter">Delete</span>
-                  <span className="text-[12px] font-extrabold text-red-600 uppercase">Inv</span>
+                  <span className="text-[8px] font-bold text-[#fca5a5] uppercase tracking-tighter">
+                    Delete
+                  </span>
+                  <span className="text-[12px] font-extrabold text-red-600 uppercase">
+                    Inv
+                  </span>
                 </div>
               </button>
             )}
@@ -846,7 +1109,9 @@ function AllInvoicePage() {
                 className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-[#4f63ea] px-3 ml-auto text-white shadow-lg transition-all hover:bg-[#3d50d6] disabled:opacity-50"
               >
                 <Save className="h-5 w-5 shrink-0" />
-                <span className="text-[12px] font-extrabold uppercase tracking-tight whitespace-nowrap">Save</span>
+                <span className="text-[12px] font-extrabold uppercase tracking-tight whitespace-nowrap">
+                  Save
+                </span>
               </button>
             )}
           </div>
@@ -1243,10 +1508,11 @@ function AllInvoicePage() {
                     key={page}
                     type="button"
                     onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${pagination.page === page
+                    className={`rounded px-2 py-1 text-[13px] ${
+                      pagination.page === page
                         ? "bg-[#4f63ea] text-white"
                         : "text-slate-500 hover:bg-[#f0ece6]"
-                      }`}
+                    }`}
                   >
                     {page}
                   </button>

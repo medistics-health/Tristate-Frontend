@@ -6,13 +6,15 @@ const { LIST, CREATE, GET, UPDATE, DELETE } = invoiceEndpoints;
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as { message?: string; error?: string } | undefined;
-    
+    const data = error.response?.data as
+      | { message?: string; error?: string }
+      | undefined;
+
     // Prefer the detailed 'error' field if it exists (usually contains specific validation reasons)
     if (data?.error && typeof data.error === "string") {
       return data.error;
     }
-    
+
     return data?.message ?? fallbackMessage;
   }
   if (error instanceof Error) {
@@ -45,6 +47,7 @@ export type Invoice = {
   practiceId: string;
   agreementId?: string | null;
   totalAmount: string;
+  subtotalAmount?: string | null;
   status: InvoiceStatus;
   dueDate?: string | null;
   createdAt: string;
@@ -57,9 +60,30 @@ export type Invoice = {
     practiceId?: string;
     practice?: { id: string; name: string };
   } | null;
-  lineItems?: Array<{ id: string }>;
+  lineItems?: Array<{
+    id: string;
+    description?: string | null;
+    quantity?: number | string | null;
+    unitPrice?: string | null;
+    totalPrice?: string | null;
+    externalUnitPrice?: string | null;
+    externalTotalPrice?: string | null;
+    companyFeeDeductionAmount?: string | null;
+    service?: {
+      id: string;
+      name?: string | null;
+      code?: string | null;
+    } | null;
+    billingRunItem?: {
+      vendorAmount?: string | null;
+      marginAmount?: string | null;
+    } | null;
+  }>;
   purchaseOrders?: Array<{ id: string }>;
   invoiceNumber: string;
+  paymentMethod?: string | null;
+  processingFeeAmount?: string | null;
+  companyFeeAmount?: string | null;
   stripeInvoiceId?: string | null;
   stripeHostedInvoiceUrl?: string | null;
   stripeInvoicePdfUrl?: string | null;
@@ -85,7 +109,12 @@ export type InvoiceRow = {
     practiceName: string;
     agreementLabel: string;
     agreementId: string;
-    totalAmount: string;
+    netServices: string;
+    grossInvoiceTotal: string;
+    processingFee: string;
+    companyAbsorbed: string;
+    paymentMethod: string;
+    netAmount: string;
     status: InvoiceStatus;
     dueDate: string;
     creationDate: string;
@@ -186,14 +215,29 @@ function invoiceToRow(invoice: Invoice): InvoiceRow {
       practiceName: invoice.practice?.name || "-",
       agreementLabel,
       agreementId: invoice.agreementId || "",
-      totalAmount: formatCurrency(invoice.totalAmount),
+      netServices: formatCurrency(invoice.subtotalAmount || 0),
+      grossInvoiceTotal: formatCurrency(invoice.totalAmount),
+      processingFee: formatCurrency(invoice.processingFeeAmount || 0),
+      companyAbsorbed: formatCurrency(invoice.companyFeeAmount || 0),
+      paymentMethod:
+        invoice.paymentMethod === "CREDIT_CARD"
+          ? "Credit Card"
+          : invoice.paymentMethod === "ACH"
+            ? "ACH"
+            : "-",
+      netAmount: formatCurrency(
+        (Number(invoice.totalAmount) || 0) -
+          (Number(invoice.processingFeeAmount) || 0) -
+          (Number(invoice.companyFeeAmount) || 0),
+      ),
       status: invoice.status,
       dueDate: formatDate(invoice.dueDate),
       creationDate: formatDateTime(invoice.createdAt),
       lastUpdate: formatDateTime(invoice.updatedAt),
       invoiceNumber: invoice.invoiceNumber,
       quickbooksInvoiceId: invoice.quickbooksInvoiceId,
-      quickbooksPaymentId: invoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId || null,
+      quickbooksPaymentId:
+        invoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId || null,
     },
   };
 }
@@ -336,7 +380,9 @@ export type StripeEventLog = {
   createdAt: string;
 };
 
-export async function getInvoiceStripeEvents(id: string): Promise<StripeEventLog[]> {
+export async function getInvoiceStripeEvents(
+  id: string,
+): Promise<StripeEventLog[]> {
   try {
     const response = await apiConnector({
       method: "GET",
@@ -366,7 +412,10 @@ export async function syncInvoiceToQuickBooks(id: string): Promise<any> {
     const { quickbooksEndpoints } = await import("../apis");
     const response = await apiConnector({
       method: "POST",
-      url: quickbooksEndpoints.GET_LOGS.replace("/sync-logs", `/invoices/${id}/sync`),
+      url: quickbooksEndpoints.GET_LOGS.replace(
+        "/sync-logs",
+        `/invoices/${id}/sync`,
+      ),
       credentials: true,
     });
     return response.data;
@@ -380,12 +429,17 @@ export async function syncPaymentToQuickBooks(paymentId: string): Promise<any> {
     const { quickbooksEndpoints } = await import("../apis");
     const response = await apiConnector({
       method: "POST",
-      url: quickbooksEndpoints.GET_LOGS.replace("/sync-logs", `/payments/${paymentId}/sync`),
+      url: quickbooksEndpoints.GET_LOGS.replace(
+        "/sync-logs",
+        `/payments/${paymentId}/sync`,
+      ),
       credentials: true,
     });
     return response.data;
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to sync payment to QuickBooks."));
+    throw new Error(
+      getErrorMessage(error, "Unable to sync payment to QuickBooks."),
+    );
   }
 }
 
@@ -394,11 +448,16 @@ export async function quickSyncInvoicePayment(invoiceId: string): Promise<any> {
     const { quickbooksEndpoints } = await import("../apis");
     const response = await apiConnector({
       method: "POST",
-      url: quickbooksEndpoints.GET_LOGS.replace("/sync-logs", `/invoices/${invoiceId}/quick-sync-payment`),
+      url: quickbooksEndpoints.GET_LOGS.replace(
+        "/sync-logs",
+        `/invoices/${invoiceId}/quick-sync-payment`,
+      ),
       credentials: true,
     });
     return response.data;
   } catch (error) {
-    throw new Error(getErrorMessage(error, "Unable to quick-sync payment to QuickBooks."));
+    throw new Error(
+      getErrorMessage(error, "Unable to quick-sync payment to QuickBooks."),
+    );
   }
 }
