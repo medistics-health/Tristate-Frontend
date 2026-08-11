@@ -149,6 +149,8 @@ export type CredentialingRecord = {
   documents: CredentialingDocument[];
   followUpLogs: CredentialingFollowUp[];
   activity: CredentialingActivity[];
+  notes?: string;
+  enrollmentId?: string;
   credentialingChargeBilledAt?: string | null;
   credentialingChargeInvoiceLineItemId?: string | null;
   createdAt: string;
@@ -178,6 +180,8 @@ export type CredentialingFormState = {
   tinVerified: VerificationStatus;
   addressVerified: VerificationStatus;
   lineOfBusiness: LineOfBusiness[];
+  notes?: string;
+  enrollmentId?: string;
   documents: CredentialingDocument[];
   followUpLogs: CredentialingFollowUp[];
 };

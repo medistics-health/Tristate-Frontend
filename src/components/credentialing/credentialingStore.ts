@@ -91,6 +91,8 @@ export function createCredentialingFormState(
     tinVerified: record?.tinVerified || verificationStatusOptions[2],
     addressVerified: record?.addressVerified || verificationStatusOptions[2],
     lineOfBusiness: record?.lineOfBusiness || [],
+    notes: record?.notes || "",
+    enrollmentId: record?.enrollmentId || "",
     documents: record?.documents || [],
     followUpLogs: record?.followUpLogs || [],
   };

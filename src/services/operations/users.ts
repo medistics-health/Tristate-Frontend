@@ -31,6 +31,7 @@ export type SystemSettings = {
   achClientCapAmount?: number;
   invoiceDueDays?: number;
   invoiceReminderDays?: number;
+  credentialingReminderDays?: number;
 };
 
 export async function getAllUsers() {

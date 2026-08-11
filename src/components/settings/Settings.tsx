@@ -85,6 +85,7 @@ export default function SettingsPage() {
     achClientCapAmount: 0,
     invoiceDueDays: 15,
     invoiceReminderDays: 5,
+    credentialingReminderDays: 5,
   });
   const [notifyToInput, setNotifyToInput] = useState("");
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
@@ -162,6 +163,7 @@ export default function SettingsPage() {
         achClientCapAmount: data.achClientCapAmount ?? 0,
         invoiceDueDays: data.invoiceDueDays ?? 15,
         invoiceReminderDays: data.invoiceReminderDays ?? 5,
+        credentialingReminderDays: data.credentialingReminderDays ?? 5,
       });
       setNotifyToInput(
         Array.isArray(data.notifyTo) ? data.notifyTo.join(", ") : "",
@@ -486,6 +488,24 @@ export default function SettingsPage() {
                           setOrgSettings({
                             ...orgSettings,
                             invoiceReminderDays: parseInt(e.target.value, 10) || 5,
+                          })
+                        }
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        Credentialing Reminder Period (Days)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={orgSettings.credentialingReminderDays}
+                        onChange={(e) =>
+                          setOrgSettings({
+                            ...orgSettings,
+                            credentialingReminderDays:
+                              parseInt(e.target.value, 10) || 5,
                           })
                         }
                         className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"

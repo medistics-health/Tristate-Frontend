@@ -520,7 +520,8 @@ export default function CredentialingModal({
   const activityEntries = record?.activity || [];
 
   function renderActivityDetails(details?: string) {
-    const items = (details || "")
+    const cleanedDetails = (details || "").replace(/\[reminderKey:[^\]]+\]\s*/g, "").trim();
+    const items = cleanedDetails
       .split(";")
       .map((item) => item.trim())
       .filter(Boolean);
@@ -751,6 +752,34 @@ export default function CredentialingModal({
                     }))}
                     disabled={isReadOnly}
                     placeholder="Select status"
+                  />
+                </label>
+
+                <label className="block">
+                  <FieldLabel>Enrollment ID</FieldLabel>
+                  <input
+                    type="text"
+                    value={form.enrollmentId || ""}
+                    onChange={(event) =>
+                      updateField("enrollmentId", event.target.value)
+                    }
+                    readOnly={isReadOnly}
+                    placeholder="Enter Enrollment ID"
+                    className="app-control w-full rounded-xl px-3 py-2 text-[13px] disabled:bg-slate-50"
+                  />
+                </label>
+
+                <label className="block md:col-span-2 xl:col-span-3">
+                  <FieldLabel>Notes</FieldLabel>
+                  <textarea
+                    rows={2}
+                    value={form.notes || ""}
+                    onChange={(event) =>
+                      updateField("notes", event.target.value)
+                    }
+                    readOnly={isReadOnly}
+                    placeholder="Enter credentialing notes..."
+                    className="app-control w-full rounded-xl px-3 py-2 text-[13px] disabled:bg-slate-50"
                   />
                 </label>
               </div>
