@@ -191,6 +191,18 @@ export type OnboardingBilling = {
   additionalNotes?: string;
 };
 
+export type OnboardingPayerPortalLogin = {
+  payerName?: string;
+  portalUrl?: string;
+  username?: string;
+  password?: string;
+  designatedContactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  status?: string;
+  notes?: string;
+};
+
 export type OnboardingCredentialing = {
   credentialingNeeded?: boolean;
   credentialingFor?: string[];
@@ -201,6 +213,7 @@ export type OnboardingCredentialing = {
   designatedPortalContactPhone?: string;
   irsDocument147c?: string;
   desiredInsurancePlans?: string;
+  payerPortalLogins?: OnboardingPayerPortalLogin[];
   caqhMaintained?: boolean;
   currentCredentialingIssues?: string[];
   medicarePtanAvailable?: string;

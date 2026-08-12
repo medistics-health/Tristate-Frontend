@@ -434,11 +434,11 @@ const providerDocumentFieldOptions: Array<
   Option & { value: ProviderDocumentField }
 > = [
   {
-    label: "Board Certification",
+    label: "Board Certification (required)",
     value: "copyOfBoardCertification",
   },
   {
-    label: "Professional Liability Insurance (PLI)",
+    label: "Professional Liability Insurance (PLI) (required)",
     value: "copyOfProfessionalLiabilityInsurance",
   },
   {
@@ -450,19 +450,19 @@ const providerDocumentFieldOptions: Array<
     value: "copyOfMastersDegree",
   },
   {
-    label: "Social Security Card (required for credentialing)",
+    label: "Social Security Card (required)",
     value: "copyOfSocialSecurityCard",
   },
   {
-    label: "Driver's License",
+    label: "Driver's License (required)",
     value: "copyOfDriversLicense",
   },
   {
-    label: "Passport-sized Photo",
+    label: "Passport-sized Photo (required)",
     value: "passportSizedPhoto",
   },
   {
-    label: "Resume (with MM/DD/YYYY format)",
+    label: "Resume (with MM/DD/YYYY format) (required)",
     value: "resume",
   },
 ];
@@ -2203,10 +2203,49 @@ export default function OnboardingFormV5() {
     const practiceName = practice.practiceName?.trim() ?? "";
     const practiceType = practice.practiceType?.trim() ?? "";
     const taxIdEin = practice.taxIdEin?.trim() ?? "";
-    const hasLocation = (practice.locations ?? []).some(
-      (location) => (location.locationName?.trim() ?? "").length > 0,
+    const groupNpi = practice.groupNpi?.trim() ?? "";
+    const groupMedicarePtan = practice.groupMedicarePtan?.trim() ?? "";
+    const groupTaxonomy = practice.groupTaxonomy?.trim() ?? "";
+    const practiceManagerName = practice.practiceManagerName?.trim() ?? "";
+    const practiceManagerEmail = practice.practiceManagerEmail?.trim() ?? "";
+    const practiceManagerPhone = practice.practiceManagerPhone?.trim() ?? "";
+    const billingAddress = practice.billingAddress?.trim() ?? "";
+    const practiceWorkStartDate = practice.practiceWorkStartDate?.trim() ?? "";
+    const numberOfProviders = Number(
+      practice.approximateNumberOfProviders ?? 0,
     );
-    return !!practiceName && !!practiceType && !!taxIdEin && hasLocation;
+    const numberOfLocations = Number(
+      practice.approximateNumberOfLocations ?? 0,
+    );
+    const hasValidLocation = (practice.locations ?? []).some((location) => {
+      const locationName = location.locationName?.trim() ?? "";
+      const addressLine1 = location.addressLine1?.trim() ?? "";
+      const officePhone = location.mainPhoneNumber?.trim() ?? "";
+      return (
+        !!locationName &&
+        !!addressLine1 &&
+        !!officePhone &&
+        isValidTenDigitPhone(officePhone)
+      );
+    });
+
+    return (
+      !!practiceName &&
+      !!practiceType &&
+      !!taxIdEin &&
+      !!groupNpi &&
+      !!groupMedicarePtan &&
+      !!groupTaxonomy &&
+      !!practiceManagerName &&
+      !!practiceManagerEmail &&
+      !!practiceManagerPhone &&
+      isValidTenDigitPhone(practiceManagerPhone) &&
+      !!billingAddress &&
+      !!practiceWorkStartDate &&
+      numberOfProviders > 0 &&
+      numberOfLocations > 0 &&
+      hasValidLocation
+    );
   }
 
   function isValidProvider(provider: OnboardingProvider) {
@@ -2215,29 +2254,92 @@ export default function OnboardingFormV5() {
     const firstName = provider.firstName?.trim() ?? "";
     const lastName = provider.lastName?.trim() ?? "";
     const providerType = provider.providerType?.trim() ?? "";
+    const dateOfBirth = provider.dateOfBirth?.trim() ?? "";
+    const gender = provider.gender?.trim() ?? "";
     const npi = provider.npi?.trim() ?? "";
     const ssnDigits = provider.ssnFullDigits?.trim() ?? "";
+    const licenseNumber =
+      provider.stateLicenseNumber?.trim() ||
+      provider.licenseNumber?.trim() ||
+      "";
+    const licenseExpiryDate = provider.licenseExpiryDate?.trim() ?? "";
+    const stateOfLicense = provider.stateOfLicense?.trim() ?? "";
+    const licenseType = provider.licenseType?.trim() ?? "";
+    const taxonomy = provider.taxonomy?.trim() ?? "";
+    const specialty = provider.specialty?.trim() ?? "";
+    const countryOfBirth = provider.countryOfBirth?.trim() ?? "";
+    const statePlaceOfBirth = provider.statePlaceOfBirth?.trim() ?? "";
+    const homeAddress = provider.homeAddress?.trim() ?? "";
     const caqhId = provider.caqhId?.trim() ?? "";
     const caqhUsername = provider.caqhUsername?.trim() ?? "";
     const caqhPassword = provider.caqhPassword?.trim() ?? "";
-    const validSsnDigits = /^\d{4}$|^\d{9}$/.test(ssnDigits);
+    const caqhLastAttestationDate =
+      provider.caqhLastAttestationDate?.trim() ?? "";
+    const providerEffectiveDateWithGroup =
+      provider.providerEffectiveDateWithGroup?.trim() ?? "";
+    const personalCellNumber = provider.personalCellNumber?.trim() ?? "";
+    const personalEmail = provider.personalEmail?.trim() ?? "";
+    const practiceEmail = provider.practiceEmail?.trim() ?? "";
+    const medicarePtanIndividual =
+      provider.medicarePtanIndividual?.trim() ?? "";
+    const nppesUsername = provider.nppesUsername?.trim() ?? "";
+    const nppesPassword = provider.nppesPassword?.trim() ?? "";
+    const malpracticeCarrier = provider.malpracticeCarrier?.trim() ?? "";
+    const malpracticePolicyNumber =
+      provider.malpracticePolicyNumber?.trim() ?? "";
+    const malpracticeEffectiveDate =
+      provider.malpracticeEffectiveDate?.trim() ?? "";
+    const malpracticeExpiryDate =
+      provider.malpracticeExpiryDate?.trim() ?? "";
+    const validSsnDigits = /^\d{9}$/.test(ssnDigits);
     const isCaqhExempt = caqhExemptProviderTypes.includes(providerType);
     const requiresCaqhCredentials =
       credentialingRequested && !isCaqhExempt;
-    const hasBoardCertificationFile = !!(
-      provider.copyOfBoardCertification?.trim() ?? ""
-    );
-    const isIndependentBilling =
-      independentBillingProviderTypes.includes(providerType);
+    const hasRequiredDocuments =
+      !!(provider.copyOfBoardCertification?.trim() ?? "") &&
+      !!(provider.copyOfProfessionalLiabilityInsurance?.trim() ?? "") &&
+      !!(provider.copyOfDriversLicense?.trim() ?? "") &&
+      !!(provider.copyOfSocialSecurityCard?.trim() ?? "") &&
+      !!(provider.passportSizedPhoto?.trim() ?? "") &&
+      !!(provider.resume?.trim() ?? "");
+
     return (
       !!firstName &&
       !!lastName &&
       !!providerType &&
-      (!isIndependentBilling || !!npi) &&
-      (!isIndependentBilling || validSsnDigits) &&
+      !!dateOfBirth &&
+      !!gender &&
+      !!npi &&
+      validSsnDigits &&
+      !!licenseNumber &&
+      !!licenseExpiryDate &&
+      !!stateOfLicense &&
+      !!licenseType &&
+      !!taxonomy &&
+      !!specialty &&
+      !!countryOfBirth &&
+      !!statePlaceOfBirth &&
+      !!homeAddress &&
+      provider.telehealthAvailable !== undefined &&
+      provider.telehealthAvailable !== null &&
+      !!personalCellNumber &&
+      isValidTenDigitPhone(personalCellNumber) &&
+      !!personalEmail &&
+      !!practiceEmail &&
+      !!medicarePtanIndividual &&
+      !!nppesUsername &&
+      !!nppesPassword &&
+      !!malpracticeCarrier &&
+      !!malpracticePolicyNumber &&
+      !!malpracticeEffectiveDate &&
+      !!malpracticeExpiryDate &&
+      !!providerEffectiveDateWithGroup &&
+      hasRequiredDocuments &&
       (!requiresCaqhCredentials ||
-        (!!caqhId && !!caqhUsername && !!caqhPassword)) &&
-      (!provider.boardCertified || hasBoardCertificationFile)
+        (!!caqhId &&
+          !!caqhUsername &&
+          !!caqhPassword &&
+          !!caqhLastAttestationDate))
     );
   }
 
@@ -2711,7 +2813,7 @@ export default function OnboardingFormV5() {
         )
       ) {
         errors.push(
-          "Every practice needs a name, type, Tax ID / EIN, and at least one location",
+          "Every practice needs required DocPro fields: name, type, Tax ID / EIN, Group NPI, Group Medicare PTAN, Group Taxonomy, practice manager name/email/phone, billing address, work start date, number of providers/locations, and a location with name, address, and office phone",
         );
       }
     }
@@ -2725,7 +2827,7 @@ export default function OnboardingFormV5() {
         )
       ) {
         errors.push(
-          "Every practice needs at least one provider with first name, last name, provider type, NPI, and SSN last 4 digits. When credentialing is a selected service, CAQH ID, username, and password are also required.",
+          "Every practice needs at least one provider with all DocPro-required fields completed (identity, license, NPI, full SSN, contacts, NPPES, malpractice, required documents, and CAQH when credentialing is selected)",
         );
       }
     }
@@ -2762,7 +2864,10 @@ export default function OnboardingFormV5() {
     }
 
     if (currentStep === 6) {
-      if (!formData.technology?.ehrSystem) errors.push("EHR");
+      if (!formData.technology?.ehrSystem) errors.push("EHR / EMR name");
+      if (!(formData.technology?.practiceManagementSystem?.trim() ?? "")) {
+        errors.push("Billing software / practice management system");
+      }
       if (hasBillingRcmSelected && !formData.billing?.currentBillingModel) {
         errors.push("Billing model");
       }
@@ -2772,6 +2877,41 @@ export default function OnboardingFormV5() {
         !(formData.billing?.billingCompanyName?.trim() ?? "")
       ) {
         errors.push("Billing company name");
+      }
+      if (!(formData.billing?.recentW9Form?.trim() ?? "")) {
+        errors.push("Recent W9 Form");
+      }
+      if (!(formData.billing?.voidCheck?.trim() ?? "")) {
+        errors.push("Void Check");
+      }
+      if (!(formData.billing?.formalLetterFromBank?.trim() ?? "")) {
+        errors.push("Bank Account Letter");
+      }
+      if (hasCredentialingSelected) {
+        if (!(formData.credentialing?.approvedInsurancesTracker?.trim() ?? "")) {
+          errors.push("Insurance Network Tracker / In-Network Insurance Roster");
+        }
+        if (
+          !(formData.credentialing?.designatedPortalContactName?.trim() ?? "")
+        ) {
+          errors.push("Portal designated contact name");
+        }
+        if (
+          !(formData.credentialing?.designatedPortalContactEmail?.trim() ?? "")
+        ) {
+          errors.push("Portal designated contact email");
+        }
+        if (
+          !(formData.credentialing?.designatedPortalContactPhone?.trim() ?? "")
+        ) {
+          errors.push("Portal designated contact phone");
+        }
+        if (!(formData.credentialing?.irsDocument147c?.trim() ?? "")) {
+          errors.push("IRS Letter 147C");
+        }
+        if (!(formData.credentialing?.desiredInsurancePlans?.trim() ?? "")) {
+          errors.push("Insurance Enrollment List");
+        }
       }
     }
 
@@ -2874,6 +3014,9 @@ export default function OnboardingFormV5() {
 
     if (stepId === 6) {
       if (!formData.technology?.ehrSystem) return false;
+      if (!(formData.technology?.practiceManagementSystem?.trim() ?? "")) {
+        return false;
+      }
       if (hasBillingRcmSelected && !formData.billing?.currentBillingModel) {
         return false;
       }
@@ -2883,6 +3026,37 @@ export default function OnboardingFormV5() {
         !(formData.billing?.billingCompanyName?.trim() ?? "")
       ) {
         return false;
+      }
+      if (!(formData.billing?.recentW9Form?.trim() ?? "")) return false;
+      if (!(formData.billing?.voidCheck?.trim() ?? "")) return false;
+      if (!(formData.billing?.formalLetterFromBank?.trim() ?? "")) {
+        return false;
+      }
+      if (hasCredentialingSelected) {
+        if (!(formData.credentialing?.approvedInsurancesTracker?.trim() ?? "")) {
+          return false;
+        }
+        if (
+          !(formData.credentialing?.designatedPortalContactName?.trim() ?? "")
+        ) {
+          return false;
+        }
+        if (
+          !(formData.credentialing?.designatedPortalContactEmail?.trim() ?? "")
+        ) {
+          return false;
+        }
+        if (
+          !(formData.credentialing?.designatedPortalContactPhone?.trim() ?? "")
+        ) {
+          return false;
+        }
+        if (!(formData.credentialing?.irsDocument147c?.trim() ?? "")) {
+          return false;
+        }
+        if (!(formData.credentialing?.desiredInsurancePlans?.trim() ?? "")) {
+          return false;
+        }
       }
       return true;
     }
@@ -4138,7 +4312,7 @@ export default function OnboardingFormV5() {
                             />
                           </Field>
 
-                          <Field label="Group NPI">
+                          <Field label="Group NPI" required>
                             <TextInput
                               value={practice.groupNpi ?? ""}
                               onChange={(event) =>
@@ -4194,7 +4368,7 @@ export default function OnboardingFormV5() {
                             />
                           </Field>
 
-                          <Field label="Group Medicare PTAN">
+                          <Field label="Group Medicare PTAN" required>
                             <TextInput
                               value={practice.groupMedicarePtan ?? ""}
                               onChange={(event) =>
@@ -4207,7 +4381,7 @@ export default function OnboardingFormV5() {
                             />
                           </Field>
 
-                          <Field label="Group Taxonomy">
+                          <Field label="Group Taxonomy" required>
                             <TextInput
                               value={practice.groupTaxonomy ?? ""}
                               onChange={(event) =>
@@ -4237,7 +4411,7 @@ export default function OnboardingFormV5() {
                             </Field>
                           </div>
 
-                          <Field label="Practice Manager Name">
+                          <Field label="Practice Manager Name" required>
                             <TextInput
                               value={practice.practiceManagerName ?? ""}
                               onChange={(event) =>
@@ -4250,7 +4424,7 @@ export default function OnboardingFormV5() {
                             />
                           </Field>
 
-                          <Field label="Practice Manager Email">
+                          <Field label="Practice Manager Email" required>
                             <TextInput
                               type="email"
                               value={practice.practiceManagerEmail ?? ""}
@@ -4264,7 +4438,7 @@ export default function OnboardingFormV5() {
                             />
                           </Field>
 
-                          <Field label="Practice Manager Phone">
+                          <Field label="Practice Manager Phone" required>
                             <TextInput
                               type="tel"
                               value={practice.practiceManagerPhone ?? ""}
@@ -4279,7 +4453,7 @@ export default function OnboardingFormV5() {
                           </Field>
 
                           <div className="lg:col-span-3">
-                            <Field label="Billing Address">
+                            <Field label="Billing Address" required>
                               <TextArea
                                 rows={2}
                                 value={practice.billingAddress ?? ""}
@@ -4312,7 +4486,7 @@ export default function OnboardingFormV5() {
                             </Field>
                           </div>
 
-                          <Field label="Number of Providers">
+                          <Field label="Number of Providers" required>
                             <TextInput
                               type="number"
                               min={0}
@@ -4329,7 +4503,7 @@ export default function OnboardingFormV5() {
                             />
                           </Field>
 
-                          <Field label="Number of Locations">
+                          <Field label="Number of Locations" required>
                             <TextInput
                               type="number"
                               min={0}
@@ -4470,7 +4644,7 @@ export default function OnboardingFormV5() {
                             />
                           </Field> */}
 
-                          <Field label="Practice Work Start Date">
+                          <Field label="Practice Work Start Date" required>
                             <TextInput
                               type="date"
                               value={practice.practiceWorkStartDate ?? ""}
@@ -4687,7 +4861,7 @@ export default function OnboardingFormV5() {
                                     ) : null}
 
                                     <div className="md:col-span-2 lg:col-span-3">
-                                      <Field label="Address Line 1">
+                                      <Field label="Address Line 1" required>
                                         <TextInput
                                           value={location.addressLine1 ?? ""}
                                           disabled={
@@ -4800,7 +4974,7 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    <Field label="Main Phone Number">
+                                    <Field label="Main Phone Number" required>
                                       <TextInput
                                         type="tel"
                                         value={location.mainPhoneNumber ?? ""}
@@ -4967,7 +5141,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="Date of Birth">
+                                  <Field label="Date of Birth" required>
                                     <TextInput
                                       type="date"
                                       value={provider.dateOfBirth ?? ""}
@@ -4982,7 +5156,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="Gender">
+                                  <Field label="Gender" required>
                                     <SelectInput
                                       value={provider.gender ?? ""}
                                       onChange={(event) =>
@@ -4997,7 +5171,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="State/Place of Birth">
+                                  <Field label="State/Place of Birth" required>
                                     <TextInput
                                       value={provider.statePlaceOfBirth ?? ""}
                                       onChange={(event) =>
@@ -5011,7 +5185,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="Country of Birth">
+                                  <Field label="Country of Birth" required>
                                     <TextInput
                                       value={provider.countryOfBirth ?? ""}
                                       onChange={(event) =>
@@ -5094,7 +5268,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="Specialty">
+                                  <Field label="Specialty" required>
                                     <SelectInput
                                       value={provider.specialty ?? ""}
                                       onChange={(event) =>
@@ -5128,12 +5302,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field
-                                    label="NPI"
-                                    required={independentBillingProviderTypes.includes(
-                                      provider.providerType ?? "",
-                                    )}
-                                  >
+                                  <Field label="NPI" required>
                                     <TextInput
                                       value={provider.npi ?? ""}
                                       onChange={(event) =>
@@ -5147,17 +5316,12 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field
-                                    label="SSN (Full Digits)"
-                                    required={independentBillingProviderTypes.includes(
-                                      provider.providerType ?? "",
-                                    )}
-                                  >
+                                  <Field label="SSN (Full Digits)" required>
                                     <TextInput
                                       inputMode="numeric"
                                       maxLength={9}
-                                      pattern="\d{4}|\d{9}"
-                                      title="Enter last 4 or full 9 digits of SSN"
+                                      pattern="\d{9}"
+                                      title="Enter full 9 digits of SSN"
                                       placeholder="123456789"
                                       value={provider.ssnFullDigits ?? ""}
                                       onChange={(event) =>
@@ -5247,7 +5411,12 @@ export default function OnboardingFormV5() {
                                   {scopeRequestedServices.includes(
                                     "CREDENTIALING",
                                   ) ? (
-                                    <Field label="CAQH Last Attestation Date">
+                                    <Field
+                                      label="CAQH Last Attestation Date"
+                                      required={!caqhExemptProviderTypes.includes(
+                                        provider.providerType ?? "",
+                                      )}
+                                    >
                                       <TextInput
                                         type="date"
                                         value={
@@ -5265,7 +5434,7 @@ export default function OnboardingFormV5() {
                                     </Field>
                                   ) : null}
 
-                                  <Field label="State License Number">
+                                  <Field label="State License Number" required>
                                     <TextInput
                                       value={provider.stateLicenseNumber ?? ""}
                                       onChange={(event) =>
@@ -5279,7 +5448,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="License Expiry Date">
+                                  <Field label="License Expiry Date" required>
                                     <TextInput
                                       type="date"
                                       value={provider.licenseExpiryDate ?? ""}
@@ -5294,7 +5463,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="State of License">
+                                  <Field label="State of License" required>
                                     <TextInput
                                       value={provider.stateOfLicense ?? ""}
                                       onChange={(event) =>
@@ -5308,7 +5477,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="License Type (MD, NP, etc.)">
+                                  <Field label="License Type (MD, NP, etc.)" required>
                                     <TextInput
                                       value={provider.licenseType ?? ""}
                                       onChange={(event) =>
@@ -5322,7 +5491,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="Taxonomy">
+                                  <Field label="Taxonomy" required>
                                     <TextInput
                                       value={provider.taxonomy ?? ""}
                                       onChange={(event) =>
@@ -5403,7 +5572,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="Telehealth Available">
+                                  <Field label="Telehealth Available" required>
                                     <BooleanRadioGroup
                                       name={`telehealth-${practiceIndex}-${providerIndex}`}
                                       value={
@@ -5420,7 +5589,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="Personal Cell Number">
+                                  <Field label="Personal Cell Number" required>
                                     <TextInput
                                       type="tel"
                                       value={provider.personalCellNumber ?? ""}
@@ -5435,7 +5604,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="Personal Email">
+                                  <Field label="Personal Email" required>
                                     <TextInput
                                       type="email"
                                       value={provider.personalEmail ?? ""}
@@ -5450,7 +5619,7 @@ export default function OnboardingFormV5() {
                                     />
                                   </Field>
 
-                                  <Field label="Practice Email">
+                                  <Field label="Practice Email" required>
                                     <TextInput
                                       type="email"
                                       value={provider.practiceEmail ?? ""}
@@ -5483,45 +5652,37 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    {independentBillingProviderTypes.includes(
-                                      provider.providerType ?? "",
-                                    ) ? (
-                                      <>
-                                        <Field label="Medicare PTAN (Individual)">
-                                          <TextInput
-                                            value={
-                                              provider.medicarePtanIndividual ??
-                                              ""
-                                            }
-                                            onChange={(event) =>
-                                              updateProvider(
-                                                practiceIndex,
-                                                providerIndex,
-                                                "medicarePtanIndividual",
-                                                event.target.value,
-                                              )
-                                            }
-                                          />
-                                        </Field>
+                                    <Field label="Medicare PTAN (Individual)" required>
+                                      <TextInput
+                                        value={
+                                          provider.medicarePtanIndividual ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "medicarePtanIndividual",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
 
-                                        <Field label="Medicaid ID (Individual)">
-                                          <TextInput
-                                            value={
-                                              provider.medicaidIdIndividual ??
-                                              ""
-                                            }
-                                            onChange={(event) =>
-                                              updateProvider(
-                                                practiceIndex,
-                                                providerIndex,
-                                                "medicaidIdIndividual",
-                                                event.target.value,
-                                              )
-                                            }
-                                          />
-                                        </Field>
-                                      </>
-                                    ) : null}
+                                    <Field label="Medicaid ID (Individual)">
+                                      <TextInput
+                                        value={
+                                          provider.medicaidIdIndividual ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "medicaidIdIndividual",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
 
                                     <Field label="IPA Affiliations (Provider Level)">
                                       <TextArea
@@ -5541,7 +5702,7 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    <Field label="NPPES Username">
+                                    <Field label="NPPES Username" required>
                                       <TextInput
                                         value={provider.nppesUsername ?? ""}
                                         onChange={(event) =>
@@ -5555,7 +5716,7 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    <Field label="NPPES Password">
+                                    <Field label="NPPES Password" required>
                                       <TextInput
                                         type="password"
                                         value={provider.nppesPassword ?? ""}
@@ -5570,26 +5731,22 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    {independentBillingProviderTypes.includes(
-                                      provider.providerType ?? "",
-                                    ) ? (
-                                      <Field label="Railroad Medicare (Individual)">
-                                        <TextInput
-                                          value={
-                                            provider.railroadMedicareIndividual ??
-                                            ""
-                                          }
-                                          onChange={(event) =>
-                                            updateProvider(
-                                              practiceIndex,
-                                              providerIndex,
-                                              "railroadMedicareIndividual",
-                                              event.target.value,
-                                            )
-                                          }
-                                        />
-                                      </Field>
-                                    ) : null}
+                                    <Field label="Railroad Medicare (Individual)">
+                                      <TextInput
+                                        value={
+                                          provider.railroadMedicareIndividual ??
+                                          ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "railroadMedicareIndividual",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
                                   </div>
 
                                   {independentBillingProviderTypes.includes(
@@ -5651,8 +5808,13 @@ export default function OnboardingFormV5() {
                                   ) : null}
 
                                   <div className="lg:col-span-3 space-y-4">
+                                    <p className="text-sm text-slate-600">
+                                      Required uploads: Board Certification, PLI,
+                                      Driver&apos;s License, Social Security Card,
+                                      Passport-sized Photo, and Resume / CV.
+                                    </p>
                                     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                                      <Field label="Select Document Type">
+                                      <Field label="Select Document Type" required>
                                         <SelectInput
                                           value={getSelectedProviderUploadField(
                                             practiceIndex,
@@ -5776,7 +5938,7 @@ export default function OnboardingFormV5() {
                                   </div>
 
                                   <div className="lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                    <Field label="Malpractice Carrier">
+                                    <Field label="Malpractice Carrier" required>
                                       <TextInput
                                         value={
                                           provider.malpracticeCarrier ?? ""
@@ -5792,7 +5954,7 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    <Field label="Malpractice Policy #">
+                                    <Field label="Malpractice Policy #" required>
                                       <TextInput
                                         value={
                                           provider.malpracticePolicyNumber ?? ""
@@ -5808,7 +5970,7 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    <Field label="Malpractice Effective Date">
+                                    <Field label="Malpractice Effective Date" required>
                                       <TextInput
                                         type="date"
                                         value={
@@ -5826,7 +5988,7 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    <Field label="Malpractice Expiry Date">
+                                    <Field label="Malpractice Expiry Date" required>
                                       <TextInput
                                         type="date"
                                         value={
@@ -5843,7 +6005,10 @@ export default function OnboardingFormV5() {
                                       />
                                     </Field>
 
-                                    <Field label="Provider Effective Date with the Group">
+                                    <Field
+                                      label="Provider Effective Date with the Group"
+                                      required
+                                    >
                                       <TextInput
                                         type="date"
                                         value={
@@ -5882,7 +6047,10 @@ export default function OnboardingFormV5() {
                                   </div>
 
                                   <div className="lg:col-span-3">
-                                    <Field label="Home Address (for Medicaid applications)">
+                                    <Field
+                                      label="Home Address (for Medicaid applications)"
+                                      required
+                                    >
                                       <TextArea
                                         rows={3}
                                         value={provider.homeAddress ?? ""}
@@ -6149,7 +6317,10 @@ export default function OnboardingFormV5() {
                   />
                 </Field>
 
-                <Field label="Practice Management System/Billing Software Name">
+                <Field
+                  label="Practice Management System/Billing Software Name"
+                  required
+                >
                   <TextInput
                     value={formData.technology?.practiceManagementSystem ?? ""}
                     onChange={(event) =>
@@ -6358,6 +6529,70 @@ export default function OnboardingFormV5() {
                     />
                   </Field>
                 </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Banking & Documentation"
+              description="Required practice banking documents for DocPro onboarding."
+            >
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Field label="Recent W9 Form" required>
+                  <DocumentUploadField
+                    value={formData.billing?.recentW9Form ?? ""}
+                    isUploading={
+                      uploadingFieldKey === "billing-recentW9Form"
+                    }
+                    onSelect={(file) =>
+                      void uploadNestedDocument(
+                        "billing",
+                        "recentW9Form",
+                        file,
+                      )
+                    }
+                    onClear={() =>
+                      void removeNestedDocument("billing", "recentW9Form")
+                    }
+                  />
+                </Field>
+
+                <Field label="Void Check" required>
+                  <DocumentUploadField
+                    value={formData.billing?.voidCheck ?? ""}
+                    isUploading={uploadingFieldKey === "billing-voidCheck"}
+                    onSelect={(file) =>
+                      void uploadNestedDocument("billing", "voidCheck", file)
+                    }
+                    onClear={() =>
+                      void removeNestedDocument("billing", "voidCheck")
+                    }
+                  />
+                </Field>
+
+                <Field
+                  label="Formal Letter from Bank Stating the Client Holds an Account"
+                  required
+                >
+                  <DocumentUploadField
+                    value={formData.billing?.formalLetterFromBank ?? ""}
+                    isUploading={
+                      uploadingFieldKey === "billing-formalLetterFromBank"
+                    }
+                    onSelect={(file) =>
+                      void uploadNestedDocument(
+                        "billing",
+                        "formalLetterFromBank",
+                        file,
+                      )
+                    }
+                    onClear={() =>
+                      void removeNestedDocument(
+                        "billing",
+                        "formalLetterFromBank",
+                      )
+                    }
+                  />
+                </Field>
               </div>
             </SectionCard>
 
@@ -6599,66 +6834,6 @@ export default function OnboardingFormV5() {
                       }
                     />
                   </Field>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Field label="Recent W9 Form">
-                      <DocumentUploadField
-                        value={formData.billing?.recentW9Form ?? ""}
-                        isUploading={
-                          uploadingFieldKey === "billing-recentW9Form"
-                        }
-                        onSelect={(file) =>
-                          void uploadNestedDocument(
-                            "billing",
-                            "recentW9Form",
-                            file,
-                          )
-                        }
-                        onClear={() =>
-                          void removeNestedDocument("billing", "recentW9Form")
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Void Check">
-                      <DocumentUploadField
-                        value={formData.billing?.voidCheck ?? ""}
-                        isUploading={uploadingFieldKey === "billing-voidCheck"}
-                        onSelect={(file) =>
-                          void uploadNestedDocument(
-                            "billing",
-                            "voidCheck",
-                            file,
-                          )
-                        }
-                        onClear={() =>
-                          void removeNestedDocument("billing", "voidCheck")
-                        }
-                      />
-                    </Field>
-
-                    <Field label="Formal Letter from Bank Stating the Client Holds an Account">
-                      <DocumentUploadField
-                        value={formData.billing?.formalLetterFromBank ?? ""}
-                        isUploading={
-                          uploadingFieldKey === "billing-formalLetterFromBank"
-                        }
-                        onSelect={(file) =>
-                          void uploadNestedDocument(
-                            "billing",
-                            "formalLetterFromBank",
-                            file,
-                          )
-                        }
-                        onClear={() =>
-                          void removeNestedDocument(
-                            "billing",
-                            "formalLetterFromBank",
-                          )
-                        }
-                      />
-                    </Field>
-                  </div>
                 </div>
               </SectionCard>
             ) : null}
@@ -6693,7 +6868,10 @@ export default function OnboardingFormV5() {
                     />
                   </Field>
 
-                  <Field label="Excel spreadsheet or tracker listing all approved and in-network insurances, including online portal login credentials (if available)">
+                  <Field
+                    label="Excel spreadsheet or tracker listing all approved and in-network insurances, including online portal login credentials (if available)"
+                    required
+                  >
                     <DocumentUploadField
                       value={
                         formData.credentialing?.approvedInsurancesTracker ?? ""
@@ -6719,94 +6897,60 @@ export default function OnboardingFormV5() {
                   </Field>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <div className="lg:col-span-3">
-                      <Field label="Do you have a designated contact person for insurance/credentialing?">
-                        <BooleanRadioGroup
-                          name="designated-credentialing-contact"
-                          value={formData.credentialing?.caqhMaintained ?? null}
-                          onChange={(value) => {
-                            updateNestedField(
-                              "credentialing",
-                              "caqhMaintained",
-                              value,
-                            );
-                            if (!value) {
-                              updateNestedField(
-                                "credentialing",
-                                "designatedPortalContactName",
-                                "",
-                              );
-                              updateNestedField(
-                                "credentialing",
-                                "designatedPortalContactEmail",
-                                "",
-                              );
-                              updateNestedField(
-                                "credentialing",
-                                "designatedPortalContactPhone",
-                                "",
-                              );
-                            }
-                          }}
-                        />
-                      </Field>
-                    </div>
+                    <Field
+                      label="Portal Designated Contact — Full Name"
+                      required
+                    >
+                      <TextInput
+                        value={
+                          formData.credentialing
+                            ?.designatedPortalContactName ?? ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "credentialing",
+                            "designatedPortalContactName",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
 
-                    {formData.credentialing?.caqhMaintained ? (
-                      <>
-                        <Field label="Designated contact person for all insurance portal setup, access, and maintenance matters">
-                          <TextInput
-                            value={
-                              formData.credentialing
-                                ?.designatedPortalContactName ?? ""
-                            }
-                            onChange={(event) =>
-                              updateNestedField(
-                                "credentialing",
-                                "designatedPortalContactName",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </Field>
+                    <Field label="Portal Designated Contact — Email" required>
+                      <TextInput
+                        type="email"
+                        value={
+                          formData.credentialing
+                            ?.designatedPortalContactEmail ?? ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "credentialing",
+                            "designatedPortalContactEmail",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </Field>
 
-                        <Field label="Designated Contact Email">
-                          <TextInput
-                            type="email"
-                            value={
-                              formData.credentialing
-                                ?.designatedPortalContactEmail ?? ""
-                            }
-                            onChange={(event) =>
-                              updateNestedField(
-                                "credentialing",
-                                "designatedPortalContactEmail",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </Field>
+                    <Field label="Portal Designated Contact — Phone" required>
+                      <TextInput
+                        type="tel"
+                        value={
+                          formData.credentialing
+                            ?.designatedPortalContactPhone ?? ""
+                        }
+                        onChange={(event) =>
+                          updateNestedField(
+                            "credentialing",
+                            "designatedPortalContactPhone",
+                            event.target.value.replace(/\D/g, ""),
+                          )
+                        }
+                      />
+                    </Field>
 
-                        <Field label="Designated Contact Phone">
-                          <TextInput
-                            type="tel"
-                            value={
-                              formData.credentialing
-                                ?.designatedPortalContactPhone ?? ""
-                            }
-                            onChange={(event) =>
-                              updateNestedField(
-                                "credentialing",
-                                "designatedPortalContactPhone",
-                                event.target.value.replace(/\D/g, ""),
-                              )
-                            }
-                          />
-                        </Field>
-                      </>
-                    ) : null}
-
-                    <Field label="IRS Document – Letter 147C">
+                    <Field label="IRS Document – Letter 147C" required>
                       <DocumentUploadField
                         value={formData.credentialing?.irsDocument147c ?? ""}
                         isUploading={
@@ -6994,7 +7138,10 @@ export default function OnboardingFormV5() {
                     </div>
                   </div>
 
-                  <Field label="Which insurance plans would you like us to enroll/credential this provider with? (Please list all desired commercial, Medicare, Medicaid, IPA/HMO, and specialty plans.)">
+                  <Field
+                    label="Which insurance plans would you like us to enroll/credential this provider with? (Please list all desired commercial, Medicare, Medicaid, IPA/HMO, and specialty plans.)"
+                    required
+                  >
                     <TextArea
                       value={
                         formData.credentialing?.desiredInsurancePlans ?? ""
