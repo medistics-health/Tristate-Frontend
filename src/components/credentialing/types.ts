@@ -21,7 +21,7 @@ export function isLockedCredentialingStatus(status?: string | null) {
 }
 
 export function canEditCredentialingStatus(status?: string | null) {
-  return !isLockedCredentialingStatus(status);
+  return true;
 }
 
 export const requestTypeOptions = [
