@@ -1372,27 +1372,32 @@ function CredentialingDashboardPage() {
                                 <div className="mt-1">
                                    {(() => {
                                      const cleanedDetails = (entry.details || "").replace(/\[reminderKey:[^\]]+\]\s*/g, "").trim();
+                                     const actionNorm = (entry.action || "").toLowerCase().trim();
                                      const items = cleanedDetails
                                        .split(";")
                                        .map((item) => item.trim())
-                                       .filter(Boolean);
+                                       .filter((item) => {
+                                         if (!item) return false;
+                                         const norm = item.toLowerCase();
+                                         if (norm === "activity recorded") return false;
+                                         if (norm === "follow-up created" || norm === "follow-up logged") return false;
+                                         if (norm === "document uploaded" || norm === "document updated") return false;
+                                         if (actionNorm && norm === actionNorm) return false;
+                                         return true;
+                                       });
 
-                                    if (items.length === 0) {
-                                      return (
-                                        <div className="text-[12px] text-slate-500">
-                                          Activity recorded
-                                        </div>
-                                      );
-                                    }
+                                     if (items.length === 0) {
+                                       return null;
+                                     }
 
-                                    return (
-                                      <ul className="list-disc space-y-1 pl-5 text-[12px] text-slate-500">
-                                        {items.map((item, index) => (
-                                          <li key={`${entry.id}-${index}`}>{item}</li>
-                                        ))}
-                                      </ul>
-                                    );
-                                  })()}
+                                     return (
+                                       <ul className="list-disc space-y-1 pl-5 text-[12px] text-slate-500">
+                                         {items.map((item, index) => (
+                                           <li key={`${entry.id}-${index}`}>{item}</li>
+                                         ))}
+                                       </ul>
+                                     );
+                                   })()}
                                 </div>
                               </div>
                             ))
