@@ -876,7 +876,7 @@ function CredentialingDashboardPage() {
                   onChange={(value) =>
                     setFilters((current) => ({ ...current, dateFrom: value }))
                   }
-                  placeholder="Submitted date from"
+                  placeholder="mm-dd-yyyy"
                   className="rounded-xl"
                 />
               </label>
@@ -890,7 +890,7 @@ function CredentialingDashboardPage() {
                   onChange={(value) =>
                     setFilters((current) => ({ ...current, dateTo: value }))
                   }
-                  placeholder="Submitted date to"
+                  placeholder="mm-dd-yyyy"
                   className="rounded-xl"
                 />
               </label>

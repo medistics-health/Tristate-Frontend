@@ -828,7 +828,7 @@ export default function CredentialingModal({
                           value as never,
                         )
                       }
-                      placeholder={`Select ${field.label.toLowerCase()}`}
+                      placeholder="mm-dd-yyyy"
                       className="rounded-xl"
                       disabled={isReadOnly}
                     />
@@ -974,7 +974,7 @@ export default function CredentialingModal({
                     <DatePicker
                       value={documentExpiryDate}
                       onChange={setDocumentExpiryDate}
-                      placeholder="Set document expiry"
+                      placeholder="mm-dd-yyyy"
                       className="rounded-xl"
                       disabled={isReadOnly}
                     />
