@@ -124,15 +124,100 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
     setIsOpen(false);
   };
 
-  const selectedDateStr = value; // YYYY-MM-DD
   let displayStr = "";
   if (value) {
     const [y, m, d] = value.split("-");
     if (y && m && d) {
-      displayStr = `${m}/${d}/${y}`; // US format MM/DD/YYYY for display
+      displayStr = `${m}-${d}-${y}`; 
     }
   }
 
+  const [inputValue, setInputValue] = useState(displayStr);
+
+  useEffect(() => {
+    setInputValue(displayStr);
+  }, [displayStr]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Only keep digits
+    let digits = e.target.value.replace(/\D/g, "");
+    
+    // Validate month
+    if (digits.length >= 2) {
+      let m = parseInt(digits.substring(0, 2), 10);
+      if (m > 12) digits = "12" + digits.substring(2);
+      if (m === 0) digits = "01" + digits.substring(2);
+    }
+    
+    // Validate day
+    if (digits.length >= 4) {
+      let d = parseInt(digits.substring(2, 4), 10);
+      if (d > 31) digits = digits.substring(0, 2) + "31" + digits.substring(4);
+      if (d === 0) digits = digits.substring(0, 2) + "01" + digits.substring(4);
+    }
+
+    // Limit to 8 digits (MMDDYYYY)
+    if (digits.length > 8) {
+      digits = digits.substring(0, 8);
+    }
+    
+    // Auto-format to MM-DD-YYYY
+    let formatted = digits;
+    if (digits.length > 2) {
+      formatted = `${digits.substring(0, 2)}-${digits.substring(2)}`;
+    }
+    if (digits.length > 4) {
+      formatted = `${digits.substring(0, 2)}-${digits.substring(2, 4)}-${digits.substring(4)}`;
+    }
+    
+    setInputValue(formatted);
+    
+    const match = formatted.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (match) {
+      const [_, m, d, y] = match;
+      const numM = Number(m);
+      const numD = Number(d);
+      const numY = Number(y);
+      const newDate = new Date(numY, numM - 1, numD);
+      
+      // Strict date check (e.g. leap years, Feb 30, etc.)
+      if (
+        newDate.getFullYear() === numY &&
+        newDate.getMonth() === numM - 1 &&
+        newDate.getDate() === numD
+      ) {
+        const dateStr = `${y}-${m}-${d}`;
+        if (!minDate || dateStr >= minDate) {
+          onChange(dateStr);
+          setCurrentMonth(newDate);
+        }
+      }
+    } else if (digits === "") {
+      onChange("");
+    }
+  };
+
+  const handleBlur = () => {
+    // Revert to the last valid value if the current input is not a full valid date
+    const match = inputValue.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    let isValid = false;
+    if (match) {
+      const [_, m, d, y] = match;
+      const newDate = new Date(Number(y), Number(m) - 1, Number(d));
+      if (
+        newDate.getFullYear() === Number(y) &&
+        newDate.getMonth() === Number(m) - 1 &&
+        newDate.getDate() === Number(d)
+      ) {
+        isValid = true;
+      }
+    }
+    if (!isValid && inputValue !== "") {
+      setInputValue(displayStr);
+    }
+  };
+
+  const selectedDateStr = value; // YYYY-MM-DD
   const days = [];
   for (let i = 0; i < firstDayOfMonth; i++) {
     days.push(<div key={`empty-${i}`} className="w-8 h-8" />);
@@ -173,20 +258,32 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
   return (
     <div className="relative" ref={containerRef}>
       <div 
-        onClick={() => {
-          if (disabled) return;
-          setIsOpen(!isOpen);
-        }}
         className={`flex items-center justify-between app-control rounded-md px-3 py-2 text-[13px] bg-white transition-colors ${
           disabled ? "cursor-not-allowed opacity-60" : ""
         } ${isOpen ? "border-[#4f63ea] ring-1 ring-[#4f63ea]/20" : ""} ${
           className
         }`}
       >
-        <span className={displayStr ? "text-slate-800" : "text-slate-400"}>
-          {displayStr || placeholder}
-        </span>
-        <CalendarIcon className="h-4 w-4 text-slate-400" />
+        <input
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          onBlur={handleBlur}
+          onClick={() => {
+            if (disabled) return;
+            setIsOpen(true);
+          }}
+          placeholder={placeholder || "MM-DD-YYYY"}
+          disabled={disabled}
+          className="bg-transparent border-none outline-none w-full text-slate-800 placeholder-slate-400"
+        />
+        <CalendarIcon 
+          className="h-4 w-4 text-slate-400 cursor-pointer ml-2 flex-shrink-0" 
+          onClick={() => {
+            if (disabled) return;
+            setIsOpen(!isOpen);
+          }}
+        />
       </div>
 
       {/* Render popup at root level so it isn't clipped by overflow-auto containers */}
