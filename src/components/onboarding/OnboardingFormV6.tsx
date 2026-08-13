@@ -857,6 +857,8 @@ const initialProvider: OnboardingProvider = {
   nppesUsername: "",
   nppesPassword: "",
   railroadMedicareIndividual: "",
+  railroadMedicareGroup: "",
+  cliaNumber: "",
   copyOfBoardCertification: "",
   copyOfProfessionalLiabilityInsurance: "",
   copyOfBachelorsDegree: "",
@@ -4658,19 +4660,6 @@ export default function OnboardingFormV5() {
                             />
                           </Field>
 
-                          <Field label="Railroad Medicare (Group)">
-                            <TextInput
-                              value={practice.railroadMedicareGroup ?? ""}
-                              onChange={(event) =>
-                                updatePractice(
-                                  practiceIndex,
-                                  "railroadMedicareGroup",
-                                  event.target.value,
-                                )
-                              }
-                            />
-                          </Field>
-
                           <div className="lg:col-span-3">
                             <Field label="Additional Specialty Areas">
                               <MultiSelectDropdown
@@ -5028,23 +5017,6 @@ export default function OnboardingFormV5() {
                                             locationIndex,
                                             "officeEmail",
                                             event.target.value,
-                                          )
-                                        }
-                                      />
-                                    </Field>
-
-                                    <Field label="CLIA Number">
-                                      <TextInput
-                                        value={location.cliaNumber ?? ""}
-                                        onChange={(event) =>
-                                          updateLocation(
-                                            practiceIndex,
-                                            locationIndex,
-                                            "cliaNumber",
-                                            event.target.value.replace(
-                                              /\D/g,
-                                              "",
-                                            ),
                                           )
                                         }
                                       />
@@ -5743,6 +5715,39 @@ export default function OnboardingFormV5() {
                                             providerIndex,
                                             "railroadMedicareIndividual",
                                             event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="Railroad Medicare (Group)">
+                                      <TextInput
+                                        value={
+                                          provider.railroadMedicareGroup ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "railroadMedicareGroup",
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                    </Field>
+
+                                    <Field label="CLIA Number">
+                                      <TextInput
+                                        value={provider.cliaNumber ?? ""}
+                                        onChange={(event) =>
+                                          updateProvider(
+                                            practiceIndex,
+                                            providerIndex,
+                                            "cliaNumber",
+                                            event.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            ),
                                           )
                                         }
                                       />

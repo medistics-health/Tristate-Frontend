@@ -103,6 +103,8 @@ export type OnboardingProvider = {
   nppesUsername?: string;
   nppesPassword?: string;
   railroadMedicareIndividual?: string;
+  railroadMedicareGroup?: string;
+  cliaNumber?: string;
   copyOfBoardCertification?: string;
   copyOfProfessionalLiabilityInsurance?: string;
   copyOfBachelorsDegree?: string;
