@@ -728,7 +728,7 @@ function CredentialingListPage() {
                   <DatePicker
                     value={filters.dateFrom}
                     onChange={(value) => updateFilter("dateFrom", value)}
-                    placeholder="Submitted date from"
+                    placeholder="mm-dd-yyyy"
                     className="rounded-xl"
                   />
                 </label>
@@ -740,7 +740,7 @@ function CredentialingListPage() {
                   <DatePicker
                     value={filters.dateTo}
                     onChange={(value) => updateFilter("dateTo", value)}
-                    placeholder="Submitted date to"
+                    placeholder="mm-dd-yyyy"
                     className="rounded-xl"
                   />
                 </label>
