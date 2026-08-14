@@ -111,3 +111,12 @@ export default function TablePagination({
     </div>
   );
 }
+
+export function getResponsivePageSize(defaultSize = 10): number {
+  if (typeof window === "undefined") return defaultSize;
+  const height = window.innerHeight;
+  if (height < 700) return 6;
+  if (height < 900) return 10;
+  if (height < 1100) return 15;
+  return 20;
+}

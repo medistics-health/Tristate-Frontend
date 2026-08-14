@@ -21,7 +21,9 @@ import AppLayout from "../layout/AppLayout";
 import DatePicker from "../shared/DatePicker";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
-import DataTableToolbar, { type ActiveFilterChip } from "../shared/DataTableToolbar";
+import DataTableToolbar, {
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
 import CredentialingModal from "./CredentialingModal";
 import { formatDateLabel, getDaysLeft } from "./credentialingStore";
 import {
@@ -157,7 +159,9 @@ function createLocalSearchOptions(options: string[]) {
 }
 
 function SkeletonBlock({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-xl bg-slate-200/80 ${className}`} />;
+  return (
+    <div className={`animate-pulse rounded-xl bg-slate-200/80 ${className}`} />
+  );
 }
 
 function DashboardSkeleton() {
@@ -191,7 +195,10 @@ function DashboardSkeleton() {
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {Array.from({ length: 7 }).map((_, index) => (
-            <div key={index} className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4">
+            <div
+              key={index}
+              className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4"
+            >
               <SkeletonBlock className="h-3 w-28" />
               <SkeletonBlock className="mt-3 h-7 w-12" />
               <SkeletonBlock className="mt-4 h-2 w-full" />
@@ -205,7 +212,10 @@ function DashboardSkeleton() {
           <SkeletonBlock className="h-4 w-40" />
           <div className="mt-4 space-y-3">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4">
+              <div
+                key={index}
+                className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4"
+              >
                 <SkeletonBlock className="h-3 w-36" />
                 <SkeletonBlock className="mt-2 h-3 w-24" />
                 <SkeletonBlock className="mt-3 h-3 w-20" />
@@ -218,7 +228,10 @@ function DashboardSkeleton() {
           <SkeletonBlock className="h-4 w-40" />
           <div className="mt-4 space-y-3">
             {Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4">
+              <div
+                key={index}
+                className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4"
+              >
                 <SkeletonBlock className="h-3 w-32" />
                 <SkeletonBlock className="mt-2 h-3 w-48" />
                 <SkeletonBlock className="mt-2 h-3 w-20" />
@@ -237,7 +250,9 @@ function CredentialingDashboardPage() {
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters);
   const [showModal, setShowModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [assignedUserOptions, setAssignedUserOptions] = useState<SearchSelectOption[]>([]);
+  const [assignedUserOptions, setAssignedUserOptions] = useState<
+    SearchSelectOption[]
+  >([]);
 
   const loadRecords = async () => {
     setIsLoading(true);
@@ -274,12 +289,18 @@ function CredentialingDashboardPage() {
         setAssignedUserOptions(
           users
             .map((user: any) => {
-              const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
-              const label = fullName || user.userName || user.email || user.role || "";
+              const fullName = [user.firstName, user.lastName]
+                .filter(Boolean)
+                .join(" ")
+                .trim();
+              const label =
+                fullName || user.userName || user.email || user.role || "";
               return {
                 label: user.role ? `${label} (${user.role})` : label,
                 value: user.id,
-                subLabel: [user.userName, user.email, user.role].filter(Boolean).join(" · "),
+                subLabel: [user.userName, user.email, user.role]
+                  .filter(Boolean)
+                  .join(" · "),
               };
             })
             .filter((entry) => Boolean(entry.value && entry.label))
@@ -305,12 +326,18 @@ function CredentialingDashboardPage() {
       setAssignedUserOptions(
         users
           .map((user: any) => {
-            const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
-            const label = fullName || user.userName || user.email || user.role || "";
+            const fullName = [user.firstName, user.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
+            const label =
+              fullName || user.userName || user.email || user.role || "";
             return {
               label: user.role ? `${label} (${user.role})` : label,
               value: user.id,
-              subLabel: [user.userName, user.email, user.role].filter(Boolean).join(" · "),
+              subLabel: [user.userName, user.email, user.role]
+                .filter(Boolean)
+                .join(" · "),
             };
           })
           .filter((entry) => Boolean(entry.value && entry.label))
@@ -359,8 +386,9 @@ function CredentialingDashboardPage() {
   );
   const assignedUserFilterLabel = useMemo(
     () =>
-      assignedUserOptions.find((option) => option.value === filters.assignedUser)?.label ||
-      "",
+      assignedUserOptions.find(
+        (option) => option.value === filters.assignedUser,
+      )?.label || "",
     [assignedUserOptions, filters.assignedUser],
   );
 
@@ -492,8 +520,9 @@ function CredentialingDashboardPage() {
     () =>
       credentialingStatusOptions.map((status) => ({
         status,
-        count: dashboardFilteredRecords.filter((record) => record.status === status)
-          .length,
+        count: dashboardFilteredRecords.filter(
+          (record) => record.status === status,
+        ).length,
       })),
     [dashboardFilteredRecords],
   );
@@ -690,7 +719,10 @@ function CredentialingDashboardPage() {
     setFilters(draftFilters);
   };
 
-  const updateDraftFilter = <K extends keyof DashboardFilters>(key: K, value: DashboardFilters[K]) => {
+  const updateDraftFilter = <K extends keyof DashboardFilters>(
+    key: K,
+    value: DashboardFilters[K],
+  ) => {
     setDraftFilters((current) => ({ ...current, [key]: value }));
   };
 
@@ -846,10 +878,7 @@ function CredentialingDashboardPage() {
             setDraftFilters((current) => ({
               ...current,
               payer: value,
-              payerLabel: formatPayerDisplayLabel(
-                option?.label || "",
-                value,
-              ),
+              payerLabel: formatPayerDisplayLabel(option?.label || "", value),
             }))
           }
           onSearch={searchPayers}
@@ -902,7 +931,9 @@ function CredentialingDashboardPage() {
         <SearchSelect
           value={draftFilters.assignedUser}
           displayLabel={
-            assignedUserOptions.find((opt) => opt.value === draftFilters.assignedUser)?.label || ""
+            assignedUserOptions.find(
+              (opt) => opt.value === draftFilters.assignedUser,
+            )?.label || ""
           }
           onChange={(value) => updateDraftFilter("assignedUser", value)}
           onSearch={searchAssignedUsers}
@@ -944,13 +975,6 @@ function CredentialingDashboardPage() {
       activeModule="Credentialing"
       activeSubItem="Dashboard"
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
-      navbarActions={[
-        {
-          label: "New record",
-          icon: <Plus className="h-4 w-4" />,
-          onClick: () => setShowModal(true),
-        },
-      ]}
     >
       <div className="app-split font-app-sans">
         <section className="app-panel min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
@@ -971,416 +995,342 @@ function CredentialingDashboardPage() {
             isSaving={isSaving}
           >
             <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 pr-3 custom-scrollbar">
-            {isLoading ? (
-              <DashboardSkeleton />
-            ) : (
-              <>
-                <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
-                  {[
-                    {
-                      label: "Total Active Requests",
-                      value: metrics.total,
-                      hint: "All filtered manual requests",
-                      icon: <FolderOpen className="h-4 w-4" />,
-                      tone: "from-slate-900 to-slate-700",
-                    },
-                    {
-                      label: "% Contracted",
-                      value: `${metrics.contractedRate}%`,
-                      hint: `${metrics.contracted} contracted`,
-                      icon: <Percent className="h-4 w-4" />,
-                      tone: "from-emerald-500 to-teal-500",
-                    },
-                    {
-                      label: "In Process",
-                      value: metrics.inProcess,
-                      hint: "Submitted or under payer review",
-                      icon: <Clock3 className="h-4 w-4" />,
-                      tone: "from-amber-500 to-orange-500",
-                    },
-                    {
-                      label: "Stale Requests",
-                      value: metrics.stale,
-                      hint: "No activity in over 15 days",
-                      icon: <ShieldAlert className="h-4 w-4" />,
-                      tone: "from-rose-500 to-red-500",
-                    },
-                    {
-                      label: "Upcoming Deadlines",
-                      value: metrics.upcomingDeadlines,
-                      hint: "Follow-up, expiration or re-cred due",
-                      icon: <CalendarClock className="h-4 w-4" />,
-                      tone: "from-indigo-500 to-blue-500",
-                    },
-                    {
-                      label: "Pending Info",
-                      value: metrics.pendingInfo,
-                      hint: "Waiting on more documents",
-                      icon: <CircleAlert className="h-4 w-4" />,
-                      tone: "from-amber-400 to-yellow-500",
-                    },
-                    {
-                      label: "Re-credentialing Due",
-                      value: metrics.recredentialingDue,
-                      hint: "Needs renewal attention",
-                      icon: <TrendingUp className="h-4 w-4" />,
-                      tone: "from-orange-500 to-amber-600",
-                    },
-                    {
-                      label: "OON",
-                      value: metrics.oon,
-                      hint: "Out-of-network requests",
-                      icon: <Gauge className="h-4 w-4" />,
-                      tone: "from-slate-500 to-slate-700",
-                    },
-                    {
-                      label: "Avg Turnaround",
-                      value: `${metrics.averageTurnaround}d`,
-                      hint: "Submission to contracted",
-                      icon: <BadgeCheck className="h-4 w-4" />,
-                      tone: "from-teal-500 to-cyan-500",
-                    },
-                  ].map((card) => (
-                    <div
-                      key={card.label}
-                      className="overflow-hidden rounded-2xl border border-[#ece8e1] bg-white shadow-sm"
-                    >
-                      <div className={`h-1 bg-gradient-to-r ${card.tone}`} />
-                      <div className="p-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-[12px] uppercase tracking-wide text-slate-400">
-                              {card.label}
-                            </div>
-                            <div className="mt-2 text-[28px] font-semibold text-slate-800">
-                              {card.value}
-                            </div>
-                          </div>
-                          <div className="rounded-xl bg-[#fbfaf8] p-2.5 text-slate-500">
-                            {card.icon}
-                          </div>
-                        </div>
-                        <div className="mt-3 text-[12px] text-slate-400">
-                          {card.hint}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </section>
-
-                <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
-                  <div className="flex items-center justify-between border-b border-[#f0ece6] px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <ArrowDownUp className="h-4 w-4 text-slate-400" />
-                      <div>
-                        <div className="text-[15px] font-semibold text-slate-800">
-                          Status Distribution
-                        </div>
-                        <div className="text-[12px] text-slate-400">
-                          Roll-up counts for the current filter set.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-5">
-                    {statusOverview.map((item) => (
+              {isLoading ? (
+                <DashboardSkeleton />
+              ) : (
+                <>
+                  <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
+                    {[
+                      {
+                        label: "Total Active Requests",
+                        value: metrics.total,
+                        hint: "All filtered manual requests",
+                        icon: <FolderOpen className="h-4 w-4" />,
+                        tone: "from-slate-900 to-slate-700",
+                      },
+                      {
+                        label: "% Contracted",
+                        value: `${metrics.contractedRate}%`,
+                        hint: `${metrics.contracted} contracted`,
+                        icon: <Percent className="h-4 w-4" />,
+                        tone: "from-emerald-500 to-teal-500",
+                      },
+                      {
+                        label: "In Process",
+                        value: metrics.inProcess,
+                        hint: "Submitted or under payer review",
+                        icon: <Clock3 className="h-4 w-4" />,
+                        tone: "from-amber-500 to-orange-500",
+                      },
+                      {
+                        label: "Stale Requests",
+                        value: metrics.stale,
+                        hint: "No activity in over 15 days",
+                        icon: <ShieldAlert className="h-4 w-4" />,
+                        tone: "from-rose-500 to-red-500",
+                      },
+                      {
+                        label: "Upcoming Deadlines",
+                        value: metrics.upcomingDeadlines,
+                        hint: "Follow-up, expiration or re-cred due",
+                        icon: <CalendarClock className="h-4 w-4" />,
+                        tone: "from-indigo-500 to-blue-500",
+                      },
+                      {
+                        label: "Pending Info",
+                        value: metrics.pendingInfo,
+                        hint: "Waiting on more documents",
+                        icon: <CircleAlert className="h-4 w-4" />,
+                        tone: "from-amber-400 to-yellow-500",
+                      },
+                      {
+                        label: "Re-credentialing Due",
+                        value: metrics.recredentialingDue,
+                        hint: "Needs renewal attention",
+                        icon: <TrendingUp className="h-4 w-4" />,
+                        tone: "from-orange-500 to-amber-600",
+                      },
+                      {
+                        label: "OON",
+                        value: metrics.oon,
+                        hint: "Out-of-network requests",
+                        icon: <Gauge className="h-4 w-4" />,
+                        tone: "from-slate-500 to-slate-700",
+                      },
+                      {
+                        label: "Avg Turnaround",
+                        value: `${metrics.averageTurnaround}d`,
+                        hint: "Submission to contracted",
+                        icon: <BadgeCheck className="h-4 w-4" />,
+                        tone: "from-teal-500 to-cyan-500",
+                      },
+                    ].map((card) => (
                       <div
-                        key={item.status}
-                        className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4"
+                        key={card.label}
+                        className="overflow-hidden rounded-2xl border border-[#ece8e1] bg-white shadow-sm"
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-medium ${statusTone(item.status)}`}
-                          >
-                            {item.status}
-                          </span>
-                          <span className="text-[20px] font-semibold text-slate-800">
-                            {item.count}
-                          </span>
-                        </div>
-                        <div className="mt-3 h-2 rounded-full bg-slate-100">
-                          <div
-                            className="h-2 rounded-full bg-[#4f63ea]"
-                            style={{
-                              width: `${metrics.total > 0 ? Math.max(6, (item.count / metrics.total) * 100) : 0}%`,
-                            }}
-                          />
+                        <div className={`h-1 bg-gradient-to-r ${card.tone}`} />
+                        <div className="p-5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-[12px] uppercase tracking-wide text-slate-400">
+                                {card.label}
+                              </div>
+                              <div className="mt-2 text-[28px] font-semibold text-slate-800">
+                                {card.value}
+                              </div>
+                            </div>
+                            <div className="rounded-xl bg-[#fbfaf8] p-2.5 text-slate-500">
+                              {card.icon}
+                            </div>
+                          </div>
+                          <div className="mt-3 text-[12px] text-slate-400">
+                            {card.hint}
+                          </div>
                         </div>
                       </div>
                     ))}
-                  </div>
-                </section>
-
-                <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-                  <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
-                    <div className="flex items-center justify-between border-b border-[#f0ece6] px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <FolderOpen className="h-4 w-4 text-slate-400" />
-                        <div>
-                          <div className="text-[15px] font-semibold text-slate-800">
-                            Practice-wise View
-                          </div>
-                          <div className="text-[12px] text-slate-400">
-                            Sorts practices by completion percentage.
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-[12px] text-slate-400">
-                        {practiceRows.length} practices
-                      </div>
-                    </div>
-                    <div className="overflow-hidden">
-                      <table className="min-w-full border-separate border-spacing-0 text-left">
-                        <thead className="bg-white text-[12px] uppercase tracking-wide text-slate-400">
-                          <tr>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              Practice
-                            </th>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              Total
-                            </th>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              Contracted
-                            </th>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              In Process
-                            </th>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              OON
-                            </th>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              Last Activity
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {practiceRows.length === 0 ? (
-                            <tr>
-                              <td
-                                colSpan={6}
-                                className="px-5 py-10 text-center text-[13px] text-slate-400"
-                              >
-                                No practice records match the current filters.
-                              </td>
-                            </tr>
-                          ) : (
-                            practiceRows.map((row) => (
-                              <tr
-                                key={row.practice}
-                                className="text-[13px] text-slate-600"
-                              >
-                                <td className="border-b border-[#f4f1ec] px-5 py-3 font-medium text-slate-700">
-                                  {row.practice}
-                                  <div className="mt-1 text-[11px] text-slate-400">
-                                    {row.contractedRate}% contracted
-                                  </div>
-                                </td>
-                                <td className="border-b border-[#f4f1ec] px-5 py-3">
-                                  {row.total}
-                                </td>
-                                <td className="border-b border-[#f4f1ec] px-5 py-3">
-                                  {row.contracted}
-                                </td>
-                                <td className="border-b border-[#f4f1ec] px-5 py-3">
-                                  {row.inProcess}
-                                </td>
-                                <td className="border-b border-[#f4f1ec] px-5 py-3">
-                                  {row.oon}
-                                </td>
-                                <td className="border-b border-[#f4f1ec] px-5 py-3">
-                                  {formatDateLabel(row.lastActivityDate)}
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
                   </section>
 
                   <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
                     <div className="flex items-center justify-between border-b border-[#f0ece6] px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4 text-slate-400" />
+                        <ArrowDownUp className="h-4 w-4 text-slate-400" />
                         <div>
                           <div className="text-[15px] font-semibold text-slate-800">
-                            Insurance Plan View
+                            Status Distribution
                           </div>
                           <div className="text-[12px] text-slate-400">
-                            Ranked by average turnaround time.
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-[12px] text-slate-400">
-                        {payerRows.length} insurance plans
-                      </div>
-                    </div>
-                    <div className="overflow-hidden">
-                      <table className="min-w-full border-separate border-spacing-0 text-left">
-                        <thead className="bg-white text-[12px] uppercase tracking-wide text-slate-400">
-                          <tr>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              Insurance Plan
-                            </th>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              Contracted
-                            </th>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              In Process
-                            </th>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              OON
-                            </th>
-                            <th className="border-b border-[#f0ece6] px-5 py-3">
-                              Avg Days
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {payerRows.length === 0 ? (
-                            <tr>
-                              <td
-                                colSpan={5}
-                                className="px-5 py-10 text-center text-[13px] text-slate-400"
-                              >
-                                No payer records match the current filters.
-                              </td>
-                            </tr>
-                          ) : (
-                            payerRows.map((row) => (
-                              <tr
-                                key={row.payer}
-                                className="text-[13px] text-slate-600"
-                              >
-                                <td className="border-b border-[#f4f1ec] px-5 py-3 font-medium text-slate-700">
-                                  {row.payer}
-                                </td>
-                                <td className="border-b border-[#f4f1ec] px-5 py-3">
-                                  {row.contracted}
-                                </td>
-                                <td className="border-b border-[#f4f1ec] px-5 py-3">
-                                  {row.inProcess}
-                                </td>
-                                <td className="border-b border-[#f4f1ec] px-5 py-3">
-                                  {row.oon}
-                                </td>
-                                <td className="border-b border-[#f4f1ec] px-5 py-3">
-                                  {row.averageTurnaround
-                                    ? `${row.averageTurnaround} days`
-                                    : "-"}
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-                </div>
-
-                <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-                  <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
-                    <div className="border-b border-[#f0ece6] px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <CalendarClock className="h-4 w-4 text-slate-400" />
-                        <div>
-                          <div className="text-[15px] font-semibold text-slate-800">
-                            Upcoming Deadlines
-                          </div>
-                          <div className="text-[12px] text-slate-400">
-                            Follow-up, expiration, and re-credentialing dates within 90 days.
+                            Roll-up counts for the current filter set.
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div className="space-y-3 p-5">
-                      {expiringSoon.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-[#ece8e1] bg-[#fbfaf8] px-4 py-6 text-center text-[13px] text-slate-400">
-                          No upcoming deadlines in the current filter set.
-                        </div>
-                      ) : (
-                        expiringSoon.map(
-                          ({ record, daysLeft, deadlineLabel, deadlineDate }) => (
-                            <div
-                              key={record.id}
-                              className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-3"
+                    <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-5">
+                      {statusOverview.map((item) => (
+                        <div
+                          key={item.status}
+                          className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-medium ${statusTone(item.status)}`}
                             >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <div className="text-[13px] font-medium text-slate-700">
-                                    {record.practice}
-                                  </div>
-                                  <div className="mt-1 text-[12px] text-slate-500">
-                                    {record.provider || "Practice-level"} ·{" "}
-                                    {formatPayerDisplayLabel(
-                                      record.insuranceCompany,
-                                      record.payerProviderId,
-                                    )}
-                                  </div>
-                                </div>
-                                <span
-                                  className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-medium ${
-                                    daysLeft !== null && daysLeft <= 30
-                                      ? "bg-rose-100 text-rose-700"
-                                      : daysLeft !== null && daysLeft <= 60
-                                        ? "bg-amber-100 text-amber-700"
-                                        : "bg-slate-100 text-slate-700"
-                                  }`}
-                                >
-                                  {daysLeft === null
-                                    ? "-"
-                                    : `${daysLeft} day${daysLeft === 1 ? "" : "s"}`}
-                                </span>
-                              </div>
-                              <div className="mt-2 text-[12px] text-slate-500 font-medium">
-                                Nearest Deadline: {deadlineLabel} ({formatDateLabel(deadlineDate)})
-                              </div>
-                              <div className="mt-1 text-[11px] text-slate-400 space-x-2">
-                                {record.nextFollowUpDate ? (
-                                  <span>Follow-up: {formatDateLabel(record.nextFollowUpDate)}</span>
-                                ) : null}
-                                {record.expirationDate ? (
-                                  <span>Expiration: {formatDateLabel(record.expirationDate)}</span>
-                                ) : null}
-                                {record.reCredentialingDueDate ? (
-                                  <span>Re-cred: {formatDateLabel(record.reCredentialingDueDate)}</span>
-                                ) : null}
-                              </div>
-                            </div>
-                          ),
-                        )
-                      )}
+                              {item.status}
+                            </span>
+                            <span className="text-[20px] font-semibold text-slate-800">
+                              {item.count}
+                            </span>
+                          </div>
+                          <div className="mt-3 h-2 rounded-full bg-slate-100">
+                            <div
+                              className="h-2 rounded-full bg-[#4f63ea]"
+                              style={{
+                                width: `${metrics.total > 0 ? Math.max(6, (item.count / metrics.total) * 100) : 0}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </section>
 
-                  <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
-                    <div className="border-b border-[#f0ece6] px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <ShieldAlert className="h-4 w-4 text-slate-400" />
-                        <div>
-                          <div className="text-[15px] font-semibold text-slate-800">
-                            Recent Credentialing and Activity
+                  <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+                    <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
+                      <div className="flex items-center justify-between border-b border-[#f0ece6] px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <FolderOpen className="h-4 w-4 text-slate-400" />
+                          <div>
+                            <div className="text-[15px] font-semibold text-slate-800">
+                              Practice-wise View
+                            </div>
+                            <div className="text-[12px] text-slate-400">
+                              Sorts practices by completion percentage.
+                            </div>
                           </div>
-                          <div className="text-[12px] text-slate-400">
-                            Latest updates and audit trail from the manual tracker.
+                        </div>
+                        <div className="text-[12px] text-slate-400">
+                          {practiceRows.length} practices
+                        </div>
+                      </div>
+                      <div className="overflow-hidden">
+                        <table className="min-w-full border-separate border-spacing-0 text-left">
+                          <thead className="bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                            <tr>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                Practice
+                              </th>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                Total
+                              </th>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                Contracted
+                              </th>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                In Process
+                              </th>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                OON
+                              </th>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                Last Activity
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {practiceRows.length === 0 ? (
+                              <tr>
+                                <td
+                                  colSpan={6}
+                                  className="px-5 py-10 text-center text-[13px] text-slate-400"
+                                >
+                                  No practice records match the current filters.
+                                </td>
+                              </tr>
+                            ) : (
+                              practiceRows.map((row) => (
+                                <tr
+                                  key={row.practice}
+                                  className="text-[13px] text-slate-600"
+                                >
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3 font-medium text-slate-700">
+                                    {row.practice}
+                                    <div className="mt-1 text-[11px] text-slate-400">
+                                      {row.contractedRate}% contracted
+                                    </div>
+                                  </td>
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3">
+                                    {row.total}
+                                  </td>
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3">
+                                    {row.contracted}
+                                  </td>
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3">
+                                    {row.inProcess}
+                                  </td>
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3">
+                                    {row.oon}
+                                  </td>
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3">
+                                    {formatDateLabel(row.lastActivityDate)}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
+                      <div className="flex items-center justify-between border-b border-[#f0ece6] px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-slate-400" />
+                          <div>
+                            <div className="text-[15px] font-semibold text-slate-800">
+                              Insurance Plan View
+                            </div>
+                            <div className="text-[12px] text-slate-400">
+                              Ranked by average turnaround time.
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-[12px] text-slate-400">
+                          {payerRows.length} insurance plans
+                        </div>
+                      </div>
+                      <div className="overflow-hidden">
+                        <table className="min-w-full border-separate border-spacing-0 text-left">
+                          <thead className="bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                            <tr>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                Insurance Plan
+                              </th>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                Contracted
+                              </th>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                In Process
+                              </th>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                OON
+                              </th>
+                              <th className="border-b border-[#f0ece6] px-5 py-3">
+                                Avg Days
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {payerRows.length === 0 ? (
+                              <tr>
+                                <td
+                                  colSpan={5}
+                                  className="px-5 py-10 text-center text-[13px] text-slate-400"
+                                >
+                                  No payer records match the current filters.
+                                </td>
+                              </tr>
+                            ) : (
+                              payerRows.map((row) => (
+                                <tr
+                                  key={row.payer}
+                                  className="text-[13px] text-slate-600"
+                                >
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3 font-medium text-slate-700">
+                                    {row.payer}
+                                  </td>
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3">
+                                    {row.contracted}
+                                  </td>
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3">
+                                    {row.inProcess}
+                                  </td>
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3">
+                                    {row.oon}
+                                  </td>
+                                  <td className="border-b border-[#f4f1ec] px-5 py-3">
+                                    {row.averageTurnaround
+                                      ? `${row.averageTurnaround} days`
+                                      : "-"}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+                    <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
+                      <div className="border-b border-[#f0ece6] px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <CalendarClock className="h-4 w-4 text-slate-400" />
+                          <div>
+                            <div className="text-[15px] font-semibold text-slate-800">
+                              Upcoming Deadlines
+                            </div>
+                            <div className="text-[12px] text-slate-400">
+                              Follow-up, expiration, and re-credentialing dates
+                              within 90 days.
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="grid gap-5 p-5 xl:grid-cols-2">
-                      <div>
-                        <div className="mb-3 flex items-center gap-2 text-[13px] font-medium text-slate-700">
-                          <FolderOpen className="h-4 w-4 text-slate-400" />
-                          Recent Credentialing
-                        </div>
-                        <div className="space-y-2">
-                          {recentCredentialing.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-[#ece8e1] bg-[#fbfaf8] px-4 py-6 text-center text-[13px] text-slate-400">
-                              No credentialing records found.
-                            </div>
-                          ) : (
-                            recentCredentialing.map((record) => (
+                      <div className="space-y-3 p-5">
+                        {expiringSoon.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-[#ece8e1] bg-[#fbfaf8] px-4 py-6 text-center text-[13px] text-slate-400">
+                            No upcoming deadlines in the current filter set.
+                          </div>
+                        ) : (
+                          expiringSoon.map(
+                            ({
+                              record,
+                              daysLeft,
+                              deadlineLabel,
+                              deadlineDate,
+                            }) => (
                               <div
                                 key={record.id}
                                 className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-3"
@@ -1388,103 +1338,217 @@ function CredentialingDashboardPage() {
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
                                     <div className="text-[13px] font-medium text-slate-700">
-                                      {record.provider || record.practice}
+                                      {record.practice}
                                     </div>
                                     <div className="mt-1 text-[12px] text-slate-500">
+                                      {record.provider || "Practice-level"} ·{" "}
                                       {formatPayerDisplayLabel(
                                         record.insuranceCompany,
                                         record.payerProviderId,
-                                      )}{" "}
-                                      · {record.practice}
+                                      )}
                                     </div>
                                   </div>
                                   <span
-                                    className={`inline-flex rounded-lg px-2.5 py-1 text-[12px] font-medium ${statusTone(record.status)}`}
+                                    className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-medium ${
+                                      daysLeft !== null && daysLeft <= 30
+                                        ? "bg-rose-100 text-rose-700"
+                                        : daysLeft !== null && daysLeft <= 60
+                                          ? "bg-amber-100 text-amber-700"
+                                          : "bg-slate-100 text-slate-700"
+                                    }`}
                                   >
-                                    {record.status}
+                                    {daysLeft === null
+                                      ? "-"
+                                      : `${daysLeft} day${daysLeft === 1 ? "" : "s"}`}
                                   </span>
                                 </div>
-                                <div className="mt-2 text-[12px] text-slate-400">
-                                  Updated {formatDateLabel(record.updatedAt)}
+                                <div className="mt-2 text-[12px] text-slate-500 font-medium">
+                                  Nearest Deadline: {deadlineLabel} (
+                                  {formatDateLabel(deadlineDate)})
+                                </div>
+                                <div className="mt-1 text-[11px] text-slate-400 space-x-2">
+                                  {record.nextFollowUpDate ? (
+                                    <span>
+                                      Follow-up:{" "}
+                                      {formatDateLabel(record.nextFollowUpDate)}
+                                    </span>
+                                  ) : null}
+                                  {record.expirationDate ? (
+                                    <span>
+                                      Expiration:{" "}
+                                      {formatDateLabel(record.expirationDate)}
+                                    </span>
+                                  ) : null}
+                                  {record.reCredentialingDueDate ? (
+                                    <span>
+                                      Re-cred:{" "}
+                                      {formatDateLabel(
+                                        record.reCredentialingDueDate,
+                                      )}
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
-                            ))
-                          )}
-                        </div>
+                            ),
+                          )
+                        )}
                       </div>
+                    </section>
 
-                      <div>
-                        <div className="mb-3 flex items-center gap-2 text-[13px] font-medium text-slate-700">
-                          <Clock3 className="h-4 w-4 text-slate-400" />
-                          Recent Activity
-                        </div>
-                        <div className="space-y-2">
-                          {recentActivity.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-[#ece8e1] bg-[#fbfaf8] px-4 py-6 text-center text-[13px] text-slate-400">
-                              No recent activity yet.
+                    <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
+                      <div className="border-b border-[#f0ece6] px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <ShieldAlert className="h-4 w-4 text-slate-400" />
+                          <div>
+                            <div className="text-[15px] font-semibold text-slate-800">
+                              Recent Credentialing and Activity
                             </div>
-                          ) : (
-                            recentActivity.map((entry) => (
-                              <div
-                                key={entry.id}
-                                className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-3"
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="text-[13px] font-medium text-slate-700">
-                                    {entry.action}
-                                  </div>
-                                  <div className="text-[11px] text-slate-400">
-                                    {formatDateLabel(entry.createdAt)}
-                                  </div>
-                                </div>
-                                <div className="mt-1 text-[12px] text-slate-500">
-                                  {entry.practice} ·{" "}
-                                  {entry.provider || "Practice-level"} ·{" "}
-                                  {entry.payer}
-                                </div>
-                                <div className="mt-1">
-                                   {(() => {
-                                     const cleanedDetails = (entry.details || "").replace(/\[reminderKey:[^\]]+\]\s*/g, "").trim();
-                                     const actionNorm = (entry.action || "").toLowerCase().trim();
-                                     const items = cleanedDetails
-                                       .split(";")
-                                       .map((item) => item.trim())
-                                       .filter((item) => {
-                                         if (!item) return false;
-                                         const norm = item.toLowerCase();
-                                         if (norm === "activity recorded") return false;
-                                         if (norm === "follow-up created" || norm === "follow-up logged") return false;
-                                         if (norm === "document uploaded" || norm === "document updated") return false;
-                                         if (actionNorm && norm === actionNorm) return false;
-                                         return true;
-                                       });
-
-                                     if (items.length === 0) {
-                                       return null;
-                                     }
-
-                                     return (
-                                       <ul className="list-disc space-y-1 pl-5 text-[12px] text-slate-500">
-                                         {items.map((item, index) => (
-                                           <li key={`${entry.id}-${index}`}>{item}</li>
-                                         ))}
-                                       </ul>
-                                     );
-                                   })()}
-                                </div>
-                              </div>
-                            ))
-                          )}
+                            <div className="text-[12px] text-slate-400">
+                              Latest updates and audit trail from the manual
+                              tracker.
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </section>
-                </div>
-              </>
-            )}
-          </div>
-        </DataTableToolbar>
-      </section>
+
+                      <div className="grid gap-5 p-5 xl:grid-cols-2">
+                        <div>
+                          <div className="mb-3 flex items-center gap-2 text-[13px] font-medium text-slate-700">
+                            <FolderOpen className="h-4 w-4 text-slate-400" />
+                            Recent Credentialing
+                          </div>
+                          <div className="space-y-2">
+                            {recentCredentialing.length === 0 ? (
+                              <div className="rounded-xl border border-dashed border-[#ece8e1] bg-[#fbfaf8] px-4 py-6 text-center text-[13px] text-slate-400">
+                                No credentialing records found.
+                              </div>
+                            ) : (
+                              recentCredentialing.map((record) => (
+                                <div
+                                  key={record.id}
+                                  className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-3"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <div className="text-[13px] font-medium text-slate-700">
+                                        {record.provider || record.practice}
+                                      </div>
+                                      <div className="mt-1 text-[12px] text-slate-500">
+                                        {formatPayerDisplayLabel(
+                                          record.insuranceCompany,
+                                          record.payerProviderId,
+                                        )}{" "}
+                                        · {record.practice}
+                                      </div>
+                                    </div>
+                                    <span
+                                      className={`inline-flex rounded-lg px-2.5 py-1 text-[12px] font-medium ${statusTone(record.status)}`}
+                                    >
+                                      {record.status}
+                                    </span>
+                                  </div>
+                                  <div className="mt-2 text-[12px] text-slate-400">
+                                    Updated {formatDateLabel(record.updatedAt)}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="mb-3 flex items-center gap-2 text-[13px] font-medium text-slate-700">
+                            <Clock3 className="h-4 w-4 text-slate-400" />
+                            Recent Activity
+                          </div>
+                          <div className="space-y-2">
+                            {recentActivity.length === 0 ? (
+                              <div className="rounded-xl border border-dashed border-[#ece8e1] bg-[#fbfaf8] px-4 py-6 text-center text-[13px] text-slate-400">
+                                No recent activity yet.
+                              </div>
+                            ) : (
+                              recentActivity.map((entry) => (
+                                <div
+                                  key={entry.id}
+                                  className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-3"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="text-[13px] font-medium text-slate-700">
+                                      {entry.action}
+                                    </div>
+                                    <div className="text-[11px] text-slate-400">
+                                      {formatDateLabel(entry.createdAt)}
+                                    </div>
+                                  </div>
+                                  <div className="mt-1 text-[12px] text-slate-500">
+                                    {entry.practice} ·{" "}
+                                    {entry.provider || "Practice-level"} ·{" "}
+                                    {entry.payer}
+                                  </div>
+                                  <div className="mt-1">
+                                    {(() => {
+                                      const cleanedDetails = (
+                                        entry.details || ""
+                                      )
+                                        .replace(
+                                          /\[reminderKey:[^\]]+\]\s*/g,
+                                          "",
+                                        )
+                                        .trim();
+                                      const actionNorm = (entry.action || "")
+                                        .toLowerCase()
+                                        .trim();
+                                      const items = cleanedDetails
+                                        .split(";")
+                                        .map((item) => item.trim())
+                                        .filter((item) => {
+                                          if (!item) return false;
+                                          const norm = item.toLowerCase();
+                                          if (norm === "activity recorded")
+                                            return false;
+                                          if (
+                                            norm === "follow-up created" ||
+                                            norm === "follow-up logged"
+                                          )
+                                            return false;
+                                          if (
+                                            norm === "document uploaded" ||
+                                            norm === "document updated"
+                                          )
+                                            return false;
+                                          if (actionNorm && norm === actionNorm)
+                                            return false;
+                                          return true;
+                                        });
+
+                                      if (items.length === 0) {
+                                        return null;
+                                      }
+
+                                      return (
+                                        <ul className="list-disc space-y-1 pl-5 text-[12px] text-slate-500">
+                                          {items.map((item, index) => (
+                                            <li key={`${entry.id}-${index}`}>
+                                              {item}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      );
+                                    })()}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </>
+              )}
+            </div>
+          </DataTableToolbar>
+        </section>
 
         <CredentialingModal
           isOpen={showModal}

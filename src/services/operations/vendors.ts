@@ -50,6 +50,7 @@ export type VendorQueryParams = {
   page?: number;
   limit?: number;
   search?: string;
+  type?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 };
@@ -60,6 +61,7 @@ export async function getVendorsView(params?: VendorQueryParams): Promise<Vendor
     if (params?.page) queryString.set('page', String(params.page));
     if (params?.limit) queryString.set('limit', String(params.limit));
     if (params?.search) queryString.set('search', params.search);
+    if (params?.type) queryString.set('type', params.type);
     if (params?.sortBy) queryString.set('sortBy', params.sortBy);
     if (params?.sortOrder) queryString.set('sortOrder', params.sortOrder);
 

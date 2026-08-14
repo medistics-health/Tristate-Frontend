@@ -1,5 +1,8 @@
 import React, { useState, type ReactNode } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Download,
   Filter,
   Loader2,
@@ -344,13 +347,54 @@ export function DataTableSkeleton({ rows = 6 }: { rows?: number }) {
           key={idx}
           className="flex items-center gap-4 rounded-xl border border-[#f4f4ec] bg-[#fbfaf8]/80 p-3.5"
         >
-          <div className="h-4 w-32 rounded-md bg-slate-200/80" />
-          <div className="h-4 w-40 rounded-md bg-slate-100" />
+          <div className="h-[#1rem] w-32 rounded-md bg-slate-200/80" />
+          <div className="h-[#1rem] w-40 rounded-md bg-slate-100" />
           <div className="h-6 w-20 rounded-lg bg-slate-200/70" />
-          <div className="h-4 w-28 rounded-md bg-slate-100" />
-          <div className="ml-auto h-4 w-24 rounded-md bg-slate-200/80" />
+          <div className="h-[#1rem] w-28 rounded-md bg-slate-100" />
+          <div className="ml-auto h-[#1rem] w-24 rounded-md bg-slate-200/80" />
         </div>
       ))}
     </div>
   );
+}
+
+export function SortableHeaderCell({
+  header,
+}: {
+  header: any;
+}) {
+  if (!header || header.isPlaceholder) return null;
+
+  const canSort = header.column.getCanSort();
+  const isSorted = header.column.getIsSorted();
+
+  return (
+    <button
+      type="button"
+      onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+      className={`flex w-full items-center justify-between gap-1.5 font-medium transition-colors ${
+        canSort ? "cursor-pointer hover:text-slate-800" : "cursor-default text-slate-400"
+      }`}
+    >
+      <span className="truncate">{flexRenderHeader(header)}</span>
+      {canSort && (
+        <span className="inline-flex shrink-0 items-center">
+          {isSorted === "asc" ? (
+            <ArrowUp className="h-3.5 w-3.5 text-[#4f63ea]" />
+          ) : isSorted === "desc" ? (
+            <ArrowDown className="h-3.5 w-3.5 text-[#4f63ea]" />
+          ) : (
+            <ArrowUpDown className="h-3.5 w-3.5 text-slate-300 opacity-60 hover:opacity-100 transition-opacity" />
+          )}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function flexRenderHeader(header: any) {
+  if (typeof header.column.columnDef.header === "function") {
+    return header.column.columnDef.header(header.getContext());
+  }
+  return header.column.columnDef.header;
 }

@@ -66,6 +66,9 @@ export type ServiceQueryParams = {
   page?: number;
   limit?: number;
   search?: string;
+  category?: string;
+  vendorId?: string;
+  isActive?: boolean;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 };
@@ -78,6 +81,9 @@ export async function getServicesView(
     if (params?.page) queryString.set("page", String(params.page));
     if (params?.limit) queryString.set("limit", String(params.limit));
     if (params?.search) queryString.set("search", params.search);
+    if (params?.category) queryString.set("category", params.category);
+    if (params?.vendorId) queryString.set("vendorId", params.vendorId);
+    if (params?.isActive !== undefined) queryString.set("isActive", String(params.isActive));
     if (params?.sortBy) queryString.set("sortBy", params.sortBy);
     if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 

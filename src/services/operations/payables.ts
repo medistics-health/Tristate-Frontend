@@ -50,11 +50,42 @@ export type VendorPayablesResponse = {
   };
 };
 
-export async function getVendorPayables(page = 1, limit = 20): Promise<VendorPayablesResponse> {
+export type VendorPayableQueryParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  practiceId?: string;
+  vendorId?: string;
+  sortBy?: string;
+  sortOrder?: string;
+};
+
+export async function getVendorPayables(
+  params?: VendorPayableQueryParams | number,
+  limitParam = 20,
+): Promise<VendorPayablesResponse> {
   try {
+    const queryString = new URLSearchParams();
+    if (typeof params === "number") {
+      queryString.set("page", String(params));
+      queryString.set("limit", String(limitParam));
+    } else if (params) {
+      if (params.page) queryString.set("page", String(params.page));
+      if (params.limit) queryString.set("limit", String(params.limit));
+      if (params.search) queryString.set("search", params.search);
+      if (params.status) queryString.set("status", params.status);
+      if (params.practiceId) queryString.set("practiceId", params.practiceId);
+      if (params.vendorId) queryString.set("vendorId", params.vendorId);
+      if (params.sortBy) queryString.set("sortBy", params.sortBy);
+      if (params.sortOrder) queryString.set("sortOrder", params.sortOrder);
+    }
+
+    const url = queryString.toString() ? `${BASE}?${queryString.toString()}` : BASE;
+
     const response = await apiConnector({
       method: "GET",
-      url: `${BASE}?page=${page}&limit=${limit}`,
+      url,
       credentials: true,
     });
     return response.data as VendorPayablesResponse;

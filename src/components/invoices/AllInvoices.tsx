@@ -23,7 +23,10 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
-import DataTableToolbar, { type ActiveFilterChip } from "../shared/DataTableToolbar";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import DatePicker from "../shared/DatePicker";
@@ -517,13 +520,15 @@ function AllInvoicePage() {
     [actionLoading, canIntegrationActions],
   );
 
+  const activeSort = sorting[0];
+
   const table = useReactTable({
     data: rows,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
+    manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
   const refreshInvoices = async () => {
@@ -539,6 +544,8 @@ function AllInvoicePage() {
         paymentMethod: filters.paymentMethod || undefined,
         dateFrom: filters.dateFrom || undefined,
         dateTo: filters.dateTo || undefined,
+        sortBy: activeSort?.id,
+        sortOrder: activeSort ? (activeSort.desc ? "desc" : "asc") : undefined,
       });
       setRows(data.rows);
       setPagination(data.pagination);
@@ -567,6 +574,8 @@ function AllInvoicePage() {
     filters.paymentMethod,
     filters.dateFrom,
     filters.dateTo,
+    activeSort?.id,
+    activeSort?.desc,
   ]);
 
   useEffect(() => {
@@ -1620,22 +1629,7 @@ function AllInvoicePage() {
                             key={header.id}
                             className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
                           >
-                            {header.isPlaceholder ? null : (
-                              <button
-                                type="button"
-                                onClick={
-                                  header.column.getCanSort()
-                                    ? header.column.getToggleSortingHandler()
-                                    : undefined
-                                }
-                                className="flex w-full items-center gap-2 font-medium"
-                              >
-                                {flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext(),
-                                )}
-                              </button>
-                            )}
+                            <SortableHeaderCell header={header} />
                           </th>
                         ))}
                       </tr>

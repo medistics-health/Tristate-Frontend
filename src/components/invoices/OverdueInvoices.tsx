@@ -19,7 +19,10 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
-import DataTableToolbar, { type ActiveFilterChip } from "../shared/DataTableToolbar";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import DatePicker from "../shared/DatePicker";
@@ -229,15 +232,20 @@ function OverdueInvoicePage() {
 
   const [editForm, setEditForm] = useState<EditForm>(initialForm);
 
+  const activeSort = sorting[0];
+
   const refreshOverdueInvoices = async () => {
     try {
       setIsLoading(true);
       const data = await getInvoicesView({
         status: "OVERDUE",
+        search: searchInput.trim() || undefined,
         practiceId: filters.practiceId || undefined,
         paymentMethod: filters.paymentMethod || undefined,
         dateFrom: filters.dateFrom || undefined,
         dateTo: filters.dateTo || undefined,
+        sortBy: activeSort?.id,
+        sortOrder: activeSort ? (activeSort.desc ? "desc" : "asc") : undefined,
       });
       setRows(data.rows);
     } catch (error) {
@@ -250,8 +258,12 @@ function OverdueInvoicePage() {
   };
 
   useEffect(() => {
-    refreshOverdueInvoices();
-  }, [filters]);
+    const timer = setTimeout(() => {
+      refreshOverdueInvoices();
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [filters, searchInput, activeSort?.id, activeSort?.desc]);
 
   async function loadInvoiceDetail(id: string) {
     try {
@@ -460,39 +472,21 @@ function OverdueInvoicePage() {
     [],
   );
 
-  const filteredRows = useMemo(() => {
-    const norm = searchInput.trim().toLowerCase();
-    if (!norm) return rows;
-    return rows.filter((row) => {
-      const invNum = (row.values.invoiceNumber || "").toLowerCase();
-      const pracName = (row.values.practiceName || "").toLowerCase();
-      const amt = String(row.values.totalAmount || "").toLowerCase();
-      const status = (row.values.status || "").toLowerCase();
-      return (
-        invNum.includes(norm) ||
-        pracName.includes(norm) ||
-        amt.includes(norm) ||
-        status.includes(norm)
-      );
-    });
-  }, [rows, searchInput]);
-
-  const totalRecords = filteredRows.length;
+  const totalRecords = rows.length;
   const totalPages = Math.ceil(totalRecords / pageSize) || 1;
 
   const paginatedRows = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return filteredRows.slice(start, start + pageSize);
-  }, [filteredRows, page, pageSize]);
+    return rows.slice(start, start + pageSize);
+  }, [rows, page, pageSize]);
 
   const table = useReactTable({
     data: paginatedRows,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
+    manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    enableSortingRemoval: false,
   });
 
   const navbarActions: NavbarAction[] = [
@@ -588,7 +582,6 @@ function OverdueInvoicePage() {
       activeModule="Invoices"
       activeSubItem="Overdue Invoices"
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
     >
       <div className="app-split font-app-sans">
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
@@ -634,22 +627,7 @@ function OverdueInvoicePage() {
                               : undefined,
                           }}
                         >
-                          {header.isPlaceholder ? null : (
-                            <button
-                              type="button"
-                              onClick={
-                                header.column.getCanSort()
-                                  ? header.column.getToggleSortingHandler()
-                                  : undefined
-                              }
-                              className="flex w-full items-center gap-2 font-medium"
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </button>
-                          )}
+                          <SortableHeaderCell header={header} />
                         </th>
                       ))}
                     </tr>

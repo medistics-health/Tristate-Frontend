@@ -13,7 +13,9 @@ import ConfirmModal from "../shared/ConfirmModal";
 import DatePicker from "../shared/DatePicker";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
-import DataTableToolbar, { type ActiveFilterChip } from "../shared/DataTableToolbar";
+import DataTableToolbar, {
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
 import CredentialingModal from "./CredentialingModal";
 import { formatDateLabel } from "./credentialingStore";
 import {
@@ -169,10 +171,12 @@ function CredentialingListPage() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [userSelectedPageSize]);
-  const [optionRecords, setOptionRecords] = useState<CredentialingOptionRecord[]>(
-    [],
-  );
-  const [assignedUserOptions, setAssignedUserOptions] = useState<SearchSelectOption[]>([]);
+  const [optionRecords, setOptionRecords] = useState<
+    CredentialingOptionRecord[]
+  >([]);
+  const [assignedUserOptions, setAssignedUserOptions] = useState<
+    SearchSelectOption[]
+  >([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -220,12 +224,18 @@ function CredentialingListPage() {
         setAssignedUserOptions(
           users
             .map((user: any) => {
-              const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
-              const label = fullName || user.userName || user.email || user.role || "";
+              const fullName = [user.firstName, user.lastName]
+                .filter(Boolean)
+                .join(" ")
+                .trim();
+              const label =
+                fullName || user.userName || user.email || user.role || "";
               return {
                 label: user.role ? `${label} (${user.role})` : label,
                 value: user.id,
-                subLabel: [user.userName, user.email, user.role].filter(Boolean).join(" · "),
+                subLabel: [user.userName, user.email, user.role]
+                  .filter(Boolean)
+                  .join(" · "),
               };
             })
             .filter((entry) => Boolean(entry.value && entry.label))
@@ -255,12 +265,18 @@ function CredentialingListPage() {
       setAssignedUserOptions(
         users
           .map((user: any) => {
-            const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
-            const label = fullName || user.userName || user.email || user.role || "";
+            const fullName = [user.firstName, user.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
+            const label =
+              fullName || user.userName || user.email || user.role || "";
             return {
               label: user.role ? `${label} (${user.role})` : label,
               value: user.id,
-              subLabel: [user.userName, user.email, user.role].filter(Boolean).join(" · "),
+              subLabel: [user.userName, user.email, user.role]
+                .filter(Boolean)
+                .join(" · "),
             };
           })
           .filter((entry) => Boolean(entry.value && entry.label))
@@ -281,15 +297,27 @@ function CredentialingListPage() {
   }, [searchInput]);
 
   const uniqueProviders = useMemo(
-    () => Array.from(new Set(optionRecords.map((record) => record.provider))).sort(),
+    () =>
+      Array.from(
+        new Set(optionRecords.map((record) => record.provider)),
+      ).sort(),
     [optionRecords],
   );
   const uniquePractices = useMemo(
-    () => Array.from(new Set(optionRecords.map((record) => record.practice))).sort(),
+    () =>
+      Array.from(
+        new Set(optionRecords.map((record) => record.practice)),
+      ).sort(),
     [optionRecords],
   );
-  const searchPractices = useMemo(() => createLocalSearchOptions(uniquePractices), [uniquePractices]);
-  const searchProviders = useMemo(() => createLocalSearchOptions(uniqueProviders), [uniqueProviders]);
+  const searchPractices = useMemo(
+    () => createLocalSearchOptions(uniquePractices),
+    [uniquePractices],
+  );
+  const searchProviders = useMemo(
+    () => createLocalSearchOptions(uniqueProviders),
+    [uniqueProviders],
+  );
   const searchPayers = useMemo(
     () => async (query: string) => {
       const options = await getClaimPayerOptionsApi(query.trim());
@@ -312,8 +340,9 @@ function CredentialingListPage() {
   );
   const assignedUserFilterLabel = useMemo(
     () =>
-      assignedUserOptions.find((option) => option.value === filters.assignedUser)?.label ||
-      "",
+      assignedUserOptions.find(
+        (option) => option.value === filters.assignedUser,
+      )?.label || "",
     [assignedUserOptions, filters.assignedUser],
   );
 
@@ -499,7 +528,10 @@ function CredentialingListPage() {
     setPage(1);
   };
 
-  const updateDraftFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => {
+  const updateDraftFilter = <K extends keyof Filters>(
+    key: K,
+    value: Filters[K],
+  ) => {
     setDraftFilters((current) => ({ ...current, [key]: value }));
   };
 
@@ -749,7 +781,9 @@ function CredentialingListPage() {
         <SearchSelect
           value={draftFilters.assignedUser}
           displayLabel={
-            assignedUserOptions.find((opt) => opt.value === draftFilters.assignedUser)?.label || ""
+            assignedUserOptions.find(
+              (opt) => opt.value === draftFilters.assignedUser,
+            )?.label || ""
           }
           onChange={(value) => updateDraftFilter("assignedUser", value)}
           onSearch={searchAssignedUsers}
@@ -808,7 +842,9 @@ function CredentialingListPage() {
           ) : (
             <ArrowDown className="h-4 w-4 text-[#4f63ea]" />
           )}
-          <span>Order: {sortDirection === "asc" ? "Ascending" : "Descending"}</span>
+          <span>
+            Order: {sortDirection === "asc" ? "Ascending" : "Descending"}
+          </span>
         </button>
       </div>
     </>
@@ -820,13 +856,6 @@ function CredentialingListPage() {
       activeModule="Credentialing"
       activeSubItem="All Credentialing"
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
-      navbarActions={[
-        {
-          label: "New record",
-          icon: <Plus className="h-4 w-4" />,
-          onClick: openCreateModal,
-        },
-      ]}
     >
       <div className="app-split font-app-sans">
         <section className="app-panel min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
@@ -887,7 +916,9 @@ function CredentialingListPage() {
                         </button>
                       </th>
                     ))}
-                    <th className="border-b border-[#f0ece6] px-4 py-3">Actions</th>
+                    <th className="border-b border-[#f0ece6] px-4 py-3">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -900,12 +931,14 @@ function CredentialingListPage() {
                               key={index}
                               className="grid grid-cols-[1.1fr_1.3fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_0.9fr] gap-3 rounded-2xl border border-[#ece8e1] bg-white px-4 py-4"
                             >
-                              {Array.from({ length: 12 }).map((__, colIndex) => (
-                                <div
-                                  key={colIndex}
-                                  className="h-4 animate-pulse rounded bg-slate-200/80"
-                                />
-                              ))}
+                              {Array.from({ length: 12 }).map(
+                                (__, colIndex) => (
+                                  <div
+                                    key={colIndex}
+                                    className="h-4 animate-pulse rounded bg-slate-200/80"
+                                  />
+                                ),
+                              )}
                             </div>
                           ))}
                         </div>
@@ -922,7 +955,10 @@ function CredentialingListPage() {
                     </tr>
                   ) : (
                     records.map((record) => (
-                      <tr key={record.id} className="text-[13px] text-slate-600 hover:bg-[#faf9f7]/60 transition-colors">
+                      <tr
+                        key={record.id}
+                        className="text-[13px] text-slate-600 hover:bg-[#faf9f7]/60 transition-colors"
+                      >
                         <td className="border-b border-[#f4f1ec] px-4 py-3 font-medium text-slate-700">
                           <button
                             type="button"

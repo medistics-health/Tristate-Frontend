@@ -147,6 +147,8 @@ export type InvoiceQueryParams = {
   paymentMethod?: string;
   dateFrom?: string;
   dateTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
 };
 
 function formatCurrency(amount: string | number) {
@@ -258,6 +260,8 @@ export async function getInvoicesView(
     if (params?.paymentMethod) queryString.set("paymentMethod", params.paymentMethod);
     if (params?.dateFrom) queryString.set("dateFrom", params.dateFrom);
     if (params?.dateTo) queryString.set("dateTo", params.dateTo);
+    if (params?.sortBy) queryString.set("sortBy", params.sortBy);
+    if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 
     const url = queryString.toString()
       ? `${LIST}?${queryString.toString()}`
