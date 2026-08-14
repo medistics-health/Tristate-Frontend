@@ -144,6 +144,9 @@ export type InvoiceQueryParams = {
   search?: string;
   status?: string;
   practiceId?: string;
+  paymentMethod?: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 function formatCurrency(amount: string | number) {
@@ -252,6 +255,9 @@ export async function getInvoicesView(
     if (params?.search) queryString.set("search", params.search);
     if (params?.status) queryString.set("status", params.status);
     if (params?.practiceId) queryString.set("practiceId", params.practiceId);
+    if (params?.paymentMethod) queryString.set("paymentMethod", params.paymentMethod);
+    if (params?.dateFrom) queryString.set("dateFrom", params.dateFrom);
+    if (params?.dateTo) queryString.set("dateTo", params.dateTo);
 
     const url = queryString.toString()
       ? `${LIST}?${queryString.toString()}`

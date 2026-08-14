@@ -14,6 +14,7 @@ type SelectProps = {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  placement?: "auto" | "top" | "bottom";
 };
 
 export default function Select({
@@ -23,11 +24,12 @@ export default function Select({
   placeholder = "Select an option",
   className = "",
   disabled = false,
+  placement = "auto",
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number; isTop?: boolean } | null>(null);
 
   // Handle outside click
   useEffect(() => {
@@ -47,11 +49,21 @@ export default function Select({
   function updateCoords() {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const gap = 8;
+    const gap = 6;
+    const dropdownHeight = Math.min(options.length * 36 + 12, 240);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    let openUp = placement === "top";
+    if (placement === "auto") {
+      openUp = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+    }
+
     setCoords({
-      top: rect.bottom + gap,
+      top: openUp ? rect.top - gap - dropdownHeight : rect.bottom + gap,
       left: rect.left,
       width: rect.width,
+      isTop: openUp,
     });
   }
 

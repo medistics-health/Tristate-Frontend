@@ -21,6 +21,7 @@ import AppLayout from "../layout/AppLayout";
 import DatePicker from "../shared/DatePicker";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import DataTableToolbar, { type ActiveFilterChip } from "../shared/DataTableToolbar";
 import CredentialingModal from "./CredentialingModal";
 import { formatDateLabel, getDaysLeft } from "./credentialingStore";
 import {
@@ -238,9 +239,19 @@ function CredentialingDashboardPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [assignedUserOptions, setAssignedUserOptions] = useState<SearchSelectOption[]>([]);
 
+  const loadRecords = async () => {
+    setIsLoading(true);
+    try {
+      const data = await getCredentialingRequestsView({ limit: 5000 });
+      setRecords(data.credentialingRequests);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
-    async function loadRecords() {
+    async function init() {
       setIsLoading(true);
       try {
         const data = await getCredentialingRequestsView({ limit: 5000 });
@@ -254,7 +265,7 @@ function CredentialingDashboardPage() {
       }
     }
 
-    void loadRecords();
+    void init();
 
     async function loadAssignedUsers() {
       try {
@@ -403,38 +414,40 @@ function CredentialingDashboardPage() {
     });
   }, [filters, records]);
 
+  const dashboardFilteredRecords = filteredRecords;
+
   const metrics = useMemo(() => {
-    const total = filteredRecords.length;
-    const contracted = filteredRecords.filter((record) =>
+    const total = dashboardFilteredRecords.length;
+    const contracted = dashboardFilteredRecords.filter((record) =>
       isContracted(record.status),
     ).length;
-    const inProcess = filteredRecords.filter((record) =>
+    const inProcess = dashboardFilteredRecords.filter((record) =>
       [
         "Application Submitted",
         "In Process - Payer Review",
         "Pending Additional Info",
       ].includes(record.status),
     ).length;
-    const pendingInfo = filteredRecords.filter(
+    const pendingInfo = dashboardFilteredRecords.filter(
       (record) => record.status === "Pending Additional Info",
     ).length;
-    const oon = filteredRecords.filter(
+    const oon = dashboardFilteredRecords.filter(
       (record) => record.status === "Out-of-Network (OON)",
     ).length;
-    const recredentialingDue = filteredRecords.filter(
+    const recredentialingDue = dashboardFilteredRecords.filter(
       (record) => record.status === "Re-credentialing Due",
     ).length;
-    const stale = filteredRecords.filter((record) => {
+    const stale = dashboardFilteredRecords.filter((record) => {
       const days = getDaysLeft(record.lastActivityDate);
       return days !== null ? days < -15 : false;
     }).length;
 
-    const upcomingDeadlines = filteredRecords.filter((record) => {
+    const upcomingDeadlines = dashboardFilteredRecords.filter((record) => {
       const nearest = getNearestDeadlineInfo(record);
       return nearest !== null && nearest.daysLeft <= 90;
     }).length;
 
-    const turnaroundDays = filteredRecords
+    const turnaroundDays = dashboardFilteredRecords
       .filter(
         (record) =>
           isContracted(record.status) &&
@@ -473,16 +486,16 @@ function CredentialingDashboardPage() {
       averageTurnaround,
       contractedRate,
     };
-  }, [filteredRecords]);
+  }, [dashboardFilteredRecords]);
 
   const statusOverview = useMemo(
     () =>
       credentialingStatusOptions.map((status) => ({
         status,
-        count: filteredRecords.filter((record) => record.status === status)
+        count: dashboardFilteredRecords.filter((record) => record.status === status)
           .length,
       })),
-    [filteredRecords],
+    [dashboardFilteredRecords],
   );
 
   const practiceRows = useMemo(() => {
@@ -497,7 +510,7 @@ function CredentialingDashboardPage() {
       }
     >();
 
-    filteredRecords.forEach((record) => {
+    dashboardFilteredRecords.forEach((record) => {
       const entry = grouped.get(record.practice) || {
         total: 0,
         contracted: 0,
@@ -528,7 +541,7 @@ function CredentialingDashboardPage() {
             : 0,
       }))
       .sort((a, b) => a.contractedRate - b.contractedRate);
-  }, [filteredRecords]);
+  }, [dashboardFilteredRecords]);
 
   const payerRows = useMemo(() => {
     const grouped = new Map<
@@ -543,7 +556,7 @@ function CredentialingDashboardPage() {
       }
     >();
 
-    filteredRecords.forEach((record) => {
+    dashboardFilteredRecords.forEach((record) => {
       const payerLabel = formatPayerDisplayLabel(
         record.insuranceCompany,
         record.payerProviderId,
@@ -594,19 +607,19 @@ function CredentialingDashboardPage() {
             : 0,
       }))
       .sort((a, b) => a.averageTurnaround - b.averageTurnaround);
-  }, [filteredRecords]);
+  }, [dashboardFilteredRecords]);
 
   const recentCredentialing = useMemo(
     () =>
-      [...filteredRecords]
+      [...dashboardFilteredRecords]
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .slice(0, 6),
-    [filteredRecords],
+    [dashboardFilteredRecords],
   );
 
   const expiringSoon = useMemo(
     () =>
-      [...filteredRecords]
+      [...dashboardFilteredRecords]
         .map((record) => {
           const nearest = getNearestDeadlineInfo(record);
           return {
@@ -619,12 +632,12 @@ function CredentialingDashboardPage() {
         .filter(({ daysLeft }) => daysLeft !== null && daysLeft <= 90)
         .sort((a, b) => (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999))
         .slice(0, 6),
-    [filteredRecords],
+    [dashboardFilteredRecords],
   );
 
   const recentActivity = useMemo(
     () =>
-      [...filteredRecords]
+      [...dashboardFilteredRecords]
         .flatMap((record) =>
           record.activity.slice(0, 2).map((entry) => ({
             ...entry,
@@ -638,7 +651,7 @@ function CredentialingDashboardPage() {
         )
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .slice(0, 8),
-    [filteredRecords],
+    [dashboardFilteredRecords],
   );
 
   async function handleCreate(form: CredentialingFormState) {
@@ -667,8 +680,24 @@ function CredentialingDashboardPage() {
     }
   }
 
+  const [draftFilters, setDraftFilters] = useState<DashboardFilters>(filters);
+
+  const handleOpenFilterModal = () => {
+    setDraftFilters(filters);
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(draftFilters);
+  };
+
+  const updateDraftFilter = <K extends keyof DashboardFilters>(key: K, value: DashboardFilters[K]) => {
+    setDraftFilters((current) => ({ ...current, [key]: value }));
+  };
+
   function resetFilters() {
     setFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
+    setSearchValue("");
   }
 
   const activeFilterCount = [
@@ -682,6 +711,232 @@ function CredentialingDashboardPage() {
     filters.dateFrom,
     filters.dateTo,
   ].filter(Boolean).length;
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.practice) {
+      chips.push({
+        key: "practice",
+        label: "Practice",
+        displayValue: filters.practice,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, practice: "" }));
+          setDraftFilters((curr) => ({ ...curr, practice: "" }));
+        },
+      });
+    }
+    if (filters.provider) {
+      chips.push({
+        key: "provider",
+        label: "Provider",
+        displayValue: filters.provider,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, provider: "" }));
+          setDraftFilters((curr) => ({ ...curr, provider: "" }));
+        },
+      });
+    }
+    if (filters.payer) {
+      chips.push({
+        key: "payer",
+        label: "Payer",
+        displayValue: filters.payerLabel || filters.payer,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, payer: "", payerLabel: "" }));
+          setDraftFilters((curr) => ({ ...curr, payer: "", payerLabel: "" }));
+        },
+      });
+    }
+    if (filters.status) {
+      chips.push({
+        key: "status",
+        label: "Status",
+        displayValue: filters.status,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, status: "" }));
+          setDraftFilters((curr) => ({ ...curr, status: "" }));
+        },
+      });
+    }
+    if (filters.contractType) {
+      chips.push({
+        key: "contractType",
+        label: "Contract",
+        displayValue: filters.contractType,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, contractType: "" }));
+          setDraftFilters((curr) => ({ ...curr, contractType: "" }));
+        },
+      });
+    }
+    if (filters.assignedUser) {
+      chips.push({
+        key: "assignedUser",
+        label: "Specialist",
+        displayValue: assignedUserFilterLabel || filters.assignedUser,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, assignedUser: "" }));
+          setDraftFilters((curr) => ({ ...curr, assignedUser: "" }));
+        },
+      });
+    }
+    if (filters.dateFrom) {
+      chips.push({
+        key: "dateFrom",
+        label: "From",
+        displayValue: filters.dateFrom,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dateFrom: "" }));
+          setDraftFilters((curr) => ({ ...curr, dateFrom: "" }));
+        },
+      });
+    }
+    if (filters.dateTo) {
+      chips.push({
+        key: "dateTo",
+        label: "To",
+        displayValue: filters.dateTo,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dateTo: "" }));
+          setDraftFilters((curr) => ({ ...curr, dateTo: "" }));
+        },
+      });
+    }
+    return chips;
+  }, [filters, assignedUserFilterLabel]);
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Practice
+        </span>
+        <SearchSelect
+          value={draftFilters.practice}
+          onChange={(value) => updateDraftFilter("practice", value)}
+          onSearch={searchPractices}
+          clearable
+          toggleOnSelectSame
+          placeholder="Search practice"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Provider
+        </span>
+        <SearchSelect
+          value={draftFilters.provider}
+          onChange={(value) => updateDraftFilter("provider", value)}
+          onSearch={searchProviders}
+          clearable
+          toggleOnSelectSame
+          placeholder="Search provider"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Payer Name (ID)
+        </span>
+        <SearchSelect
+          value={draftFilters.payer}
+          displayLabel={draftFilters.payerLabel}
+          onChange={(value, option) =>
+            setDraftFilters((current) => ({
+              ...current,
+              payer: value,
+              payerLabel: formatPayerDisplayLabel(
+                option?.label || "",
+                value,
+              ),
+            }))
+          }
+          onSearch={searchPayers}
+          clearable
+          toggleOnSelectSame
+          placeholder="Search payer"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Status
+        </span>
+        <Select
+          value={draftFilters.status}
+          onChange={(value) => updateDraftFilter("status", value)}
+          options={[
+            { label: "All Statuses", value: "" },
+            ...credentialingStatusOptions.map((status) => ({
+              label: status,
+              value: status,
+            })),
+          ]}
+          placeholder="All statuses"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Contract Type
+        </span>
+        <Select
+          value={draftFilters.contractType}
+          onChange={(value) => updateDraftFilter("contractType", value)}
+          options={[
+            { label: "All Types", value: "" },
+            ...contractTypeOptions.map((option) => ({
+              label: option,
+              value: option,
+            })),
+          ]}
+          placeholder="All types"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Assigned Specialist
+        </span>
+        <SearchSelect
+          value={draftFilters.assignedUser}
+          displayLabel={
+            assignedUserOptions.find((opt) => opt.value === draftFilters.assignedUser)?.label || ""
+          }
+          onChange={(value) => updateDraftFilter("assignedUser", value)}
+          onSearch={searchAssignedUsers}
+          clearable
+          toggleOnSelectSame
+          placeholder="Search specialist"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Submitted Date From
+        </span>
+        <DatePicker
+          value={draftFilters.dateFrom}
+          onChange={(value) => updateDraftFilter("dateFrom", value)}
+          placeholder="MM-DD-YYYY"
+          className="rounded-xl border-[#ece8e1]"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Submitted Date To
+        </span>
+        <DatePicker
+          value={draftFilters.dateTo}
+          onChange={(value) => updateDraftFilter("dateTo", value)}
+          placeholder="MM-DD-YYYY"
+          className="rounded-xl border-[#ece8e1]"
+        />
+      </label>
+    </>
+  );
 
   return (
     <AppLayout
@@ -699,205 +954,23 @@ function CredentialingDashboardPage() {
     >
       <div className="app-split font-app-sans">
         <section className="app-panel min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
-          <div className="border-b border-[#f0ece6] bg-[linear-gradient(135deg,#ffffff_0%,#fbfaf8_55%,#f5f1e8_100%)] px-5 py-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
-                  Credentialing
-                </div>
-                <h1 className="mt-1 text-[22px] font-semibold text-slate-800">
-                  Credentialing Dashboard
-                </h1>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowModal(true)}
-                disabled={isSaving}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white shadow-sm hover:bg-[#3d4ed1] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
-              >
-                {isSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-                {isSaving ? "Saving..." : "Add New"}
-              </button>
-            </div>
-          </div>
-
-          <div className="border-b border-[#f0ece6] px-5 py-3">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-slate-400" />
-                <div className="text-[13px] font-medium text-slate-700">
-                  Filters
-                </div>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-                  {activeFilterCount} active
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="inline-flex items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-600 hover:bg-[#f7f5f1]"
-              >
-                <RefreshCcw className="h-3.5 w-3.5" />
-                Reset
-              </button>
-            </div>
-
-            <div className="grid gap-3 xl:grid-cols-4 2xl:grid-cols-6">
-              <label className="block">
-                <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                  Practice
-                </span>
-                <SearchSelect
-                  value={filters.practice}
-                  onChange={(value) =>
-                    setFilters((current) => ({ ...current, practice: value }))
-                  }
-                  onSearch={searchPractices}
-                  clearable
-                  toggleOnSelectSame
-                  placeholder="Search practice"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                  Provider
-                </span>
-                <SearchSelect
-                  value={filters.provider}
-                  onChange={(value) =>
-                    setFilters((current) => ({ ...current, provider: value }))
-                  }
-                  onSearch={searchProviders}
-                  clearable
-                  toggleOnSelectSame
-                  placeholder="Search provider"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                  Payer Name (ID)
-                </span>
-                <SearchSelect
-                  value={filters.payer}
-                  displayLabel={filters.payerLabel}
-                  onChange={(value, option) =>
-                    setFilters((current) => ({
-                      ...current,
-                      payer: value,
-                      payerLabel: formatPayerDisplayLabel(
-                        option?.label || "",
-                        value,
-                      ),
-                    }))
-                  }
-                  onSearch={searchPayers}
-                  clearable
-                  toggleOnSelectSame
-                  placeholder="Search payer"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                  Status
-                </span>
-                <Select
-                  value={filters.status}
-                  onChange={(value) =>
-                    setFilters((current) => ({ ...current, status: value }))
-                  }
-                  options={[
-                    { label: "All Statuses", value: "" },
-                    ...credentialingStatusOptions.map((status) => ({
-                      label: status,
-                      value: status,
-                    })),
-                  ]}
-                  placeholder="All statuses"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                  Contract Type
-                </span>
-                <Select
-                  value={filters.contractType}
-                  onChange={(value) =>
-                    setFilters((current) => ({
-                      ...current,
-                      contractType: value,
-                    }))
-                  }
-                  options={[
-                    { label: "All Types", value: "" },
-                    ...contractTypeOptions.map((option) => ({
-                      label: option,
-                      value: option,
-                    })),
-                  ]}
-                  placeholder="All types"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                  Assigned Specialist
-                </span>
-                <SearchSelect
-                  value={filters.assignedUser}
-                  displayLabel={assignedUserFilterLabel}
-                  onChange={(value) =>
-                    setFilters((current) => ({
-                      ...current,
-                      assignedUser: value,
-                    }))
-                  }
-                  onSearch={searchAssignedUsers}
-                  clearable
-                  toggleOnSelectSame
-                  placeholder="Search specialist"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                  Submitted Date From
-                </span>
-                <DatePicker
-                  value={filters.dateFrom}
-                  onChange={(value) =>
-                    setFilters((current) => ({ ...current, dateFrom: value }))
-                  }
-                  placeholder="mm-dd-yyyy"
-                  className="rounded-xl"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-[12px] font-medium text-slate-500">
-                  Submitted Date To
-                </span>
-                <DatePicker
-                  value={filters.dateTo}
-                  onChange={(value) =>
-                    setFilters((current) => ({ ...current, dateTo: value }))
-                  }
-                  placeholder="mm-dd-yyyy"
-                  className="rounded-xl"
-                />
-              </label>
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 pr-3 custom-scrollbar">
+          <DataTableToolbar
+            title="Credentialing Dashboard"
+            subtitle="Credentialing"
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Dashboard Data"
+            filterFields={filterFieldsModal}
+            addNewLabel="Add New"
+            onAddNew={() => setShowModal(true)}
+            onRefresh={loadRecords}
+            isLoading={isLoading}
+            isSaving={isSaving}
+          >
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 pr-3 custom-scrollbar">
             {isLoading ? (
               <DashboardSkeleton />
             ) : (
@@ -1326,7 +1399,7 @@ function CredentialingDashboardPage() {
                                     </div>
                                   </div>
                                   <span
-                                    className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-medium ${statusTone(record.status)}`}
+                                    className={`inline-flex rounded-lg px-2.5 py-1 text-[12px] font-medium ${statusTone(record.status)}`}
                                   >
                                     {record.status}
                                   </span>
@@ -1410,7 +1483,8 @@ function CredentialingDashboardPage() {
               </>
             )}
           </div>
-        </section>
+        </DataTableToolbar>
+      </section>
 
         <CredentialingModal
           isOpen={showModal}
