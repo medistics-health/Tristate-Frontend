@@ -54,6 +54,7 @@ function getFilterSignature(filters: SentEmailFilters) {
     toEmail: (filters.toEmail || "").trim().toLowerCase(),
     sentFrom: (filters.sentFrom || "").trim(),
     sentTo: (filters.sentTo || "").trim(),
+    search: (filters.search || "").trim().toLowerCase(),
   });
 }
 
@@ -66,6 +67,7 @@ export default function CommunicationPage() {
   const [emails, setEmails] = useState<SentEmail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<SentEmail | null>(null);
   const [sentFromDate, setSentFromDate] = useState(initialSentFrom);
@@ -76,7 +78,11 @@ export default function CommunicationPage() {
   const [lastSuccessfulFilterSignature, setLastSuccessfulFilterSignature] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(25);
+  const [totalEmails, setTotalEmails] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const didRunInitialLoad = useRef(false);
+  const prevListQueryKeyRef = useRef("");
+  const loadRequestIdRef = useRef(0);
   const [isRecipientDropdownOpen, setIsRecipientDropdownOpen] = useState(false);
   const recipientBlurTimerRef = useRef<number | null>(null);
 
@@ -90,24 +96,6 @@ export default function CommunicationPage() {
       sentToDate.trim(),
   );
 
-  const visibleEmails = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
-    if (!query) return emails;
-    return emails.filter((email) => {
-      const target = [
-        email.subject,
-        email.from,
-        email.to.join(", "),
-        email.cc.join(", "),
-        email.bodyPreview,
-        stripHtml(email.bodyHtml),
-      ]
-        .join(" ")
-        .toLowerCase();
-      return target.includes(query);
-    });
-  }, [emails, searchText]);
-
   const recipientOptions = useMemo(() => {
     const query = recipientInput.trim().toLowerCase();
     if (!query) return knownRecipients.slice(0, 50);
@@ -116,20 +104,15 @@ export default function CommunicationPage() {
       .slice(0, 50);
   }, [knownRecipients, recipientInput]);
 
-  const totalPages = Math.max(1, Math.ceil(visibleEmails.length / pageSize));
-  const paginatedEmails = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return visibleEmails.slice(startIndex, startIndex + pageSize);
-  }, [currentPage, pageSize, visibleEmails]);
-
   const activeFilters = useMemo<SentEmailFilters>(
     () => ({
       sender: SENDER_EMAIL,
       toEmail: selectedRecipientEmail || undefined,
       sentFrom: sentFromDate || undefined,
       sentTo: sentToDate || undefined,
+      search: debouncedSearch || undefined,
     }),
-    [selectedRecipientEmail, sentFromDate, sentToDate],
+    [selectedRecipientEmail, sentFromDate, sentToDate, debouncedSearch],
   );
   const currentFilterSignature = useMemo(
     () => getFilterSignature(activeFilters),
@@ -146,6 +129,8 @@ export default function CommunicationPage() {
       silent?: boolean;
       filters?: SentEmailFilters;
     } = {}) => {
+      const requestId = loadRequestIdRef.current + 1;
+      loadRequestIdRef.current = requestId;
       try {
         if (silent) {
           setRefreshing(true);
@@ -153,14 +138,20 @@ export default function CommunicationPage() {
           setIsLoading(true);
         }
         const data = await getSentEmails(filters);
-        setEmails(data);
+        if (requestId !== loadRequestIdRef.current) return;
+        setEmails(data.emails);
+        setTotalEmails(data.pagination.total);
+        setTotalPages(Math.max(1, data.pagination.totalPages));
+        if (filters.page && filters.page > data.pagination.totalPages) {
+          setCurrentPage(data.pagination.totalPages);
+        }
         setLastSuccessfulFilterSignature(getFilterSignature(filters));
         setKnownRecipients((previous) => {
           const byLowercase = new Map<string, string>();
           for (const existingRecipient of previous) {
             byLowercase.set(existingRecipient.toLowerCase(), existingRecipient);
           }
-          for (const nextRecipient of collectRecipientEmails(data)) {
+          for (const nextRecipient of collectRecipientEmails(data.emails)) {
             const key = nextRecipient.toLowerCase();
             if (!byLowercase.has(key)) {
               byLowercase.set(key, nextRecipient);
@@ -169,10 +160,12 @@ export default function CommunicationPage() {
           return Array.from(byLowercase.values()).sort((a, b) => a.localeCompare(b));
         });
       } catch (error) {
+        if (requestId !== loadRequestIdRef.current) return;
         toast.error(
           error instanceof Error ? error.message : "Unable to load communication emails.",
         );
       } finally {
+        if (requestId !== loadRequestIdRef.current) return;
         setIsLoading(false);
         setRefreshing(false);
       }
@@ -216,15 +209,47 @@ export default function CommunicationPage() {
   }, []);
 
   useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(searchText.trim());
+    }, 300);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [searchText]);
+
+  useEffect(() => {
     if (hasInvalidDateRange) return;
+
+    const listQueryKey = `${currentFilterSignature}|${pageSize}`;
+    if (prevListQueryKeyRef.current !== listQueryKey) {
+      prevListQueryKeyRef.current = listQueryKey;
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+        return;
+      }
+    }
+
     loadEmails({
       silent: didRunInitialLoad.current,
-      filters: activeFilters,
+      filters: {
+        ...activeFilters,
+        page: currentPage,
+        limit: pageSize,
+      },
     });
     didRunInitialLoad.current = true;
-  }, [activeFilters, hasInvalidDateRange, loadEmails]);
+  }, [
+    activeFilters,
+    currentFilterSignature,
+    currentPage,
+    hasInvalidDateRange,
+    loadEmails,
+    pageSize,
+  ]);
 
   function clearAllFilters() {
+    setSearchText("");
+    setDebouncedSearch("");
     setSentFromDate("");
     setSentToDate("");
     setRecipientInput("");
@@ -233,7 +258,14 @@ export default function CommunicationPage() {
 
   async function refreshCurrentResults() {
     if (hasInvalidDateRange) return;
-    await loadEmails({ silent: true, filters: activeFilters });
+    await loadEmails({
+      silent: true,
+      filters: {
+        ...activeFilters,
+        page: currentPage,
+        limit: pageSize,
+      },
+    });
   }
 
   useEffect(() => {
@@ -252,15 +284,6 @@ export default function CommunicationPage() {
       }
     };
   }, []);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchText, selectedRecipientEmail, sentFromDate, sentToDate]);
-
-  useEffect(() => {
-    if (currentPage <= totalPages) return;
-    setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
 
   return (
     <AppLayout title="Communication" activeSubItem="Communication">
@@ -416,41 +439,42 @@ export default function CommunicationPage() {
               <p className="mt-2 text-[12px] text-slate-500">
                 Showing{" "}
                 <span className="font-semibold text-slate-700">
-                  {paginatedEmails.length}
+                  {emails.length}
                 </span>{" "}
                 of{" "}
                 <span className="font-semibold text-slate-700">
-                  {visibleEmails.length}
+                  {totalEmails}
                 </span>{" "}
-                {visibleEmails.length === 1 ? "mail" : "mails"} filtered.
+                {totalEmails === 1 ? "mail" : "mails"} filtered.
+              </p>
+            ) : !isLoading && !refreshing && !hasAnyFilterApplied && hasFetchedCurrentFilters ? (
+              <p className="mt-2 text-[12px] text-slate-500">
+                Showing{" "}
+                <span className="font-semibold text-slate-700">
+                  {emails.length}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-slate-700">
+                  {totalEmails}
+                </span>{" "}
+                {totalEmails === 1 ? "mail" : "mails"}.
               </p>
             ) : null}
           </div>
 
-          <div
-            className={`relative min-h-0 flex-1 ${refreshing ? "overflow-hidden" : "overflow-auto"}`}
-          >
-            {refreshing && !isLoading ? (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
-                <div className="inline-flex items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3 py-2 text-[12px] font-medium text-slate-600 shadow-sm">
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  Applying Filters...
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="relative min-h-0 flex-1 overflow-auto">
+              {isLoading ? (
+                <div className="flex h-full items-center justify-center text-[13px] text-slate-500">
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Loading communication emails...
                 </div>
-              </div>
-            ) : null}
-
-            {isLoading ? (
-              <div className="flex h-full items-center justify-center text-[13px] text-slate-500">
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Loading communication emails...
-              </div>
-            ) : visibleEmails.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-slate-400">
-                <Mail className="h-8 w-8" />
-                <p className="text-[14px]">No sent emails found.</p>
-              </div>
-            ) : (
-              <div className="flex h-full flex-col">
+              ) : emails.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-slate-400">
+                  <Mail className="h-8 w-8" />
+                  <p className="text-[14px]">No sent emails found.</p>
+                </div>
+              ) : (
                 <table className="w-full text-left text-[13px]">
                   <thead className="sticky top-0 bg-[#fbfaf8] text-[11px] uppercase tracking-wide text-slate-500">
                     <tr>
@@ -461,7 +485,7 @@ export default function CommunicationPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#f0ece6]">
-                    {paginatedEmails.map((email) => {
+                    {emails.map((email) => {
                       const preview = email.bodyPreview || stripHtml(email.bodyHtml);
                       return (
                         <tr
@@ -489,52 +513,70 @@ export default function CommunicationPage() {
                     })}
                   </tbody>
                 </table>
-                <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-[#f0ece6] bg-white px-4 py-3">
-                  <div className="flex items-center gap-2 text-[12px] text-slate-500">
-                    <span>Rows per page</span>
-                    <select
-                      value={pageSize}
-                      onChange={(event) => {
-                        setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]);
-                        setCurrentPage(1);
-                      }}
-                      className="rounded-md border border-[#ece8e1] bg-white px-2 py-1 text-[12px] text-slate-700 outline-none focus:border-[#4f63ea]"
-                    >
-                      {PAGE_SIZE_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                      className="rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Prev
-                    </button>
-                    <span className="text-[12px] text-slate-500">
-                      Page{" "}
-                      <span className="font-semibold text-slate-700">{currentPage}</span> of{" "}
-                      <span className="font-semibold text-slate-700">{totalPages}</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                      }
-                      disabled={currentPage >= totalPages}
-                      className="rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Next
-                    </button>
+              )}
+
+              {refreshing && !isLoading ? (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-[2px]">
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-[#ece8e1] bg-white px-4 py-3 text-[13px] font-medium text-slate-700 shadow-md">
+                    <RefreshCw className="h-4 w-4 animate-spin text-[#4f63ea]" />
+                    Loading page...
                   </div>
                 </div>
+              ) : null}
+            </div>
+
+            {!isLoading || emails.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#f0ece6] bg-white px-4 py-3">
+                <div className="flex items-center gap-2 text-[12px] text-slate-500">
+                  <span>
+                    {totalEmails > 0
+                      ? `${(currentPage - 1) * pageSize + 1}-${(currentPage - 1) * pageSize + emails.length} of ${totalEmails}`
+                      : "0 of 0"}
+                  </span>
+                  <span>Rows per page</span>
+                  <select
+                    value={pageSize}
+                    disabled={refreshing || isLoading}
+                    onChange={(event) => {
+                      setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]);
+                    }}
+                    className="rounded-md border border-[#ece8e1] bg-white px-2 py-1 text-[12px] text-slate-700 outline-none focus:border-[#4f63ea] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1 || refreshing || isLoading}
+                    className="rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Prev
+                  </button>
+                  <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-500">
+                    {refreshing ? <RefreshCw className="h-3 w-3 animate-spin text-[#4f63ea]" /> : null}
+                    Page{" "}
+                    <span className="font-semibold text-slate-700">{currentPage}</span> of{" "}
+                    <span className="font-semibold text-slate-700">{totalPages}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
+                    disabled={currentPage >= totalPages || refreshing || isLoading}
+                    className="rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
-            )}
+            ) : null}
           </div>
         </section>
       </div>

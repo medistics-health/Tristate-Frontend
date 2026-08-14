@@ -45,6 +45,21 @@ export type SentEmailFilters = {
   toEmail?: string;
   sentFrom?: string;
   sentTo?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type SentEmailPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+export type SentEmailsResponse = {
+  emails: SentEmail[];
+  pagination: SentEmailPagination;
 };
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
@@ -88,10 +103,12 @@ function normalizeEmailRecord(email: RawEmail, index: number): SentEmail {
 
 export async function getSentEmails(
   filters: SentEmailFilters = {},
-): Promise<SentEmail[]> {
+): Promise<SentEmailsResponse> {
   try {
-    const params: SentEmailFilters = {
+    const params: Record<string, string | number> = {
       sender: filters.sender?.trim() || "noreply@tristatemso.com",
+      page: filters.page && filters.page > 0 ? filters.page : 1,
+      limit: filters.limit && filters.limit > 0 ? filters.limit : 25,
     };
     if (filters.toEmail?.trim()) {
       params.toEmail = filters.toEmail.trim();
@@ -101,6 +118,9 @@ export async function getSentEmails(
     }
     if (filters.sentTo?.trim()) {
       params.sentTo = filters.sentTo.trim();
+    }
+    if (filters.search?.trim()) {
+      params.search = filters.search.trim();
     }
 
     const response = await apiConnector({
@@ -112,13 +132,31 @@ export async function getSentEmails(
 
     const payload = response.data as
       | RawEmail[]
-      | { emails?: RawEmail[]; messages?: RawEmail[]; data?: RawEmail[] };
+      | {
+          emails?: RawEmail[];
+          messages?: RawEmail[];
+          data?: RawEmail[];
+          pagination?: Partial<SentEmailPagination>;
+        };
 
     const records = Array.isArray(payload)
       ? payload
       : payload.emails || payload.messages || payload.data || [];
+    const emails = records.map(normalizeEmailRecord);
+    const paginationPayload = Array.isArray(payload)
+      ? undefined
+      : payload.pagination;
+    const page = paginationPayload?.page || Number(params.page);
+    const limit = paginationPayload?.limit || Number(params.limit);
+    const total = paginationPayload?.total ?? emails.length;
+    const totalPages =
+      paginationPayload?.totalPages ||
+      Math.max(1, Math.ceil(total / limit) || 1);
 
-    return records.map(normalizeEmailRecord);
+    return {
+      emails,
+      pagination: { page, limit, total, totalPages },
+    };
   } catch (error) {
     throw new Error(
       getErrorMessage(error, "Unable to fetch sent communication emails."),
