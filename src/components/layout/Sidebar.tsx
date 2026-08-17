@@ -178,19 +178,19 @@ const sidebarSteps: SidebarItem[] = [
       },
     ],
   },
-  {
-    label: "Purchase Orders",
-    requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
-    items: [
-      { label: "All Purchase Orders", to: "/purchase-orders/all" },
-      { label: "PO Status Board", to: "/purchase-orders/status-board" },
-      {
-        label: "Pending Approval",
-        to: "/purchase-orders/pending-approval",
-      },
-      { label: "Unpaid POs", to: "/purchase-orders/unpaid-pos" },
-    ],
-  },
+  // {
+  //   label: "Purchase Orders",
+  //   requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
+  //   items: [
+  //     { label: "All Purchase Orders", to: "/purchase-orders/all" },
+  //     { label: "PO Status Board", to: "/purchase-orders/status-board" },
+  //     {
+  //       label: "Pending Approval",
+  //       to: "/purchase-orders/pending-approval",
+  //     },
+  //     { label: "Unpaid POs", to: "/purchase-orders/unpaid-pos" },
+  //   ],
+  // },
   {
     label: "Vendors",
     requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
@@ -208,17 +208,17 @@ const sidebarSteps: SidebarItem[] = [
       { label: "Mercury Banking", to: "/integrations/mercury-banking" },
     ],
   },
-  {
-    label: "Channel Partners",
-    requiredRoles: [...MODULE_ACCESS.CRM],
-    items: [
-      {
-        label: "All Channel Partners",
-        to: "/partner/all-channel-partners",
-      },
-      { label: "All Partners", to: "/partner/all-partners" },
-    ],
-  },
+  // {
+  //   label: "Channel Partners",
+  //   requiredRoles: [...MODULE_ACCESS.CRM],
+  //   items: [
+  //     {
+  //       label: "All Channel Partners",
+  //       to: "/partner/all-channel-partners",
+  //     },
+  //     { label: "All Partners", to: "/partner/all-partners" },
+  //   ],
+  // },
   {
     label: "Monthly Reports",
     requiredRoles: [...MODULE_ACCESS.CRM],

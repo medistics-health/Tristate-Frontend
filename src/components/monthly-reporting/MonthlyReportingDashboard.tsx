@@ -15,12 +15,16 @@ import {
   Trash2,
   FileText,
   BarChart3,
-  Loader2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
 import {
   getMonthlyReportsView,
   getMonthlyReport,
@@ -68,7 +72,6 @@ function MonthlyReportingDashboard() {
     practiceName: "",
     serviceName: "",
   });
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -148,6 +151,24 @@ function MonthlyReportingDashboard() {
         .catch(() => {});
     }
   }, [showDetailPanel, practices.length]);
+
+  async function refreshRows() {
+    const params: Record<string, unknown> = {
+      page: pagination.page,
+      limit: pagination.limit,
+      search: filters.search || undefined,
+      status: filters.status || undefined,
+      practiceName: filters.practiceName || undefined,
+      serviceName: filters.serviceName || undefined,
+    };
+    if (sorting[0]?.id) {
+      params.sortBy = sorting[0].id;
+      params.sortOrder = sorting[0]?.desc ? "desc" : "asc";
+    }
+    const data = await getMonthlyReportsView(params as any);
+    setRows(data.rows);
+    setPagination(data.pagination);
+  }
 
   const columns = useMemo<ColumnDef<MonthlyReportRow>[]>(
     () => [
@@ -332,6 +353,102 @@ function MonthlyReportingDashboard() {
     },
   ];
 
+  const activeFilterCount = [
+    filters.status,
+    filters.practiceName,
+    filters.serviceName,
+  ].filter(Boolean).length;
+
+  const activeFilterChips = useMemo<ActiveFilterChip[]>(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.status) {
+      chips.push({
+        key: "status",
+        label: "Status",
+        displayValue: filters.status,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, status: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.practiceName) {
+      chips.push({
+        key: "practiceName",
+        label: "Practice",
+        displayValue: filters.practiceName,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, practiceName: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.serviceName) {
+      chips.push({
+        key: "serviceName",
+        label: "Service",
+        displayValue: filters.serviceName,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, serviceName: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    return chips;
+  }, [filters.status, filters.practiceName, filters.serviceName]);
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Status
+        </span>
+        <Select
+          value={filters.status}
+          onChange={(val) => {
+            setFilters((prev) => ({ ...prev, status: val }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          options={[
+            { label: "All Statuses", value: "" },
+            { label: "Pending", value: "Pending" },
+            { label: "Submitted", value: "Submitted" },
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Practice
+        </span>
+        <input
+          type="text"
+          placeholder="Search by practice..."
+          value={filters.practiceName}
+          onChange={(e) => {
+            setFilters((prev) => ({ ...prev, practiceName: e.target.value }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Service
+        </span>
+        <input
+          type="text"
+          placeholder="Search by service..."
+          value={filters.serviceName}
+          onChange={(e) => {
+            setFilters((prev) => ({ ...prev, serviceName: e.target.value }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        />
+      </label>
+    </>
+  );
+
   return (
     <AppLayout
       title="Monthly Reports"
@@ -341,23 +458,48 @@ function MonthlyReportingDashboard() {
       navbarActions={navbarActions}
     >
       <div className="app-split">
-        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
-              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
-              <span>Monthly Reporting Dashboard</span>
-            </button>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel(!showFilterPanel)}
-              >
-                Filters
-              </button>
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="Monthly Reporting Dashboard"
+            subtitle="Monthly Reports"
+            searchPlaceholder="Search reports..."
+            searchValue={filters.search}
+            onSearchChange={(value) => {
+              setFilters((prev) => ({ ...prev, search: value }));
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={() => {
+              setFilters({
+                search: "",
+                status: "",
+                practiceName: "",
+                serviceName: "",
+              });
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            filterModalTitle="Filter Reports"
+            filterFields={filterFieldsModal}
+            addNewLabel="Submit Report"
+            onAddNew={() => navigate("/monthly-reporting/submit")}
+            onRefresh={async () => {
+              try {
+                setIsLoading(true);
+                await refreshRows();
+              } catch (err) {
+                const message =
+                  err instanceof Error ? err.message : "Failed to load reports";
+                setError(message);
+                toast.error(message);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            isLoading={isLoading}
+            isSaving={isSaving}
+            isDeleting={isDeleting}
+            extraActions={
               <button
                 type="button"
                 onClick={() =>
@@ -367,92 +509,36 @@ function MonthlyReportingDashboard() {
                       : [{ id: "dueDate", desc: true }],
                   )
                 }
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors"
               >
                 Sort
               </button>
-            </div>
-          </div>
+            }
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) =>
+              setPagination((prev) => ({ ...prev, page }))
+            }
+            onPageSizeChange={(newSize) =>
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }))
+            }
+          >
 
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <select
-                value={filters.status}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, status: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="Submitted">Submitted</option>
-              </select>
-              <input
-                type="text"
-                placeholder="Search by practice..."
-                value={filters.practiceName}
-                onChange={(e) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    practiceName: e.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px] w-48"
-              />
-              <input
-                type="text"
-                placeholder="Search by service..."
-                value={filters.serviceName}
-                onChange={(e) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    serviceName: e.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px] w-48"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  setFilters({
-                    search: "",
-                    status: "",
-                    practiceName: "",
-                    serviceName: "",
-                  })
-                }
-                disabled={
-                  !filters.status &&
-                  !filters.practiceName &&
-                  !filters.serviceName
-                }
-                className="text-[13px] text-[#4f63ea] hover:underline disabled:opacity-40"
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            {isLoading ? (
-              <div className="flex min-h-[300px] items-center justify-center gap-2 text-slate-400">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span className="text-[13px]">Loading reports...</span>
-              </div>
-            ) : error && rows.length === 0 ? (
-              <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
-                <div className="text-[13px] text-red-500">{error}</div>
-                <button
-                  type="button"
-                  onClick={() => window.location.reload()}
-                  className="app-control rounded-md px-4 py-2 text-[13px] font-medium"
-                >
-                  Retry
-                </button>
-              </div>
-            ) : rows.length === 0 ? (
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {!isLoading && error && rows.length === 0 ? (
+                <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
+                  <div className="text-[13px] text-red-500">{error}</div>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="app-control rounded-md px-4 py-2 text-[13px] font-medium"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : !isLoading && rows.length === 0 ? (
               <div className="relative flex min-h-[400px] items-center justify-center">
                 <div className="flex max-w-md flex-col items-center px-6 text-center">
                   <EmptyStateIllustration />
@@ -473,30 +559,25 @@ function MonthlyReportingDashboard() {
                 </div>
               </div>
             ) : (
-              <table className="min-w-full border-separate border-spacing-0 text-left">
-                <thead className="sticky top-0 z-10 bg-white text-[13px] font-medium text-slate-400">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header, index) => (
-                        <th
-                          key={header.id}
-                          className={`border-b border-[#eeebe5] px-4 py-3 ${
-                            index < headerGroup.headers.length - 1
-                              ? "border-r border-[#f2eee8]"
-                              : ""
-                          }`}
-                        >
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
+                <table className="min-w-full border-separate border-spacing-0 text-left">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header, index) => (
+                          <th
+                            key={header.id}
+                            className={`border-b border-[#eeebe5] px-4 py-3 font-medium ${
+                              index < headerGroup.headers.length - 1
+                                ? "border-r border-[#f2eee8]"
+                                : ""
+                            }`}
+                          >
+                            <SortableHeaderCell header={header} />
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
                 <tbody className="text-[14px] text-slate-600">
                   {table.getRowModel().rows.map((row) => (
                     <tr
@@ -539,63 +620,10 @@ function MonthlyReportingDashboard() {
                   ))}
                 </tbody>
               </table>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total,
-                  )}{" "}
-                  of {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: pagination.totalPages },
-                  (_, i) => i + 1,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+              )}
             </div>
-          )}
-        </div>
+          </DataTableToolbar>
+        </section>
 
         {showDetailPanel && (
           <aside className="app-panel app-detail-panel relative flex w-full max-w-full lg:w-[500px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">

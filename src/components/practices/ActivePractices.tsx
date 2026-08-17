@@ -321,7 +321,7 @@ function ActivePracticesPage() {
       activeModule="Practice"
       activeSubItem="Active Practice"
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
+      // navbarActions={navbarActions}
     >
       <div className="app-split font-app-sans">
         <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">

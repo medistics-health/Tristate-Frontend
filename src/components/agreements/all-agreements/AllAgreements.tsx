@@ -16,7 +16,6 @@ import {
   ChevronDown,
   ChevronLeft,
   Circle,
-  LayoutList,
   Pencil,
   Plus,
   Save,
@@ -25,7 +24,6 @@ import {
   ExternalLink,
   FileText,
   GitBranch,
-  Settings,
   Search,
 } from "lucide-react";
 import {
@@ -38,6 +36,12 @@ import {
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import AppLayout from "../../layout/AppLayout";
+import { DetailCard } from "../../../components/shared/tablePageUtils";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../../shared/DataTableToolbar";
+import Select from "../../shared/Select";
 import {
   createAgreementApi,
   createDocusealSubmissionApi,
@@ -72,7 +76,6 @@ import { getAllPractices } from "../../../services/operations/practices";
 import { getAllServices } from "../../../services/operations/services";
 import { getAllVendorsApi } from "../../../services/operations/vendors";
 import type { Practice } from "../../practices/types";
-import { DetailCard } from "../../../components/shared/tablePageUtils";
 import {
   buildTemplateFieldValues,
   type DocusealField,
@@ -284,7 +287,6 @@ function AllAgreementsPage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -481,40 +483,39 @@ function AllAgreementsPage() {
     getSortedRowModel: getSortedRowModel(),
   });
 
+  const refreshAgreementRecords = async () => {
+    if (!(filters.search.length > 2 || filters.search.length === 0)) return;
+
+    try {
+      setIsLoading(true);
+      const params: Record<string, unknown> = {
+        page: pagination.page,
+        limit: pagination.limit,
+        search: filters.search || undefined,
+        status: filters.status || undefined,
+        type: filters.type || undefined,
+        practiceId: searchParams.get("practiceId") || undefined,
+      };
+      if (sorting[0]?.id) {
+        params.sortBy = sorting[0].id;
+        params.sortOrder = sorting[0]?.desc ? "desc" : "asc";
+      }
+
+      const data = await getAgreementsView(params as any);
+      setRows(data.rows);
+      setPagination(data.pagination);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load agreements";
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
-      async function loadData() {
-        try {
-          setIsLoading(true);
-          const params: Record<string, unknown> = {
-            page: pagination.page,
-            limit: pagination.limit,
-            search: filters.search || undefined,
-            status: filters.status || undefined,
-            type: filters.type || undefined,
-            practiceId: searchParams.get("practiceId") || undefined,
-          };
-          if (sorting[0]?.id) {
-            params.sortBy = sorting[0].id;
-            params.sortOrder = sorting[0]?.desc ? "desc" : "asc";
-          }
-
-          const data = await getAgreementsView(params as any);
-          setRows(data.rows);
-
-          setPagination(data.pagination);
-        } catch (err) {
-          const message =
-            err instanceof Error ? err.message : "Failed to load agreements";
-          toast.error(message);
-        } finally {
-          setIsLoading(false);
-        }
-      }
-
-      if (filters.search.length > 2 || filters.search.length === 0) {
-        loadData();
-      }
+      refreshAgreementRecords();
     }, 500);
 
     return () => clearTimeout(timer);
@@ -1203,6 +1204,78 @@ function AllAgreementsPage() {
         },
       ]
     : [];
+
+  const activeFilterCount = [filters.status, filters.type].filter(Boolean).length;
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.status) {
+      chips.push({
+        key: "status",
+        label: "Status",
+        displayValue: formatStatusLabel(filters.status),
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, status: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.type) {
+      chips.push({
+        key: "type",
+        label: "Type",
+        displayValue: filters.type,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, type: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    return chips;
+  }, [filters.status, filters.type]);
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Status
+        </span>
+        <Select
+          value={filters.status}
+          onChange={(val) => {
+            setFilters((prev) => ({ ...prev, status: val }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          options={[
+            { label: "All Statuses", value: "" },
+            ...agreementStatusOptions.map((status) => ({
+              label: formatStatusLabel(status),
+              value: status,
+            })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Type
+        </span>
+        <Select
+          value={filters.type}
+          onChange={(val) => {
+            setFilters((prev) => ({ ...prev, type: val }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          options={[
+            { label: "All Types", value: "" },
+            ...agreementTypeOptions.map((type) => ({
+              label: type,
+              value: type,
+            })),
+          ]}
+        />
+      </label>
+    </>
+  );
 
   const detailPanel = (
     <aside className="app-panel app-detail-panel relative flex w-full max-w-full lg:w-[500px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
@@ -2400,49 +2473,37 @@ function AllAgreementsPage() {
     </aside>
   );
 
-  if (isLoading) {
-    return (
-      <AppLayout
-        title="Agreements"
-        activeModule="Agreements"
-        activeSubItem="All Agreements"
-        navbarActions={navbarActions}
-      >
-        <div className="flex h-full items-center justify-center">
-          <div className="text-slate-400">Loading agreements...</div>
-        </div>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout
       title="Agreements"
       activeModule="Agreements"
       activeSubItem="All Agreements"
-      navbarActions={navbarActions}
+      // navbarActions={navbarActions}
     >
       <div className="app-split font-app-sans">
-        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e8e3db] bg-white">
-          <div className="flex items-center justify-between border-b border-[#eeebe5] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
-              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
-              <span>Agreements</span>
-              {/*<span className="text-slate-400">
-                .{table.getRowModel().rows.length}
-              </span>*/}
-            </button>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel(!showFilterPanel)}
-              >
-                Filters
-              </button>
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="Agreements"
+            subtitle="Agreements"
+            searchPlaceholder="Search agreements..."
+            searchValue={filters.search}
+            onSearchChange={(value) =>
+              setFilters((prev) => ({ ...prev, search: value }))
+            }
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={() =>
+              setFilters({ search: "", status: "", type: "" })
+            }
+            filterModalTitle="Filter Agreements"
+            filterFields={filterFieldsModal}
+            addNewLabel={canWriteAgreements ? "Add Agreement" : undefined}
+            onAddNew={canWriteAgreements ? openCreateForm : undefined}
+            onRefresh={refreshAgreementRecords}
+            isLoading={isLoading}
+            isSaving={isSaving || isSubmitting}
+            isDeleting={isDeleting}
+            extraActions={
               <button
                 type="button"
                 onClick={() =>
@@ -2452,178 +2513,85 @@ function AllAgreementsPage() {
                       : [{ id: "creationDate", desc: true }],
                   )
                 }
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors"
               >
                 Sort
               </button>
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <select
-                value={filters.status}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, status: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Statuses</option>
-                {agreementStatusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {formatStatusLabel(status)}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={filters.type}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, type: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Types</option>
-                {agreementTypeOptions.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setFilters({ search: "", status: "", type: "" })}
-                className="text-[13px] text-[#4f63ea] hover:underline"
-                disabled={!filters.status && !filters.type}
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            <table className="min-w-full border-separate border-spacing-0 text-left">
-              <thead className="sticky top-0 z-10 bg-white text-[13px] font-medium text-slate-400">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header, index) => (
-                      <th
-                        key={header.id}
-                        className={`border-b border-[#eeebe5] px-4 py-3 ${
-                          index < headerGroup.headers.length - 1
-                            ? "border-r border-[#f2eee8]"
-                            : ""
-                        }`}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody className="text-[14px] text-slate-600">
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className={
-                      selectedRowId === row.original.id
-                        ? "bg-[#fcfbf9]"
-                        : "bg-white"
-                    }
-                  >
-                    {row.getVisibleCells().map((cell, index) => (
-                      <td
-                        key={cell.id}
-                        className={`border-b border-[#f4f1ec] px-4 py-3 ${
-                          index < row.getVisibleCells().length - 1
-                            ? "border-r border-[#f5f2ed]"
-                            : ""
-                        }`}
-                      >
-                        {cell.column.id === "name" ? (
-                          <button
-                            type="button"
-                            onClick={() => handleRowClick(row.original.id)}
-                            className="hover:text-[#4f63ea]"
-                          >
-                            {flexRender(
+            }
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onPageSizeChange={(newSize) =>
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }))
+            }
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              <table className="min-w-full border-separate border-spacing-0 text-left">
+                <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header, index) => (
+                        <th
+                          key={header.id}
+                          className={`border-b border-[#eeebe5] px-4 py-3 font-medium ${
+                            index < headerGroup.headers.length - 1
+                              ? "border-r border-[#f2eee8]"
+                              : ""
+                          }`}
+                        >
+                          <SortableHeaderCell header={header} />
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody className="text-[14px] text-slate-600">
+                  {table.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className={
+                        selectedRowId === row.original.id
+                          ? "bg-[#fcfbf9]"
+                          : "bg-white"
+                      }
+                    >
+                      {row.getVisibleCells().map((cell, index) => (
+                        <td
+                          key={cell.id}
+                          className={`border-b border-[#f4f1ec] px-4 py-3 ${
+                            index < row.getVisibleCells().length - 1
+                              ? "border-r border-[#f5f2ed]"
+                              : ""
+                          }`}
+                        >
+                          {cell.column.id === "name" ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRowClick(row.original.id)}
+                              className="hover:text-[#4f63ea]"
+                            >
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </button>
+                          ) : (
+                            flexRender(
                               cell.column.columnDef.cell,
                               cell.getContext(),
-                            )}
-                          </button>
-                        ) : (
-                          flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total,
-                  )}{" "}
-                  of {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: pagination.totalPages },
-                  (_, i) => i + 1,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+                            )
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+          </DataTableToolbar>
+        </section>
 
         {showDetailPanel && detailPanel}
         {showCreateForm && createPanel}

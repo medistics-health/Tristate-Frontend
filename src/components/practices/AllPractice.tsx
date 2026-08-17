@@ -9,13 +9,11 @@ import {
 import {
   CalendarDays,
   FileText,
-  LayoutGrid,
   SlidersHorizontal,
   UserCircle2,
   Circle,
   Plus,
   Building2,
-  MapPin,
   Tag,
   X,
   Save,
@@ -25,16 +23,20 @@ import {
   ChevronRight,
   Mail,
   Shield,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
-import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
+import { EmptyStateIllustration } from "../shared/tablePageUtils";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
+import { getResponsivePageSize } from "../shared/TablePagination";
 import type {
+  PracticeBody,
   PracticeCellValue,
   Practice,
   PracticeRow,
@@ -218,17 +220,29 @@ export default function AllPracticePage() {
   const [companyTaxIds, setCompanyTaxIds] = useState<TaxIdOption[]>([]);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 10,
+    limit: getResponsivePageSize(),
     total: 0,
     totalPages: 0,
   });
-  const [filters, setFilters] = useState({
+  const [userSelectedPageSize, setUserSelectedPageSize] = useState(false);
+
+  type PracticeFilters = {
+    search: string;
+    status: string;
+    source: string;
+    companyId: string;
+  };
+
+  const defaultFilters: PracticeFilters = {
     search: "",
     status: "",
     source: "",
     companyId: "",
-  });
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  };
+
+  const [filters, setFilters] = useState<PracticeFilters>(defaultFilters);
+  const [draftFilters, setDraftFilters] = useState<PracticeFilters>(defaultFilters);
+  const [searchInput, setSearchInput] = useState("");
   const [groupNpiEntries, setGroupNpiEntries] = useState<GroupNpiFormEntry[]>(
     [],
   );
@@ -263,10 +277,91 @@ export default function AllPracticePage() {
     [rows, selectedRowId],
   );
 
-  const whenToSearch = filters.search.length > 3 || filters.search.length === 0;
+  const whenToSearch = searchInput.length > 3 || searchInput.length === 0;
 
-  const disableMe =
-    !filters.search && !filters.status && !filters.source && !filters.companyId;
+  useEffect(() => {
+    function handleResize() {
+      if (!userSelectedPageSize) {
+        const newSize = getResponsivePageSize();
+        setPagination((prev) => ({ ...prev, limit: newSize }));
+      }
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [userSelectedPageSize]);
+
+  const handleOpenFilterModal = () => {
+    setDraftFilters(filters);
+    if (companies.length === 0) {
+      setCompaniesLoading(true);
+      getAllCompanies()
+        .then(setCompanies)
+        .catch((err) => console.error("Failed to load companies:", err))
+        .finally(() => setCompaniesLoading(false));
+    }
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(draftFilters);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
+    setSearchInput("");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const activeFilterCount = [
+    filters.status,
+    filters.source,
+    filters.companyId,
+  ].filter(Boolean).length;
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.status) {
+      chips.push({
+        key: "status",
+        label: "Status",
+        displayValue: filters.status,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, status: "" }));
+          setDraftFilters((curr) => ({ ...curr, status: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.source) {
+      chips.push({
+        key: "source",
+        label: "Source",
+        displayValue: filters.source.replace("_", " "),
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, source: "" }));
+          setDraftFilters((curr) => ({ ...curr, source: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.companyId) {
+      const companyName =
+        companies.find((company) => company.id === filters.companyId)?.name ||
+        filters.companyId;
+      chips.push({
+        key: "companyId",
+        label: "Company",
+        displayValue: companyName,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, companyId: "" }));
+          setDraftFilters((curr) => ({ ...curr, companyId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    return chips;
+  }, [filters, companies]);
 
   useEffect(() => {
     async function loadSystemSettings() {
@@ -280,43 +375,55 @@ export default function AllPracticePage() {
     loadSystemSettings();
   }, []);
 
+  const refreshPracticeRecords = async () => {
+    if (!whenToSearch) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      const params: PracticeQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+        ...(searchInput.trim() && { search: searchInput.trim() }),
+        ...(filters.status && { status: filters.status }),
+        ...(filters.source && { source: filters.source }),
+        ...(filters.companyId && { companyId: filters.companyId }),
+        sortBy: sorting[0]?.id || "createdAt",
+        sortOrder: sorting[0]?.desc ? "desc" : "asc",
+      };
+      const data = await getPracticesView(params);
+      setViewData(data);
+      setRows(data.rows);
+      setPagination(data.pagination);
+      const visibility: Record<string, boolean> = {};
+      data.fields.forEach((field) => {
+        visibility[field.id] = field.visible;
+      });
+      setColumnVisibility(visibility);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load practices";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const params: PracticeQueryParams = {
-          page: pagination.page,
-          limit: pagination.limit,
-          ...(filters.search && { search: filters.search }),
-          ...(filters.status && { status: filters.status }),
-          ...(filters.source && { source: filters.source }),
-          ...(filters.companyId && { companyId: filters.companyId }),
-          sortBy: sorting[0]?.id || "createdAt",
-          sortOrder: sorting[0]?.desc ? "desc" : "asc",
-        };
-        const data = await getPracticesView(params);
-        setViewData(data);
-        setRows(data.rows);
-        setPagination(data.pagination);
-        const visibility: Record<string, boolean> = {};
-        data.fields.forEach((field) => {
-          visibility[field.id] = field.visible;
-        });
-        setColumnVisibility(visibility);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load practices";
-        setError(message);
-        toast.error(message);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    if (whenToSearch) {
-      loadData();
-    }
-  }, [pagination.page, pagination.limit, sorting, filters]);
+    const timer = setTimeout(() => {
+      refreshPracticeRecords();
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    pagination.page,
+    pagination.limit,
+    sorting,
+    filters,
+    searchInput,
+    whenToSearch,
+  ]);
 
   // useEffect(() => {
   //   setPagination((prev) => ({ ...prev, page: 1 }));
@@ -701,16 +808,6 @@ export default function AllPracticePage() {
         .finally(() => setCompaniesLoading(false));
     }
   }, [isEditing]);
-
-  useEffect(() => {
-    if (showFilterPanel && companies.length === 0) {
-      setCompaniesLoading(true);
-      getAllCompanies()
-        .then(setCompanies)
-        .catch((err) => console.error("Failed to load companies:", err))
-        .finally(() => setCompaniesLoading(false));
-    }
-  }, [showFilterPanel]);
 
   function handleFormChange(field: keyof PracticeFormData, value: string) {
     setFormData((prev) => {
@@ -1791,40 +1888,84 @@ export default function AllPracticePage() {
     );
   };
 
-  if (isLoading) {
-    return (
-      <AppLayout
-        title="Practices"
-        activeModule="Practices"
-        activeSubItem="All Practices"
-      >
-        <div className="flex h-full items-center justify-center">
-          <div className="text-slate-400">Loading practices...</div>
-        </div>
-      </AppLayout>
-    );
-  }
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Status
+        </span>
+        <Select
+          value={draftFilters.status}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, status: val }))
+          }
+          options={[
+            { label: "All Statuses", value: "" },
+            ...statusOptions.map((status) => ({
+              label: status,
+              value: status,
+            })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Source
+        </span>
+        <Select
+          value={draftFilters.source}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, source: val }))
+          }
+          options={[
+            { label: "All Sources", value: "" },
+            ...sourceOptions.map((source) => ({
+              label: source.replace("_", " "),
+              value: source,
+            })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Company
+        </span>
+        <Select
+          value={draftFilters.companyId}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, companyId: val }))
+          }
+          disabled={companiesLoading}
+          options={[
+            {
+              label: companiesLoading ? "Loading companies..." : "All Companies",
+              value: "",
+            },
+            ...companies.map((company) => ({
+              label: company.name,
+              value: company.id,
+            })),
+          ]}
+        />
+      </label>
+    </>
+  );
 
-  if (error && rows.length === 0) {
-    return (
-      <AppLayout
-        title="Practices"
-        activeModule="Practices"
-        activeSubItem="All Practices"
-      >
-        <div className="flex h-full flex-col items-center justify-center gap-4">
-          <div className="text-red-500">{error}</div>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="app-control rounded-md px-4 py-2 text-[14px] font-medium"
-          >
-            Retry
-          </button>
+  const renderTableHeader = (
+    header: ReturnType<typeof table.getHeaderGroups>[number]["headers"][number],
+  ) => {
+    if (header.isPlaceholder) return null;
+    if (header.id === "select" || header.id === "add") {
+      return (
+        <div
+          className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
+        >
+          {flexRender(header.column.columnDef.header, header.getContext())}
         </div>
-      </AppLayout>
-    );
-  }
+      );
+    }
+    return <SortableHeaderCell header={header} />;
+  };
 
   return (
     <AppLayout
@@ -1832,384 +1973,237 @@ export default function AllPracticePage() {
       activeModule="Practices"
       activeSubItem="All Practices"
       navbarIcon={<Building2 className="h-4 w-4 text-slate-500" />}
-      navbarActions={
-        canWritePractices ? getStandardNavbarActions(openCreateForm) : []
-      }
+      // navbarActions={
+      //   canWritePractices ? getStandardNavbarActions(openCreateForm) : []
+      // }
     >
-      <div className="app-split">
-        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
-          <div className="app-toolbar justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <div className="relative">
-              <LayoutGrid className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <div className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none">
-                All Practices
-              </div>
-            </div>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel(!showFilterPanel)}
-              >
-                Filter
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setSorting((current) =>
-                    current[0]?.id === "creationDate"
-                      ? [{ id: "creationDate", desc: !current[0].desc }]
-                      : [{ id: "creationDate", desc: true }],
-                  )
-                }
-              >
-                Sort
-              </button>
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <input
-                type="text"
-                placeholder="Search by name..."
-                value={filters.search}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, search: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              />
-              <select
-                value={filters.status}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, status: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Statuses</option>
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={filters.source}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, source: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Sources</option>
-                {sourceOptions.map((source) => (
-                  <option key={source} value={source}>
-                    {source}
-                  </option>
-                ))}
-              </select>
-              {companies.length > 0 && (
-                <select
-                  value={filters.companyId}
-                  onChange={(e) => {
-                    setFilters((prev) => ({
-                      ...prev,
-                      companyId: e.target.value,
-                    }));
-                    setPagination((prev) => ({ ...prev, page: 1 }));
-                  }}
-                  className="app-control rounded-md px-3 py-1.5 text-[13px]"
-                >
-                  <option value="">All Companies</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                type="button"
-                onClick={() =>
-                  setFilters({
-                    search: "",
-                    status: "",
-                    source: "",
-                    companyId: "",
-                  })
-                }
-                disabled={disableMe}
-                className="text-[13px] text-[#4f63ea] hover:underline"
-              >
-                Clear filters
-              </button>
-              <button
-                type="button"
-                onClick={() => setGroupedView(!groupedView)}
-                className={`text-[13px] px-2 py-1 rounded ${
-                  groupedView
-                    ? "bg-[#4f63ea] text-white"
-                    : "text-slate-500 hover:bg-[#f0ece6]"
-                }`}
-              >
-                {groupedView ? "Grouped" : "Group"}
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            {groupedView ? (
-              <div className="divide-y divide-[#f4f1ec]">
-                {groupedRows.map((item: any, idx) => {
-                  if (item.type === "group") {
-                    return (
-                      <div key={item.groupKey} className="bg-white">
-                        <button
-                          type="button"
-                          onClick={() => toggleGroup(item.groupKey)}
-                          className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-[#faf9f7]"
-                        >
-                          <div className="flex items-center gap-3">
-                            <ChevronRight
-                              className={`h-4 w-4 text-slate-400 transition-transform ${
-                                item.isExpanded ? "rotate-90" : ""
-                              }`}
-                            />
-                            <span className="text-[14px] font-medium text-slate-700">
-                              {item.groupName}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              ({item.practices.length} practices)
-                            </span>
-                          </div>
-                          <span className="text-xs text-slate-400">
-                            {item.groupKey !== "ungrouped" && item.groupKey}
-                          </span>
-                        </button>
-                        {item.isExpanded && (
-                          <div className="border-t border-[#f4f1ec]">
-                            <table className="min-w-full border-separate border-spacing-0">
-                              <thead className="sticky top-0 z-10 bg-[#faf9f7]">
-                                {table.getHeaderGroups().map((headerGroup) => (
-                                  <tr key={headerGroup.id}>
-                                    {headerGroup.headers.map((header) => (
-                                      <th
-                                        key={header.id}
-                                        className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                                      >
-                                        {header.isPlaceholder ? null : (
-                                          <div
-                                            className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
-                                          >
-                                            {flexRender(
-                                              header.column.columnDef.header,
-                                              header.getContext(),
-                                            )}
-                                            {header.column.getCanSort() &&
-                                              header.id !== "select" &&
-                                              (header.column.getIsSorted() ===
-                                              "asc" ? (
-                                                <ArrowUp className="h-3 w-3 text-slate-500" />
-                                              ) : header.column.getIsSorted() ===
-                                                "desc" ? (
-                                                <ArrowDown className="h-3 w-3 text-slate-500" />
-                                              ) : (
-                                                <ArrowUpDown className="h-3 w-3 text-slate-300" />
-                                              ))}
-                                          </div>
-                                        )}
-                                      </th>
-                                    ))}
-                                  </tr>
-                                ))}
-                              </thead>
-                              <tbody>
-                                {item.practices.map((row) => (
-                                  <tr
-                                    key={row.id}
-                                    onClick={() => handleRowClick(row.id)}
-                                    className={`cursor-pointer ${selectedRowId === row.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
-                                  >
-                                    {table.getAllColumns().map((col) => (
-                                      <td
-                                        key={col.id}
-                                        className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
-                                      >
-                                        {renderCell(row, col.id)}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    );
+      <div className="app-split font-app-sans">
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="All Practices"
+            subtitle="Practices"
+            searchPlaceholder="Search practices by name..."
+            searchValue={searchInput}
+            onSearchChange={(value) => {
+              setSearchInput(value);
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Practices"
+            filterFields={filterFieldsModal}
+            addNewLabel={canWritePractices ? "Add Practice" : undefined}
+            onAddNew={canWritePractices ? openCreateForm : undefined}
+            onRefresh={refreshPracticeRecords}
+            isLoading={isLoading}
+            isSaving={isSubmitting}
+            isDeleting={isDeleting}
+            extraActions={
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSorting((current) =>
+                      current[0]?.id === "creationDate"
+                        ? [{ id: "creationDate", desc: !current[0].desc }]
+                        : [{ id: "creationDate", desc: true }],
+                    )
                   }
-                  return null;
-                })}
-              </div>
-            ) : (
-              <table className="min-w-full border-separate border-spacing-0">
-                <thead className="sticky top-0 z-10 bg-white">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <th
-                          key={header.id}
-                          className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                          style={{
-                            width: header.getSize()
-                              ? `${header.getSize()}px`
-                              : undefined,
-                          }}
-                        >
-                          {header.isPlaceholder ? null : (
-                            <button
-                              type="button"
-                              onClick={
-                                header.column.getCanSort()
-                                  ? header.column.getToggleSortingHandler()
-                                  : undefined
-                              }
-                              className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                              {header.column.getCanSort() &&
-                                header.id !== "select" &&
-                                (header.column.getIsSorted() === "asc" ? (
-                                  <ArrowUp className="h-3 w-3 text-slate-500" />
-                                ) : header.column.getIsSorted() === "desc" ? (
-                                  <ArrowDown className="h-3 w-3 text-slate-500" />
-                                ) : (
-                                  <ArrowUpDown className="h-3 w-3 text-slate-300" />
-                                ))}
-                            </button>
-                          )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => (
-                    <tr
-                      key={row.id}
-                      onClick={() => handleRowClick(row.original.id)}
-                      className={`cursor-pointer ${selectedRowId === row.original.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
-                          className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {rows.length === 0 ? (
-              <div className="relative flex min-h-[520px] items-center justify-center">
-                <div className="absolute inset-y-0 left-[42px] w-px bg-[#f7f2ec]" />
-                <div className="flex max-w-md flex-col items-center px-6 text-center">
-                  <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    Add your first Practice
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    Use our API or add your first Practice manually
-                  </p>
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors"
+                >
+                  Sort
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroupedView(!groupedView)}
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+                    groupedView
+                      ? "border-[#4f63ea]/40 bg-[#f0f2fe] text-[#4f63ea] hover:bg-[#e4e7fd]"
+                      : "border-[#ece8e1] bg-white text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb]"
+                  }`}
+                >
+                  {groupedView ? "Grouped" : "Group"}
+                </button>
+              </>
+            }
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onPageSizeChange={(newSize) => {
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+              setUserSelectedPageSize(true);
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {error && rows.length === 0 ? (
+                <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
+                  <div className="text-red-500">{error}</div>
                   <button
                     type="button"
-                    onClick={openCreateForm}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
+                    onClick={refreshPracticeRecords}
+                    className="app-control rounded-md px-4 py-2 text-[14px] font-medium"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add a Practice
+                    Retry
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="border-b border-[#f4f1ec] px-4 py-2 text-[13px] text-slate-400">
-                <button
-                  type="button"
-                  onClick={openCreateForm}
-                  className="inline-flex items-center gap-2"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add New
-                </button>
-              </div>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total,
-                  )}{" "}
-                  of {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: pagination.totalPages },
-                  (_, i) => i + 1,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+              ) : rows.length === 0 ? (
+                <div className="relative flex min-h-[400px] items-center justify-center">
+                  <div className="flex max-w-md flex-col items-center px-6 text-center">
+                    <EmptyStateIllustration />
+                    <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
+                      Add your first Practice
+                    </h2>
+                    <p className="mt-2 text-[14px] text-slate-400">
+                      Use our API or add your first Practice manually
+                    </p>
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="app-control mt-5 inline-flex items-center gap-2 rounded-md bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add a Practice
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+              {groupedView ? (
+                <div className="divide-y divide-[#f4f1ec]">
+                  {groupedRows.map((item: any) => {
+                    if (item.type === "group") {
+                      return (
+                        <div key={item.groupKey} className="bg-white">
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(item.groupKey)}
+                            className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-[#faf9f7]"
+                          >
+                            <div className="flex items-center gap-3">
+                              <ChevronRight
+                                className={`h-4 w-4 text-slate-400 transition-transform ${
+                                  item.isExpanded ? "rotate-90" : ""
+                                }`}
+                              />
+                              <span className="text-[14px] font-medium text-slate-700">
+                                {item.groupName}
+                              </span>
+                              <span className="text-xs text-slate-400">
+                                ({item.practices.length} practices)
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-400">
+                              {item.groupKey !== "ungrouped" && item.groupKey}
+                            </span>
+                          </button>
+                          {item.isExpanded && (
+                            <div className="border-t border-[#f4f1ec]">
+                              <table className="min-w-full border-separate border-spacing-0">
+                                <thead className="sticky top-0 z-10 bg-[#faf9f7] text-[12px] uppercase tracking-wide text-slate-400">
+                                  {table.getHeaderGroups().map((headerGroup) => (
+                                    <tr key={headerGroup.id}>
+                                      {headerGroup.headers.map((header) => (
+                                        <th
+                                          key={header.id}
+                                          className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
+                                        >
+                                          {renderTableHeader(header)}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </thead>
+                                <tbody>
+                                  {item.practices.map((row) => (
+                                    <tr
+                                      key={row.id}
+                                      onClick={() => handleRowClick(row.id)}
+                                      className={`cursor-pointer ${selectedRowId === row.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                                    >
+                                      {table.getAllColumns().map((col) => (
+                                        <td
+                                          key={col.id}
+                                          className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-4 py-3 text-[13px] text-slate-600 last:border-r-0"
+                                        >
+                                          {renderCell(row, col.id)}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              ) : (
+                <table className="min-w-full border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
+                            style={{
+                              width: header.getSize()
+                                ? `${header.getSize()}px`
+                                : undefined,
+                            }}
+                          >
+                            {renderTableHeader(header)}
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.map((row) => (
+                      <tr
+                        key={row.id}
+                        onClick={() => handleRowClick(row.original.id)}
+                        className={`cursor-pointer ${selectedRowId === row.original.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <td
+                            key={cell.id}
+                            className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-4 py-3 text-[13px] text-slate-600 last:border-r-0"
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+                  {/* <div className="border-b border-[#f4f1ec] px-4 py-2 text-[13px] text-slate-400">
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="inline-flex items-center gap-2"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add New
+                    </button>
+                  </div> */}
+                </>
+              )}
             </div>
-          )}
-        </div>
+          </DataTableToolbar>
+        </section>
 
         {showDetailPanel && selectedRow && (
           <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[450px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
