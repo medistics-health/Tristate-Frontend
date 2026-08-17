@@ -21,6 +21,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
 import {
   getMonthlyReportsView,
   getMonthlyReport,
@@ -324,13 +329,162 @@ function MonthlyReportingDashboard() {
     setEditMetrics((prev) => ({ ...prev, [key]: value }));
   }
 
-  const navbarActions = [
-    {
-      label: "Submit Report",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: () => navigate("/monthly-reporting/submit"),
-    },
-  ];
+  const [searchInput, setSearchInput] = useState("");
+  const [draftStatus, setDraftStatus] = useState("");
+  const [draftPracticeName, setDraftPracticeName] = useState("");
+  const [draftServiceName, setDraftServiceName] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedPracticeName, setSelectedPracticeName] = useState("");
+  const [selectedServiceName, setSelectedServiceName] = useState("");
+
+  const handleOpenFilterModal = () => {
+    setDraftStatus(selectedStatus);
+    setDraftPracticeName(selectedPracticeName);
+    setDraftServiceName(selectedServiceName);
+  };
+
+  const handleApplyFilters = () => {
+    setSelectedStatus(draftStatus);
+    setSelectedPracticeName(draftPracticeName);
+    setSelectedServiceName(draftServiceName);
+    setFilters({
+      search: searchInput,
+      status: draftStatus,
+      practiceName: draftPracticeName,
+      serviceName: draftServiceName,
+    });
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setDraftStatus("");
+    setDraftPracticeName("");
+    setDraftServiceName("");
+    setSelectedStatus("");
+    setSelectedPracticeName("");
+    setSelectedServiceName("");
+    setSearchInput("");
+    setFilters({ search: "", status: "", practiceName: "", serviceName: "" });
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const activeFilterCount =
+    (selectedStatus ? 1 : 0) +
+    (selectedPracticeName ? 1 : 0) +
+    (selectedServiceName ? 1 : 0);
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (selectedStatus) {
+      chips.push({
+        key: "status",
+        label: "Status",
+        displayValue: selectedStatus,
+        onClear: () => {
+          setSelectedStatus("");
+          setDraftStatus("");
+          setFilters((prev) => ({ ...prev, status: "" }));
+        },
+      });
+    }
+    if (selectedPracticeName) {
+      chips.push({
+        key: "practiceName",
+        label: "Practice",
+        displayValue: selectedPracticeName,
+        onClear: () => {
+          setSelectedPracticeName("");
+          setDraftPracticeName("");
+          setFilters((prev) => ({ ...prev, practiceName: "" }));
+        },
+      });
+    }
+    if (selectedServiceName) {
+      chips.push({
+        key: "serviceName",
+        label: "Service",
+        displayValue: selectedServiceName,
+        onClear: () => {
+          setSelectedServiceName("");
+          setDraftServiceName("");
+          setFilters((prev) => ({ ...prev, serviceName: "" }));
+        },
+      });
+    }
+    return chips;
+  }, [selectedStatus, selectedPracticeName, selectedServiceName]);
+
+  const exportCsv = () => {
+    if (rows.length === 0) return;
+    const headers = ["Practice", "Service", "Month", "Year", "Due Date", "Status"];
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [
+        headers.join(","),
+        ...rows.map((r) =>
+          [
+            `"${r.values.practiceName}"`,
+            `"${r.values.serviceName}"`,
+            `"${r.values.month}"`,
+            `"${r.values.year}"`,
+            `"${r.values.dueDate}"`,
+            `"${r.values.status}"`,
+          ].join(","),
+        ),
+      ].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `monthly_reports_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Status
+        </span>
+        <Select
+          value={draftStatus}
+          onChange={setDraftStatus}
+          options={[
+            { label: "All Statuses", value: "" },
+            { label: "Pending", value: "Pending" },
+            { label: "Submitted", value: "Submitted" },
+          ]}
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Practice Name
+        </span>
+        <input
+          type="text"
+          placeholder="Filter by practice..."
+          value={draftPracticeName}
+          onChange={(e) => setDraftPracticeName(e.target.value)}
+          className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Service Name
+        </span>
+        <input
+          type="text"
+          placeholder="Filter by service..."
+          value={draftServiceName}
+          onChange={(e) => setDraftServiceName(e.target.value)}
+          className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+        />
+      </label>
+    </>
+  );
 
   return (
     <AppLayout
@@ -338,264 +492,109 @@ function MonthlyReportingDashboard() {
       activeModule="Monthly Reports"
       activeSubItem="Dashboard"
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
     >
-      <div className="app-split">
-        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
-              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
-              <span>Monthly Reporting Dashboard</span>
-            </button>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel(!showFilterPanel)}
-              >
-                Filters
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setSorting((current) =>
-                    current[0]?.id === "dueDate"
-                      ? [{ id: "dueDate", desc: !current[0].desc }]
-                      : [{ id: "dueDate", desc: true }],
-                  )
-                }
-              >
-                Sort
-              </button>
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <select
-                value={filters.status}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, status: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="Submitted">Submitted</option>
-              </select>
-              <input
-                type="text"
-                placeholder="Search by practice..."
-                value={filters.practiceName}
-                onChange={(e) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    practiceName: e.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px] w-48"
-              />
-              <input
-                type="text"
-                placeholder="Search by service..."
-                value={filters.serviceName}
-                onChange={(e) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    serviceName: e.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px] w-48"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  setFilters({
-                    search: "",
-                    status: "",
-                    practiceName: "",
-                    serviceName: "",
-                  })
-                }
-                disabled={
-                  !filters.status &&
-                  !filters.practiceName &&
-                  !filters.serviceName
-                }
-                className="text-[13px] text-[#4f63ea] hover:underline disabled:opacity-40"
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            {isLoading ? (
-              <div className="flex min-h-[300px] items-center justify-center gap-2 text-slate-400">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span className="text-[13px]">Loading reports...</span>
-              </div>
-            ) : error && rows.length === 0 ? (
-              <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
-                <div className="text-[13px] text-red-500">{error}</div>
-                <button
-                  type="button"
-                  onClick={() => window.location.reload()}
-                  className="app-control rounded-md px-4 py-2 text-[13px] font-medium"
-                >
-                  Retry
-                </button>
-              </div>
-            ) : rows.length === 0 ? (
-              <div className="relative flex min-h-[400px] items-center justify-center">
-                <div className="flex max-w-md flex-col items-center px-6 text-center">
+      <div className="app-split font-app-sans">
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="Monthly Reporting Dashboard"
+            subtitle="Monthly Reports"
+            searchPlaceholder="Search reports by practice or service..."
+            searchValue={searchInput}
+            onSearchChange={(val) => {
+              setSearchInput(val);
+              setFilters((prev) => ({ ...prev, search: val }));
+            }}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Monthly Reports"
+            filterFields={filterFieldsModal}
+            addNewLabel="Submit Report"
+            onAddNew={() => navigate("/monthly-reporting/submit")}
+            onExport={exportCsv}
+            onRefresh={() => setPagination((prev) => ({ ...prev }))}
+            isLoading={isLoading}
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onPageSizeChange={(newSize) => {
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {isLoading ? (
+                <div className="flex min-h-[300px] items-center justify-center gap-2 text-slate-400">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-[13px]">Loading reports...</span>
+                </div>
+              ) : error && rows.length === 0 ? (
+                <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
+                  <div className="text-[13px] text-red-500">{error}</div>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="app-control rounded-md px-4 py-2 text-[13px] font-medium"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : rows.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 py-16 text-slate-400">
                   <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    No reports found
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    Submit your first monthly report to get started
-                  </p>
+                  <p className="text-[14px]">No reports found.</p>
                   <button
                     type="button"
                     onClick={() => navigate("/monthly-reporting/submit")}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Submit Report
+                    <Plus className="h-4 w-4" /> Submit Report
                   </button>
                 </div>
-              </div>
-            ) : (
-              <table className="min-w-full border-separate border-spacing-0 text-left">
-                <thead className="sticky top-0 z-10 bg-white text-[13px] font-medium text-slate-400">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header, index) => (
-                        <th
-                          key={header.id}
-                          className={`border-b border-[#eeebe5] px-4 py-3 ${
-                            index < headerGroup.headers.length - 1
-                              ? "border-r border-[#f2eee8]"
-                              : ""
+              ) : (
+                <table className="w-full text-[13px]">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id} className="border-b border-[#f0ece6] bg-[#faf9f7]">
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            className="px-4 py-3 text-left font-medium text-slate-500"
+                          >
+                            <SortableHeaderCell header={header} />
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.map((row) => {
+                      const isSelected = row.original.id === selectedRowId;
+                      return (
+                        <tr
+                          key={row.id}
+                          onClick={() => handleRowClick(row.original.id)}
+                          className={`cursor-pointer border-b border-[#f0ece6] transition-colors ${
+                            isSelected ? "bg-[#fcfbf9]" : "hover:bg-[#faf9f7]"
                           }`}
                         >
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody className="text-[14px] text-slate-600">
-                  {table.getRowModel().rows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={
-                        selectedRowId === row.original.id
-                          ? "bg-[#fcfbf9]"
-                          : "bg-white"
-                      }
-                    >
-                      {row.getVisibleCells().map((cell, index) => (
-                        <td
-                          key={cell.id}
-                          className={`border-b border-[#f4f1ec] px-4 py-3 ${
-                            index < row.getVisibleCells().length - 1
-                              ? "border-r border-[#f5f2ed]"
-                              : ""
-                          }`}
-                        >
-                          {cell.column.id === "practiceName" ? (
-                            <button
-                              type="button"
-                              onClick={() => handleRowClick(row.original.id)}
-                              className="hover:text-[#4f63ea]"
-                            >
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext(),
-                              )}
-                            </button>
-                          ) : (
-                            flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
-                            )
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total,
-                  )}{" "}
-                  of {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: pagination.totalPages },
-                  (_, i) => i + 1,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+                          {row.getVisibleCells().map((cell) => (
+                            <td key={cell.id} className="px-4 py-3 text-slate-600">
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
-        </div>
+          </DataTableToolbar>
+        </section>
 
         {showDetailPanel && (
           <aside className="app-panel app-detail-panel relative flex w-full max-w-full lg:w-[500px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">

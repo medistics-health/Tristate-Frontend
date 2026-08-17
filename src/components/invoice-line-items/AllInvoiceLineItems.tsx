@@ -24,9 +24,6 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
-import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
-import DatePicker from "../shared/DatePicker";
-import { getResponsivePageSize } from "../shared/TablePagination";
 import {
   getAllInvoices,
   type Invoice,
@@ -89,7 +86,15 @@ function buildFormState(lineItem?: InvoiceLineItem | null): FormState {
   };
 }
 
-function AllInvoiceLineItems() {
+type AllInvoiceLineItemsProps = {
+  viewMode?: "client" | "tristate";
+};
+
+function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) {
+  const isTristate = viewMode === "tristate";
+  const pageTitle = isTristate
+    ? "Tristate Invoice Line Items"
+    : "Client Invoice Line Items";
   const [rows, setRows] = useState<InvoiceLineItemRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,40 +107,13 @@ function AllInvoiceLineItems() {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: getResponsivePageSize(),
+    limit: 10,
     total: 0,
     totalPages: 0,
   });
-  const [userSelectedPageSize, setUserSelectedPageSize] = useState(false);
-
-  useEffect(() => {
-    function handleResize() {
-      if (!userSelectedPageSize) {
-        const newSize = getResponsivePageSize();
-        setPagination((prev) => ({ ...prev, limit: newSize }));
-      }
-    }
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [userSelectedPageSize]);
-
-  type LineItemFilters = {
-    invoiceId: string;
-    invoiceNumber: string;
-    dateFrom: string;
-    dateTo: string;
-  };
-
-  const defaultFilters: LineItemFilters = {
-    invoiceId: "",
-    invoiceNumber: "",
-    dateFrom: "",
-    dateTo: "",
-  };
-
-  const [filters, setFilters] = useState<LineItemFilters>(defaultFilters);
-  const [draftFilters, setDraftFilters] = useState<LineItemFilters>(defaultFilters);
+  const [filters, setFilters] = useState({ invoiceId: "" });
   const [searchInput, setSearchInput] = useState("");
+  const [draftInvoiceId, setDraftInvoiceId] = useState("");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "creationDate", desc: true },
   ]);
@@ -147,89 +125,6 @@ function AllInvoiceLineItems() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  const activeSort = sorting[0];
-
-  const handleOpenFilterModal = () => {
-    setDraftFilters(filters);
-  };
-
-  const handleApplyFilters = () => {
-    setFilters(draftFilters);
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  };
-
-  const resetFilters = () => {
-    setFilters(defaultFilters);
-    setDraftFilters(defaultFilters);
-    setSearchInput("");
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  };
-
-  const activeFilterCount = [
-    filters.invoiceId,
-    filters.invoiceNumber,
-    filters.dateFrom,
-    filters.dateTo,
-  ].filter(Boolean).length;
-
-  const invoiceFilterLabel = useMemo(
-    () => invoices.find((inv) => inv.id === filters.invoiceId)?.invoiceNumber || filters.invoiceId,
-    [invoices, filters.invoiceId],
-  );
-
-  const activeFilterChips = useMemo(() => {
-    const chips: ActiveFilterChip[] = [];
-    if (filters.invoiceId) {
-      chips.push({
-        key: "invoiceId",
-        label: "Invoice",
-        displayValue: invoiceFilterLabel,
-        onClear: () => {
-          setFilters((curr) => ({ ...curr, invoiceId: "" }));
-          setDraftFilters((curr) => ({ ...curr, invoiceId: "" }));
-          setPagination((prev) => ({ ...prev, page: 1 }));
-        },
-      });
-    }
-    if (filters.invoiceNumber) {
-      chips.push({
-        key: "invoiceNumber",
-        label: "Invoice #",
-        displayValue: filters.invoiceNumber,
-        onClear: () => {
-          setFilters((curr) => ({ ...curr, invoiceNumber: "" }));
-          setDraftFilters((curr) => ({ ...curr, invoiceNumber: "" }));
-          setPagination((prev) => ({ ...prev, page: 1 }));
-        },
-      });
-    }
-    if (filters.dateFrom) {
-      chips.push({
-        key: "dateFrom",
-        label: "From",
-        displayValue: filters.dateFrom,
-        onClear: () => {
-          setFilters((curr) => ({ ...curr, dateFrom: "" }));
-          setDraftFilters((curr) => ({ ...curr, dateFrom: "" }));
-          setPagination((prev) => ({ ...prev, page: 1 }));
-        },
-      });
-    }
-    if (filters.dateTo) {
-      chips.push({
-        key: "dateTo",
-        label: "To",
-        displayValue: filters.dateTo,
-        onClear: () => {
-          setFilters((curr) => ({ ...curr, dateTo: "" }));
-          setDraftFilters((curr) => ({ ...curr, dateTo: "" }));
-          setPagination((prev) => ({ ...prev, page: 1 }));
-        },
-      });
-    }
-    return chips;
-  }, [filters, invoiceFilterLabel]);
 
   const columns = useMemo(
     () =>
@@ -265,17 +160,45 @@ function AllInvoiceLineItems() {
         {
           id: "unitPrice",
           accessorFn: (row: InvoiceLineItemRow) => row.values.unitPrice,
-          header: () => "Unit Price",
+          header: () => (isTristate ? "Client Unit Price" : "Unit Price"),
           cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
             String(row.original.values.unitPrice || "-"),
         },
         {
           id: "totalPrice",
           accessorFn: (row: InvoiceLineItemRow) => row.values.totalPrice,
-          header: () => "Total Price",
+          header: () => (isTristate ? "Client Total Price" : "Total Price"),
           cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
             String(row.original.values.totalPrice || "-"),
         },
+        ...(isTristate
+          ? [
+              {
+                id: "externalUnitPrice",
+                accessorFn: (row: InvoiceLineItemRow) =>
+                  row.values.externalUnitPrice,
+                header: () => "Tristate Unit Price",
+                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
+                  String(row.original.values.externalUnitPrice || "-"),
+              },
+              {
+                id: "externalTotalPrice",
+                accessorFn: (row: InvoiceLineItemRow) =>
+                  row.values.externalTotalPrice,
+                header: () => "Tristate Total Price",
+                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
+                  String(row.original.values.externalTotalPrice || "-"),
+              },
+              {
+                id: "companyFeeDeductionAmount",
+                accessorFn: (row: InvoiceLineItemRow) =>
+                  row.values.companyFeeDeductionAmount,
+                header: () => "Company Absorbed",
+                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
+                  String(row.original.values.companyFeeDeductionAmount || "-"),
+              },
+            ]
+          : []),
         {
           id: "creationDate",
           accessorFn: (row: InvoiceLineItemRow) => row.values.creationDate,
@@ -284,7 +207,7 @@ function AllInvoiceLineItems() {
             String(row.original.values.creationDate),
         },
       ] as ColumnDef<InvoiceLineItemRow>[],
-    [],
+    [isTristate],
   );
 
   const table = useReactTable({
@@ -292,60 +215,42 @@ function AllInvoiceLineItems() {
     columns,
     state: { sorting },
     onSortingChange: setSorting,
-    manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   });
 
-  const refreshAllLineItems = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await getInvoiceLineItemsView({
-        page: pagination.page,
-        limit: pagination.limit,
-        search: searchInput.trim() || undefined,
-        invoiceId: filters.invoiceId || undefined,
-        invoiceNumber: filters.invoiceNumber.trim() || undefined,
-        dateFrom: filters.dateFrom || undefined,
-        dateTo: filters.dateTo || undefined,
-        sortBy: activeSort?.id,
-        sortOrder: activeSort ? (activeSort.desc ? "desc" : "asc") : undefined,
-      });
-      setRows(data.rows);
-      setPagination(data.pagination);
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed to load invoice line items";
-      setError(message);
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const sortField = sorting[0]?.id || "creationDate";
+  const sortDesc = sorting[0]?.desc ?? true;
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      refreshAllLineItems();
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [
-    pagination.page,
-    pagination.limit,
-    searchInput,
-    filters.invoiceId,
-    filters.invoiceNumber,
-    filters.dateFrom,
-    filters.dateTo,
-    activeSort?.id,
-    activeSort?.desc,
-  ]);
-
-  async function refreshRows(targetPage = pagination.page) {
-    await refreshAllLineItems();
-  }
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getInvoiceLineItemsView({
+          page: pagination.page,
+          limit: pagination.limit,
+          invoiceId: filters.invoiceId || undefined,
+        });
+        setRows(data.rows);
+        setPagination((prev) => ({
+          ...prev,
+          total: data.pagination.total,
+          totalPages: data.pagination.totalPages,
+        }));
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to load invoice line items";
+        setError(message);
+        toast.error(message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [pagination.page, pagination.limit, sortField, sortDesc, filters.invoiceId]);
 
   useEffect(() => {
     if (
@@ -533,48 +438,118 @@ function AllInvoiceLineItems() {
     }
   }
 
+  const navbarActions = [
+    {
+      label: "New record",
+      icon: <Plus className="h-4 w-4" />,
+      onClick: openCreateForm,
+    },
+  ];
+
+
+
+  const handleOpenFilterModal = () => {
+    setDraftInvoiceId(filters.invoiceId);
+    if (invoices.length === 0) {
+      setOptionsLoading(true);
+      getAllInvoices()
+        .then(setInvoices)
+        .finally(() => setOptionsLoading(false));
+    }
+  };
+
+  const handleApplyFilters = () => {
+    setFilters({ invoiceId: draftInvoiceId });
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setFilters({ invoiceId: "" });
+    setDraftInvoiceId("");
+    setSearchInput("");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const activeFilterCount = filters.invoiceId ? 1 : 0;
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.invoiceId) {
+      const inv = invoices.find((i) => i.id === filters.invoiceId);
+      const display = inv ? getInvoiceLabel(inv) : filters.invoiceId;
+      chips.push({
+        key: "invoiceId",
+        label: "Invoice",
+        displayValue: display,
+        onClear: () => {
+          setFilters({ invoiceId: "" });
+          setDraftInvoiceId("");
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    return chips;
+  }, [filters.invoiceId, invoices]);
+
+  const exportCsv = () => {
+    if (rows.length === 0) return;
+    const headers = [
+      "Invoice",
+      "Service",
+      "Description",
+      "Quantity",
+      "Unit Price",
+      "Total Price",
+      ...(isTristate ? ["Tristate Unit Price", "Tristate Total Price", "Company Absorbed"] : []),
+      "Created",
+    ];
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [
+        headers.join(","),
+        ...rows.map((r) =>
+          [
+            `"${r.values.invoiceLabel}"`,
+            `"${r.values.serviceName}"`,
+            `"${r.values.description}"`,
+            `"${r.values.quantity}"`,
+            `"${r.values.unitPrice}"`,
+            `"${r.values.totalPrice}"`,
+            ...(isTristate
+              ? [
+                  `"${r.values.externalUnitPrice || ""}"`,
+                  `"${r.values.externalTotalPrice || ""}"`,
+                  `"${r.values.companyFeeDeductionAmount || ""}"`,
+                ]
+              : []),
+            `"${r.values.creationDate}"`,
+          ].join(","),
+        ),
+      ].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${isTristate ? "tristate" : "client"}_invoice_line_items_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const filterFieldsModal = (
     <>
       <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
-          Invoice Number
+          Invoice
         </span>
-        <input
-          type="text"
-          value={draftFilters.invoiceNumber}
-          onChange={(e) =>
-            setDraftFilters((prev) => ({ ...prev, invoiceNumber: e.target.value }))
-          }
-          placeholder="e.g. INV-001"
-          className="app-control w-full rounded-xl border border-[#ece8e1] bg-white px-3 py-2 text-[13px] text-slate-800 placeholder-slate-400 focus:border-[#4f63ea] focus:ring-1 focus:ring-[#4f63ea]/20 outline-none transition-all"
-        />
-      </label>
-
-      <label className="block">
-        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
-          Created Date From
-        </span>
-        <DatePicker
-          value={draftFilters.dateFrom}
-          onChange={(val) =>
-            setDraftFilters((prev) => ({ ...prev, dateFrom: val }))
-          }
-          placeholder="MM-DD-YYYY"
-          className="rounded-xl border-[#ece8e1]"
-        />
-      </label>
-
-      <label className="block">
-        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
-          Created Date To
-        </span>
-        <DatePicker
-          value={draftFilters.dateTo}
-          onChange={(val) =>
-            setDraftFilters((prev) => ({ ...prev, dateTo: val }))
-          }
-          placeholder="MM-DD-YYYY"
-          className="rounded-xl border-[#ece8e1]"
+        <Select
+          value={draftInvoiceId}
+          onChange={setDraftInvoiceId}
+          options={[
+            { label: "All Invoices", value: "" },
+            ...invoices.map((inv) => ({
+              label: getInvoiceLabel(inv),
+              value: inv.id,
+            })),
+          ]}
         />
       </label>
     </>
@@ -582,17 +557,17 @@ function AllInvoiceLineItems() {
 
   return (
     <AppLayout
-      title="Invoice Line Items"
+      title={pageTitle}
       activeModule="Invoice Line Items"
-      activeSubItem="All Invoice Line Items"
+      activeSubItem={pageTitle}
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
     >
       <div className="app-split font-app-sans">
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
           <DataTableToolbar
-            title="All Invoice Line Items"
+            title={pageTitle}
             subtitle="Invoice Line Items"
-            searchPlaceholder="Search invoice line items..."
+            searchPlaceholder="Search line items by invoice or service..."
             searchValue={searchInput}
             onSearchChange={setSearchInput}
             activeFilterCount={activeFilterCount}
@@ -600,9 +575,12 @@ function AllInvoiceLineItems() {
             onResetFilters={resetFilters}
             onApplyFilters={handleApplyFilters}
             onOpenFilterModal={handleOpenFilterModal}
-            filterModalTitle="Filter Invoice Line Items"
+            filterModalTitle="Filter Line Items"
             filterFields={filterFieldsModal}
-            onRefresh={refreshAllLineItems}
+            addNewLabel="Create Line Item"
+            onAddNew={openCreateForm}
+            onExport={exportCsv}
+            onRefresh={() => setPagination((prev) => ({ ...prev }))}
             isLoading={isLoading}
             isSaving={isSaving}
             isDeleting={isDeleting}
@@ -613,31 +591,30 @@ function AllInvoiceLineItems() {
             onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
             onPageSizeChange={(newSize) => {
               setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
-              setUserSelectedPageSize(true);
             }}
           >
-            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 h-full overflow-y-auto custom-scrollbar">
               {rows.length === 0 ? (
-                <div className="relative flex min-h-[400px] items-center justify-center">
-                  <div className="flex max-w-md flex-col items-center px-6 text-center">
-                    <EmptyStateIllustration />
-                    <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                      No invoice line items found
-                    </h2>
-                    <p className="mt-2 text-[14px] text-slate-400">
-                      No invoice line items available for display
-                    </p>
-                  </div>
+                <div className="flex flex-col items-center justify-center h-full gap-3 py-16 text-slate-400">
+                  <EmptyStateIllustration />
+                  <p className="text-[14px]">No invoice line items found.</p>
+                  <button
+                    type="button"
+                    onClick={openCreateForm}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
+                  >
+                    <Plus className="h-4 w-4" /> Create Invoice Line Item
+                  </button>
                 </div>
               ) : (
-                <table className="min-w-full border-separate border-spacing-0">
+                <table className="w-full text-[13px]">
                   <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
                     {table.getHeaderGroups().map((headerGroup) => (
-                      <tr key={headerGroup.id}>
+                      <tr key={headerGroup.id} className="border-b border-[#f0ece6] bg-[#faf9f7]">
                         {headerGroup.headers.map((header) => (
                           <th
                             key={header.id}
-                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
+                            className="px-4 py-3 text-left font-medium text-slate-500"
                           >
                             <SortableHeaderCell header={header} />
                           </th>
@@ -652,17 +629,13 @@ function AllInvoiceLineItems() {
                         <tr
                           key={row.id}
                           onClick={() => handleRowClick(row.original.id)}
-                          className={`cursor-pointer ${isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                          className={`cursor-pointer border-b border-[#f0ece6] transition-colors ${
+                            isSelected ? "bg-[#fcfbf9]" : "hover:bg-[#faf9f7]"
+                          }`}
                         >
                           {row.getVisibleCells().map((cell) => (
-                            <td
-                              key={cell.id}
-                              className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-4 py-3 text-[13px] text-slate-600 last:border-r-0"
-                            >
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext(),
-                              )}
+                            <td key={cell.id} className="px-4 py-3 text-slate-600">
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
                             </td>
                           ))}
                         </tr>
@@ -709,6 +682,9 @@ function AllInvoiceLineItems() {
                       ...(selectedLineItem?.quantity ? [{ label: "Quantity", value: String(selectedLineItem.quantity) }] : []),
                       ...(selectedLineItem?.unitPrice ? [{ label: "Unit Price", value: String(selectedLineItem.unitPrice) }] : []),
                       ...(selectedLineItem?.totalPrice ? [{ label: "Total Price", value: String(selectedLineItem.totalPrice) }] : []),
+                      ...(selectedLineItem?.externalUnitPrice ? [{ label: "Tristate Unit Price", value: String(selectedLineItem.externalUnitPrice) }] : []),
+                      ...(selectedLineItem?.externalTotalPrice ? [{ label: "Tristate Total Price", value: String(selectedLineItem.externalTotalPrice) }] : []),
+                      ...(selectedLineItem?.companyFeeDeductionAmount ? [{ label: "Company Absorbed", value: String(selectedLineItem.companyFeeDeductionAmount) }] : []),
                     ]}
                   />
 

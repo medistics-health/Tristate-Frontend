@@ -148,6 +148,12 @@ export type PricingTermsParams = {
   agreementId?: string;
   agreementVersionId?: string;
   serviceId?: string;
+  search?: string;
+  pricingModel?: string;
+  vendorId?: string;
+  approvalStatus?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
   page?: number;
   limit?: number;
 };
@@ -161,6 +167,12 @@ export async function getPricingTerms(params?: PricingTermsParams): Promise<{
     if (params?.agreementId) qs.set("agreementId", params.agreementId);
     if (params?.agreementVersionId) qs.set("agreementVersionId", params.agreementVersionId);
     if (params?.serviceId) qs.set("serviceId", params.serviceId);
+    if (params?.search) qs.set("search", params.search);
+    if (params?.pricingModel) qs.set("pricingModel", params.pricingModel);
+    if (params?.vendorId) qs.set("vendorId", params.vendorId);
+    if (params?.approvalStatus) qs.set("approvalStatus", params.approvalStatus);
+    if (params?.sortBy) qs.set("sortBy", params.sortBy);
+    if (params?.sortOrder) qs.set("sortOrder", params.sortOrder);
     if (params?.page) qs.set("page", String(params.page));
     if (params?.limit) qs.set("limit", String(params.limit));
 

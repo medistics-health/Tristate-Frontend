@@ -10,6 +10,11 @@ import { ChevronLeft, Circle, LayoutList, Plus, Trash2, X } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import AppLayout from "../layout/AppLayout";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
 import type { PurchaseOrderRow } from "./types";
 import {
   createPurchaseOrderApi,
@@ -112,36 +117,119 @@ function AllPurchaseOrdersPage() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const params: PurchaseOrderQueryParams = {
-          page: pagination.page,
-          limit: pagination.limit,
-          sortBy: sorting[0]?.id || "createdAt",
-          sortOrder: sorting[0]?.desc ? "desc" : "asc",
-          ...(filters.search && { search: filters.search }),
-        };
-        const data = await getPurchaseOrdersView(params);
-        setRows(data.rows);
-        setPagination(data.pagination);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load purchase orders";
-        setError(message);
-        toast.error(message);
-      } finally {
-        setIsLoading(false);
-      }
+  const [searchInput, setSearchInput] = useState("");
+  const [draftVendorId, setDraftVendorId] = useState("");
+  const [selectedVendorId, setSelectedVendorId] = useState("");
+
+  const handleOpenFilterModal = () => {
+    setDraftVendorId(selectedVendorId);
+  };
+
+  const handleApplyFilters = () => {
+    setSelectedVendorId(draftVendorId);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setSelectedVendorId("");
+    setDraftVendorId("");
+    setSearchInput("");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const activeFilterCount = selectedVendorId ? 1 : 0;
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (selectedVendorId) {
+      const vendorName = vendors.find((v) => v.id === selectedVendorId)?.name || selectedVendorId;
+      chips.push({
+        key: "vendorId",
+        label: "Vendor",
+        displayValue: vendorName,
+        onClear: () => {
+          setSelectedVendorId("");
+          setDraftVendorId("");
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
     }
-    loadData();
-  }, [pagination.page, pagination.limit, sorting, filters]);
+    return chips;
+  }, [selectedVendorId, vendors]);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const params: PurchaseOrderQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+        sortBy: sorting[0]?.id || "createdAt",
+        sortOrder: sorting[0]?.desc ? "desc" : "asc",
+        ...(searchInput.trim() && { search: searchInput.trim() }),
+      };
+      const data = await getPurchaseOrdersView(params);
+      setRows(data.rows);
+      setPagination(data.pagination);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load purchase orders";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  }, [filters, sorting]);
+    const timer = setTimeout(() => {
+      loadData();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [pagination.page, pagination.limit, sorting, searchInput, selectedVendorId]);
+
+  const exportCsv = () => {
+    if (rows.length === 0) return;
+    const headers = ["ID", "Vendor", "Invoice ID", "Total Cost", "Created At"];
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [
+        headers.join(","),
+        ...rows.map((r) =>
+          [
+            `"${r.id}"`,
+            `"${r.values.vendorName}"`,
+            `"${r.values.invoiceId}"`,
+            `"${r.values.totalCost}"`,
+            `"${r.values.creationDate}"`,
+          ].join(","),
+        ),
+      ].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `purchase_orders_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Vendor
+        </span>
+        <Select
+          value={draftVendorId}
+          onChange={setDraftVendorId}
+          options={[
+            { label: "All Vendors", value: "" },
+            ...vendors.map((v) => ({ label: v.name, value: v.id })),
+          ]}
+        />
+      </label>
+    </>
+  );
 
   function handleRowClick(rowId: string) {
     setSelectedRowId(rowId);
@@ -162,16 +250,10 @@ function AllPurchaseOrdersPage() {
     if (vendors.length === 0 || invoices.length === 0) {
       setLoadingOptions(true);
       try {
-        // const [vendorList, invoiceList] = await Promise.all([
         const [invoiceList] = await Promise.all([
-          // getAllVendors(),
           getAllInvoices(),
         ]);
-
-        // setVendors(vendorList);
         setInvoices(invoiceList);
-
-        console.log("invoiceList:", invoiceList);
       } catch (err) {
         console.error("Failed to load options:", err);
       } finally {
@@ -201,12 +283,7 @@ function AllPurchaseOrdersPage() {
       };
 
       await createPurchaseOrderApi(poData);
-      const data = await getPurchaseOrdersView({
-        page: pagination.page,
-        limit: pagination.limit,
-      });
-      setRows(data.rows);
-      setPagination(data.pagination);
+      loadData();
       closeCreateForm();
       toast.success("Purchase order created successfully");
     } catch (err) {
@@ -230,12 +307,7 @@ function AllPurchaseOrdersPage() {
     setIsDeleting(true);
     try {
       await deletePurchaseOrderApi(selectedRow.id);
-      const data = await getPurchaseOrdersView({
-        page: pagination.page,
-        limit: pagination.limit,
-      });
-      setRows(data.rows);
-      setPagination(data.pagination);
+      loadData();
       closeDetailPanel();
       toast.success("Purchase order deleted successfully");
     } catch (err) {
@@ -247,245 +319,96 @@ function AllPurchaseOrdersPage() {
     }
   }
 
-  const navbarActions = [
-    {
-      label: "New record",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: openCreateForm,
-    },
-  ];
-
-  if (isLoading) {
-    return (
-      <AppLayout
-        title="Purchase Orders"
-        activeModule="Purchase Orders"
-        activeSubItem="All Purchase Orders"
-      >
-        <div className="flex h-full items-center justify-center">
-          <div className="text-slate-400">Loading purchase orders...</div>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  if (error && rows.length === 0) {
-    return (
-      <AppLayout
-        title="Purchase Orders"
-        activeModule="Purchase Orders"
-        activeSubItem="All Purchase Orders"
-      >
-        <div className="flex h-full flex-col items-center justify-center gap-4">
-          <div className="text-red-500">{error}</div>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="app-control rounded-md px-4 py-2 text-[14px] font-medium"
-          >
-            Retry
-          </button>
-        </div>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout
       title="Purchase Orders"
       activeModule="Purchase Orders"
       activeSubItem="All Purchase Orders"
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
     >
-      <div className="app-split">
-        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
-              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
-              <span>All Purchase Orders</span>
-            </button>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel(!showFilterPanel)}
-              >
-                Filters
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setSorting((current) =>
-                    current[0]?.id === "creationDate"
-                      ? [{ id: "creationDate", desc: !current[0].desc }]
-                      : [{ id: "creationDate", desc: true }],
-                  )
-                }
-              >
-                Sort
-              </button>
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <input
-                type="text"
-                placeholder="Search by vendor name..."
-                value={filters.search}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, search: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              />
-              <button
-                type="button"
-                onClick={() => setFilters({ search: "" })}
-                className="text-[13px] text-[#4f63ea] hover:underline"
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            {rows.length === 0 ? (
-              <div className="relative flex min-h-[400px] items-center justify-center">
-                <div className="flex max-w-md flex-col items-center px-6 text-center">
+      <div className="app-split font-app-sans">
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="All Purchase Orders"
+            subtitle="Purchase Orders"
+            searchPlaceholder="Search purchase orders by vendor..."
+            searchValue={searchInput}
+            onSearchChange={setSearchInput}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Purchase Orders"
+            filterFields={filterFieldsModal}
+            addNewLabel="Create Purchase Order"
+            onAddNew={openCreateForm}
+            onExport={exportCsv}
+            onRefresh={loadData}
+            isLoading={isLoading}
+            isDeleting={isDeleting}
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onPageSizeChange={(newSize) => {
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {rows.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-slate-400">
                   <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    No purchase orders found
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    Create your first purchase order to get started
-                  </p>
+                  <p className="text-[14px]">No purchase orders found.</p>
                   <button
                     type="button"
                     onClick={openCreateForm}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Create Purchase Order
+                    <Plus className="h-4 w-4" /> Create Purchase Order
                   </button>
                 </div>
-              </div>
-            ) : (
-              <table className="min-w-full border-separate border-spacing-0">
-                <thead className="sticky top-0 z-10 bg-white">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <th
-                          key={header.id}
-                          className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                        >
-                          {header.isPlaceholder ? null : (
-                            <button
-                              type="button"
-                              onClick={
-                                header.column.getCanSort()
-                                  ? header.column.getToggleSortingHandler()
-                                  : undefined
-                              }
-                              className="flex w-full items-center gap-2"
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </button>
-                          )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => {
-                    const isSelected = row.original.id === selectedRowId;
-                    return (
-                      <tr
-                        key={row.id}
-                        onClick={() => handleRowClick(row.original.id)}
-                        className={`cursor-pointer ${isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <td
-                            key={cell.id}
-                            className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+              ) : (
+                <table className="w-full text-[13px]">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id} className="border-b border-[#f0ece6] bg-[#faf9f7]">
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            className="px-4 py-3 text-left font-medium text-slate-500"
                           >
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
-                            )}
-                          </td>
+                            <SortableHeaderCell header={header} />
+                          </th>
                         ))}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total,
-                  )}{" "}
-                  of {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: pagination.totalPages },
-                  (_, i) => i + 1,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.map((row) => {
+                      const isSelected = row.original.id === selectedRowId;
+                      return (
+                        <tr
+                          key={row.id}
+                          onClick={() => handleRowClick(row.original.id)}
+                          className={`cursor-pointer border-b border-[#f0ece6] transition-colors ${
+                            isSelected ? "bg-[#fcfbf9]" : "hover:bg-[#faf9f7]"
+                          }`}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <td key={cell.id} className="px-4 py-3 text-slate-600">
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
+          </DataTableToolbar>
         </section>
 
         {showDetailPanel && selectedRow && (

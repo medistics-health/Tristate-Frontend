@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -18,6 +18,11 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import { getResponsivePageSize } from "../shared/TablePagination";
 import {
   getAllPractices,
   getPractice,
@@ -343,6 +348,47 @@ export default function PricingEnginePage() {
   const [terms, setTerms] = useState<AgreementServiceTerm[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  const canAddTerm = !!selectedAgreementId && !!selectedVersionId;
+
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: getResponsivePageSize(),
+    total: 0,
+    totalPages: 0,
+  });
+  const [userSelectedPageSize, setUserSelectedPageSize] = useState(false);
+
+  useEffect(() => {
+    function handleResize() {
+      if (!userSelectedPageSize) {
+        const newSize = getResponsivePageSize();
+        setPagination((prev) => ({ ...prev, limit: newSize }));
+      }
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [userSelectedPageSize]);
+
+  type RateFilters = {
+    search: string;
+    pricingModel: string;
+    vendorId: string;
+    serviceId: string;
+    approvalStatus: string;
+  };
+
+  const defaultFilters: RateFilters = {
+    search: "",
+    pricingModel: "",
+    vendorId: "",
+    serviceId: "",
+    approvalStatus: "",
+  };
+
+  const [filters, setFilters] = useState<RateFilters>(defaultFilters);
+  const [draftFilters, setDraftFilters] = useState<RateFilters>(defaultFilters);
+  const [searchInput, setSearchInput] = useState("");
+
   const [showWizard, setShowWizard] = useState(false);
   const [profileCreateHandled, setProfileCreateHandled] = useState(false);
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
@@ -355,6 +401,85 @@ export default function PricingEnginePage() {
   );
   const [isDeleting, setIsDeleting] = useState(false);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+
+  const handleOpenFilterModal = () => {
+    setDraftFilters(filters);
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(draftFilters);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
+    setSearchInput("");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const activeFilterCount = [
+    filters.pricingModel,
+    filters.vendorId,
+    filters.serviceId,
+    filters.approvalStatus,
+  ].filter(Boolean).length;
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.pricingModel) {
+      const label = PRICING_MODEL_OPTIONS.find((m) => m.value === filters.pricingModel)?.label || filters.pricingModel;
+      chips.push({
+        key: "pricingModel",
+        label: "Pricing Model",
+        displayValue: label,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, pricingModel: "" }));
+          setDraftFilters((curr) => ({ ...curr, pricingModel: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.vendorId) {
+      const vendorName = vendors.find((v) => v.id === filters.vendorId)?.name || filters.vendorId;
+      chips.push({
+        key: "vendorId",
+        label: "Vendor",
+        displayValue: vendorName,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, vendorId: "" }));
+          setDraftFilters((curr) => ({ ...curr, vendorId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.serviceId) {
+      const serviceName = services.find((s) => s.id === filters.serviceId)?.name || filters.serviceId;
+      chips.push({
+        key: "serviceId",
+        label: "Service",
+        displayValue: serviceName,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, serviceId: "" }));
+          setDraftFilters((curr) => ({ ...curr, serviceId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.approvalStatus) {
+      chips.push({
+        key: "approvalStatus",
+        label: "Status",
+        displayValue: filters.approvalStatus,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, approvalStatus: "" }));
+          setDraftFilters((curr) => ({ ...curr, approvalStatus: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    return chips;
+  }, [filters, vendors, services]);
 
   // ✅ Load initial data (practices, services, vendors)
   useEffect(() => {
@@ -491,14 +616,28 @@ export default function PricingEnginePage() {
     selectedVersionId,
   ]);
 
-  // ✅ STEP 3: Load terms when version changes (FILTERED BY VERSION)
+  // ✅ STEP 3: Load terms when version or filters change
   useEffect(() => {
     if (!selectedVersionId || !selectedAgreementId) {
       setTerms([]);
       return;
     }
-    loadTerms();
-  }, [selectedVersionId, selectedAgreementId]);
+    const timer = setTimeout(() => {
+      loadTerms();
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [
+    selectedVersionId,
+    selectedAgreementId,
+    pagination.page,
+    pagination.limit,
+    searchInput,
+    filters.pricingModel,
+    filters.vendorId,
+    filters.serviceId,
+    filters.approvalStatus,
+  ]);
 
   async function loadTerms() {
     if (!selectedVersionId || !selectedAgreementId) return;
@@ -508,9 +647,22 @@ export default function PricingEnginePage() {
       const d = await getPricingTerms({
         agreementId: selectedAgreementId,
         agreementVersionId: selectedVersionId,
-        limit: 100,
+        page: pagination.page,
+        limit: pagination.limit,
+        ...(searchInput.trim() && { search: searchInput.trim() }),
+        ...(filters.pricingModel && { pricingModel: filters.pricingModel }),
+        ...(filters.vendorId && { vendorId: filters.vendorId }),
+        ...(filters.serviceId && { serviceId: filters.serviceId }),
+        ...(filters.approvalStatus && { approvalStatus: filters.approvalStatus }),
       });
       setTerms(d.terms || []);
+      if (d.pagination) {
+        setPagination((prev) => ({
+          ...prev,
+          total: d.pagination.totalRecords,
+          totalPages: d.pagination.totalPages,
+        }));
+      }
     } catch (e) {
       console.error("Failed to load pricing terms:", e);
       toast.error(
@@ -519,6 +671,63 @@ export default function PricingEnginePage() {
       setTerms([]);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function exportCsv() {
+    if (!selectedVersionId || !selectedAgreementId) return;
+    try {
+      const d = await getPricingTerms({
+        agreementId: selectedAgreementId,
+        agreementVersionId: selectedVersionId,
+        page: 1,
+        limit: Math.max(pagination.total, 1000),
+        ...(searchInput.trim() && { search: searchInput.trim() }),
+        ...(filters.pricingModel && { pricingModel: filters.pricingModel }),
+        ...(filters.vendorId && { vendorId: filters.vendorId }),
+        ...(filters.serviceId && { serviceId: filters.serviceId }),
+        ...(filters.approvalStatus && { approvalStatus: filters.approvalStatus }),
+      });
+
+      const header = [
+        "Service",
+        "Pricing Model",
+        "Client Rate",
+        "Vendor Rate",
+        "Vendor",
+        "Status",
+      ];
+
+      const rowsData = (d.terms || []).map((term) => {
+        const cl = extractClientRate(term);
+        const vn = extractVendorRate(term);
+        const overallStatus = getOverallStatus(term);
+        return [
+          `"${(term.service?.name || "").replace(/"/g, '""')}"`,
+          `"${(fmtModel(term.pricingModel) || "").replace(/"/g, '""')}"`,
+          `"${term.pricingModel === "HYBRID" ? "-" : fmtModelValue(cl, term.pricingModel)}"`,
+          `"${term.pricingModel === "HYBRID" ? "-" : term.vendorId ? fmtModelValue(vn, term.pricingModel) : "-"}"`,
+          `"${(term.vendor?.name || "Vendor not available").replace(/"/g, '""')}"`,
+          `"${overallStatus}"`,
+        ];
+      });
+
+      const csvContent =
+        "data:text/csv;charset=utf-8," +
+        [header.join(","), ...rowsData.map((e) => e.join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute(
+        "download",
+        `rate_finalization_${selectedAgreementId}_v${selectedVersionId}.csv`,
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Exported CSV successfully");
+    } catch (e) {
+      toast.error("Failed to export CSV");
     }
   }
 
@@ -588,7 +797,78 @@ export default function PricingEnginePage() {
       ? Number(((totalMargin / totalClient) * 100).toFixed(2))
       : 0;
 
-  const canAddTerm = !!selectedAgreementId && !!selectedVersionId;
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Pricing Model
+        </span>
+        <Select
+          value={draftFilters.pricingModel}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, pricingModel: val }))
+          }
+          options={[
+            { label: "All Pricing Models", value: "" },
+            ...PRICING_MODEL_OPTIONS.map((m) => ({
+              label: m.label,
+              value: m.value,
+            })),
+          ]}
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Vendor
+        </span>
+        <Select
+          value={draftFilters.vendorId}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, vendorId: val }))
+          }
+          options={[
+            { label: "All Vendors", value: "" },
+            ...vendors.map((v) => ({ label: v.name, value: v.id })),
+          ]}
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Service
+        </span>
+        <Select
+          value={draftFilters.serviceId}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, serviceId: val }))
+          }
+          options={[
+            { label: "All Services", value: "" },
+            ...services.map((s) => ({ label: s.name, value: s.id })),
+          ]}
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Approval Status
+        </span>
+        <Select
+          value={draftFilters.approvalStatus}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, approvalStatus: val }))
+          }
+          options={[
+            { label: "All Statuses", value: "" },
+            { label: "Pending Approval", value: "PENDING" },
+            { label: "Approved", value: "APPROVED" },
+            { label: "Rejected", value: "REJECTED" },
+          ]}
+        />
+      </label>
+    </>
+  );
 
   return (
     <AppLayout
@@ -596,249 +876,174 @@ export default function PricingEnginePage() {
       activeModule="Pricing Engine"
       activeSubItem="Rate Finalization"
       navbarIcon={<DollarSign className="h-4 w-4 text-slate-500" />}
-      navbarActions={
-        canAddTerm
-          ? [
-              {
-                label: "Add Pricing Term",
-                icon: <Plus className="h-4 w-4" />,
-                onClick: () => {
-                  setEditingTerm(null);
-                  setShowWizard(true);
-                },
-              },
-            ]
-          : []
-      }
     >
-      <div className="app-split">
+      <div className="app-split font-app-sans">
         {/* ── Main table panel ── */}
-        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white">
-          {/* Toolbar */}
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <span className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700">
-              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
-              Rate Finalization
-            </span>
-            {selectedPracticeId && (
-              <span className="text-[12px] text-slate-400">
-                {practices.find((p) => p.id === selectedPracticeId)?.name ||
-                  "Practice"}
-                {selectedAgreementId && agreements.length > 0 && (
-                  <>
-                    {" "}
-                    →{" "}
-                    {agreements.find((a) => a.id === selectedAgreementId)
-                      ?.label || "Agreement"}
-                  </>
-                )}
-                {selectedVersionId && versions.length > 0 && (
-                  <>
-                    {" "}
-                    → v
-                    {versions.find((v) => v.id === selectedVersionId)
-                      ?.versionNumber || "?"}
-                  </>
-                )}
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          {/* Top Selection Bar: 3 Dropdowns (Practice, Agreement, Version) */}
+          <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-semibold tracking-wider text-slate-400 uppercase">
+                Context:
               </span>
-            )}
-          </div>
+            </div>
 
-          {/* Filter bar */}
-          <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] px-4 py-3">
-            {/* ✅ STEP 1: Practice Selection */}
-            <div className="w-84">
+            {/* Dropdown 1: Practice Selection */}
+            <div className="w-64">
               <Select
                 value={selectedPracticeId}
                 onChange={(value) => {
                   setSelectedPracticeId(value);
-                  // Reset downstream when practice changes
                   setSelectedAgreementId("");
                   setSelectedVersionId("");
+                  setPagination((prev) => ({ ...prev, page: 1 }));
                 }}
-                placeholder="Select Practice"
+                placeholder="1. Select Practice"
                 options={practices.map((p) => ({ label: p.name, value: p.id }))}
               />
             </div>
 
-            {/* ✅ STEP 2: Agreement Selection (Only shows if practice is selected) */}
-            {selectedPracticeId && agreements.length > 0 && (
-              <div className="w-84">
-                <Select
-                  value={selectedAgreementId}
-                  onChange={(value) => {
-                    setSelectedAgreementId(value);
-                    // Reset version when agreement changes
-                    setSelectedVersionId("");
-                  }}
-                  placeholder={`Select Agreement (${agreements.length})`}
-                  options={agreements.map((a) => ({
-                    label: a.label,
-                    value: a.id,
-                  }))}
-                />
-              </div>
-            )}
+            {/* Dropdown 2: Agreement Selection */}
+            <div className="w-64">
+              <Select
+                value={selectedAgreementId}
+                disabled={!selectedPracticeId || agreements.length === 0}
+                onChange={(value) => {
+                  setSelectedAgreementId(value);
+                  setSelectedVersionId("");
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                placeholder={
+                  !selectedPracticeId
+                    ? "2. Select Agreement"
+                    : agreements.length === 0
+                      ? "No Agreements Found"
+                      : `2. Select Agreement (${agreements.length})`
+                }
+                options={agreements.map((a) => ({
+                  label: a.label,
+                  value: a.id,
+                }))}
+              />
+            </div>
 
-            {/* ✅ STEP 3: Version Selection (Only shows if agreement is selected) */}
-            {selectedAgreementId && versions.length > 0 && (
-              <div className="w-42">
-                <Select
-                  value={selectedVersionId}
-                  onChange={setSelectedVersionId}
-                  placeholder={`Select Version (${versions.length})`}
-                  options={versions.map((v) => ({
-                    label: `v${v.versionNumber}${v.isCurrent ? " (current)" : ""}`,
-                    value: v.id,
-                  }))}
-                />
-              </div>
-            )}
-
-            {canAddTerm && (
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={loadTerms}
-                  disabled={isLoading}
-                  title="Refresh Pricing Terms"
-                  className="inline-flex items-center justify-center rounded-md border border-[#ece8e1] bg-white p-1.5 text-slate-600 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-                  />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingTerm(null);
-                    setShowWizard(true);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-1.5 text-[13px] font-medium text-white hover:bg-[#3d4ed1] transition-colors"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Add Pricing Term
-                </button>
-                {/* {terms.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowFinalizeConfirm(true)}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-1.5 text-[13px] font-medium text-white hover:bg-emerald-700 transition-colors shadow-sm"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Finalize
-                  </button>
-                )} */}
-              </div>
-            )}
+            {/* Dropdown 3: Version Selection */}
+            <div className="w-48">
+              <Select
+                value={selectedVersionId}
+                disabled={!selectedAgreementId || versions.length === 0}
+                onChange={(value) => {
+                  setSelectedVersionId(value);
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                placeholder={
+                  !selectedAgreementId
+                    ? "3. Select Version"
+                    : versions.length === 0
+                      ? "No Versions"
+                      : `3. Select Version (${versions.length})`
+                }
+                options={versions.map((v) => ({
+                  label: `v${v.versionNumber}${v.isCurrent ? " (current)" : ""}`,
+                  value: v.id,
+                }))}
+              />
+            </div>
           </div>
 
-          {/* Summary cards */}
-          {/* {isLoading && selectedVersionId ? (
-            <SkeletonSummaryCards />
-          ) : terms.length > 0 ? (
-            <div className="grid grid-cols-4 gap-3 border-b border-[#f0ece6] p-4">
-              {[
-                {
-                  label: hasPercentageModel
-                    ? "Total Client Rate"
-                    : "Client Revenue",
-                  value: hasPercentageModel
-                    ? fmtPercent(totalClient)
-                    : fmtMoney(totalClient),
-                  color: "text-[#4f63ea]",
-                },
-                {
-                  label: hasPercentageModel
-                    ? "Total Vendor Rate"
-                    : "Vendor Cost",
-                  value: hasPercentageModel
-                    ? fmtPercent(totalVendor)
-                    : fmtMoney(totalVendor),
-                  color: "text-red-500",
-                },
-                {
-                  label: "Gross Margin",
-                  value: hasPercentageModel
-                    ? fmtPercent(totalMargin)
-                    : fmtMoney(totalMargin),
-                  color: "text-emerald-600",
-                },
-                {
-                  label: "Margin %",
-                  value: fmtPercent(marginPct),
-                  color: marginPct < 20 ? "text-amber-600" : "text-emerald-600",
-                },
-              ].map((c) => (
-                <div
-                  key={c.label}
-                  className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3"
-                >
-                  <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-                    {c.label}
-                  </div>
-                  <div className={`mt-1 text-[20px] font-semibold ${c.color}`}>
-                    {c.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null} */}
-
-          {/* Table / empty states */}
-          <div className="flex-1 overflow-auto">
-            {!selectedPracticeId ? (
-              <EmptyHint
-                icon={<TrendingUp className="h-8 w-8 opacity-30" />}
-                text="Select a practice to view pricing terms"
-              />
-            ) : !selectedAgreementId ? (
-              <EmptyHint
-                icon={<TrendingUp className="h-8 w-8 opacity-30" />}
-                text={
-                  agreements.length === 0
-                    ? "No agreements found for this practice"
-                    : "Select an agreement to configure pricing"
-                }
-              />
-            ) : !selectedVersionId ? (
-              <EmptyHint
-                icon={<TrendingUp className="h-8 w-8 opacity-30" />}
-                text={
-                  versions.length === 0
-                    ? "No versions found for this agreement"
-                    : "Select an agreement version"
-                }
-              />
-            ) : isLoading ? (
-              <SkeletonTableRows />
-            ) : terms.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
-                <DollarSign className="h-8 w-8 opacity-30" />
-                <p className="text-[14px]">No pricing terms yet.</p>
-                <button
-                  type="button"
-                  onClick={() => {
+          <DataTableToolbar
+            title="Rate Finalization"
+            subtitle="Pricing Terms & Rates"
+            searchPlaceholder="Search pricing terms by service or vendor name..."
+            searchValue={searchInput}
+            onSearchChange={setSearchInput}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Pricing Terms"
+            filterFields={filterFieldsModal}
+            addNewLabel={canAddTerm ? "Add Pricing Term" : undefined}
+            onAddNew={
+              canAddTerm
+                ? () => {
                     setEditingTerm(null);
                     setShowWizard(true);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
-                >
-                  <Plus className="h-4 w-4" /> Add First Pricing Term
-                </button>
-              </div>
-            ) : (
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr className="border-b border-[#f0ece6] bg-[#faf9f7] text-[12px] font-medium text-slate-500">
-                    <th className="px-2 py-2 text-center"></th>
-                    <th className="px-4 py-2.5 text-left">Service</th>
-                    <th className="px-4 py-2.5 text-left">Pricing Model</th>
-                    <th className="px-4 py-2.5 text-right">Client Rate</th>
-                    <th className="px-4 py-2.5 text-right">Vendor Rate</th>
-                    <th className="px-4 py-2.5 text-right">Margin</th>
-                    <th className="px-4 py-2.5 text-left">Vendor</th>
-                    <th className="px-4 py-2.5 text-left">Status</th>
-                  </tr>
-                </thead>
+                  }
+                : undefined
+            }
+            onExport={selectedVersionId ? exportCsv : undefined}
+            onRefresh={loadTerms}
+            isLoading={isLoading}
+            isDeleting={isDeleting}
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onPageSizeChange={(newSize) => {
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+              setUserSelectedPageSize(true);
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {!selectedPracticeId ? (
+                <EmptyHint
+                  icon={<TrendingUp className="h-8 w-8 opacity-30" />}
+                  text="Select a practice above to view pricing terms"
+                />
+              ) : !selectedAgreementId ? (
+                <EmptyHint
+                  icon={<TrendingUp className="h-8 w-8 opacity-30" />}
+                  text={
+                    agreements.length === 0
+                      ? "No agreements found for this practice"
+                      : "Select an agreement above to configure pricing"
+                  }
+                />
+              ) : !selectedVersionId ? (
+                <EmptyHint
+                  icon={<TrendingUp className="h-8 w-8 opacity-30" />}
+                  text={
+                    versions.length === 0
+                      ? "No versions found for this agreement"
+                      : "Select an agreement version above"
+                  }
+                />
+              ) : isLoading ? (
+                <SkeletonTableRows />
+              ) : terms.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-slate-400">
+                  <DollarSign className="h-8 w-8 opacity-30" />
+                  <p className="text-[14px]">No pricing terms match your criteria.</p>
+                  {canAddTerm && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingTerm(null);
+                        setShowWizard(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
+                    >
+                      <Plus className="h-4 w-4" /> Add First Pricing Term
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <table className="w-full text-[13px]">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    <tr className="border-b border-[#f0ece6] bg-[#faf9f7] font-medium text-slate-500">
+                      <th className="px-2 py-2 text-center w-10"></th>
+                      <th className="px-4 py-2.5 text-left font-medium">Service</th>
+                      <th className="px-4 py-2.5 text-left font-medium">Pricing Model</th>
+                      <th className="px-4 py-2.5 text-right font-medium">Client Rate</th>
+                      <th className="px-4 py-2.5 text-right font-medium">Vendor Rate</th>
+                      <th className="px-4 py-2.5 text-right font-medium">Margin</th>
+                      <th className="px-4 py-2.5 text-left font-medium">Vendor</th>
+                      <th className="px-4 py-2.5 text-left font-medium">Status</th>
+                    </tr>
+                  </thead>
                 <tbody>
                   {terms.map((term, index) => {
                     const cl = extractClientRate(term);
@@ -925,8 +1130,9 @@ export default function PricingEnginePage() {
                   })}
                 </tbody>
               </table>
-            )}
-          </div>
+              )}
+            </div>
+          </DataTableToolbar>
         </section>
 
         {/* ── Detail side panel ── */}

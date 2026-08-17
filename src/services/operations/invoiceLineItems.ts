@@ -84,6 +84,7 @@ export type InvoiceLineItemQueryParams = {
   limit?: number;
   invoiceId?: string;
   invoiceNumber?: string;
+  type?: "client" | "tristate";
   search?: string;
   dateFrom?: string;
   dateTo?: string;
