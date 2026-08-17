@@ -56,7 +56,7 @@ import ClientPortalDashboard from "./components/portal/ClientPortalDashboard";
 import SettingsPage from "./components/settings/Settings";
 import CreateLeadPage from "./components/leads/CreateLead";
 import type { JSX, ReactNode } from "react";
-import OnboardingFormV5 from "./components/onboarding/OnboardingFormV5";
+import OnboardingFormV6 from "./components/onboarding/OnboardingFormV6";
 import { BUSINESS_WRITE_ROLES, MODULE_ACCESS } from "./utils/auth";
 import CredentialingDashboardPage from "./components/credentialing/CredentialingDashboard";
 import CredentialingListPage from "./components/credentialing/CredentialingList";
@@ -125,7 +125,7 @@ function App() {
         element={
           <UUIDProtectedRoute>
             {/*<OnboardingForm />*/}
-            <OnboardingFormV5 />
+            <OnboardingFormV6 />
           </UUIDProtectedRoute>
         }
       />

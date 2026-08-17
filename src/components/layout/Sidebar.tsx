@@ -26,7 +26,7 @@ import {
   Globe,
   ListChecks,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   BUSINESS_WRITE_ROLES,
@@ -363,6 +363,10 @@ function SidebarLeafItem({
       <NavLink
         to={item.to}
         onClick={onNavigate}
+        onMouseDown={(event) => {
+          // Prevent focus-driven scroll jump inside the overflow sidebar.
+          if (event.button === 0) event.preventDefault();
+        }}
         className={({ isActive }) =>
           `${baseClass} ${
             isActive
@@ -391,8 +395,12 @@ type SidebarProps = {
   onNavigate?: () => void;
 };
 
+// Survives Sidebar remounts when each page wraps its own AppLayout.
+let savedSidebarScrollTop = 0;
+
 function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
   const location = useLocation();
+  const navRef = useRef<HTMLDivElement>(null);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const userRole = readStoredUser()?.role as string | undefined;
   const isAdmin = hasAdminAccess(userRole);
@@ -424,6 +432,29 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
     setOpenMenus((current) => ({ ...nextOpenMenus, ...current }));
   }, [activeModule, activeSubItem, location.pathname]);
 
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+
+    const onScroll = () => {
+      savedSidebarScrollTop = el.scrollTop;
+    };
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+
+    el.scrollTop = savedSidebarScrollTop;
+    const frameId = requestAnimationFrame(() => {
+      el.scrollTop = savedSidebarScrollTop;
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [location.pathname, openMenus]);
+
   function toggleMenu(menuLabel: string) {
     setOpenMenus((current) => ({
       ...current,
@@ -442,7 +473,10 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
         </span>
       </div>
 
-      <div className="mt-1 flex-1 overflow-y-auto px-3 pb-5 space-y-1">
+      <div
+        ref={navRef}
+        className="mt-1 flex-1 overflow-y-auto px-3 pb-5 space-y-1"
+      >
         {sidebarSteps.filter(canRenderItem).map((step) => {
           if (step.to) {
             return (
@@ -561,6 +595,10 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
                         key={item.label}
                         to={item.to}
                         onClick={onNavigate}
+                        onMouseDown={(event) => {
+                          // Prevent focus-driven scroll jump inside the overflow sidebar.
+                          if (event.button === 0) event.preventDefault();
+                        }}
                         className={`mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] ${
                           isActive
                             ? "bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
