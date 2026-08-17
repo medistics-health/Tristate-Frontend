@@ -368,6 +368,12 @@ export async function getBillingRunsView(params?: {
   limit?: number;
   practiceId?: string;
   status?: string;
+  paymentMethod?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
 }): Promise<BillingRunsViewData> {
   try {
     const queryString = new URLSearchParams();
@@ -375,6 +381,12 @@ export async function getBillingRunsView(params?: {
     if (params?.limit) queryString.set("limit", String(params.limit));
     if (params?.practiceId) queryString.set("practiceId", params.practiceId);
     if (params?.status) queryString.set("status", params.status);
+    if (params?.paymentMethod) queryString.set("paymentMethod", params.paymentMethod);
+    if (params?.search) queryString.set("search", params.search);
+    if (params?.dateFrom) queryString.set("dateFrom", params.dateFrom);
+    if (params?.dateTo) queryString.set("dateTo", params.dateTo);
+    if (params?.sortBy) queryString.set("sortBy", params.sortBy);
+    if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 
     const url = queryString.toString()
       ? `${LIST_RUNS}?${queryString.toString()}`

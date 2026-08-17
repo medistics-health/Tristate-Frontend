@@ -42,6 +42,13 @@ import {
 } from "./billingPreview";
 import AppLayout from "../layout/AppLayout";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
+import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import DatePicker from "../shared/DatePicker";
 import {
   getAllInvoices,
   type Invoice,
@@ -302,13 +309,151 @@ function BillingRunsPage() {
     useState<CreateRunFormState>(initialCreateRunForm);
   const [paymentForm, setPaymentForm] =
     useState<PaymentFormState>(initialPaymentForm);
+  const getResponsivePageSize = () => {
+    const height = window.innerHeight;
+    if (height >= 1200) return 15;
+    if (height >= 900) return 10;
+    if (height >= 700) return 8;
+    return 6;
+  };
+
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 10,
+    limit: getResponsivePageSize(),
     total: 0,
     totalPages: 0,
   });
-  const [filters, setFilters] = useState({ practiceId: "", status: "" });
+  const [userSelectedPageSize, setUserSelectedPageSize] = useState(false);
+
+  useEffect(() => {
+    function handleResize() {
+      if (!userSelectedPageSize) {
+        const newSize = getResponsivePageSize();
+        setPagination((prev) => ({ ...prev, limit: newSize }));
+      }
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [userSelectedPageSize]);
+
+  type BillingRunFilters = {
+    practiceId: string;
+    status: string;
+    paymentMethod: string;
+    dateFrom: string;
+    dateTo: string;
+  };
+
+  const defaultBillingRunFilters: BillingRunFilters = {
+    practiceId: "",
+    status: "",
+    paymentMethod: "",
+    dateFrom: "",
+    dateTo: "",
+  };
+
+  const [filters, setFilters] = useState<BillingRunFilters>(defaultBillingRunFilters);
+  const [draftFilters, setDraftFilters] = useState<BillingRunFilters>(defaultBillingRunFilters);
+  const [searchInput, setSearchInput] = useState("");
+
+  const handleOpenFilterModal = () => {
+    setDraftFilters(filters);
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(draftFilters);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setFilters(defaultBillingRunFilters);
+    setDraftFilters(defaultBillingRunFilters);
+    setSearchInput("");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const activeFilterCount = [
+    filters.practiceId,
+    filters.status,
+    filters.paymentMethod,
+    filters.dateFrom,
+    filters.dateTo,
+  ].filter(Boolean).length;
+
+  const practiceFilterLabel = useMemo(
+    () => practices.find((p) => p.id === filters.practiceId)?.name || filters.practiceId,
+    [practices, filters.practiceId],
+  );
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.practiceId) {
+      chips.push({
+        key: "practiceId",
+        label: "Practice",
+        displayValue: practiceFilterLabel,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, practiceId: "" }));
+          setDraftFilters((curr) => ({ ...curr, practiceId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.status) {
+      chips.push({
+        key: "status",
+        label: "Status",
+        displayValue: formatStatusLabel(filters.status),
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, status: "" }));
+          setDraftFilters((curr) => ({ ...curr, status: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.paymentMethod) {
+      chips.push({
+        key: "paymentMethod",
+        label: "Payment",
+        displayValue:
+          filters.paymentMethod === "CREDIT_CARD"
+            ? "Credit Card"
+            : filters.paymentMethod === "ACH"
+              ? "ACH"
+              : filters.paymentMethod,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, paymentMethod: "" }));
+          setDraftFilters((curr) => ({ ...curr, paymentMethod: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.dateFrom) {
+      chips.push({
+        key: "dateFrom",
+        label: "From",
+        displayValue: filters.dateFrom,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dateFrom: "" }));
+          setDraftFilters((curr) => ({ ...curr, dateFrom: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.dateTo) {
+      chips.push({
+        key: "dateTo",
+        label: "To",
+        displayValue: filters.dateTo,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dateTo: "" }));
+          setDraftFilters((curr) => ({ ...curr, dateTo: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    return chips;
+  }, [filters, practiceFilterLabel]);
   const [profileCreateHandled, setProfileCreateHandled] = useState(false);
   const [profileRunHandled, setProfileRunHandled] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([
@@ -696,7 +841,7 @@ function BillingRunsPage() {
             const status = row.original.values.status;
             return (
               <span
-                className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[status]}`}
+                className={`inline-flex rounded-lg px-2.5 py-1 text-[11px] font-medium tracking-wide ${statusStyles[status]}`}
               >
                 {formatStatusLabel(status)}
               </span>
@@ -777,44 +922,62 @@ function BillingRunsPage() {
     [],
   );
 
+  const activeSort = sorting[0];
+
   const table = useReactTable({
     data: rows,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
+    manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
-  useEffect(() => {
-    async function loadRuns() {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const data = await getBillingRunsView({
-          page: pagination.page,
-          limit: pagination.limit,
-          practiceId: filters.practiceId || profilePracticeId || undefined,
-          status: filters.status || undefined,
-        });
-        setRows(data.rows);
-        setPagination(data.pagination);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load billing runs";
-        setError(message);
-        toast.error(message);
-      } finally {
-        setIsLoading(false);
-      }
+  const refreshBillingRuns = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await getBillingRunsView({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: searchInput.trim() || undefined,
+        practiceId: filters.practiceId || profilePracticeId || undefined,
+        status: filters.status || undefined,
+        paymentMethod: filters.paymentMethod || undefined,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        sortBy: activeSort?.id,
+        sortOrder: activeSort ? (activeSort.desc ? "desc" : "asc") : undefined,
+      });
+      setRows(data.rows);
+      setPagination(data.pagination);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load billing runs";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    loadRuns();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      refreshBillingRuns();
+    }, 400);
+
+    return () => clearTimeout(timer);
   }, [
     pagination.page,
     pagination.limit,
+    searchInput,
     filters.practiceId,
     filters.status,
+    filters.paymentMethod,
+    filters.dateFrom,
+    filters.dateTo,
+    activeSort?.id,
+    activeSort?.desc,
     profilePracticeId,
   ]);
 
@@ -1423,26 +1586,7 @@ function BillingRunsPage() {
     );
   }
 
-  const navbarActions = [
-    ...(canFinanceActions
-      ? [
-          {
-            label: "Record payment",
-            icon: <Coins className="h-4 w-4" />,
-            onClick: openPaymentForm,
-          },
-        ]
-      : []),
-    ...(canRunWrite
-      ? [
-          {
-            label: "New run",
-            icon: <Plus className="h-4 w-4" />,
-            onClick: openCreateForm,
-          },
-        ]
-      : []),
-  ];
+ 
 
   const detailPanel = (
     <aside className="app-panel app-detail-panel relative flex w-full max-w-full lg:w-[420px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
@@ -3612,19 +3756,7 @@ function BillingRunsPage() {
     </aside>
   );
 
-  if (isLoading) {
-    return (
-      <AppLayout
-        title="Billing Runs"
-        activeModule="Billing"
-        activeSubItem="Billing Runs"
-      >
-        <div className="flex h-full items-center justify-center">
-          <div className="text-slate-400">Loading billing runs...</div>
-        </div>
-      </AppLayout>
-    );
-  }
+
 
   if (error && rows.length === 0) {
     return (
@@ -3647,212 +3779,206 @@ function BillingRunsPage() {
     );
   }
 
+  const searchPractices = async (query: string): Promise<SearchSelectOption[]> => {
+    const list = practices.length > 0 ? practices : await getAllPractices();
+    const q = query.trim().toLowerCase();
+    return list
+      .filter((p) => !q || p.name.toLowerCase().includes(q))
+      .map((p) => ({ label: p.name, value: p.id }));
+  };
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Practice
+        </span>
+        <SearchSelect
+          value={draftFilters.practiceId}
+          displayLabel={
+            practices.find((p) => p.id === draftFilters.practiceId)?.name || ""
+          }
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, practiceId: val }))
+          }
+          onSearch={searchPractices}
+          clearable
+          toggleOnSelectSame
+          placeholder="Search practice"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Status
+        </span>
+        <Select
+          value={draftFilters.status}
+          onChange={(value) =>
+            setDraftFilters((prev) => ({ ...prev, status: value }))
+          }
+          options={[
+            { label: "All Statuses", value: "" },
+            ...billingRunStatusOptions.map((status) => ({
+              label: formatStatusLabel(status),
+              value: status,
+            })),
+          ]}
+          placeholder="All Statuses"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Payment Method
+        </span>
+        <Select
+          value={draftFilters.paymentMethod}
+          onChange={(value) =>
+            setDraftFilters((prev) => ({ ...prev, paymentMethod: value }))
+          }
+          options={[
+            { label: "All Payment Methods", value: "" },
+            { label: "Credit Card", value: "CREDIT_CARD" },
+            { label: "ACH", value: "ACH" },
+          ]}
+          placeholder="All Payment Methods"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Created Date From
+        </span>
+        <DatePicker
+          value={draftFilters.dateFrom}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, dateFrom: val }))
+          }
+          placeholder="MM-DD-YYYY"
+          className="rounded-xl border-[#ece8e1]"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Created Date To
+        </span>
+        <DatePicker
+          value={draftFilters.dateTo}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, dateTo: val }))
+          }
+          placeholder="MM-DD-YYYY"
+          className="rounded-xl border-[#ece8e1]"
+        />
+      </label>
+    </>
+  );
+
   return (
     <AppLayout
       title="Billing Runs"
       activeModule="Billing"
       activeSubItem="Billing Runs"
       navbarIcon={<Receipt className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
     >
-      <div className="app-split">
-        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
-              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
-              <span>All Billing Runs</span>
-            </button>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel((current) => !current)}
-              >
-                Filters
-              </button>
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <select
-                value={filters.practiceId}
-                onChange={(event) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    practiceId: event.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Practices</option>
-                {practices.map((practice) => (
-                  <option key={practice.id} value={practice.id}>
-                    {practice.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={filters.status}
-                onChange={(event) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    status: event.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Statuses</option>
-                {billingRunStatusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {formatStatusLabel(status)}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setFilters({ practiceId: "", status: "" })}
-                className="text-[13px] text-[#4f63ea] hover:underline"
-                disabled={!filters.practiceId && !filters.status}
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            {rows.length === 0 ? (
-              <div className="relative flex min-h-[400px] items-center justify-center">
-                <div className="flex max-w-md flex-col items-center px-6 text-center">
-                  <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    No billing runs found
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    Create a billing run to start the billing workflow
-                  </p>
-                  <button
-                    type="button"
-                    onClick={openCreateForm}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Create Billing Run
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <table className="min-w-full border-separate border-spacing-0">
-                <thead className="sticky top-0 z-10 bg-white">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <th
-                          key={header.id}
-                          className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                        >
-                          {header.isPlaceholder ? null : (
-                            <button
-                              type="button"
-                              onClick={
-                                header.column.getCanSort()
-                                  ? header.column.getToggleSortingHandler()
-                                  : undefined
-                              }
-                              className="flex w-full items-center gap-2"
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </button>
-                          )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => {
-                    const isSelected = row.original.id === selectedRowId;
-                    return (
-                      <tr
-                        key={row.id}
-                        onClick={() => handleRowClick(row.original.id)}
-                        className={`cursor-pointer ${isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+      <div className="app-split font-app-sans">
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="All Billing Runs"
+            subtitle="Billing"
+            searchPlaceholder="Search billing runs..."
+            searchValue={searchInput}
+            onSearchChange={setSearchInput}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Billing Runs"
+            filterFields={filterFieldsModal}
+            addNewLabel={canRunWrite ? "Create Billing Run" : undefined}
+            onAddNew={canRunWrite ? openCreateForm : undefined}
+            onRefresh={refreshBillingRuns}
+            isLoading={isLoading}
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onPageSizeChange={(newSize) => {
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+              setUserSelectedPageSize(true);
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {rows.length === 0 ? (
+                <div className="relative flex min-h-[400px] items-center justify-center">
+                  <div className="flex max-w-md flex-col items-center px-6 text-center">
+                    <EmptyStateIllustration />
+                    <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
+                      No billing runs found
+                    </h2>
+                    <p className="mt-2 text-[14px] text-slate-400">
+                      Create a billing run to start the billing workflow
+                    </p>
+                    {canRunWrite && (
+                      <button
+                        type="button"
+                        onClick={openCreateForm}
+                        className="app-control mt-5 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
                       >
-                        {row.getVisibleCells().map((cell) => (
-                          <td
-                            key={cell.id}
-                            className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+                        <Plus className="h-3.5 w-3.5" />
+                        Create Billing Run
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <table className="min-w-full border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
                           >
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
-                            )}
-                          </td>
+                            <SortableHeaderCell header={header} />
+                          </th>
                         ))}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <span className="text-[13px] text-slate-500">
-                Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                {Math.min(pagination.page * pagination.limit, pagination.total)}{" "}
-                of {pagination.total}
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: pagination.totalPages },
-                  (_, index) => index + 1,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.map((row) => {
+                      const isSelected = row.original.id === selectedRowId;
+                      return (
+                        <tr
+                          key={row.id}
+                          onClick={() => handleRowClick(row.original.id)}
+                          className={`cursor-pointer text-[13px] text-slate-600 transition-colors ${isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <td
+                              key={cell.id}
+                              className="border-b border-[#f4f4ec] border-r border-[#f6f2ec] px-4 py-3 last:border-r-0"
+                            >
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
+          </DataTableToolbar>
         </section>
 
         {showDetailPanel && detailPanel}

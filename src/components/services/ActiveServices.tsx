@@ -260,16 +260,6 @@ function ActiveServicePage() {
     enableSortingRemoval: false,
   });
 
-  const navbarActions: NavbarAction[] = canManageServices
-    ? [
-        {
-          label: "New record",
-          icon: <Plus className="h-4 w-4" />,
-          onClick: () => toast("Create new services from All Services."),
-        },
-      ]
-    : [];
-
   if (isLoading) {
     return (
       <AppLayout
@@ -290,7 +280,6 @@ function ActiveServicePage() {
       activeModule="Service"
       activeSubItem="Active Service"
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
     >
       <div className="app-split font-app-sans">
         <section className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">

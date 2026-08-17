@@ -19,6 +19,14 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
+import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import DatePicker from "../shared/DatePicker";
+import { getResponsivePageSize } from "../shared/TablePagination";
 import {
   getAllInvoices,
   type Invoice,
@@ -94,11 +102,40 @@ function AllInvoiceLineItems() {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 10,
+    limit: getResponsivePageSize(),
     total: 0,
     totalPages: 0,
   });
-  const [filters, setFilters] = useState({ invoiceId: "" });
+  const [userSelectedPageSize, setUserSelectedPageSize] = useState(false);
+
+  useEffect(() => {
+    function handleResize() {
+      if (!userSelectedPageSize) {
+        const newSize = getResponsivePageSize();
+        setPagination((prev) => ({ ...prev, limit: newSize }));
+      }
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [userSelectedPageSize]);
+
+  type LineItemFilters = {
+    invoiceId: string;
+    invoiceNumber: string;
+    dateFrom: string;
+    dateTo: string;
+  };
+
+  const defaultFilters: LineItemFilters = {
+    invoiceId: "",
+    invoiceNumber: "",
+    dateFrom: "",
+    dateTo: "",
+  };
+
+  const [filters, setFilters] = useState<LineItemFilters>(defaultFilters);
+  const [draftFilters, setDraftFilters] = useState<LineItemFilters>(defaultFilters);
+  const [searchInput, setSearchInput] = useState("");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "creationDate", desc: true },
   ]);
@@ -110,6 +147,89 @@ function AllInvoiceLineItems() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const activeSort = sorting[0];
+
+  const handleOpenFilterModal = () => {
+    setDraftFilters(filters);
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(draftFilters);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
+    setSearchInput("");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const activeFilterCount = [
+    filters.invoiceId,
+    filters.invoiceNumber,
+    filters.dateFrom,
+    filters.dateTo,
+  ].filter(Boolean).length;
+
+  const invoiceFilterLabel = useMemo(
+    () => invoices.find((inv) => inv.id === filters.invoiceId)?.invoiceNumber || filters.invoiceId,
+    [invoices, filters.invoiceId],
+  );
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.invoiceId) {
+      chips.push({
+        key: "invoiceId",
+        label: "Invoice",
+        displayValue: invoiceFilterLabel,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, invoiceId: "" }));
+          setDraftFilters((curr) => ({ ...curr, invoiceId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.invoiceNumber) {
+      chips.push({
+        key: "invoiceNumber",
+        label: "Invoice #",
+        displayValue: filters.invoiceNumber,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, invoiceNumber: "" }));
+          setDraftFilters((curr) => ({ ...curr, invoiceNumber: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.dateFrom) {
+      chips.push({
+        key: "dateFrom",
+        label: "From",
+        displayValue: filters.dateFrom,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dateFrom: "" }));
+          setDraftFilters((curr) => ({ ...curr, dateFrom: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.dateTo) {
+      chips.push({
+        key: "dateTo",
+        label: "To",
+        displayValue: filters.dateTo,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dateTo: "" }));
+          setDraftFilters((curr) => ({ ...curr, dateTo: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    return chips;
+  }, [filters, invoiceFilterLabel]);
 
   const columns = useMemo(
     () =>
@@ -172,35 +292,60 @@ function AllInvoiceLineItems() {
     columns,
     state: { sorting },
     onSortingChange: setSorting,
+    manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const data = await getInvoiceLineItemsView({
-          page: pagination.page,
-          limit: pagination.limit,
-          invoiceId: filters.invoiceId || undefined,
-        });
-        setRows(data.rows);
-        setPagination(data.pagination);
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Failed to load invoice line items";
-        setError(message);
-        toast.error(message);
-      } finally {
-        setIsLoading(false);
-      }
+  const refreshAllLineItems = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await getInvoiceLineItemsView({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: searchInput.trim() || undefined,
+        invoiceId: filters.invoiceId || undefined,
+        invoiceNumber: filters.invoiceNumber.trim() || undefined,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        sortBy: activeSort?.id,
+        sortOrder: activeSort ? (activeSort.desc ? "desc" : "asc") : undefined,
+      });
+      setRows(data.rows);
+      setPagination(data.pagination);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to load invoice line items";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
     }
-    loadData();
-  }, [pagination.page, pagination.limit, sorting, filters]);
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      refreshAllLineItems();
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    pagination.page,
+    pagination.limit,
+    searchInput,
+    filters.invoiceId,
+    filters.invoiceNumber,
+    filters.dateFrom,
+    filters.dateTo,
+    activeSort?.id,
+    activeSort?.desc,
+  ]);
+
+  async function refreshRows(targetPage = pagination.page) {
+    await refreshAllLineItems();
+  }
 
   useEffect(() => {
     if (
@@ -388,48 +533,52 @@ function AllInvoiceLineItems() {
     }
   }
 
-  const navbarActions = [
-    {
-      label: "New record",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: openCreateForm,
-    },
-  ];
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Invoice Number
+        </span>
+        <input
+          type="text"
+          value={draftFilters.invoiceNumber}
+          onChange={(e) =>
+            setDraftFilters((prev) => ({ ...prev, invoiceNumber: e.target.value }))
+          }
+          placeholder="e.g. INV-001"
+          className="app-control w-full rounded-xl border border-[#ece8e1] bg-white px-3 py-2 text-[13px] text-slate-800 placeholder-slate-400 focus:border-[#4f63ea] focus:ring-1 focus:ring-[#4f63ea]/20 outline-none transition-all"
+        />
+      </label>
 
-  if (isLoading) {
-    return (
-      <AppLayout
-        title="Invoice Line Items"
-        activeModule="Invoice Line Items"
-        activeSubItem="All Invoice Line Items"
-      >
-        <div className="flex h-full items-center justify-center">
-          <div className="text-slate-400">Loading invoice line items...</div>
-        </div>
-      </AppLayout>
-    );
-  }
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Created Date From
+        </span>
+        <DatePicker
+          value={draftFilters.dateFrom}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, dateFrom: val }))
+          }
+          placeholder="MM-DD-YYYY"
+          className="rounded-xl border-[#ece8e1]"
+        />
+      </label>
 
-  if (error && rows.length === 0) {
-    return (
-      <AppLayout
-        title="Invoice Line Items"
-        activeModule="Invoice Line Items"
-        activeSubItem="All Invoice Line Items"
-      >
-        <div className="flex h-full flex-col items-center justify-center gap-4">
-          <div className="text-red-500">{error}</div>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="app-control rounded-md px-4 py-2 text-[14px] font-medium"
-          >
-            Retry
-          </button>
-        </div>
-      </AppLayout>
-    );
-  }
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Created Date To
+        </span>
+        <DatePicker
+          value={draftFilters.dateTo}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, dateTo: val }))
+          }
+          placeholder="MM-DD-YYYY"
+          className="rounded-xl border-[#ece8e1]"
+        />
+      </label>
+    </>
+  );
 
   return (
     <AppLayout
@@ -437,204 +586,93 @@ function AllInvoiceLineItems() {
       activeModule="Invoice Line Items"
       activeSubItem="All Invoice Line Items"
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
     >
-      <div className="app-split">
-        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
-              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
-              <span>All Invoice Line Items</span>
-            </button>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel((current) => !current)}
-              >
-                Filters
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setSorting((current) =>
-                    current[0]?.id === "creationDate"
-                      ? [{ id: "creationDate", desc: !current[0].desc }]
-                      : [{ id: "creationDate", desc: true }],
-                  )
-                }
-              >
-                Sort
-              </button>
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              {optionsLoading ? (
-                <div className="text-[13px] text-slate-400">
-                  Loading filters...
+      <div className="app-split font-app-sans">
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="All Invoice Line Items"
+            subtitle="Invoice Line Items"
+            searchPlaceholder="Search invoice line items..."
+            searchValue={searchInput}
+            onSearchChange={setSearchInput}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Invoice Line Items"
+            filterFields={filterFieldsModal}
+            onRefresh={refreshAllLineItems}
+            isLoading={isLoading}
+            isSaving={isSaving}
+            isDeleting={isDeleting}
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onPageSizeChange={(newSize) => {
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+              setUserSelectedPageSize(true);
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {rows.length === 0 ? (
+                <div className="relative flex min-h-[400px] items-center justify-center">
+                  <div className="flex max-w-md flex-col items-center px-6 text-center">
+                    <EmptyStateIllustration />
+                    <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
+                      No invoice line items found
+                    </h2>
+                    <p className="mt-2 text-[14px] text-slate-400">
+                      No invoice line items available for display
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <select
-                  value={filters.invoiceId}
-                  onChange={(event) => {
-                    setFilters({ invoiceId: event.target.value });
-                    setPagination((prev) => ({ ...prev, page: 1 }));
-                  }}
-                  className="app-control rounded-md px-3 py-1.5 text-[13px]"
-                >
-                  <option value="">All Invoices</option>
-                  {invoices.map((invoice) => (
-                    <option key={invoice.id} value={invoice.id}>
-                      {getInvoiceLabel(invoice)}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                type="button"
-                onClick={() => setFilters({ invoiceId: "" })}
-                className="text-[13px] text-[#4f63ea] hover:underline"
-                disabled={!filters.invoiceId}
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            {rows.length === 0 ? (
-              <div className="relative flex min-h-[400px] items-center justify-center">
-                <div className="flex max-w-md flex-col items-center px-6 text-center">
-                  <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    No invoice line items found
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    Create your first invoice line item to get started
-                  </p>
-                  <button
-                    type="button"
-                    onClick={openCreateForm}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Create Invoice Line Item
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <table className="min-w-full border-separate border-spacing-0">
-                <thead className="sticky top-0 z-10 bg-white">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <th
-                          key={header.id}
-                          className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                        >
-                          {header.isPlaceholder ? null : (
-                            <button
-                              type="button"
-                              onClick={
-                                header.column.getCanSort()
-                                  ? header.column.getToggleSortingHandler()
-                                  : undefined
-                              }
-                              className="flex w-full items-center gap-2"
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </button>
-                          )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => {
-                    const isSelected = row.original.id === selectedRowId;
-                    return (
-                      <tr
-                        key={row.id}
-                        onClick={() => handleRowClick(row.original.id)}
-                        className={`cursor-pointer ${isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <td
-                            key={cell.id}
-                            className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+                <table className="min-w-full border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
                           >
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
-                            )}
-                          </td>
+                            <SortableHeaderCell header={header} />
+                          </th>
                         ))}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total,
-                  )}{" "}
-                  of {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: pagination.totalPages },
-                  (_, i) => i + 1,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${pagination.page === page ? "bg-[#4f63ea] text-white" : "text-slate-500 hover:bg-[#f0ece6]"}`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.map((row) => {
+                      const isSelected = row.original.id === selectedRowId;
+                      return (
+                        <tr
+                          key={row.id}
+                          onClick={() => handleRowClick(row.original.id)}
+                          className={`cursor-pointer ${isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <td
+                              key={cell.id}
+                              className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-4 py-3 text-[13px] text-slate-600 last:border-r-0"
+                            >
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
+          </DataTableToolbar>
         </section>
 
         {showDetailPanel && (

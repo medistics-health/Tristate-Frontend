@@ -84,6 +84,11 @@ export type InvoiceLineItemQueryParams = {
   limit?: number;
   invoiceId?: string;
   invoiceNumber?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
 };
 
 function formatCurrency(amount: string | number) {
@@ -150,6 +155,11 @@ export async function getInvoiceLineItemsView(
     if (params?.invoiceId) queryString.set("invoiceId", params.invoiceId);
     if (params?.invoiceNumber)
       queryString.set("invoiceNumber", params.invoiceNumber);
+    if (params?.search) queryString.set("search", params.search);
+    if (params?.dateFrom) queryString.set("dateFrom", params.dateFrom);
+    if (params?.dateTo) queryString.set("dateTo", params.dateTo);
+    if (params?.sortBy) queryString.set("sortBy", params.sortBy);
+    if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 
     const url = queryString.toString()
       ? `${LINE_ITEMS_LIST}?${queryString.toString()}`
