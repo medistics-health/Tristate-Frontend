@@ -8,6 +8,8 @@ import {
 } from "@tanstack/react-table";
 import { ChevronLeft, Circle, LayoutList, Plus, Trash2, X } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
+import toast from "react-hot-toast";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import AppLayout from "../layout/AppLayout";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import DataTableToolbar, {
@@ -26,7 +28,6 @@ import { getAllVendorsApi } from "../../services/operations/vendors";
 import { getAllInvoices } from "../../services/operations/invoices";
 import type { Vendor } from "../../services/operations/vendors";
 import type { Invoice } from "../../services/operations/invoices";
-import toast from "react-hot-toast";
 
 function getInvoiceLabel(invoice: Invoice) {
   if (invoice.invoiceNumber) {
@@ -187,30 +188,40 @@ function AllPurchaseOrdersPage() {
     return () => clearTimeout(timer);
   }, [pagination.page, pagination.limit, sorting, searchInput, selectedVendorId]);
 
-  const exportCsv = () => {
-    if (rows.length === 0) return;
-    const headers = ["ID", "Vendor", "Invoice ID", "Total Cost", "Created At"];
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [
-        headers.join(","),
-        ...rows.map((r) =>
-          [
-            `"${r.id}"`,
-            `"${r.values.vendorName}"`,
-            `"${r.values.invoiceId}"`,
-            `"${r.values.totalCost}"`,
-            `"${r.values.creationDate}"`,
-          ].join(","),
-        ),
-      ].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `purchase_orders_export_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportCsv = async () => {
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = ["PO ID", "Vendor", "Invoice ID", "Total Cost", "Created Date & Time"];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: "purchase_orders",
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getPurchaseOrdersView({
+            page,
+            limit,
+            sortBy: sorting[0]?.id || "createdAt",
+            sortOrder: sorting[0]?.desc ? "desc" : "asc",
+            ...(searchInput.trim() && { search: searchInput.trim() }),
+          });
+          return {
+            items: res.rows,
+            totalPages: res.pagination.totalPages,
+          };
+        },
+        rowToCsvFields: (r) => [
+          r.id,
+          r.values.vendorName,
+          r.values.invoiceId,
+          r.values.totalCost,
+          formatUsDateTime(r.values.creationDate),
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
   };
 
   const filterFieldsModal = (

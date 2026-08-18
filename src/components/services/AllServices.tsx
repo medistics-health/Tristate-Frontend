@@ -15,6 +15,8 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
+import toast from "react-hot-toast";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import AppLayout from "../layout/AppLayout";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import DataTableToolbar, {
@@ -557,6 +559,58 @@ function AllServicesPage() {
     </>
   );
 
+  const exportCsv = async () => {
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = [
+        "Service Name",
+        "Code",
+        "Category",
+        "Vendor",
+        "Stripe Account",
+        "Active",
+        "Created Date & Time",
+      ];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: "services",
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getServicesView({
+            page,
+            limit,
+            search: searchInput.trim() || undefined,
+            category: draftCategory || undefined,
+            vendorId: draftVendorId || undefined,
+            isActive: draftActiveStatus === "" ? undefined : draftActiveStatus === "active",
+            sortBy: sorting[0]?.id,
+            sortOrder: sorting[0]?.desc ? "desc" : "asc",
+          });
+          return {
+            items: res.rows,
+            totalPages: res.pagination.totalPages,
+          };
+        },
+        rowToCsvFields: (r) => [
+          r.values.name,
+          r.values.code || "-",
+          r.values.category || "-",
+          r.values.vendorName || "Vendor not available",
+          r.values.stripeConnectedAccountName ||
+            (r.values.stripeConnectedAccountId
+              ? getStripeAccountLabel(String(r.values.stripeConnectedAccountId))
+              : "Stripe account not available"),
+          r.values.isActive ? "Yes" : "No",
+          formatUsDateTime(r.values.creationDate),
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
+  };
+
   return (
     <AppLayout
       title="Services"
@@ -581,6 +635,7 @@ function AllServicesPage() {
             filterFields={filterFieldsModal}
             addNewLabel={canManageServices ? "Create Service" : undefined}
             onAddNew={canManageServices ? openCreateForm : undefined}
+            onExport={exportCsv}
             onRefresh={refreshServiceRecords}
             isLoading={isLoading}
             isSaving={isSaving}
