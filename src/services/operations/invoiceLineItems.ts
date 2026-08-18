@@ -84,6 +84,7 @@ export type InvoiceLineItemQueryParams = {
   limit?: number;
   invoiceId?: string;
   invoiceNumber?: string;
+  serviceId?: string;
   type?: "client" | "tristate";
   search?: string;
   dateFrom?: string;
@@ -156,6 +157,7 @@ export async function getInvoiceLineItemsView(
     if (params?.invoiceId) queryString.set("invoiceId", params.invoiceId);
     if (params?.invoiceNumber)
       queryString.set("invoiceNumber", params.invoiceNumber);
+    if (params?.serviceId) queryString.set("serviceId", params.serviceId);
     if (params?.search) queryString.set("search", params.search);
     if (params?.dateFrom) queryString.set("dateFrom", params.dateFrom);
     if (params?.dateTo) queryString.set("dateTo", params.dateTo);

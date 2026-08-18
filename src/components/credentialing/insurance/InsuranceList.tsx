@@ -16,6 +16,8 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
+import { buildExportFilename, formatUsDateTime } from "../../../utils/csvExport";
 import AppLayout from "../../layout/AppLayout";
 import ConfirmModal from "../../shared/ConfirmModal";
 import Select from "../../shared/Select";
@@ -327,38 +329,44 @@ function InsuranceListPage() {
   }
 
   function exportCsv() {
-    const header = [
-      "Payer Name",
-      "Payer Type",
-      "Plans",
-      "Contact",
-      "Turnaround Time",
-      "Re-credentialing Cycle",
-      "Last Updated",
-    ];
-    const rows = sortedRecords.map((record) => [
-      record.payerName,
-      record.payerType,
-      record.plans.map((p) => p.planName).join("; "),
-      record.contact,
-      record.turnaroundTime,
-      record.reCredentialingCycle,
-      record.updatedAt,
-    ]);
-    const csv = [header, ...rows]
-      .map((row) =>
-        row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","),
-      )
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "insurance-list.csv";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const header = [
+        "Payer Name",
+        "Payer Type",
+        "Plans",
+        "Contact",
+        "Turnaround Time",
+        "Re-credentialing Cycle",
+        "Last Updated Date & Time",
+      ];
+      const rows = sortedRecords.map((record) => [
+        record.payerName,
+        record.payerType,
+        record.plans.map((p) => p.planName).join("; "),
+        record.contact,
+        record.turnaroundTime,
+        record.reCredentialingCycle,
+        formatUsDateTime(record.updatedAt),
+      ]);
+      const csv = [header, ...rows]
+        .map((row) =>
+          row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(","),
+        )
+        .join("\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = buildExportFilename("insurance_plans");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
   }
 
   function updateSort(nextField: SortField) {

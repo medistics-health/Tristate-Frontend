@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import AppLayout from "../layout/AppLayout";
 import DataTableToolbar, {
   SortableHeaderCell,
@@ -576,6 +577,61 @@ function OverdueInvoicePage() {
     </>
   );
 
+  const exportCsv = async () => {
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = [
+        "Invoice Number",
+        "Practice",
+        "Net Services",
+        "Gross Invoice Total",
+        "Processing Fee",
+        "Company Absorbed",
+        "Payment Method",
+        "Status",
+        "Due Date",
+        "Created Date & Time",
+      ];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: "overdue_invoices",
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getInvoicesView({
+            page,
+            limit,
+            status: "OVERDUE",
+            search: searchInput.trim() || undefined,
+            practiceId: filters.practiceId || undefined,
+            paymentMethod: filters.paymentMethod || undefined,
+            dateFrom: filters.dateFrom || undefined,
+            dateTo: filters.dateTo || undefined,
+          });
+          return {
+            items: res.rows,
+            totalPages: res.pagination.totalPages,
+          };
+        },
+        rowToCsvFields: (r) => [
+          r.values.invoiceNumber || r.id,
+          r.values.practiceName,
+          r.values.netServices,
+          r.values.grossInvoiceTotal,
+          r.values.processingFee,
+          r.values.companyAbsorbed,
+          r.values.paymentMethod,
+          r.values.status,
+          r.values.dueDate,
+          formatUsDateTime(r.values.creationDate),
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
+  };
+
   return (
     <AppLayout
       title="Invoices"
@@ -598,6 +654,7 @@ function OverdueInvoicePage() {
             onOpenFilterModal={handleOpenFilterModal}
             filterModalTitle="Filter Overdue Invoices"
             filterFields={filterFieldsModal}
+            onExport={exportCsv}
             onRefresh={refreshOverdueInvoices}
             isLoading={isLoading}
             isSaving={isSaving}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, AlertCircle, CheckCircle2, Clock, CalendarDays } from "lucide-react";
 import toast from "react-hot-toast";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import AppLayout from "../layout/AppLayout";
 import DataTableToolbar from "../shared/DataTableToolbar";
 import {
@@ -234,32 +235,36 @@ export default function AccountingSyncDashboard() {
     return matchesSearch && matchesStatus;
   });
 
-  const exportCsv = () => {
-    if (filteredLogs.length === 0) return;
-    const headers = ["ID", "Entity Type", "Entity ID", "QB External ID", "System", "Status", "Last Synced"];
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [
-        headers.join(","),
-        ...filteredLogs.map((l) =>
-          [
-            `"${l.id}"`,
-            `"${l.entityType}"`,
-            `"${l.entityId}"`,
-            `"${l.externalId || ""}"`,
-            `"${l.system}"`,
-            `"${l.status}"`,
-            `"${l.lastSyncedAt || l.updatedAt}"`,
-          ].join(","),
-        ),
-      ].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `accounting_sync_logs_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportCsv = async () => {
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = ["Sync ID", "Entity Type", "Entity ID", "QB External ID", "System", "Status", "Last Synced Date & Time"];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: "accounting_sync_logs",
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getSyncLogs(page, limit, selectedCompanyId || undefined);
+          return {
+            items: res.logs,
+            totalPages: res.pagination.totalPages,
+          };
+        },
+        rowToCsvFields: (l) => [
+          l.id,
+          l.entityType,
+          l.entityId,
+          l.externalId || "",
+          l.system,
+          l.status,
+          formatUsDateTime(l.lastSyncedAt || l.updatedAt),
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
   };
 
   const filterFieldsModal = (

@@ -22,6 +22,7 @@ import DataTableToolbar, {
   SortableHeaderCell,
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import {
   getAllPractices,
@@ -375,6 +376,9 @@ export default function PricingEnginePage() {
     vendorId: string;
     serviceId: string;
     approvalStatus: string;
+    clientApprovalStatus: string;
+    internalApprovalStatus: string;
+    termStatus: string;
   };
 
   const defaultFilters: RateFilters = {
@@ -383,6 +387,9 @@ export default function PricingEnginePage() {
     vendorId: "",
     serviceId: "",
     approvalStatus: "",
+    clientApprovalStatus: "",
+    internalApprovalStatus: "",
+    termStatus: "",
   };
 
   const [filters, setFilters] = useState<RateFilters>(defaultFilters);
@@ -423,6 +430,9 @@ export default function PricingEnginePage() {
     filters.vendorId,
     filters.serviceId,
     filters.approvalStatus,
+    filters.clientApprovalStatus,
+    filters.internalApprovalStatus,
+    filters.termStatus,
   ].filter(Boolean).length;
 
   const activeFilterChips = useMemo(() => {
@@ -474,6 +484,42 @@ export default function PricingEnginePage() {
         onClear: () => {
           setFilters((curr) => ({ ...curr, approvalStatus: "" }));
           setDraftFilters((curr) => ({ ...curr, approvalStatus: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.clientApprovalStatus) {
+      chips.push({
+        key: "clientApprovalStatus",
+        label: "Client Approval",
+        displayValue: filters.clientApprovalStatus,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, clientApprovalStatus: "" }));
+          setDraftFilters((curr) => ({ ...curr, clientApprovalStatus: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.internalApprovalStatus) {
+      chips.push({
+        key: "internalApprovalStatus",
+        label: "Internal Approval",
+        displayValue: filters.internalApprovalStatus,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, internalApprovalStatus: "" }));
+          setDraftFilters((curr) => ({ ...curr, internalApprovalStatus: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.termStatus) {
+      chips.push({
+        key: "termStatus",
+        label: "Term Status",
+        displayValue: filters.termStatus,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, termStatus: "" }));
+          setDraftFilters((curr) => ({ ...curr, termStatus: "" }));
           setPagination((prev) => ({ ...prev, page: 1 }));
         },
       });
@@ -637,6 +683,9 @@ export default function PricingEnginePage() {
     filters.vendorId,
     filters.serviceId,
     filters.approvalStatus,
+    filters.clientApprovalStatus,
+    filters.internalApprovalStatus,
+    filters.termStatus,
   ]);
 
   async function loadTerms() {
@@ -654,6 +703,9 @@ export default function PricingEnginePage() {
         ...(filters.vendorId && { vendorId: filters.vendorId }),
         ...(filters.serviceId && { serviceId: filters.serviceId }),
         ...(filters.approvalStatus && { approvalStatus: filters.approvalStatus }),
+        ...(filters.clientApprovalStatus && { clientApprovalStatus: filters.clientApprovalStatus }),
+        ...(filters.internalApprovalStatus && { internalApprovalStatus: filters.internalApprovalStatus }),
+        ...(filters.termStatus && { termStatus: filters.termStatus }),
       });
       setTerms(d.terms || []);
       if (d.pagination) {
@@ -677,57 +729,59 @@ export default function PricingEnginePage() {
   async function exportCsv() {
     if (!selectedVersionId || !selectedAgreementId) return;
     try {
-      const d = await getPricingTerms({
-        agreementId: selectedAgreementId,
-        agreementVersionId: selectedVersionId,
-        page: 1,
-        limit: Math.max(pagination.total, 1000),
-        ...(searchInput.trim() && { search: searchInput.trim() }),
-        ...(filters.pricingModel && { pricingModel: filters.pricingModel }),
-        ...(filters.vendorId && { vendorId: filters.vendorId }),
-        ...(filters.serviceId && { serviceId: filters.serviceId }),
-        ...(filters.approvalStatus && { approvalStatus: filters.approvalStatus }),
-      });
-
-      const header = [
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = [
         "Service",
         "Pricing Model",
         "Client Rate",
         "Vendor Rate",
         "Vendor",
         "Status",
+        "Created Date & Time",
       ];
 
-      const rowsData = (d.terms || []).map((term) => {
-        const cl = extractClientRate(term);
-        const vn = extractVendorRate(term);
-        const overallStatus = getOverallStatus(term);
-        return [
-          `"${(term.service?.name || "").replace(/"/g, '""')}"`,
-          `"${(fmtModel(term.pricingModel) || "").replace(/"/g, '""')}"`,
-          `"${term.pricingModel === "HYBRID" ? "-" : fmtModelValue(cl, term.pricingModel)}"`,
-          `"${term.pricingModel === "HYBRID" ? "-" : term.vendorId ? fmtModelValue(vn, term.pricingModel) : "-"}"`,
-          `"${(term.vendor?.name || "Vendor not available").replace(/"/g, '""')}"`,
-          `"${overallStatus}"`,
-        ];
+      await exportAllPagesToCsv({
+        filenamePrefix: `pricing_terms_${selectedAgreementId}`,
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getPricingTerms({
+            agreementId: selectedAgreementId,
+            agreementVersionId: selectedVersionId,
+            page,
+            limit,
+            ...(searchInput.trim() && { search: searchInput.trim() }),
+            ...(filters.pricingModel && { pricingModel: filters.pricingModel }),
+            ...(filters.vendorId && { vendorId: filters.vendorId }),
+            ...(filters.serviceId && { serviceId: filters.serviceId }),
+            ...(filters.approvalStatus && { approvalStatus: filters.approvalStatus }),
+            ...(filters.clientApprovalStatus && { clientApprovalStatus: filters.clientApprovalStatus }),
+            ...(filters.internalApprovalStatus && { internalApprovalStatus: filters.internalApprovalStatus }),
+            ...(filters.termStatus && { termStatus: filters.termStatus }),
+          });
+          return {
+            items: res.terms || [],
+            totalPages: res.pagination?.totalPages || 1,
+          };
+        },
+        rowToCsvFields: (term) => {
+          const cl = extractClientRate(term);
+          const vn = extractVendorRate(term);
+          const overallStatus = getOverallStatus(term);
+          return [
+            term.service?.name || "",
+            fmtModel(term.pricingModel) || "",
+            term.pricingModel === "HYBRID" ? "-" : fmtModelValue(cl, term.pricingModel),
+            term.pricingModel === "HYBRID" ? "-" : term.vendorId ? fmtModelValue(vn, term.pricingModel) : "-",
+            term.vendor?.name || "Vendor not available",
+            overallStatus,
+            formatUsDateTime(term.createdAt),
+          ];
+        },
       });
-
-      const csvContent =
-        "data:text/csv;charset=utf-8," +
-        [header.join(","), ...rowsData.map((e) => e.join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute(
-        "download",
-        `rate_finalization_${selectedAgreementId}_v${selectedVersionId}.csv`,
-      );
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success("Exported CSV successfully");
+      toast.success("CSV Exported successfully", { id: "export-csv" });
     } catch (e) {
-      toast.error("Failed to export CSV");
+      toast.error("Failed to export CSV", { id: "export-csv" });
     }
   }
 
@@ -852,18 +906,54 @@ export default function PricingEnginePage() {
 
       <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
-          Approval Status
+          Client Approval Status
         </span>
         <Select
-          value={draftFilters.approvalStatus}
+          value={draftFilters.clientApprovalStatus}
           onChange={(val) =>
-            setDraftFilters((prev) => ({ ...prev, approvalStatus: val }))
+            setDraftFilters((prev) => ({ ...prev, clientApprovalStatus: val }))
           }
           options={[
-            { label: "All Statuses", value: "" },
-            { label: "Pending Approval", value: "PENDING" },
-            { label: "Approved", value: "APPROVED" },
-            { label: "Rejected", value: "REJECTED" },
+            { label: "All Client Approval Statuses", value: "" },
+            { label: "Approved", value: "Approved" },
+            { label: "Pending", value: "Pending" },
+            { label: "Rejected", value: "Rejected" },
+          ]}
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Internal Approval Status
+        </span>
+        <Select
+          value={draftFilters.internalApprovalStatus}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, internalApprovalStatus: val }))
+          }
+          options={[
+            { label: "All Internal Approval Statuses", value: "" },
+            { label: "Approved", value: "Approved" },
+            { label: "Pending", value: "Pending" },
+            { label: "Rejected", value: "Rejected" },
+          ]}
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Term Status
+        </span>
+        <Select
+          value={draftFilters.termStatus}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, termStatus: val }))
+          }
+          options={[
+            { label: "All Term Statuses", value: "" },
+            { label: "Active", value: "Active" },
+            { label: "Inactive", value: "Inactive" },
+            { label: "Draft", value: "Draft" },
           ]}
         />
       </label>

@@ -152,6 +152,9 @@ export type PricingTermsParams = {
   pricingModel?: string;
   vendorId?: string;
   approvalStatus?: string;
+  clientApprovalStatus?: string;
+  internalApprovalStatus?: string;
+  termStatus?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   page?: number;
@@ -171,6 +174,9 @@ export async function getPricingTerms(params?: PricingTermsParams): Promise<{
     if (params?.pricingModel) qs.set("pricingModel", params.pricingModel);
     if (params?.vendorId) qs.set("vendorId", params.vendorId);
     if (params?.approvalStatus) qs.set("approvalStatus", params.approvalStatus);
+    if (params?.clientApprovalStatus) qs.set("clientApprovalStatus", params.clientApprovalStatus);
+    if (params?.internalApprovalStatus) qs.set("internalApprovalStatus", params.internalApprovalStatus);
+    if (params?.termStatus) qs.set("termStatus", params.termStatus);
     if (params?.sortBy) qs.set("sortBy", params.sortBy);
     if (params?.sortOrder) qs.set("sortOrder", params.sortOrder);
     if (params?.page) qs.set("page", String(params.page));
