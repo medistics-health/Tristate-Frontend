@@ -24,8 +24,12 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import DatePicker from "../shared/DatePicker";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import {
   getAllInvoices,
+  getInvoicesView,
   type Invoice,
 } from "../../services/operations/invoices";
 import { getAllServices } from "../../services/operations/services";
@@ -111,9 +115,24 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
     total: 0,
     totalPages: 0,
   });
-  const [filters, setFilters] = useState({ invoiceId: "" });
+  type LineItemFilters = {
+    invoiceId: string;
+    serviceId: string;
+    dateFrom: string;
+    dateTo: string;
+  };
+
+  const defaultFilters: LineItemFilters = {
+    invoiceId: "",
+    serviceId: "",
+    dateFrom: "",
+    dateTo: "",
+  };
+
+  const [filters, setFilters] = useState<LineItemFilters>(defaultFilters);
+  const [draftFilters, setDraftFilters] = useState<LineItemFilters>(defaultFilters);
+  const [selectedInvoiceOption, setSelectedInvoiceOption] = useState<SearchSelectOption | null>(null);
   const [searchInput, setSearchInput] = useState("");
-  const [draftInvoiceId, setDraftInvoiceId] = useState("");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "creationDate", desc: true },
   ]);
@@ -231,6 +250,10 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
           page: pagination.page,
           limit: pagination.limit,
           invoiceId: filters.invoiceId || undefined,
+          serviceId: filters.serviceId || undefined,
+          dateFrom: filters.dateFrom || undefined,
+          dateTo: filters.dateTo || undefined,
+          search: searchInput.trim() || undefined,
         });
         setRows(data.rows);
         setPagination((prev) => ({
@@ -250,7 +273,17 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
       }
     }
     loadData();
-  }, [pagination.page, pagination.limit, sortField, sortDesc, filters.invoiceId]);
+  }, [
+    pagination.page,
+    pagination.limit,
+    sortField,
+    sortDesc,
+    filters.invoiceId,
+    filters.serviceId,
+    filters.dateFrom,
+    filters.dateTo,
+    searchInput,
+  ]);
 
   useEffect(() => {
     if (
@@ -448,90 +481,180 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
 
 
 
+  const searchInvoices = async (query: string): Promise<SearchSelectOption[]> => {
+    const q = query.trim();
+    try {
+      const data = await getInvoicesView({
+        page: 1,
+        limit: 50,
+        ...(q && { search: q }),
+      });
+      return data.rows.map((row) => ({
+        label: row.values.invoiceNumber || row.id,
+        subLabel: row.values.practiceName !== "-" ? row.values.practiceName : undefined,
+        value: row.id,
+      }));
+    } catch (e) {
+      const list = invoices.length > 0 ? invoices : await getAllInvoices();
+      const qLower = q.toLowerCase();
+      return list
+        .filter(
+          (inv) =>
+            !qLower ||
+            (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(qLower)) ||
+            (inv.practice?.name && inv.practice.name.toLowerCase().includes(qLower)),
+        )
+        .map((inv) => ({
+          label: inv.invoiceNumber || getInvoiceLabel(inv),
+          subLabel: inv.practice?.name,
+          value: inv.id,
+        }));
+    }
+  };
+
   const handleOpenFilterModal = () => {
-    setDraftInvoiceId(filters.invoiceId);
-    if (invoices.length === 0) {
+    setDraftFilters(filters);
+    if (invoices.length === 0 || services.length === 0) {
       setOptionsLoading(true);
-      getAllInvoices()
-        .then(setInvoices)
+      Promise.all([getAllInvoices(), getAllServices()])
+        .then(([invList, srvList]) => {
+          setInvoices(invList);
+          setServices(srvList);
+        })
         .finally(() => setOptionsLoading(false));
     }
   };
 
   const handleApplyFilters = () => {
-    setFilters({ invoiceId: draftInvoiceId });
+    setFilters(draftFilters);
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
   const resetFilters = () => {
-    setFilters({ invoiceId: "" });
-    setDraftInvoiceId("");
+    setFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
     setSearchInput("");
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
-  const activeFilterCount = filters.invoiceId ? 1 : 0;
+  const activeFilterCount = [
+    filters.invoiceId,
+    filters.serviceId,
+    filters.dateFrom,
+    filters.dateTo,
+  ].filter(Boolean).length;
+
   const activeFilterChips = useMemo(() => {
     const chips: ActiveFilterChip[] = [];
     if (filters.invoiceId) {
       const inv = invoices.find((i) => i.id === filters.invoiceId);
-      const display = inv ? getInvoiceLabel(inv) : filters.invoiceId;
+      const display = selectedInvoiceOption?.label || (inv ? inv.invoiceNumber || getInvoiceLabel(inv) : filters.invoiceId);
       chips.push({
         key: "invoiceId",
         label: "Invoice",
         displayValue: display,
         onClear: () => {
-          setFilters({ invoiceId: "" });
-          setDraftInvoiceId("");
+          setFilters((curr) => ({ ...curr, invoiceId: "" }));
+          setDraftFilters((curr) => ({ ...curr, invoiceId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.serviceId) {
+      const srv = services.find((s) => s.id === filters.serviceId);
+      const display = srv ? srv.name : filters.serviceId;
+      chips.push({
+        key: "serviceId",
+        label: "Service",
+        displayValue: display,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, serviceId: "" }));
+          setDraftFilters((curr) => ({ ...curr, serviceId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.dateFrom) {
+      chips.push({
+        key: "dateFrom",
+        label: "Created From",
+        displayValue: filters.dateFrom,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dateFrom: "" }));
+          setDraftFilters((curr) => ({ ...curr, dateFrom: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.dateTo) {
+      chips.push({
+        key: "dateTo",
+        label: "Created To",
+        displayValue: filters.dateTo,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dateTo: "" }));
+          setDraftFilters((curr) => ({ ...curr, dateTo: "" }));
           setPagination((prev) => ({ ...prev, page: 1 }));
         },
       });
     }
     return chips;
-  }, [filters.invoiceId, invoices]);
+  }, [filters, invoices, services]);
 
-  const exportCsv = () => {
-    if (rows.length === 0) return;
-    const headers = [
-      "Invoice",
-      "Service",
-      "Description",
-      "Quantity",
-      "Unit Price",
-      "Total Price",
-      ...(isTristate ? ["Tristate Unit Price", "Tristate Total Price", "Company Absorbed"] : []),
-      "Created",
-    ];
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [
-        headers.join(","),
-        ...rows.map((r) =>
-          [
-            `"${r.values.invoiceLabel}"`,
-            `"${r.values.serviceName}"`,
-            `"${r.values.description}"`,
-            `"${r.values.quantity}"`,
-            `"${r.values.unitPrice}"`,
-            `"${r.values.totalPrice}"`,
-            ...(isTristate
-              ? [
-                  `"${r.values.externalUnitPrice || ""}"`,
-                  `"${r.values.externalTotalPrice || ""}"`,
-                  `"${r.values.companyFeeDeductionAmount || ""}"`,
-                ]
-              : []),
-            `"${r.values.creationDate}"`,
-          ].join(","),
-        ),
-      ].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${isTristate ? "tristate" : "client"}_invoice_line_items_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportCsv = async () => {
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = [
+        "Invoice",
+        "Service",
+        "Description",
+        "Quantity",
+        "Unit Price",
+        "Total Price",
+        ...(isTristate ? ["Tristate Unit Price", "Tristate Total Price", "Company Absorbed"] : []),
+        "Created Date & Time",
+      ];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: isTristate ? "tristate_invoice_line_items" : "client_invoice_line_items",
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getInvoiceLineItemsView({
+            page,
+            limit,
+            invoiceId: filters.invoiceId || undefined,
+            serviceId: filters.serviceId || undefined,
+            dateFrom: filters.dateFrom || undefined,
+            dateTo: filters.dateTo || undefined,
+            search: searchInput.trim() || undefined,
+          });
+          return {
+            items: res.rows,
+            totalPages: res.pagination.totalPages,
+          };
+        },
+        rowToCsvFields: (r) => [
+          r.values.invoiceLabel,
+          r.values.serviceName,
+          r.values.description,
+          r.values.quantity,
+          r.values.unitPrice,
+          r.values.totalPrice,
+          ...(isTristate
+            ? [
+                r.values.externalUnitPrice || "",
+                r.values.externalTotalPrice || "",
+                r.values.companyFeeDeductionAmount || "",
+              ]
+            : []),
+          formatUsDateTime(r.values.creationDate),
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
   };
 
   const filterFieldsModal = (
@@ -540,16 +663,65 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
           Invoice
         </span>
+        <SearchSelect
+          value={draftFilters.invoiceId}
+          displayLabel={selectedInvoiceOption?.label}
+          onChange={(val, opt) => {
+            setDraftFilters((prev) => ({ ...prev, invoiceId: val }));
+            if (opt) setSelectedInvoiceOption(opt);
+            else setSelectedInvoiceOption(null);
+          }}
+          onSearch={searchInvoices}
+          clearable
+          toggleOnSelectSame
+          placeholder="Search invoice number..."
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Service
+        </span>
         <Select
-          value={draftInvoiceId}
-          onChange={setDraftInvoiceId}
+          value={draftFilters.serviceId}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, serviceId: val }))
+          }
           options={[
-            { label: "All Invoices", value: "" },
-            ...invoices.map((inv) => ({
-              label: getInvoiceLabel(inv),
-              value: inv.id,
+            { label: "All Services", value: "" },
+            ...services.map((srv) => ({
+              label: srv.name,
+              value: srv.id,
             })),
           ]}
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Created Date From
+        </span>
+        <DatePicker
+          value={draftFilters.dateFrom}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, dateFrom: val }))
+          }
+          placeholder="MM-DD-YYYY"
+          className="rounded-xl border-[#ece8e1]"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Created Date To
+        </span>
+        <DatePicker
+          value={draftFilters.dateTo}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, dateTo: val }))
+          }
+          placeholder="MM-DD-YYYY"
+          className="rounded-xl border-[#ece8e1]"
         />
       </label>
     </>

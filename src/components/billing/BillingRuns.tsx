@@ -23,6 +23,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import type { Practice } from "../practices/types";
 import type { Service } from "../services/types";
 import {
@@ -356,8 +357,19 @@ function BillingRunsPage() {
   const [draftFilters, setDraftFilters] = useState<BillingRunFilters>(defaultBillingRunFilters);
   const [searchInput, setSearchInput] = useState("");
 
+  useEffect(() => {
+    getAllPractices()
+      .then(setPractices)
+      .catch((err) => console.error("Failed to load practices:", err));
+  }, []);
+
   const handleOpenFilterModal = () => {
     setDraftFilters(filters);
+    if (practices.length === 0) {
+      getAllPractices()
+        .then(setPractices)
+        .catch((err) => console.error("Failed to load practices:", err));
+    }
   };
 
   const handleApplyFilters = () => {
@@ -3876,6 +3888,59 @@ function BillingRunsPage() {
     </>
   );
 
+  const exportCsv = async () => {
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = [
+        "Run ID",
+        "Practice",
+        "Period",
+        "Status",
+        "Total Invoiced",
+        "Collections",
+        "Processing Fee",
+        "Created Date & Time",
+      ];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: "billing_runs",
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getBillingRunsView({
+            page,
+            limit,
+            search: searchInput.trim() || undefined,
+            practiceId: filters.practiceId || profilePracticeId || undefined,
+            status: filters.status || undefined,
+            paymentMethod: filters.paymentMethod || undefined,
+            dateFrom: filters.dateFrom || undefined,
+            dateTo: filters.dateTo || undefined,
+            sortBy: activeSort?.id,
+            sortOrder: activeSort ? (activeSort.desc ? "desc" : "asc") : undefined,
+          });
+          return {
+            items: res.rows,
+            totalPages: res.pagination.totalPages,
+          };
+        },
+        rowToCsvFields: (r) => [
+          r.values.runNumber || r.id,
+          r.values.practiceName,
+          r.values.billingPeriod,
+          r.values.status,
+          r.values.totalInvoicedAmount,
+          r.values.totalCollectionsAmount,
+          r.values.processingFeeAmount,
+          formatUsDateTime(r.values.creationDate),
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
+  };
+
   return (
     <AppLayout
       title="Billing Runs"
@@ -3900,6 +3965,7 @@ function BillingRunsPage() {
             filterFields={filterFieldsModal}
             addNewLabel={canRunWrite ? "Create Billing Run" : undefined}
             onAddNew={canRunWrite ? openCreateForm : undefined}
+            onExport={exportCsv}
             onRefresh={refreshBillingRuns}
             isLoading={isLoading}
             page={pagination.page}

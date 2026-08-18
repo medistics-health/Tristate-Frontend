@@ -200,10 +200,10 @@ function buildInvoiceLabel(
   return `${practiceName} • ${shortId}`;
 }
 
-function normalizeInvoice(invoice: Omit<Invoice, "invoiceNumber">): Invoice {
+function normalizeInvoice(invoice: Invoice): Invoice {
   return {
     ...invoice,
-    invoiceNumber: buildInvoiceLabel(invoice),
+    invoiceNumber: invoice.invoiceNumber || buildInvoiceLabel(invoice),
   };
 }
 
@@ -273,7 +273,7 @@ export async function getInvoicesView(
       credentials: true,
     });
     const { invoices, pagination } = response.data as {
-      invoices: Omit<Invoice, "invoiceNumber">[];
+      invoices: Invoice[];
       pagination: {
         total: number;
         page: number;

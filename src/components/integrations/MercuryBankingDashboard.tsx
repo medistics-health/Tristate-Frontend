@@ -17,6 +17,7 @@ import {
   Shield,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import AppLayout from "../layout/AppLayout";
 import DataTableToolbar from "../shared/DataTableToolbar";
 import {
@@ -245,32 +246,40 @@ export default function MercuryBankingPage() {
       : []),
   ];
 
-  const exportCsv = () => {
-    if (filteredTxns.length === 0) return;
-    const headers = ["ID", "Date", "Counterparty / Description", "Direction", "Amount", "Status", "Reconciliation"];
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [
-        headers.join(","),
-        ...filteredTxns.map((t) =>
-          [
-            `"${t.id}"`,
-            `"${formatDate(t.postedAt)}"`,
-            `"${t.counterpartyName || t.description || ""}"`,
-            `"${t.direction}"`,
-            `"${formatMoney(t.amount)}"`,
-            `"${t.status}"`,
-            `"${t.reconciliationStatus}"`,
-          ].join(","),
-        ),
-      ].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `mercury_transactions_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportCsv = async () => {
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = ["Transaction ID", "Date & Time", "Counterparty / Description", "Direction", "Amount", "Status", "Reconciliation"];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: "mercury_transactions",
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getMercuryTransactions({
+            page,
+            limit,
+            reconciliationStatus: filters.reconciliationStatus || undefined,
+          });
+          return {
+            items: res.transactions || [],
+            totalPages: res.pagination?.totalPages || 1,
+          };
+        },
+        rowToCsvFields: (t) => [
+          t.id,
+          formatUsDateTime(t.postedAt || t.createdAt),
+          t.counterpartyName || t.description || "",
+          t.direction,
+          t.amount,
+          t.status,
+          t.reconciliationStatus,
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
   };
 
   const filterFieldsModal = (

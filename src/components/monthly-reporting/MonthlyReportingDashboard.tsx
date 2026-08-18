@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import AppLayout from "../layout/AppLayout";
 import DataTableToolbar, {
   SortableHeaderCell,
@@ -414,31 +415,44 @@ function MonthlyReportingDashboard() {
     return chips;
   }, [selectedStatus, selectedPracticeName, selectedServiceName]);
 
-  const exportCsv = () => {
-    if (rows.length === 0) return;
-    const headers = ["Practice", "Service", "Month", "Year", "Due Date", "Status"];
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [
-        headers.join(","),
-        ...rows.map((r) =>
-          [
-            `"${r.values.practiceName}"`,
-            `"${r.values.serviceName}"`,
-            `"${r.values.month}"`,
-            `"${r.values.year}"`,
-            `"${r.values.dueDate}"`,
-            `"${r.values.status}"`,
-          ].join(","),
-        ),
-      ].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `monthly_reports_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportCsv = async () => {
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = ["Practice", "Service", "Month", "Year", "Due Date", "Status"];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: "monthly_reports",
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getMonthlyReportsView({
+            page,
+            limit,
+            search: filters.search.trim() || undefined,
+            status: filters.status || undefined,
+            practiceName: filters.practiceName || undefined,
+            serviceName: filters.serviceName || undefined,
+            sortBy: sorting[0]?.id,
+            sortOrder: sorting[0]?.desc ? "desc" : "asc",
+          });
+          return {
+            items: res.rows,
+            totalPages: res.pagination.totalPages,
+          };
+        },
+        rowToCsvFields: (r) => [
+          r.values.practiceName,
+          r.values.serviceName,
+          r.values.month,
+          r.values.year,
+          r.values.dueDate,
+          r.values.status,
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
   };
 
   const filterFieldsModal = (

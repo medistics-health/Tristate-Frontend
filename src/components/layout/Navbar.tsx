@@ -1,7 +1,114 @@
-import { LogOut, Menu, ChevronDown, MoreHorizontal } from "lucide-react";
-import { useState, useEffect, type ReactNode } from "react";
+import {
+  LogOut,
+  Menu,
+  ChevronDown,
+  MoreHorizontal,
+  Search,
+  X,
+  Target,
+  Users,
+  Building2,
+  Share2,
+  Stethoscope,
+  FileSignature,
+  ClipboardCheck,
+  Briefcase,
+  Calculator,
+  Receipt,
+  FileText,
+  ListOrdered,
+  ShoppingCart,
+  Truck,
+  Zap,
+  BarChart3,
+  ListChecks,
+  Shield,
+  Settings as SettingsIcon,
+} from "lucide-react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { logout } from "../../services/operations/auth";
 import toast from "react-hot-toast";
+
+type NavRouteItem = {
+  section: string;
+  subSection: string;
+  to: string;
+  icon: ReactNode;
+};
+
+const ALL_NAV_ROUTES: NavRouteItem[] = [
+  { section: "CRM", subSection: "Lead", to: "/lead/create", icon: <Target className="h-4 w-4" /> },
+  { section: "CRM", subSection: "Deal", to: "/deal/all-deals", icon: <Target className="h-4 w-4" /> },
+  { section: "CRM", subSection: "People", to: "/people/all-peoples", icon: <Users className="h-4 w-4" /> },
+  { section: "CRM", subSection: "Company", to: "/company/all-companies", icon: <Building2 className="h-4 w-4" /> },
+  { section: "CRM", subSection: "Communication", to: "/communication/all-emails", icon: <Share2 className="h-4 w-4" /> },
+
+  { section: "Practices", subSection: "All Practices", to: "/practice/all-practices", icon: <Stethoscope className="h-4 w-4" /> },
+  { section: "Practices", subSection: "Pipeline Board", to: "/practice/pipeline", icon: <Stethoscope className="h-4 w-4" /> },
+  { section: "Practices", subSection: "Active Practices", to: "/practice/active-practice", icon: <Stethoscope className="h-4 w-4" /> },
+  { section: "Practices", subSection: "Prospects", to: "/practice/prospects", icon: <Stethoscope className="h-4 w-4" /> },
+  { section: "Practices", subSection: "Reminders Due", to: "/practice/reminder-dues", icon: <Stethoscope className="h-4 w-4" /> },
+
+  { section: "Agreements", subSection: "All Agreements", to: "/agreements/all-agreements", icon: <FileSignature className="h-4 w-4" /> },
+  { section: "Agreements", subSection: "Agreement Pipeline", to: "/agreements/pipeline", icon: <FileSignature className="h-4 w-4" /> },
+  { section: "Agreements", subSection: "Pending Approval", to: "/agreements/pending-approval", icon: <FileSignature className="h-4 w-4" /> },
+  { section: "Agreements", subSection: "Pending Submission Changes", to: "/agreements/pending-submission-changes", icon: <FileSignature className="h-4 w-4" /> },
+  { section: "Agreements", subSection: "Pending Signatures", to: "/agreements/pending-signatures", icon: <FileSignature className="h-4 w-4" /> },
+
+  { section: "Onboarding", subSection: "New Onboarding", to: "/onboarding/scope", icon: <ClipboardCheck className="h-4 w-4" /> },
+  { section: "Onboarding", subSection: "Completed Submissions", to: "/onboarding/review", icon: <ClipboardCheck className="h-4 w-4" /> },
+  { section: "Onboarding", subSection: "Pending Submissions", to: "/onboarding/scope-list", icon: <ClipboardCheck className="h-4 w-4" /> },
+
+  { section: "Services", subSection: "All Services", to: "/service/all-services", icon: <Briefcase className="h-4 w-4" /> },
+  { section: "Services", subSection: "Service Catalog", to: "/service/service-catalogs", icon: <Briefcase className="h-4 w-4" /> },
+  { section: "Services", subSection: "Active Services", to: "/service/active-services", icon: <Briefcase className="h-4 w-4" /> },
+
+  { section: "Pricing Engine", subSection: "Pricing Engine", to: "/pricing/rate-finalization", icon: <Calculator className="h-4 w-4" /> },
+
+  { section: "Billing", subSection: "Billing Runs", to: "/billing/runs", icon: <Receipt className="h-4 w-4" /> },
+  { section: "Billing", subSection: "Billing Status Board", to: "/billing/status-board", icon: <Receipt className="h-4 w-4" /> },
+
+  { section: "Invoices", subSection: "All Invoices", to: "/invoice/all-invoices", icon: <FileText className="h-4 w-4" /> },
+  { section: "Invoices", subSection: "Invoice Status Board", to: "/invoice/status-board", icon: <FileText className="h-4 w-4" /> },
+  { section: "Invoices", subSection: "Overdue Invoices", to: "/invoice/overdue", icon: <FileText className="h-4 w-4" /> },
+
+  { section: "Invoice Line Items", subSection: "Client Invoice Line Items", to: "/invoice/client-invoice-line-items", icon: <ListOrdered className="h-4 w-4" /> },
+  { section: "Invoice Line Items", subSection: "Tristate Invoice Line Items", to: "/invoice/tristate-invoice-line-items", icon: <ListOrdered className="h-4 w-4" /> },
+
+  { section: "Purchase Orders", subSection: "All Purchase Orders", to: "/purchase-orders/all", icon: <ShoppingCart className="h-4 w-4" /> },
+  { section: "Purchase Orders", subSection: "PO Status Board", to: "/purchase-orders/status-board", icon: <ShoppingCart className="h-4 w-4" /> },
+  { section: "Purchase Orders", subSection: "Pending Approval", to: "/purchase-orders/pending-approval", icon: <ShoppingCart className="h-4 w-4" /> },
+  { section: "Purchase Orders", subSection: "Unpaid POs", to: "/purchase-orders/unpaid-pos", icon: <ShoppingCart className="h-4 w-4" /> },
+
+  { section: "Vendors", subSection: "All Vendors", to: "/vendors/all-vendors", icon: <Truck className="h-4 w-4" /> },
+  { section: "Vendors", subSection: "Vendor Contracts", to: "/vendors/contracts", icon: <Truck className="h-4 w-4" /> },
+  { section: "Vendors", subSection: "Vendor Payables", to: "/vendors/payables", icon: <Truck className="h-4 w-4" /> },
+
+  { section: "Integrations", subSection: "Accounting Sync", to: "/integrations/accounting-sync", icon: <Zap className="h-4 w-4" /> },
+  { section: "Integrations", subSection: "Mercury Banking", to: "/integrations/mercury-banking", icon: <Zap className="h-4 w-4" /> },
+
+  { section: "Channel Partners", subSection: "All Channel Partners", to: "/partner/all-channel-partners", icon: <Share2 className="h-4 w-4" /> },
+  { section: "Channel Partners", subSection: "All Partners", to: "/partner/all-partners", icon: <Share2 className="h-4 w-4" /> },
+
+  { section: "Monthly Reports", subSection: "Dashboard", to: "/monthly-reporting/dashboard", icon: <BarChart3 className="h-4 w-4" /> },
+  { section: "Monthly Reports", subSection: "Submit Report", to: "/monthly-reporting/submit", icon: <BarChart3 className="h-4 w-4" /> },
+
+  { section: "Assessments", subSection: "All Assessments", to: "/assessment/all-assessments", icon: <ListChecks className="h-4 w-4" /> },
+  { section: "Assessments", subSection: "Assessments Progress", to: "/assessment/progress", icon: <ListChecks className="h-4 w-4" /> },
+
+  { section: "Audits", subSection: "All Practice Audits", to: "/audit/all-practice-audits", icon: <Shield className="h-4 w-4" /> },
+  { section: "Audits", subSection: "All Audits", to: "/audit/all-audits", icon: <Shield className="h-4 w-4" /> },
+  { section: "Audits", subSection: "Audit Status Board", to: "/audit/status-board", icon: <Shield className="h-4 w-4" /> },
+
+  { section: "Credentialing", subSection: "Dashboard", to: "/credentialing/dashboard", icon: <Stethoscope className="h-4 w-4" /> },
+  { section: "Credentialing", subSection: "All Credentialing", to: "/credentialing/list", icon: <Stethoscope className="h-4 w-4" /> },
+
+  { section: "Settings", subSection: "General Settings", to: "/settings/general", icon: <SettingsIcon className="h-4 w-4" /> },
+  { section: "Settings", subSection: "API & Integrations", to: "/settings/integrations", icon: <SettingsIcon className="h-4 w-4" /> },
+  { section: "Settings", subSection: "Team Management", to: "/settings/team", icon: <SettingsIcon className="h-4 w-4" /> },
+  { section: "Settings", subSection: "Security & Access", to: "/settings/security", icon: <SettingsIcon className="h-4 w-4" /> },
+];
 
 export type NavbarAction = {
   label: string;
@@ -11,7 +118,7 @@ export type NavbarAction = {
 };
 
 type NavbarProps = {
-  title: string;
+  title?: string;
   icon?: ReactNode;
   actions?: NavbarAction[];
   onMenuClick?: () => void;
@@ -61,14 +168,28 @@ export const LOGOUT_ACTION: NavbarAction = {
 };
 
 function Navbar({
-  title,
+  title = "",
   icon = <DefaultDocumentIcon />,
   actions = [],
   onMenuClick,
 }: NavbarProps) {
+  const navigate = useNavigate();
   const [userData, setUserData] = useState<any>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return ALL_NAV_ROUTES.slice(0, 8);
+    return ALL_NAV_ROUTES.filter(
+      (item) =>
+        item.section.toLowerCase().includes(q) ||
+        item.subSection.toLowerCase().includes(q) ||
+        item.to.toLowerCase().includes(q),
+    );
+  }, [searchQuery]);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -97,7 +218,7 @@ function Navbar({
 
   return (
     <header className="flex h-14 items-center border-b border-[#ece8e1] bg-white px-3 sm:px-5 font-app-sans w-full z-20 min-w-0 shadow-[0_4px_15px_-3px_rgba(0,0,0,0.04)]">
-      <div className="flex min-w-0 items-center gap-2 sm:gap-3 text-[15px] font-medium text-slate-800">
+      <div className="flex flex-1 min-w-0 items-center gap-2 sm:gap-3 text-[15px] font-medium text-slate-800">
         {onMenuClick && (
           <button
             type="button"
@@ -107,12 +228,78 @@ function Navbar({
             <Menu className="h-5 w-5" />
           </button>
         )}
-        <span className="flex min-w-0 items-center gap-2.5 truncate text-[16px] font-semibold text-slate-700">
-          <div className="p-1.5 bg-slate-100 rounded-lg text-slate-500 shrink-0">
-            {icon}
+        <div className="relative flex-1 max-w-xs sm:max-w-sm md:max-w-md">
+          <div className="relative flex items-center">
+            <Search className="absolute left-3 h-4 w-4 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsSearchOpen(true);
+              }}
+              onFocus={() => setIsSearchOpen(true)}
+              placeholder="Search & navigate to any module..."
+              className="w-full rounded-xl border border-[#ece8e1] bg-slate-50/60 py-1.5 pl-9 pr-8 text-[13px] text-slate-700 placeholder:text-slate-400 focus:border-[#4f63ea] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4f63ea]/10 transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setIsSearchOpen(false);
+                }}
+                className="absolute right-2.5 text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
-          <span className="truncate">{title}</span>
-        </span>
+
+          {isSearchOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-30"
+                onClick={() => setIsSearchOpen(false)}
+              />
+              <div className="absolute left-0 top-full mt-1.5 w-full min-w-[280px] sm:min-w-[340px] max-h-80 overflow-y-auto custom-scrollbar rounded-xl border border-[#ece8e1] bg-white p-1.5 shadow-xl z-40 animate-in fade-in slide-in-from-top-1 duration-150">
+                {searchResults.length === 0 ? (
+                  <div className="py-6 text-center text-[13px] text-slate-400">
+                    No matching modules found
+                  </div>
+                ) : (
+                  searchResults.map((item) => (
+                    <button
+                      key={item.to}
+                      type="button"
+                      onClick={() => {
+                        setIsSearchOpen(false);
+                        setSearchQuery("");
+                        navigate(item.to);
+                      }}
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group cursor-pointer"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 group-hover:bg-[#4f63ea]/10 group-hover:text-[#4f63ea] transition-colors">
+                        {item.icon}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-[13px] font-semibold text-slate-700 group-hover:text-[#4f63ea] truncate">
+                          {item.subSection}
+                        </span>
+                        <span className="text-[11px] font-medium text-slate-400 truncate">
+                          {item.section}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-medium text-slate-400 group-hover:text-[#4f63ea] opacity-0 group-hover:opacity-100 transition-opacity">
+                        Go &rarr;
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="ml-auto flex items-center gap-2 sm:gap-4 shrink-0">

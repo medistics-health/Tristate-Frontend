@@ -8,6 +8,8 @@ import {
   Plus,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import AppLayout from "../layout/AppLayout";
 import ConfirmModal from "../shared/ConfirmModal";
 import DatePicker from "../shared/DatePicker";
@@ -448,62 +450,66 @@ function CredentialingListPage() {
   }
 
   async function exportCsv() {
-    const allData = await getCredentialingRequestsView({
-      page: 1,
-      limit: Math.max(totalRecords, pageSize),
-      search: filters.search || undefined,
-      practice: filters.practice || undefined,
-      provider: filters.provider || undefined,
-      insuranceCompany: filters.insuranceCompany || undefined,
-      status: filters.status || undefined,
-      credentialingType: filters.credentialingType || undefined,
-      contractType: filters.contractType || undefined,
-      assignedUser: filters.assignedUser || undefined,
-      dateFrom: filters.dateFrom || undefined,
-      dateTo: filters.dateTo || undefined,
-      sortBy: sortField,
-      sortOrder: sortDirection,
-    });
-    const header = [
-      "Credentialing ID",
-      "Practice",
-      "Provider",
-      "Insurance Plan",
-      "Credentialing Type",
-      "Status",
-      "Assigned Specialist",
-      "Submission Date",
-      "Effective Date",
-      "Expiration Date",
-      "Last Updated",
-    ];
-    const rows = allData.credentialingRequests.map((record) => [
-      record.credentialingId,
-      record.practice,
-      record.provider,
-      record.insuranceCompany,
-      record.credentialingType,
-      record.status,
-      record.assignedUser,
-      record.submissionDate,
-      record.effectiveDate,
-      record.expirationDate,
-      record.updatedAt,
-    ]);
-    const csv = [header, ...rows]
-      .map((row) =>
-        row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","),
-      )
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "credentialing-list.csv";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = [
+        "Credentialing ID",
+        "Practice",
+        "Provider",
+        "Insurance Plan",
+        "Credentialing Type",
+        "Status",
+        "Assigned Specialist",
+        "Submission Date",
+        "Effective Date",
+        "Expiration Date",
+        "Last Updated Date & Time",
+      ];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: "credentialing_list",
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getCredentialingRequestsView({
+            page,
+            limit,
+            search: filters.search || undefined,
+            practice: filters.practice || undefined,
+            provider: filters.provider || undefined,
+            insuranceCompany: filters.insuranceCompany || undefined,
+            status: filters.status || undefined,
+            credentialingType: filters.credentialingType || undefined,
+            contractType: filters.contractType || undefined,
+            assignedUser: filters.assignedUser || undefined,
+            dateFrom: filters.dateFrom || undefined,
+            dateTo: filters.dateTo || undefined,
+            sortBy: sortField,
+            sortOrder: sortDirection,
+          });
+          return {
+            items: res.credentialingRequests,
+            totalPages: res.pagination.totalPages,
+          };
+        },
+        rowToCsvFields: (record) => [
+          record.credentialingId,
+          record.practice,
+          record.provider,
+          record.insuranceCompany,
+          record.credentialingType,
+          record.status,
+          record.assignedUser,
+          record.submissionDate,
+          record.effectiveDate,
+          record.expirationDate,
+          formatUsDateTime(record.updatedAt),
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
   }
 
   function updateSort(nextField: SortField) {

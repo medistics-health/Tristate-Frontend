@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import AppLayout from "../layout/AppLayout";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import DataTableToolbar, {
@@ -1569,6 +1570,63 @@ function AllInvoicePage() {
     </>
   );
 
+  const exportCsv = async () => {
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = [
+        "Invoice Number",
+        "Practice",
+        "Net Services",
+        "Gross Invoice Total",
+        "Processing Fee",
+        "Company Absorbed",
+        "Payment Method",
+        "Status",
+        "Due Date",
+        "Created Date & Time",
+      ];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: "invoices",
+        headers,
+        pageSize: 50,
+        fetchPage: async (page, limit) => {
+          const res = await getInvoicesView({
+            page,
+            limit,
+            search: searchInput.trim() || undefined,
+            status: filters.status || undefined,
+            practiceId: filters.practiceId || undefined,
+            paymentMethod: filters.paymentMethod || undefined,
+            dateFrom: filters.dateFrom || undefined,
+            dateTo: filters.dateTo || undefined,
+            sortBy: activeSort?.id,
+            sortOrder: activeSort ? (activeSort.desc ? "desc" : "asc") : undefined,
+          });
+          return {
+            items: res.rows,
+            totalPages: res.pagination.totalPages,
+          };
+        },
+        rowToCsvFields: (r) => [
+          r.values.invoiceNumber || r.id,
+          r.values.practiceName,
+          r.values.netServices,
+          r.values.grossInvoiceTotal,
+          r.values.processingFee,
+          r.values.companyAbsorbed,
+          r.values.paymentMethod,
+          r.values.status,
+          r.values.dueDate,
+          formatUsDateTime(r.values.creationDate),
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
+  };
+
   return (
     <AppLayout
       title="Invoices"
@@ -1592,6 +1650,7 @@ function AllInvoicePage() {
             onOpenFilterModal={handleOpenFilterModal}
             filterModalTitle="Filter Invoices"
             filterFields={filterFieldsModal}
+            onExport={exportCsv}
             onRefresh={refreshInvoices}
             isLoading={isLoading}
             isSaving={isSaving}
