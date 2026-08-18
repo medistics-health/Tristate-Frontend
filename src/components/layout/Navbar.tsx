@@ -147,17 +147,19 @@ async function handleLogout() {
   const loadingToast = toast.loading("Logging you out...");
   try {
     const response = await logout();
-    if (response === 200) {
-      toast.success("Logged Out Successfully.", {
-        id: loadingToast,
-      });
-      localStorage.removeItem("user");
-      window.location.href = "/login";
-    }
+    localStorage.clear();
+    sessionStorage.clear();
+    toast.success("Logged Out Successfully.", {
+      id: loadingToast,
+    });
+    window.location.href = "/login";
   } catch (error) {
+    localStorage.clear();
+    sessionStorage.clear();
     const message =
-      error instanceof Error ? error.message : "Unable to sign you in.";
+      error instanceof Error ? error.message : "Unable to sign you out.";
     toast.error(message, { id: loadingToast });
+    window.location.href = "/login";
   }
 }
 

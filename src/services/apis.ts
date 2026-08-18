@@ -5,6 +5,10 @@ export const authEnpoints = {
   SIGNUP: BACKEND_URL + "/api/v1/auth/signup",
   AUTHME: BACKEND_URL + "/api/v1/auth/me",
   LOGOUT: BACKEND_URL + "/api/v1/auth/logout",
+  SETUP_2FA: BACKEND_URL + "/api/v1/auth/2fa/setup",
+  VERIFY_2FA_SETUP: BACKEND_URL + "/api/v1/auth/2fa/verify-setup",
+  VERIFY_2FA_LOGIN: BACKEND_URL + "/api/v1/auth/2fa/verify-login",
+  TOGGLE_2FA: BACKEND_URL + "/api/v1/auth/2fa/toggle",
 };
 
 export const companyEndpoints = {

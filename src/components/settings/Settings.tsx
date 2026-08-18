@@ -27,6 +27,8 @@ import {
 import { getMercuryAccounts } from "../../services/operations/mercury";
 import QuickBooksIntegrations from "../integrations/QuickBooksIntegrations";
 import { canManageSettings, readStoredUser } from "../../utils/auth";
+import { authMe, toggle2FA, verify2FASetup } from "../../services/operations/auth";
+import OtpInput from "../shared/OtpInput";
 
 function parseNotifyToEmails(value: string) {
   return [
@@ -45,6 +47,216 @@ function formatMoney(value: number) {
     currency: "USD",
     minimumFractionDigits: 2,
   }).format(value);
+}
+
+function SecuritySettingsSection() {
+  const currentUser = readStoredUser();
+  const [isEnabled, setIsEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showSetupModal, setShowSetupModal] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
+  const [secretKey, setSecretKey] = useState("");
+  const [verifyCode, setVerifyCode] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  useEffect(() => {
+    fetchStatus();
+  }, []);
+
+  async function fetchStatus() {
+    setLoading(true);
+    try {
+      const data = await authMe();
+      if (data && typeof data.twoFactorEnabled === "boolean") {
+        setIsEnabled(data.twoFactorEnabled);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleToggle() {
+    const nextState = !isEnabled;
+
+    if (nextState) {
+      // User wants to enable 2FA -> fetch QR setup
+      const toastId = toast.loading("Generating 2FA setup...");
+      try {
+        const res = await toggle2FA(true);
+        toast.dismiss(toastId);
+        if (res.requireSetup) {
+          setQrCodeDataUrl(res.qrCodeDataUrl);
+          setSecretKey(res.secret);
+          setShowSetupModal(true);
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to initiate 2FA setup.", { id: toastId });
+      }
+    } else {
+      // User wants to disable 2FA
+      const toastId = toast.loading("Disabling 2FA...");
+      try {
+        await toggle2FA(false);
+        setIsEnabled(false);
+        toast.success("2FA disabled successfully.", { id: toastId });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to disable 2FA.", { id: toastId });
+      }
+    }
+  }
+
+  async function handleVerifyAndActivate(e: React.FormEvent) {
+    e.preventDefault();
+    if (verifyCode.trim().length !== 6) {
+      toast.error("Please enter a 6-digit code.");
+      return;
+    }
+
+    setIsVerifying(true);
+    const toastId = toast.loading("Activating 2FA...");
+    try {
+      await verify2FASetup(verifyCode.trim());
+      setIsEnabled(true);
+      setShowSetupModal(false);
+      setVerifyCode("");
+      toast.success("Two-Factor Authentication is now enabled!", { id: toastId });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Verification failed.", { id: toastId });
+    } finally {
+      setIsVerifying(false);
+    }
+  }
+
+  return (
+    <div className="max-w-xl space-y-6">
+      <div className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Shield className="h-5 w-5 text-[#4f63ea]" />
+            <h4 className="font-bold text-slate-800">
+              Two-Factor Authentication (2FA)
+            </h4>
+          </div>
+
+          {loading ? (
+            <div className="h-6 w-11 animate-pulse rounded-full bg-slate-200" />
+          ) : (
+            <button
+              type="button"
+              onClick={handleToggle}
+              className={`h-6 w-11 rounded-full relative transition-colors focus:outline-none ${
+                isEnabled ? "bg-[#4f63ea]" : "bg-slate-300"
+              }`}
+            >
+              <div
+                className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                  isEnabled ? "right-1" : "left-1"
+                }`}
+              />
+            </button>
+          )}
+        </div>
+
+        <p className="text-sm text-slate-500">
+          Protect your personal user account (<strong>{currentUser?.email || currentUser?.userName || "Your account"}</strong>) using Microsoft Authenticator or any TOTP authenticator app.
+        </p>
+
+        <div className="mt-4 pt-4 border-t border-slate-200/60 flex items-center justify-between text-xs">
+          <span className="font-medium text-slate-500">2FA Status for your account:</span>
+          <span
+            className={`font-bold px-2.5 py-1 rounded-full ${
+              isEnabled
+                ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                : "bg-amber-50 text-amber-700 border border-amber-200"
+            }`}
+          >
+            {isEnabled ? "Enabled" : "Disabled"}
+          </span>
+        </div>
+      </div>
+
+      {showSetupModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-[#f1efeb] px-6 py-5">
+              <h3 className="text-lg font-bold text-slate-800">
+                Setup Microsoft Authenticator
+              </h3>
+              <button
+                onClick={() => {
+                  setShowSetupModal(false);
+                  setVerifyCode("");
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleVerifyAndActivate} className="p-6 space-y-5">
+              <div className="flex flex-col items-center justify-center  p-4 text-center">
+                {qrCodeDataUrl ? (
+                  <img
+                    src={qrCodeDataUrl}
+                    alt="2FA QR Code"
+                    className="h-44 w-44 rounded-xl border bg-white p-2 shadow-sm"
+                  />
+                ) : (
+                  <div className="h-44 w-44 animate-pulse rounded-xl bg-slate-200" />
+                )}
+                {secretKey && (
+                  <div className="mt-3">
+                    <span className="text-[12px] font-medium text-slate-400 uppercase tracking-wider block">
+                      Manual Entry Secret
+                    </span>
+                    <code className="text-xs font-mono font-bold text-slate-700 bg-white px-2.5 py-1 rounded border border-slate-200 inline-block mt-1">
+                      {secretKey}
+                    </code>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm  text-slate-700 block text-center">
+                  Open you Authenticator app and scan the QR code above to add your account.
+                </label>
+                 <label className="text-sm font-semibold text-slate-700 block text-center">
+                  6-Digit PIN to verify setup
+                </label>
+                <OtpInput
+                  value={verifyCode}
+                  onChange={setVerifyCode}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSetupModal(false);
+                    setVerifyCode("");
+                  }}
+                  className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isVerifying || verifyCode.length !== 6}
+                  className="rounded-xl bg-[#4f63ea] px-5 py-2.5 text-xs font-bold text-white hover:bg-blue-600 disabled:bg-slate-300"
+                >
+                  {isVerifying ? "Verifying..." : "Enable 2FA"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function SettingsPage() {
@@ -818,6 +1030,9 @@ export default function SettingsPage() {
                         <th className="px-6 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">
                           Account Status
                         </th>
+                        <th className="px-6 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">
+                          2FA Status
+                        </th>
                         {canWriteSettings && (
                           <th className="px-6 py-5 text-right font-bold text-slate-400 uppercase tracking-widest text-[10px]">
                             Action
@@ -848,15 +1063,39 @@ export default function SettingsPage() {
                             </div>
                           </td>
                           <td className="px-6 py-5">
-                            <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-[11px] font-extrabold text-slate-600 tracking-tight">
-                              {user.role}
-                            </span>
+                            {(() => {
+                              const roleColors: Record<string, string> = {
+                                ADMIN: "bg-purple-50 text-purple-700 border-purple-200",
+                                FINANCE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                OPERATIONS: "bg-blue-50 text-blue-700 border-blue-200",
+                                SALES: "bg-amber-50 text-amber-700 border-amber-200",
+                                ACCOUNTMANAGER: "bg-indigo-50 text-indigo-700 border-indigo-200",
+                                VIEWER: "bg-slate-100 text-slate-600 border-slate-200",
+                              };
+                              const colorClass = roleColors[user.role?.toUpperCase()] || "bg-slate-100 text-slate-600 border-slate-200";
+                              return (
+                                <span className={`inline-flex rounded-xl border px-3 py-1.5 text-[11px] font-extrabold tracking-tight ${colorClass}`}>
+                                  {user.role}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-6 py-5">
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-600 border border-emerald-100">
                               <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{" "}
                               Active
                             </span>
+                          </td>
+                          <td className="px-6 py-5">
+                            {user.twoFactorEnabled ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                                Enabled
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500 border border-slate-200">
+                                Disabled
+                              </span>
+                            )}
                           </td>
                           {canWriteSettings && (
                             <td className="px-6 py-5 text-right">
@@ -886,25 +1125,7 @@ export default function SettingsPage() {
           )}
 
           {activeTab === "security" && (
-            <div className="max-w-xl space-y-6">
-              <div className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <Shield className="h-5 w-5 text-[#4f63ea]" />
-                    <h4 className="font-bold text-slate-800">
-                      Two-Factor Authentication
-                    </h4>
-                  </div>
-                  <div className="h-6 w-11 rounded-full bg-[#4f63ea] relative">
-                    <div className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm" />
-                  </div>
-                </div>
-                <p className="text-sm text-slate-500">
-                  Secure your account by requiring an additional verification
-                  code.
-                </p>
-              </div>
-            </div>
+            <SecuritySettingsSection />
           )}
         </div>
       </div>
@@ -991,6 +1212,28 @@ export default function SettingsPage() {
                   <option value="ADMIN">Admin</option>
                 </select>
               </div>
+
+              {canWriteSettings && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs text-amber-900">
+                  <label className="flex items-center gap-2.5 font-semibold cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!editingUser.reset2FA}
+                      onChange={(e) =>
+                        setEditingUser({
+                          ...editingUser,
+                          reset2FA: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 rounded border-amber-300 text-[#4f63ea] focus:ring-[#4f63ea]"
+                    />
+                    Reset 2FA Authentication
+                  </label>
+                  <p className="mt-1 text-[11px] text-amber-700 leading-relaxed">
+                    Check this to disable 2FA and clear secret key for this member if they lost access to Microsoft Authenticator.
+                  </p>
+                </div>
+              )}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"

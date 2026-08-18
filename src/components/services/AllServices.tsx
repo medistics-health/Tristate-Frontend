@@ -40,7 +40,6 @@ import {
   type StripeConnectedAccount,
 } from "../../services/operations/stripeAccounts";
 import Select from "../shared/Select";
-import toast from "react-hot-toast";
 import { canBusinessWrite, readStoredUser } from "../../utils/auth";
 
 function AllServicesPage() {
