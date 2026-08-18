@@ -8,9 +8,7 @@ import {
 } from "@tanstack/react-table";
 import {
   CalendarDays,
-  ChevronDown,
   FileText,
-  LayoutGrid,
   SlidersHorizontal,
   UserCircle2,
   Circle,
@@ -23,12 +21,8 @@ import {
   Tag,
   MapPin,
   X,
-  Pencil,
   Save,
   Trash2,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AddressAutocomplete, { type AddressData } from "../shared/AddressAutocomplete";
@@ -36,6 +30,12 @@ import { useSearchParams } from "react-router-dom";
 import AppLayout from "../layout/AppLayout";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
+import { getResponsivePageSize } from "../shared/TablePagination";
 import type {
   CompanyCellValue,
   CompanyRow,
@@ -197,59 +197,135 @@ export default function AllCompaniesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 10,
+    limit: getResponsivePageSize(),
     total: 0,
     totalPages: 0,
   });
-  const [filters, setFilters] = useState({
+  const [userSelectedPageSize, setUserSelectedPageSize] = useState(false);
+
+  type CompanyFilters = {
+    search: string;
+    status: string;
+  };
+
+  const defaultFilters: CompanyFilters = {
     search: "",
     status: "",
-  });
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  };
+
+  const [filters, setFilters] = useState<CompanyFilters>(defaultFilters);
+  const [draftFilters, setDraftFilters] = useState<CompanyFilters>(defaultFilters);
+  const [searchInput, setSearchInput] = useState("");
   const [profileActionHandled, setProfileActionHandled] = useState(false);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) || null,
     [rows, selectedRowId],
   );
-  const whenToSearch = filters.search.length > 3 || filters.search.length === 0;
+  const whenToSearch = searchInput.length > 3 || searchInput.length === 0;
 
-  const disableMe = !filters.search && !filters.status;
   useEffect(() => {
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const params: CompanyQueryParams = {
-          page: pagination.page,
-          limit: pagination.limit,
-          ...(filters.search && { search: filters.search }),
-          ...(filters.status && { status: filters.status }),
-          sortBy: sorting[0]?.id || "createdAt",
-          sortOrder: sorting[0]?.desc ? "desc" : "asc",
-        };
-        const data = await getCompaniesView(params);
-        setViewData(data);
-        setRows(data.rows);
-        setPagination(data.pagination);
-        const visibility: Record<string, boolean> = {};
-        data.fields.forEach((field) => {
-          visibility[field.id] = field.visible;
-        });
-        setColumnVisibility(visibility);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load companies";
-        setError(message);
-        toast.error(message);
-      } finally {
-        setIsLoading(false);
+    function handleResize() {
+      if (!userSelectedPageSize) {
+        const newSize = getResponsivePageSize();
+        setPagination((prev) => ({ ...prev, limit: newSize }));
       }
     }
-    if (whenToSearch) {
-      loadData();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [userSelectedPageSize]);
+
+  const handleOpenFilterModal = () => {
+    setDraftFilters(filters);
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(draftFilters);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
+    setSearchInput("");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const statusFilterOptions = [
+    { label: "Lead", value: "LEAD" },
+    { label: "Customer", value: "CUSTOMER" },
+    { label: "Partner", value: "PARTNER" },
+    { label: "Inactive", value: "INACTIVE" },
+  ];
+
+  const activeFilterCount = [filters.status].filter(Boolean).length;
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.status) {
+      chips.push({
+        key: "status",
+        label: "Status",
+        displayValue:
+          statusFilterOptions.find((option) => option.value === filters.status)
+            ?.label || filters.status,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, status: "" }));
+          setDraftFilters((curr) => ({ ...curr, status: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
     }
-  }, [pagination.page, pagination.limit, sorting, filters]);
+    return chips;
+  }, [filters.status]);
+
+  const refreshCompanyRecords = async () => {
+    if (!whenToSearch) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      const params: CompanyQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+        ...(searchInput.trim() && { search: searchInput.trim() }),
+        ...(filters.status && { status: filters.status }),
+        sortBy: sorting[0]?.id || "createdAt",
+        sortOrder: sorting[0]?.desc ? "desc" : "asc",
+      };
+      const data = await getCompaniesView(params);
+      setViewData(data);
+      setRows(data.rows);
+      setPagination(data.pagination);
+      const visibility: Record<string, boolean> = {};
+      data.fields.forEach((field) => {
+        visibility[field.id] = field.visible;
+      });
+      setColumnVisibility(visibility);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load companies";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      refreshCompanyRecords();
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    pagination.page,
+    pagination.limit,
+    sorting,
+    filters,
+    searchInput,
+    whenToSearch,
+  ]);
 
   useEffect(() => {
     if (profileActionHandled) return;
@@ -1155,40 +1231,37 @@ export default function AllCompaniesPage() {
     );
   };
 
-  if (isLoading) {
-    return (
-      <AppLayout
-        title="Companies"
-        activeModule="Companies"
-        activeSubItem="All Companies"
-      >
-        <div className="flex h-full items-center justify-center">
-          <div className="text-slate-400">Loading companies...</div>
-        </div>
-      </AppLayout>
-    );
-  }
+  const filterFieldsModal = (
+    <label className="block">
+      <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+        Status
+      </span>
+      <Select
+        value={draftFilters.status}
+        onChange={(val) =>
+          setDraftFilters((prev) => ({ ...prev, status: val }))
+        }
+        options={[
+          { label: "All Statuses", value: "" },
+          ...statusFilterOptions,
+        ]}
+      />
+    </label>
+  );
 
-  if (error && rows.length === 0) {
-    return (
-      <AppLayout
-        title="Companies"
-        activeModule="Companies"
-        activeSubItem="All Companies"
-      >
-        <div className="flex h-full flex-col items-center justify-center gap-4">
-          <div className="text-red-500">{error}</div>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="app-control rounded-md px-4 py-2 text-[14px] font-medium"
-          >
-            Retry
-          </button>
+  const renderTableHeader = (header: any) => {
+    if (header.isPlaceholder) return null;
+    if (header.id === "select" || header.id === "add") {
+      return (
+        <div
+          className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
+        >
+          {flexRender(header.column.columnDef.header, header.getContext())}
         </div>
-      </AppLayout>
-    );
-  }
+      );
+    }
+    return <SortableHeaderCell header={header} />;
+  };
 
   return (
     <AppLayout
@@ -1196,25 +1269,33 @@ export default function AllCompaniesPage() {
       activeModule="Companies"
       activeSubItem="All Companies"
       navbarIcon={<Building2 className="h-4 w-4 text-slate-500" />}
-      navbarActions={canWriteCompanies ? getStandardNavbarActions(openCreateForm) : []}
+      // navbarActions={canWriteCompanies ? getStandardNavbarActions(openCreateForm) : []}
     >
-      <div className="app-split">
-        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <div className="relative">
-              <LayoutGrid className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <div className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none">
-                All Companies
-              </div>
-            </div>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel(!showFilterPanel)}
-              >
-                Filter
-              </button>
+      <div className="app-split font-app-sans">
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="All Companies"
+            subtitle="Companies"
+            searchPlaceholder="Search by name or domain..."
+            searchValue={searchInput}
+            onSearchChange={(value) => {
+              setSearchInput(value);
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Companies"
+            filterFields={filterFieldsModal}
+            addNewLabel={canWriteCompanies ? "Add Company" : undefined}
+            onAddNew={canWriteCompanies ? openCreateForm : undefined}
+            onRefresh={refreshCompanyRecords}
+            isLoading={isLoading}
+            isSaving={isSubmitting}
+            isDeleting={isDeleting}
+            extraActions={
               <button
                 type="button"
                 onClick={() =>
@@ -1224,209 +1305,112 @@ export default function AllCompaniesPage() {
                       : [{ id: "creationDate", desc: true }],
                   )
                 }
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors"
               >
                 Sort
               </button>
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <input
-                type="text"
-                placeholder="Search by name or domain..."
-                value={filters.search}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, search: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              />
-              <select
-                value={filters.status}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, status: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Statuses</option>
-                <option value="LEAD">Lead</option>
-                <option value="CUSTOMER">Customer</option>
-                <option value="PARTNER">Partner</option>
-                <option value="INACTIVE">Inactive</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => {
-                  setFilters({ search: "", status: "" });
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                disabled={disableMe}
-                className="text-[13px] text-[#4f63ea] hover:underline"
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            <table className="min-w-full border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10 bg-white">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                        style={{
-                          width: header.getSize()
-                            ? `${header.getSize()}px`
-                            : undefined,
-                        }}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <button
-                            type="button"
-                            onClick={
-                              header.column.getCanSort()
-                                ? header.column.getToggleSortingHandler()
-                                : undefined
-                            }
-                            className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                            {header.column.getCanSort() &&
-                              header.id !== "select" &&
-                              (header.column.getIsSorted() === "asc" ? (
-                                <ArrowUp className="h-3 w-3 text-slate-500" />
-                              ) : header.column.getIsSorted() === "desc" ? (
-                                <ArrowDown className="h-3 w-3 text-slate-500" />
-                              ) : (
-                                <ArrowUpDown className="h-3 w-3 text-slate-300" />
-                              ))}
-                          </button>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    onClick={() => handleRowClick(row.original.id)}
-                    className={`cursor-pointer ${selectedRowId === row.original.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {rows.length === 0 ? (
-              <div className="relative flex min-h-[520px] items-center justify-center">
-                <div className="absolute inset-y-0 left-[42px] w-px bg-[#f7f2ec]" />
-                <div className="flex max-w-md flex-col items-center px-6 text-center">
-                  <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    Add your first Company
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    Use our API or add your first Company manually
-                  </p>
+            }
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onPageSizeChange={(newSize) => {
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+              setUserSelectedPageSize(true);
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {error && rows.length === 0 ? (
+                <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
+                  <div className="text-red-500">{error}</div>
                   <button
                     type="button"
-                    onClick={openCreateForm}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
+                    onClick={refreshCompanyRecords}
+                    className="app-control rounded-md px-4 py-2 text-[14px] font-medium"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add a Company
+                    Retry
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="border-b border-[#f4f1ec] px-4 py-2 text-[13px] text-slate-400">
-                <button
-                  type="button"
-                  onClick={openCreateForm}
-                  className="inline-flex items-center gap-2"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add New
-                </button>
-              </div>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total,
-                  )}{" "}
-                  of {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: pagination.totalPages },
-                  (_, i) => i + 1,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+              ) : rows.length === 0 ? (
+                <div className="relative flex min-h-[400px] items-center justify-center">
+                  <div className="flex max-w-md flex-col items-center px-6 text-center">
+                    <EmptyStateIllustration />
+                    <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
+                      Add your first Company
+                    </h2>
+                    <p className="mt-2 text-[14px] text-slate-400">
+                      Use our API or add your first Company manually
+                    </p>
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="app-control mt-5 inline-flex items-center gap-2 rounded-md bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add a Company
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                <table className="min-w-full border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
+                            style={{
+                              width: header.getSize()
+                                ? `${header.getSize()}px`
+                                : undefined,
+                            }}
+                          >
+                            {renderTableHeader(header)}
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.map((row) => (
+                      <tr
+                        key={row.id}
+                        onClick={() => handleRowClick(row.original.id)}
+                        className={`cursor-pointer ${selectedRowId === row.original.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <td
+                            key={cell.id}
+                            className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-4 py-3 text-[13px] text-slate-600 last:border-r-0"
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                  {/* <div className="border-b border-[#f4f1ec] px-4 py-2 text-[13px] text-slate-400">
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="inline-flex items-center gap-2"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add New
+                    </button>
+                  </div> */}
+                </>
+              )}
             </div>
-          )}
-        </div>
+          </DataTableToolbar>
+        </section>
 
         {showDetailPanel && selectedRow && (
           <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
