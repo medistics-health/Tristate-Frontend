@@ -455,7 +455,6 @@ function MonthlyReportingDashboard() {
       activeModule="Monthly Reports"
       activeSubItem="Dashboard"
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
     >
       <div className="app-split">
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
@@ -542,19 +541,13 @@ function MonthlyReportingDashboard() {
               <div className="relative flex min-h-[400px] items-center justify-center">
                 <div className="flex max-w-md flex-col items-center px-6 text-center">
                   <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    No reports found
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    Submit your first monthly report to get started
-                  </p>
+                  <p className="text-[14px]">No reports found.</p>
                   <button
                     type="button"
                     onClick={() => navigate("/monthly-reporting/submit")}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Submit Report
+                    <Plus className="h-4 w-4" /> Submit Report
                   </button>
                 </div>
               </div>

@@ -25,6 +25,9 @@ import {
   Settings2,
   Globe,
   ListChecks,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -358,35 +361,40 @@ function SidebarLeafItem({
     return <ListDocumentIcon />;
   })();
 
-  if (item.to) {
-    return (
-      <NavLink
-        to={item.to}
-        onClick={onNavigate}
-        onMouseDown={(event) => {
-          // Prevent focus-driven scroll jump inside the overflow sidebar.
-          if (event.button === 0) event.preventDefault();
-        }}
-        className={({ isActive }) =>
-          `${baseClass} ${
-            isActive
-              ? "bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-              : "hover:bg-white/70"
-          }`
-        }
-      >
-        <SidebarIcon>{IconToRender}</SidebarIcon>
-        {item.label}
-      </NavLink>
-    );
-  }
-
   return (
     <button type="button" className={`${baseClass} hover:bg-white/70`}>
       <SidebarIcon>{IconToRender}</SidebarIcon>
       {item.label}
     </button>
   );
+}
+
+function getIconForLabel(label: string) {
+  const l = label.toLowerCase();
+  if (l.includes("dashboard")) return <LayoutDashboard className="h-4 w-4" />;
+  if (l.includes("lead")) return <Target className="h-4 w-4" />;
+  if (l.includes("deal")) return <Briefcase className="h-4 w-4" />;
+  if (l.includes("people")) return <Users className="h-4 w-4" />;
+  if (l.includes("company")) return <Building2 className="h-4 w-4" />;
+  if (l.includes("communication")) return <Globe className="h-4 w-4" />;
+  if (l.includes("practice")) return <Stethoscope className="h-4 w-4" />;
+  if (l.includes("credential")) return <ListChecks className="h-4 w-4" />;
+  if (l.includes("onboarding")) return <FileText className="h-4 w-4" />;
+  if (l.includes("service")) return <Briefcase className="h-4 w-4" />;
+  if (l.includes("assessment")) return <BarChart3 className="h-4 w-4" />;
+  if (l.includes("pricing")) return <Calculator className="h-4 w-4" />;
+  if (l.includes("agreement")) return <FileSignature className="h-4 w-4" />;
+  if (l.includes("monthly") || l.includes("report")) return <BarChart3 className="h-4 w-4" />;
+  if (l.includes("invoice line")) return <ListOrdered className="h-4 w-4" />;
+  if (l.includes("invoice") || l.includes("billing")) return <Receipt className="h-4 w-4" />;
+  if (l.includes("purchase")) return <ShoppingCart className="h-4 w-4" />;
+  if (l.includes("partner")) return <Share2 className="h-4 w-4" />;
+  if (l.includes("vendor")) return <Truck className="h-4 w-4" />;
+  if (l.includes("master")) return <Settings2 className="h-4 w-4" />;
+  if (l.includes("integration")) return <Zap className="h-4 w-4" />;
+  if (l.includes("audit")) return <ClipboardCheck className="h-4 w-4" />;
+  if (l.includes("settings")) return <SettingsIcon className="h-4 w-4" />;
+  return <ListDocumentIcon />;
 }
 
 type SidebarProps = {
@@ -401,9 +409,20 @@ let savedSidebarScrollTop = 0;
 function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
   const location = useLocation();
   const navRef = useRef<HTMLDivElement>(null);
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem("sidebar_collapsed") === "true";
+  });
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const userRole = readStoredUser()?.role as string | undefined;
   const isAdmin = hasAdminAccess(userRole);
+
+  const toggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar_collapsed", String(next));
+      return next;
+    });
+  };
 
   function canRenderItem(item: SidebarSectionItem | SidebarItem) {
     if (item.adminOnly && !isAdmin) return false;
@@ -412,10 +431,7 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
   }
 
   function isItemActive(item: SidebarSectionItem) {
-    if (item.to) {
-      return item.to === location.pathname;
-    }
-    return item.label === activeSubItem;
+    return item.to === location.pathname;
   }
 
   useEffect(() => {
@@ -428,7 +444,6 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
             (step.items || []).filter(canRenderItem).some(isItemActive),
         ]),
     );
-
     setOpenMenus((current) => ({ ...nextOpenMenus, ...current }));
   }, [activeModule, activeSubItem, location.pathname]);
 
@@ -436,182 +451,175 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
     const el = navRef.current;
     if (!el) return;
 
-    const onScroll = () => {
+    const handleScroll = () => {
       savedSidebarScrollTop = el.scrollTop;
     };
 
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
   useLayoutEffect(() => {
     const el = navRef.current;
     if (!el) return;
-
     el.scrollTop = savedSidebarScrollTop;
-    const frameId = requestAnimationFrame(() => {
-      el.scrollTop = savedSidebarScrollTop;
-    });
-    return () => cancelAnimationFrame(frameId);
-  }, [location.pathname, openMenus]);
+  }, [location.pathname]);
 
   function toggleMenu(menuLabel: string) {
-    setOpenMenus((current) => ({
-      ...current,
-      [menuLabel]: !current[menuLabel],
-    }));
+    if (isCollapsed) setIsCollapsed(false);
+    setOpenMenus((current) => ({ ...current, [menuLabel]: !current[menuLabel] }));
   }
 
   return (
-    <aside className="h-full w-64 border-r border-[#ece8e1] bg-[#f8f7f5] flex flex-col">
-      <div className="flex items-center gap-3 px-4 py-4">
-        <div className="flex h-6 w-6 items-center justify-center">
-          <img src="/tristate-metadata-logo.png" className="h-5 w-5" />
-        </div>
-        <span className="text-[15px] font-medium text-slate-800">
-          Tristate MSO
-        </span>
+    <aside
+      className={`relative h-full flex flex-col border-r border-[#ece8e1] bg-white transition-all duration-300 ease-in-out font-app-sans select-none z-30 shadow-[4px_0_15px_-3px_rgba(0,0,0,0.05)] ${
+        isCollapsed ? "w-16" : "w-64"
+      }`}
+    >
+      {/* Brand Header */}
+      <div className={`flex h-16 items-center border-b border-[#ece8e1] px-3.5 transition-all ${isCollapsed ? "justify-center" : "justify-between"}`}>
+        {isCollapsed ? (
+          <button
+            type="button"
+            onClick={toggleCollapse}
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 border border-[#e8e4dc] text-slate-700 hover:bg-slate-100 transition-all shadow-2xs cursor-pointer"
+            title="Expand sidebar"
+          >
+            <img src="/tristate-metadata-logo.png" className="h-5 w-5 object-contain cursor-pointer" alt="Logo" />
+          </button>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 min-w-0 overflow-hidden cursor-pointer" onClick={toggleCollapse} title="Collapse sidebar">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 border border-[#e8e4dc] cursor-pointer">
+                <img src="/tristate-metadata-logo.png" className="h-5 w-5 object-contain cursor-pointer" alt="Logo" />
+              </div>
+              <div className="flex flex-col truncate cursor-pointer">
+                <span className="text-[14.5px] font-semibold text-slate-800 tracking-tight leading-none cursor-pointer">
+                  Tristate MSO
+                </span>
+                <span className="text-[11px] font-medium text-slate-400 mt-1 leading-none cursor-pointer">
+                  CRM
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={toggleCollapse}
+              className="hidden lg:flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#e5e0d8] bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft className="h-4 w-4 cursor-pointer" />
+            </button>
+          </>
+        )}
       </div>
 
+      {/* Navigation Menu */}
       <div
         ref={navRef}
-        className="mt-1 flex-1 overflow-y-auto px-3 pb-5 space-y-1"
+        className="mt-2 flex-1 overflow-y-auto px-3 pb-6 space-y-1 custom-scrollbar"
       >
         {sidebarSteps.filter(canRenderItem).map((step) => {
-          if (step.to) {
+          const visibleItems = (step.items || []).filter(canRenderItem);
+          const hasChildren = visibleItems.length > 0;
+          const isOpen = Boolean(openMenus[step.label]);
+          const isActiveMenu =
+            step.label === activeModule ||
+            (step.to && step.to === location.pathname) ||
+            visibleItems.some(isItemActive);
+
+          if (!hasChildren && step.to) {
             return (
-              <SidebarLeafItem
+              <NavLink
                 key={step.label}
-                item={step}
-                onNavigate={onNavigate}
-              />
+                to={step.to}
+                onClick={onNavigate}
+                onMouseDown={(event) => {
+                  if (event.button === 0) event.preventDefault();
+                }}
+                className={({ isActive }) =>
+                  `group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium transition-all cursor-pointer ${
+                    isActive
+                      ? "bg-[#f4f2ee] text-[#4f63ea] font-semibold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  } ${isCollapsed ? "justify-center px-0" : ""}`
+                }
+                title={isCollapsed ? step.label : undefined}
+              >
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    isActiveMenu ? "text-[#4f63ea]" : "text-slate-400 group-hover:text-slate-700"
+                  }`}
+                >
+                  {getIconForLabel(step.label)}
+                </span>
+                {!isCollapsed && <span className="truncate">{step.label}</span>}
+              </NavLink>
             );
           }
 
-          // Render collapsible menu
-          const visibleItems = step.items || [];
-          if (visibleItems.length === 0) return null;
-          const isOpen = openMenus[step.label] ?? false;
-          const isActiveMenu =
-            step.label === activeModule ||
-            visibleItems.some(isItemActive) ||
-            false;
-
           return (
-            <div
-              key={step.label}
-              className={`mt-1 rounded-xl ${isActiveMenu ? "bg-[#f1efeb]" : ""}`}
-            >
+            <div key={step.label} className="mt-1">
               <button
                 type="button"
                 onClick={() => toggleMenu(step.label)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] font-medium ${
+                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[14px] font-medium transition-all cursor-pointer ${
                   isActiveMenu
-                    ? "bg-[#efede8] text-slate-800"
-                    : "hover:bg-white/70"
-                }`}
+                    ? "bg-[#f4f2ee] text-slate-900 font-semibold"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                } ${isCollapsed ? "justify-center px-0" : ""}`}
+                title={isCollapsed ? step.label : undefined}
               >
-                <SidebarIcon>
-                  {(() => {
-                    const label = step.label.toLowerCase();
-                    if (label.includes("purchase"))
-                      return <ShoppingCart className="h-3.5 w-3.5" />;
-                    if (label.includes("invoice line"))
-                      return <ListOrdered className="h-3.5 w-3.5" />;
-                    if (label.includes("invoice"))
-                      return <Receipt className="h-3.5 w-3.5" />;
-                    if (label.includes("services"))
-                      return <Briefcase className="h-3.5 w-3.5" />;
-                    if (label.includes("partner"))
-                      return <Share2 className="h-3.5 w-3.5" />;
-                    if (label.includes("audit"))
-                      return <ClipboardCheck className="h-3.5 w-3.5" />;
-                    if (label.includes("credential"))
-                      return <Stethoscope className="h-3.5 w-3.5" />;
-                    if (label.includes("master"))
-                      return <Settings2 className="h-3.5 w-3.5" />;
-                    if (label.includes("assessment"))
-                      return <BarChart3 className="h-3.5 w-3.5" />;
-                    if (label.includes("pricing"))
-                      return <Calculator className="h-3.5 w-3.5" />;
-                    if (label.includes("billing"))
-                      return <CreditCard className="h-3.5 w-3.5" />;
-                    if (label.includes("agreement"))
-                      return <FileSignature className="h-3.5 w-3.5" />;
-                    if (label.includes("vendor"))
-                      return <Truck className="h-3.5 w-3.5" />;
-                    if (label.includes("practice"))
-                      return <Stethoscope className="h-3.5 w-3.5" />;
-                    if (label.includes("onboarding"))
-                      return <FileText className="h-3.5 w-3.5" />;
-                    if (label.includes("integration"))
-                      return <Zap className="h-3.5 w-3.5" />;
-                    if (label.includes("settings"))
-                      return <Settings2 className="h-3.5 w-3.5" />;
-                    return <ListDocumentIcon />;
-                  })()}
-                </SidebarIcon>
-                <span className="min-w-0 flex-1">{step.label}</span>
-                <ChevronIcon open={isOpen} />
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    isActiveMenu ? "text-[#4f63ea]" : "text-slate-400 group-hover:text-slate-700"
+                  }`}
+                >
+                  {getIconForLabel(step.label)}
+                </span>
+                {!isCollapsed && (
+                  <>
+                    <span className="min-w-0 flex-1 truncate">{step.label}</span>
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${
+                        isOpen ? "rotate-180 text-slate-600" : ""
+                      }`}
+                    />
+                  </>
+                )}
               </button>
 
-              {isOpen ? (
-                <div className="pl-4 pr-2 pb-2">
-                  {visibleItems.filter(canRenderItem).map((item) => {
+              {isOpen && !isCollapsed && (
+                <div className="mt-1 ml-4 pl-3 border-l border-[#e8e4dc] space-y-1">
+                  {visibleItems.map((item) => {
                     if (!item.to) return null;
                     const isActive = isItemActive(item);
-
-                    // Selection of icon based on label
-                    let CustomIcon = <SubmenuIcon />;
-                    const label = item.label.toLowerCase();
-                    if (label.includes("general"))
-                      CustomIcon = <SettingsIcon className="h-3.5 w-3.5" />;
-                    if (label.includes("integrations"))
-                      CustomIcon = <LinkIcon className="h-3.5 w-3.5" />;
-                    if (label.includes("team"))
-                      CustomIcon = <User className="h-3.5 w-3.5" />;
-                    if (label.includes("security"))
-                      CustomIcon = <Shield className="h-3.5 w-3.5" />;
-                    if (label.includes("dashboard"))
-                      CustomIcon = <LayoutDashboard className="h-3.5 w-3.5" />;
-                    if (label.includes("All Credentialing"))
-                      CustomIcon = <ListChecks className="h-3.5 w-3.5" />;
-                    if (label.includes("status board"))
-                      CustomIcon = <LayoutDashboard className="h-3.5 w-3.5" />;
-                    if (label.includes("overdue") || label.includes("pending"))
-                      CustomIcon = <BarChart3 className="h-3.5 w-3.5" />;
-                    if (
-                      label.includes("contracts") ||
-                      label.includes("agreements")
-                    )
-                      CustomIcon = <FileSignature className="h-3.5 w-3.5" />;
-                    if (label.includes("payables") || label.includes("billing"))
-                      CustomIcon = <CreditCard className="h-3.5 w-3.5" />;
-                    if (label.includes("sync"))
-                      CustomIcon = <Zap className="h-3.5 w-3.5" />;
-
                     return (
                       <NavLink
                         key={item.label}
                         to={item.to}
                         onClick={onNavigate}
                         onMouseDown={(event) => {
-                          // Prevent focus-driven scroll jump inside the overflow sidebar.
                           if (event.button === 0) event.preventDefault();
                         }}
-                        className={`mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] ${
+                        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] font-medium transition-colors cursor-pointer ${
                           isActive
-                            ? "bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                            : "text-slate-600 hover:bg-white/80"
+                            ? "bg-[#f4f2ee] text-[#4f63ea] font-semibold"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                         }`}
                       >
-                        <SidebarIcon>{CustomIcon}</SidebarIcon>
-                        {item.label}
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                            isActive ? "bg-[#4f63ea]" : "bg-slate-300"
+                          }`}
+                        />
+                        <span className="truncate">{item.label}</span>
                       </NavLink>
                     );
                   })}
                 </div>
-              ) : null}
+              )}
             </div>
           );
         })}

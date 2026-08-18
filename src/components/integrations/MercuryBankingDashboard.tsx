@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
+import DataTableToolbar from "../shared/DataTableToolbar";
 import {
   getMercuryTransactions,
   getMercuryAccounts,
@@ -97,6 +98,34 @@ export default function MercuryBankingPage() {
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [environment, setEnvironment] = useState("production");
+
+  const [draftDirection, setDraftDirection] = useState("");
+  const [draftReconStatus, setDraftReconStatus] = useState("");
+  const [appliedDirection, setAppliedDirection] = useState("");
+  const [appliedReconStatus, setAppliedReconStatus] = useState("");
+
+  const handleOpenFilterModal = () => {
+    setDraftDirection(appliedDirection);
+    setDraftReconStatus(appliedReconStatus);
+  };
+
+  const handleApplyFilters = () => {
+    setAppliedDirection(draftDirection);
+    setAppliedReconStatus(draftReconStatus);
+    setFilters((prev) => ({
+      ...prev,
+      direction: draftDirection,
+      reconciliationStatus: draftReconStatus,
+    }));
+  };
+
+  const resetFilters = () => {
+    setDraftDirection("");
+    setDraftReconStatus("");
+    setAppliedDirection("");
+    setAppliedReconStatus("");
+    setFilters({ search: "", direction: "", reconciliationStatus: "" });
+  };
 
   async function loadTransactions(page = 1) {
     try {
@@ -184,6 +213,104 @@ export default function MercuryBankingPage() {
   const unmatched = transactions.filter((t) => t.reconciliationStatus === "UNMATCHED").length;
   const reconciled = transactions.filter((t) => t.reconciliationStatus === "RECONCILED").length;
 
+  const activeFilterCount = (appliedDirection ? 1 : 0) + (appliedReconStatus ? 1 : 0);
+  const activeFilterChips = [
+    ...(appliedDirection
+      ? [
+          {
+            key: "direction",
+            label: "Direction",
+            displayValue: appliedDirection,
+            onClear: () => {
+              setAppliedDirection("");
+              setDraftDirection("");
+              setFilters((prev) => ({ ...prev, direction: "" }));
+            },
+          },
+        ]
+      : []),
+    ...(appliedReconStatus
+      ? [
+          {
+            key: "reconciliationStatus",
+            label: "Reconciliation",
+            displayValue: appliedReconStatus,
+            onClear: () => {
+              setAppliedReconStatus("");
+              setDraftReconStatus("");
+              setFilters((prev) => ({ ...prev, reconciliationStatus: "" }));
+            },
+          },
+        ]
+      : []),
+  ];
+
+  const exportCsv = () => {
+    if (filteredTxns.length === 0) return;
+    const headers = ["ID", "Date", "Counterparty / Description", "Direction", "Amount", "Status", "Reconciliation"];
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [
+        headers.join(","),
+        ...filteredTxns.map((t) =>
+          [
+            `"${t.id}"`,
+            `"${formatDate(t.postedAt)}"`,
+            `"${t.counterpartyName || t.description || ""}"`,
+            `"${t.direction}"`,
+            `"${formatMoney(t.amount)}"`,
+            `"${t.status}"`,
+            `"${t.reconciliationStatus}"`,
+          ].join(","),
+        ),
+      ].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `mercury_transactions_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Direction
+        </span>
+        <select
+          value={draftDirection}
+          onChange={(e) => setDraftDirection(e.target.value)}
+          className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+        >
+          {DIRECTION_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Reconciliation Status
+        </span>
+        <select
+          value={draftReconStatus}
+          onChange={(e) => setDraftReconStatus(e.target.value)}
+          className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+        >
+          {RECON_STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </>
+  );
+
   return (
     <AppLayout
       title="Mercury Banking"
@@ -262,136 +389,105 @@ export default function MercuryBankingPage() {
             </div>
           )}
 
-          {/* Toolbar */}
-          <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] px-5 py-2.5">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search transactions…"
-                value={filters.search}
-                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-                className="app-control w-full rounded-lg pl-8 pr-3 py-1.5 text-[13px]"
-              />
-            </div>
-            <select
-              value={filters.direction}
-              onChange={(e) => setFilters((prev) => ({ ...prev, direction: e.target.value }))}
-              className="app-control rounded-lg px-3 py-1.5 text-[13px]"
-            >
-              {DIRECTION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <select
-              value={filters.reconciliationStatus}
-              onChange={(e) => setFilters((prev) => ({ ...prev, reconciliationStatus: e.target.value }))}
-              className="app-control rounded-lg px-3 py-1.5 text-[13px]"
-            >
-              {RECON_STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <div className="ml-auto text-[12px] text-slate-400">
-              {pagination.total} transaction{pagination.total !== 1 ? "s" : ""}
-            </div>
-          </div>
-
-          {/* Table */}
-          <div className="flex-1 overflow-auto">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full text-[13px] text-slate-400">
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Loading transactions…
-              </div>
-            ) : filteredTxns.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">
-                <Banknote className="h-10 w-10 opacity-20" />
-                <p className="text-[14px]">No transactions found.</p>
-                <p className="text-[12px]">
-                  {isConfigured ? "Try syncing to pull latest transactions from Mercury." : "Configure your Mercury API key in the backend .env file."}
-                </p>
-              </div>
-            ) : (
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr className="border-b border-[#f0ece6] bg-[#faf9f7] text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                    <th className="px-5 py-2.5 text-left">Date</th>
-                    <th className="px-5 py-2.5 text-left">Description / Counterparty</th>
-                    <th className="px-5 py-2.5 text-left">Direction</th>
-                    <th className="px-5 py-2.5 text-right">Amount</th>
-                    <th className="px-5 py-2.5 text-left">Status</th>
-                    <th className="px-5 py-2.5 text-left">Reconciliation</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTxns.map((txn) => (
-                    <tr
-                      key={txn.id}
-                      onClick={() => { setSelectedTxn(txn); setReconValue(txn.reconciliationStatus || "RECONCILED"); }}
-                      className="cursor-pointer border-b border-[#f0ece6] hover:bg-[#faf9f7] transition-colors"
-                    >
-                      <td className="px-5 py-3 text-slate-500 whitespace-nowrap">{formatDate(txn.postedAt)}</td>
-                      <td className="px-5 py-3">
-                        <div className="font-medium text-slate-700 truncate max-w-xs">
-                          {txn.counterpartyName || txn.description || "—"}
-                        </div>
-                        {txn.description && txn.counterpartyName && (
-                          <div className="text-[12px] text-slate-400 truncate">{txn.description}</div>
-                        )}
-                        <div className="text-[11px] text-slate-300 font-mono">{txn.mercuryTransactionId.slice(0, 12)}…</div>
-                      </td>
-                      <td className="px-5 py-3">
-                        {txn.direction === "CREDIT" ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
-                            <ArrowDownLeft className="h-3 w-3" /> Credit
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">
-                            <ArrowUpRight className="h-3 w-3" /> Debit
-                          </span>
-                        )}
-                      </td>
-                      <td className={`px-5 py-3 text-right font-semibold ${txn.direction === "CREDIT" ? "text-emerald-600" : "text-red-500"}`}>
-                        {txn.direction === "DEBIT" ? "−" : "+"}{formatMoney(txn.amount)}
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${txn.status === "SENT" ? "bg-emerald-50 text-emerald-700" : txn.status === "FAILED" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>
-                          {txn.status}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${reconStatusStyle(txn.reconciliationStatus)}`}>
-                          {reconStatusIcon(txn.reconciliationStatus)}
-                          {txn.reconciliationStatus}
-                        </span>
-                      </td>
+            <DataTableToolbar
+            title="Mercury Banking Transactions"
+            subtitle="Transaction Ledger"
+            searchPlaceholder="Search transactions..."
+            searchValue={filters.search}
+            onSearchChange={(val) => setFilters((prev) => ({ ...prev, search: val }))}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Transactions"
+            filterFields={filterFieldsModal}
+            onExport={exportCsv}
+            onRefresh={handleSync}
+            isLoading={isLoading}
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onPageSizeChange={(newSize) => {
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {isLoading ? (
+                <div className="flex items-center justify-center h-full text-[13px] text-slate-400 py-16">
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Loading transactions…
+                </div>
+              ) : filteredTxns.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 py-16 text-slate-400">
+                  <Banknote className="h-10 w-10 opacity-20" />
+                  <p className="text-[14px]">No transactions found.</p>
+                  <p className="text-[12px]">
+                    {isConfigured ? "Try syncing to pull latest transactions from Mercury." : "Configure your Mercury API key in the backend .env file."}
+                  </p>
+                </div>
+              ) : (
+                <table className="w-full text-[13px]">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    <tr className="border-b border-[#f0ece6] bg-[#faf9f7] font-medium text-slate-500">
+                      <th className="px-5 py-2.5 text-left font-medium">Date</th>
+                      <th className="px-5 py-2.5 text-left font-medium">Description / Counterparty</th>
+                      <th className="px-5 py-2.5 text-left font-medium">Direction</th>
+                      <th className="px-5 py-2.5 text-right font-medium">Amount</th>
+                      <th className="px-5 py-2.5 text-left font-medium">Status</th>
+                      <th className="px-5 py-2.5 text-left font-medium">Reconciliation</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* Pagination */}
-          {!isLoading && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-5 py-3">
-              <span className="text-[12px] text-slate-400">
-                Page {pagination.page} of {pagination.totalPages} · {pagination.total} total
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => loadTransactions(pagination.page - 1)}
-                  disabled={pagination.page <= 1}
-                  className="rounded-lg border border-[#f0ece6] bg-white px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-[#faf9f7] disabled:opacity-40"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => loadTransactions(pagination.page + 1)}
-                  disabled={pagination.page >= pagination.totalPages}
-                  className="rounded-lg border border-[#f0ece6] bg-white px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-[#faf9f7] disabled:opacity-40"
-                >
-                  Next
-                </button>
-              </div>
+                  </thead>
+                  <tbody>
+                    {filteredTxns.map((txn) => (
+                      <tr
+                        key={txn.id}
+                        onClick={() => { setSelectedTxn(txn); setReconValue(txn.reconciliationStatus || "RECONCILED"); }}
+                        className="cursor-pointer border-b border-[#f0ece6] hover:bg-[#faf9f7] transition-colors"
+                      >
+                        <td className="px-5 py-3 text-slate-500 whitespace-nowrap">{formatDate(txn.postedAt)}</td>
+                        <td className="px-5 py-3">
+                          <div className="font-medium text-slate-700 truncate max-w-xs">
+                            {txn.counterpartyName || txn.description || "—"}
+                          </div>
+                          {txn.description && txn.counterpartyName && (
+                            <div className="text-[12px] text-slate-400 truncate">{txn.description}</div>
+                          )}
+                          <div className="text-[11px] text-slate-300 font-mono">{txn.mercuryTransactionId.slice(0, 12)}…</div>
+                        </td>
+                        <td className="px-5 py-3">
+                          {txn.direction === "CREDIT" ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
+                              <ArrowDownLeft className="h-3 w-3" /> Credit
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">
+                              <ArrowUpRight className="h-3 w-3" /> Debit
+                            </span>
+                          )}
+                        </td>
+                        <td className={`px-5 py-3 text-right font-semibold ${txn.direction === "CREDIT" ? "text-emerald-600" : "text-red-500"}`}>
+                          {txn.direction === "DEBIT" ? "−" : "+"}{formatMoney(txn.amount)}
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${txn.status === "SENT" ? "bg-emerald-50 text-emerald-700" : txn.status === "FAILED" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>
+                            {txn.status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${txn.reconciliationStatus === "RECONCILED" ? "bg-blue-50 text-blue-700" : txn.reconciliationStatus === "MATCHED" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                            {txn.reconciliationStatus || "UNMATCHED"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
+          </DataTableToolbar>
+
         </section>
 
         {/* ── Detail / Reconcile Panel ── */}

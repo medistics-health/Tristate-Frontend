@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw, AlertCircle, CheckCircle2, Clock, CalendarDays } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
+import DataTableToolbar from "../shared/DataTableToolbar";
 import {
   getQuickBooksStatus,
   getSyncLogs,
@@ -178,178 +179,260 @@ export default function AccountingSyncDashboard() {
     return type.replace(/_/g, " ");
   }
 
-  const failedCount = logs.filter(l => l.status === "FAILED").length;
+  const [searchInput, setSearchInput] = useState("");
+  const [draftStatus, setDraftStatus] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+
+  const handleOpenFilterModal = () => {
+    setDraftStatus(selectedStatus);
+  };
+
+  const handleApplyFilters = () => {
+    setSelectedStatus(draftStatus);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setSelectedStatus("");
+    setDraftStatus("");
+    setSearchInput("");
+    setSelectedCompanyId("");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const activeFilterCount = (selectedStatus ? 1 : 0) + (selectedCompanyId ? 1 : 0);
+  const activeFilterChips = [
+    ...(selectedCompanyId
+      ? [
+          {
+            key: "companyId",
+            label: "Company",
+            displayValue: companies.find((c) => c.id === selectedCompanyId)?.name || selectedCompanyId,
+            onClear: () => setSelectedCompanyId(""),
+          },
+        ]
+      : []),
+    ...(selectedStatus
+      ? [
+          {
+            key: "status",
+            label: "Status",
+            displayValue: selectedStatus,
+            onClear: () => setSelectedStatus(""),
+          },
+        ]
+      : []),
+  ];
+
+  const filteredLogs = logs.filter((log) => {
+    const matchesSearch = searchInput.trim()
+      ? log.entityType.toLowerCase().includes(searchInput.toLowerCase()) ||
+        log.entityId.toLowerCase().includes(searchInput.toLowerCase()) ||
+        (log.externalId && log.externalId.toLowerCase().includes(searchInput.toLowerCase()))
+      : true;
+    const matchesStatus = selectedStatus ? log.status === selectedStatus : true;
+    return matchesSearch && matchesStatus;
+  });
+
+  const exportCsv = () => {
+    if (filteredLogs.length === 0) return;
+    const headers = ["ID", "Entity Type", "Entity ID", "QB External ID", "System", "Status", "Last Synced"];
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [
+        headers.join(","),
+        ...filteredLogs.map((l) =>
+          [
+            `"${l.id}"`,
+            `"${l.entityType}"`,
+            `"${l.entityId}"`,
+            `"${l.externalId || ""}"`,
+            `"${l.system}"`,
+            `"${l.status}"`,
+            `"${l.lastSyncedAt || l.updatedAt}"`,
+          ].join(","),
+        ),
+      ].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `accounting_sync_logs_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Filter by Company
+        </span>
+        <select
+          value={selectedCompanyId}
+          onChange={(e) => setSelectedCompanyId(e.target.value)}
+          className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+        >
+          <option value="">All Companies</option>
+          {companies.map((company) => (
+            <option key={company.id} value={company.id}>
+              {company.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Status
+        </span>
+        <select
+          value={draftStatus}
+          onChange={(e) => setDraftStatus(e.target.value)}
+          className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+        >
+          <option value="">All Statuses</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="FAILED">Failed</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="PENDING">Pending</option>
+        </select>
+      </label>
+    </>
+  );
 
   return (
     <AppLayout title="Accounting Sync" activeModule="Integrations" activeSubItem="Accounting Sync">
-      <div className="flex h-full flex-col mx-auto w-full">
-        <div className="flex items-center justify-between  bg-white px-6 py-4 shadow-sm z-10">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">QuickBooks Sync Log</h1>
-            <p className="mt-1 text-sm text-slate-500">Monitor and manage bidirectional syncs with QuickBooks Online.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => loadLogs(pagination.page)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh Log
-            </button>
-            {canWriteIntegrations && (
-              <button
-                onClick={handleRetryFailedSyncs}
-                disabled={failedCount === 0}
-                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <AlertCircle className="h-4 w-4" />
-                Retry Failed ({failedCount})
-              </button>
-            )}
-            <div className="flex items-center gap-4">
-              <div className="flex-1 max-w-xs relative">
-                <select
-                  value={selectedCompanyId}
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 outline-none transition-all focus:border-indigo-500 shadow-sm"
+      <div className="app-split font-app-sans">
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="QuickBooks Sync Log"
+            subtitle="Monitor & manage QuickBooks syncs"
+            searchPlaceholder="Search sync logs by entity or ID..."
+            searchValue={searchInput}
+            onSearchChange={setSearchInput}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Sync Logs"
+            filterFields={filterFieldsModal}
+            onExport={exportCsv}
+            onRefresh={() => loadLogs(pagination.page)}
+            isLoading={isLoading}
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => loadLogs(page)}
+            onPageSizeChange={(newSize) => {
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+            }}
+            extraActions={
+              canWriteIntegrations && failedCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={handleRetryFailedSyncs}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-amber-700 transition-colors shadow-sm"
                 >
-                  <option value="">Filter by Company</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {selectedCompanyId && connectionStatus?.isConnected && (
-                <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-600 border border-emerald-100 shadow-sm">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Connected to QB
-                </div>
-              )}
-            </div>
-          </div>
-
-        </div>
-
-        {/* Company Selector */}
-
-
-        <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col">
-          <div className="flex-1 overflow-auto">
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200 z-10">
-                <tr>
-                  <th className="px-6 py-4 font-semibold w-1/4">Entity</th>
-                  <th className="px-6 py-4 font-semibold w-1/5">Sync Type</th>
-                  <th className="px-6 py-4 font-semibold w-1/6">Status</th>
-                  <th className="px-6 py-4 font-semibold w-1/6">Last Sync</th>
-                  <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                      Loading sync logs...
-                    </td>
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Retry Failed ({failedCount})
+                </button>
+              ) : undefined
+            }
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              <table className="w-full text-left text-[13px] text-slate-600">
+                <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                  <tr className="border-b border-[#f0ece6] bg-[#faf9f7]">
+                    <th className="px-4 py-3 font-semibold w-1/4 text-slate-500">Entity</th>
+                    <th className="px-4 py-3 font-semibold w-1/5 text-slate-500">Sync Type</th>
+                    <th className="px-4 py-3 font-semibold w-1/6 text-slate-500">Status</th>
+                    <th className="px-4 py-3 font-semibold w-1/6 text-slate-500">Last Sync</th>
+                    <th className="px-4 py-3 font-semibold text-right text-slate-500">Actions</th>
                   </tr>
-                ) : logs.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                      No sync logs found.
-                    </td>
-                  </tr>
-                ) : (
-                  logs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-slate-900 flex items-center gap-2">
-                          {formatEntityType(log.entityType)}
-                          <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{log.entityId.slice(0, 8)}</span>
-                        </div>
-                        {log.externalId && (
-                          <div className="mt-1 text-xs text-slate-500 flex items-center gap-1">
-                            QB ID: {log.externalId}
-                          </div>
-                        )}
-                        {log.lastError && (
-                          <div className="mt-1.5 text-xs text-red-600 max-w-xs truncate" title={log.lastError}>
-                            {log.lastError}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="inline-flex items-center gap-1.5 rounded bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                          {log.system}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(log.status)}`}>
-                          {getStatusIcon(log.status)}
-                          {log.status}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 text-slate-500">
-                          <CalendarDays className="h-4 w-4" />
-                          {formatTimeAgo(log.lastSyncedAt || log.updatedAt)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {canWriteIntegrations ? (
-                          <button
-                            onClick={() => handleRetry(log.id)}
-                            disabled={log.status === "COMPLETED" || isRetryingMap[log.id]}
-                            className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                          >
-                            {isRetryingMap[log.id] ? (
-                              <>
-                                <RefreshCw className="h-4 w-4 animate-spin" />
-                                Retrying
-                              </>
-                            ) : (
-                              "Retry"
-                            )}
-                          </button>
-                        ) : (
-                          <span className="text-xs font-semibold text-slate-400">
-                            Read only
-                          </span>
-                        )}
+                </thead>
+                <tbody className="divide-y divide-[#f0ece6]">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                        Loading sync logs...
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {!isLoading && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-slate-200 bg-white px-6 py-3">
-              <span className="text-sm text-slate-500">
-                Showing page <span className="font-medium text-slate-900">{pagination.page}</span> of{" "}
-                <span className="font-medium text-slate-900">{pagination.totalPages}</span>
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => loadLogs(pagination.page - 1)}
-                  disabled={pagination.page <= 1}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => loadLogs(pagination.page + 1)}
-                  disabled={pagination.page >= pagination.totalPages}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
+                  ) : filteredLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                        No sync logs found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-slate-900 flex items-center gap-2">
+                            {formatEntityType(log.entityType)}
+                            <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{log.entityId.slice(0, 8)}</span>
+                          </div>
+                          {log.externalId && (
+                            <div className="mt-1 text-xs text-slate-500 flex items-center gap-1">
+                              QB ID: {log.externalId}
+                            </div>
+                          )}
+                          {log.lastError && (
+                            <div className="mt-1.5 text-xs text-red-600 max-w-xs truncate" title={log.lastError}>
+                              {log.lastError}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="inline-flex items-center gap-1.5 rounded bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                            {log.system}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(log.status)}`}>
+                            {getStatusIcon(log.status)}
+                            {log.status}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 text-slate-500">
+                            <CalendarDays className="h-4 w-4" />
+                            {formatTimeAgo(log.lastSyncedAt || log.updatedAt)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {canWriteIntegrations ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRetry(log.id)}
+                              disabled={log.status === "COMPLETED" || isRetryingMap[log.id]}
+                              className="inline-flex items-center gap-1.5 text-sm font-medium text-[#4f63ea] hover:text-[#3d4ed1] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {isRetryingMap[log.id] ? (
+                                <>
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                  Retrying
+                                </>
+                              ) : (
+                                "Retry"
+                              )}
+                            </button>
+                          ) : (
+                            <span className="text-xs font-semibold text-slate-400">
+                              Read only
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+          </DataTableToolbar>
+        </section>
       </div>
     </AppLayout>
   );

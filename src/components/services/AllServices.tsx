@@ -506,7 +506,7 @@ function AllServicesPage() {
   }
 
   const filterFieldsModal = (
-    <div className="space-y-4">
+    <>
       <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
           Category
@@ -554,7 +554,7 @@ function AllServicesPage() {
           ]}
         />
       </label>
-    </div>
+    </>
   );
 
   return (
@@ -595,7 +595,7 @@ function AllServicesPage() {
               setUserSelectedPageSize(true);
             }}
           >
-            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 h-full overflow-y-auto custom-scrollbar">
               {rows.length === 0 ? (
                 <div className="relative flex min-h-[400px] items-center justify-center">
                   <div className="flex max-w-md flex-col items-center px-6 text-center">

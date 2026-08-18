@@ -1,4 +1,4 @@
-import React, { useState, type ReactNode } from "react";
+import React, { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -86,10 +86,13 @@ export default function DataTableToolbar({
   totalPages,
   onPageChange,
   onPageSizeChange,
-  pageSizeOptions = [8, 15, 25, 50],
+  pageSizeOptions = [5, 8, 10, 15, 25, 50],
   children,
 }: DataTableToolbarProps) {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+
 
   const handleOpen = () => {
     if (onOpenFilterModal) onOpenFilterModal();
@@ -240,8 +243,14 @@ export default function DataTableToolbar({
       )}
 
       {/* Main Content (Table / Dashboard) */}
-      <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
-        {isLoading ? <DataTableSkeleton rows={skeletonRows} /> : children}
+      <div ref={containerRef} className="flex flex-col min-h-0 flex-1 overflow-hidden">
+        {isLoading ? (
+          <DataTableSkeleton rows={skeletonRows} />
+        ) : (
+          <div className="flex flex-col flex-1 min-h-0 overflow-auto font-app-sans">
+            {children}
+          </div>
+        )}
       </div>
 
       {/* Footer Pagination (if props provided) */}

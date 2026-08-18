@@ -96,7 +96,7 @@ function Navbar({
     : "Loading...";
 
   return (
-    <header className="flex h-14 items-center border-b border-[#ece8e1] bg-[#fbfaf8] px-3 sm:px-5 font-app-sans w-full z-30 min-w-0">
+    <header className="flex h-14 items-center border-b border-[#ece8e1] bg-white px-3 sm:px-5 font-app-sans w-full z-20 min-w-0 shadow-[0_4px_15px_-3px_rgba(0,0,0,0.04)]">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3 text-[15px] font-medium text-slate-800">
         {onMenuClick && (
           <button
