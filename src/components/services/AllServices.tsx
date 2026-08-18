@@ -580,11 +580,11 @@ function AllServicesPage() {
             page,
             limit,
             search: searchInput.trim() || undefined,
-            category: draftCategory || undefined,
-            vendorId: draftVendorId || undefined,
-            isActive: draftActiveStatus === "" ? undefined : draftActiveStatus === "active",
-            sortBy: sorting[0]?.id,
-            sortOrder: sorting[0]?.desc ? "desc" : "asc",
+            category: filters.category || undefined,
+            vendorId: filters.vendorId || undefined,
+            isActive: filters.isActive === "" ? undefined : filters.isActive === "true",
+            sortBy: activeSort?.id || "createdAt",
+            sortOrder: activeSort ? (activeSort.desc ? "desc" : "asc") : "desc",
           });
           return {
             items: res.rows,
@@ -606,7 +606,8 @@ function AllServicesPage() {
       });
       toast.success("CSV Exported successfully", { id: "export-csv" });
     } catch (e) {
-      toast.error("Failed to export CSV", { id: "export-csv" });
+      console.error("Failed to export services CSV:", e);
+      toast.error(e instanceof Error ? e.message : "Failed to export CSV", { id: "export-csv" });
     }
   };
 

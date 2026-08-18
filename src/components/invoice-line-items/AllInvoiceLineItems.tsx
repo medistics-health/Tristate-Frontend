@@ -10,7 +10,6 @@ import {
   ChevronLeft,
   Circle,
   LayoutList,
-  Plus,
   Save,
   Trash2,
   X,
@@ -471,13 +470,7 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
     }
   }
 
-  const navbarActions = [
-    {
-      label: "New record",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: openCreateForm,
-    },
-  ];
+
 
 
 
@@ -749,8 +742,6 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
             onOpenFilterModal={handleOpenFilterModal}
             filterModalTitle="Filter Line Items"
             filterFields={filterFieldsModal}
-            addNewLabel="Create Line Item"
-            onAddNew={openCreateForm}
             onExport={exportCsv}
             onRefresh={() => setPagination((prev) => ({ ...prev }))}
             isLoading={isLoading}
@@ -770,13 +761,6 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
                 <div className="flex flex-col items-center justify-center h-full gap-3 py-16 text-slate-400">
                   <EmptyStateIllustration />
                   <p className="text-[14px]">No invoice line items found.</p>
-                  <button
-                    type="button"
-                    onClick={openCreateForm}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
-                  >
-                    <Plus className="h-4 w-4" /> Create Invoice Line Item
-                  </button>
                 </div>
               ) : (
                 <table className="w-full text-[13px]">

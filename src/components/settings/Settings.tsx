@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import {
   User,
@@ -15,6 +15,11 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
+import DataTableToolbar, {
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
+import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import {
   getAllUsers,
   updateUserApi,
@@ -27,7 +32,11 @@ import {
 import { getMercuryAccounts } from "../../services/operations/mercury";
 import QuickBooksIntegrations from "../integrations/QuickBooksIntegrations";
 import { canManageSettings, readStoredUser } from "../../utils/auth";
-import { authMe, toggle2FA, verify2FASetup } from "../../services/operations/auth";
+import {
+  authMe,
+  toggle2FA,
+  verify2FASetup,
+} from "../../services/operations/auth";
 import OtpInput from "../shared/OtpInput";
 
 function parseNotifyToEmails(value: string) {
@@ -92,7 +101,10 @@ function SecuritySettingsSection() {
           setShowSetupModal(true);
         }
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to initiate 2FA setup.", { id: toastId });
+        toast.error(
+          err instanceof Error ? err.message : "Failed to initiate 2FA setup.",
+          { id: toastId },
+        );
       }
     } else {
       // User wants to disable 2FA
@@ -102,7 +114,10 @@ function SecuritySettingsSection() {
         setIsEnabled(false);
         toast.success("2FA disabled successfully.", { id: toastId });
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to disable 2FA.", { id: toastId });
+        toast.error(
+          err instanceof Error ? err.message : "Failed to disable 2FA.",
+          { id: toastId },
+        );
       }
     }
   }
@@ -121,16 +136,20 @@ function SecuritySettingsSection() {
       setIsEnabled(true);
       setShowSetupModal(false);
       setVerifyCode("");
-      toast.success("Two-Factor Authentication is now enabled!", { id: toastId });
+      toast.success("Two-Factor Authentication is now enabled!", {
+        id: toastId,
+      });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Verification failed.", { id: toastId });
+      toast.error(err instanceof Error ? err.message : "Verification failed.", {
+        id: toastId,
+      });
     } finally {
       setIsVerifying(false);
     }
   }
 
   return (
-    <div className="max-w-xl space-y-6">
+    <div className="max-w-xl space-y-6 p-6">
       <div className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -160,11 +179,17 @@ function SecuritySettingsSection() {
         </div>
 
         <p className="text-sm text-slate-500">
-          Protect your personal user account (<strong>{currentUser?.email || currentUser?.userName || "Your account"}</strong>) using Microsoft Authenticator or any TOTP authenticator app.
+          Protect your personal user account (
+          <strong>
+            {currentUser?.email || currentUser?.userName || "Your account"}
+          </strong>
+          ) using Microsoft Authenticator or any TOTP authenticator app.
         </p>
 
         <div className="mt-4 pt-4 border-t border-slate-200/60 flex items-center justify-between text-xs">
-          <span className="font-medium text-slate-500">2FA Status for your account:</span>
+          <span className="font-medium text-slate-500">
+            2FA Status for your account:
+          </span>
           <span
             className={`font-bold px-2.5 py-1 rounded-full ${
               isEnabled
@@ -220,9 +245,10 @@ function SecuritySettingsSection() {
 
               <div className="space-y-2">
                 <label className="text-sm  text-slate-700 block text-center">
-                  Open you Authenticator app and scan the QR code above to add your account.
+                  Open you Authenticator app and scan the QR code above to add
+                  your account.
                 </label>
-                 <label className="text-sm font-semibold text-slate-700 block text-center">
+                <label className="text-sm font-semibold text-slate-700 block text-center">
                   6-Digit PIN to verify setup
                 </label>
                 <OtpInput
@@ -309,6 +335,12 @@ export default function SettingsPage() {
   const [mercuryEnv, setMercuryEnv] = useState("production");
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [twoFactorFilter, setTwoFactorFilter] = useState("");
+  const [draftRoleFilter, setDraftRoleFilter] = useState("");
+  const [draftTwoFactorFilter, setDraftTwoFactorFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Determine active tab from URL
   const activeTab = location.pathname.split("/").pop() || "general";
@@ -340,17 +372,135 @@ export default function SettingsPage() {
     }
   }
 
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   async function loadUsers() {
     setIsLoadingUsers(true);
     try {
-      const data = await getAllUsers();
-      setUsers(data);
+      const data = await getAllUsers({
+        page,
+        limit: pageSize,
+        search: searchTerm.trim() || undefined,
+        role: roleFilter || undefined,
+        twoFactorEnabled: twoFactorFilter || undefined,
+      });
+      setUsers(data.users || []);
+      if (data.pagination) {
+        setTotalRecords(data.pagination.totalRecords);
+        setTotalPages(data.pagination.totalPages);
+      }
     } catch (e) {
       toast.error("Failed to load team members");
     } finally {
       setIsLoadingUsers(false);
     }
   }
+
+  useEffect(() => {
+    if (activeTab === "team") {
+      loadUsers();
+    }
+  }, [activeTab, page, pageSize, searchTerm, roleFilter, twoFactorFilter]);
+
+  const handleOpenFilterModal = () => {
+    setDraftRoleFilter(roleFilter);
+    setDraftTwoFactorFilter(twoFactorFilter);
+  };
+
+  const handleApplyFilters = () => {
+    setRoleFilter(draftRoleFilter);
+    setTwoFactorFilter(draftTwoFactorFilter);
+    setPage(1);
+  };
+
+  const resetFilters = () => {
+    setRoleFilter("");
+    setTwoFactorFilter("");
+    setDraftRoleFilter("");
+    setDraftTwoFactorFilter("");
+    setSearchTerm("");
+    setPage(1);
+  };
+
+  const activeFilterCount = [roleFilter, twoFactorFilter].filter(
+    Boolean,
+  ).length;
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (roleFilter) {
+      chips.push({
+        key: "role",
+        label: "Role",
+        displayValue: roleFilter,
+        onClear: () => {
+          setRoleFilter("");
+          setDraftRoleFilter("");
+          setPage(1);
+        },
+      });
+    }
+    if (twoFactorFilter) {
+      chips.push({
+        key: "twoFactor",
+        label: "2FA Status",
+        displayValue: twoFactorFilter === "enabled" ? "Enabled" : "Disabled",
+        onClear: () => {
+          setTwoFactorFilter("");
+          setDraftTwoFactorFilter("");
+          setPage(1);
+        },
+      });
+    }
+    return chips;
+  }, [roleFilter, twoFactorFilter]);
+
+  const exportTeamCsv = async () => {
+    try {
+      toast.loading("Exporting CSV...", { id: "export-csv" });
+      const headers = [
+        "First Name",
+        "Last Name",
+        "Email",
+        "Role",
+        "Account Status",
+        "2FA Status",
+        "Created Date & Time",
+      ];
+
+      await exportAllPagesToCsv({
+        filenamePrefix: "team_members",
+        headers,
+        pageSize: 50,
+        fetchPage: async (exportPage, exportLimit) => {
+          const res = await getAllUsers({
+            page: exportPage,
+            limit: exportLimit,
+            search: searchTerm.trim() || undefined,
+            role: roleFilter || undefined,
+            twoFactorEnabled: twoFactorFilter || undefined,
+          });
+          return {
+            items: res.users || [],
+            totalPages: res.pagination?.totalPages || 1,
+          };
+        },
+        rowToCsvFields: (u) => [
+          u.firstName,
+          u.lastName,
+          u.email,
+          u.role,
+          "Active",
+          u.twoFactorEnabled ? "Enabled" : "Disabled",
+          formatUsDateTime(u.createdAt),
+        ],
+      });
+      toast.success("CSV Exported successfully", { id: "export-csv" });
+    } catch (e) {
+      toast.error("Failed to export CSV", { id: "export-csv" });
+    }
+  };
 
   async function loadSettings() {
     setIsLoadingSettings(true);
@@ -363,11 +513,9 @@ export default function SettingsPage() {
         supportEmail: data.supportEmail || "",
         authorizedSigner: data.authorizedSigner || "",
         notifyTo: Array.isArray(data.notifyTo) ? data.notifyTo : [],
-        creditCardCompanyRatePercent:
-          data.creditCardCompanyRatePercent ?? 1.4,
+        creditCardCompanyRatePercent: data.creditCardCompanyRatePercent ?? 1.4,
         creditCardCompanyFixedFee: data.creditCardCompanyFixedFee ?? 0.3,
-        creditCardClientRatePercent:
-          data.creditCardClientRatePercent ?? 1.5,
+        creditCardClientRatePercent: data.creditCardClientRatePercent ?? 1.5,
         creditCardClientFixedFee: data.creditCardClientFixedFee ?? 0,
         achCompanyRatePercent: data.achCompanyRatePercent ?? 0.8,
         achCompanyCapAmount: data.achCompanyCapAmount ?? 5,
@@ -465,10 +613,42 @@ export default function SettingsPage() {
     }
   }
 
-  const filteredUsers = users.filter((u) =>
-    `${u.firstName} ${u.lastName} ${u.email} ${u.role}`
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase()),
+  const teamFilterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Access Role
+        </span>
+        <Select
+          value={draftRoleFilter}
+          onChange={setDraftRoleFilter}
+          options={[
+            { label: "All Roles", value: "" },
+            { label: "ADMIN", value: "ADMIN" },
+            { label: "FINANCE", value: "FINANCE" },
+            { label: "OPERATIONS", value: "OPERATIONS" },
+            { label: "SALES", value: "SALES" },
+            { label: "ACCOUNTMANAGER", value: "ACCOUNTMANAGER" },
+            { label: "VIEWER", value: "VIEWER" },
+          ]}
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          2FA Status
+        </span>
+        <Select
+          value={draftTwoFactorFilter}
+          onChange={setDraftTwoFactorFilter}
+          options={[
+            { label: "All Statuses", value: "" },
+            { label: "Enabled", value: "enabled" },
+            { label: "Disabled", value: "disabled" },
+          ]}
+        />
+      </label>
+    </>
   );
 
   return (
@@ -520,14 +700,6 @@ export default function SettingsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {activeTab === "team" && canWriteSettings && (
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="rounded-xl bg-[#4f63ea] px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-[#3d4ed1] shadow-lg shadow-blue-500/10"
-              >
-                Add Member
-              </button>
-            )}
             {activeTab === "general" && canWriteSettings && (
               <button
                 onClick={handleSaveGeneral}
@@ -546,9 +718,9 @@ export default function SettingsPage() {
         </div>
 
         {/* Content Area - No more internal sidebar! */}
-        <div className="flex-1 overflow-y-auto rounded-3xl border border-[#ece8e1] bg-white p-5 shadow-sm m-2">
+        <div className="flex-1  rounded-xl border border-[#ece8e1] bg-white  shadow-sm m-2">
           {activeTab === "general" && (
-            <div className="max-w-2xl space-y-8">
+            <div className="max-w-2xl space-y-8 p-6">
               {isLoadingSettings ? (
                 <div className="flex justify-center py-20">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#ece8e1] border-t-[#4f63ea]" />
@@ -699,7 +871,8 @@ export default function SettingsPage() {
                         onChange={(e) =>
                           setOrgSettings({
                             ...orgSettings,
-                            invoiceReminderDays: parseInt(e.target.value, 10) || 5,
+                            invoiceReminderDays:
+                              parseInt(e.target.value, 10) || 5,
                           })
                         }
                         className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none transition-all focus:border-[#4f63ea]"
@@ -729,7 +902,8 @@ export default function SettingsPage() {
                           Processing Fee Rules
                         </h4>
                         <p className="mt-1 text-xs text-slate-500">
-                          These values drive the billing run payment method and bearer calculations.
+                          These values drive the billing run payment method and
+                          bearer calculations.
                         </p>
                       </div>
 
@@ -902,7 +1076,7 @@ export default function SettingsPage() {
           )}
 
           {activeTab === "integrations" && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 p-6">
               <QuickBooksIntegrations />
 
               {/* Stripe Card */}
@@ -975,158 +1149,171 @@ export default function SettingsPage() {
           )}
 
           {activeTab === "team" && (
-            <div className="space-y-8">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 max-w-md relative">
-                  <input
-                    type="text"
-                    placeholder="Search team by name or email..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] pl-12 pr-5 py-3 text-sm outline-none transition-all focus:border-[#4f63ea] focus:bg-white"
-                  />
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                  </div>
-                </div>
-                <div className="text-sm font-medium text-slate-400">
-                  Total:{" "}
-                  <span className="text-slate-800 font-bold">
-                    {users.length}
-                  </span>
-                </div>
-              </div>
-
-              {isLoadingUsers ? (
-                <div className="flex flex-col items-center justify-center py-24 gap-4">
-                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#f1efeb] border-t-[#4f63ea]" />
-                  <p className="text-sm font-medium text-slate-500">
-                    Fetching team members...
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-2xl border border-[#ece8e1]">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-[#fbfaf8] border-b border-[#ece8e1]">
+            <div className="rounded-xl p-1">
+              <DataTableToolbar
+                title="Team Members"
+                subtitle="Team Management"
+                searchPlaceholder="Search team by name or email..."
+                searchValue={searchTerm}
+                onSearchChange={(val) => {
+                  setSearchTerm(val);
+                  setPage(1);
+                }}
+                activeFilterCount={activeFilterCount}
+                activeChips={activeFilterChips}
+                onResetFilters={resetFilters}
+                onApplyFilters={handleApplyFilters}
+                onOpenFilterModal={handleOpenFilterModal}
+                filterModalTitle="Filter Team Members"
+                filterFields={teamFilterFieldsModal}
+                addNewLabel={canWriteSettings ? "Add Member" : undefined}
+                onAddNew={
+                  canWriteSettings ? () => setShowAddModal(true) : undefined
+                }
+                onExport={exportTeamCsv}
+                onRefresh={loadUsers}
+                isLoading={isLoadingUsers}
+                page={page}
+                pageSize={pageSize}
+                totalRecords={totalRecords}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setPage(1);
+                }}
+              >
+                <div className="overflow-x-auto border-t border-[#ece8e1]">
+                  <table className="w-full text-left text-sm border-separate border-spacing-0">
+                    <thead className="border-b border-[#ece8e1] text-[10px] uppercase tracking-widest text-slate-400 font-bold">
                       <tr>
-                        <th className="px-6 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">
+                        <th className="px-6 py-4 border-b border-[#ece8e1]">
                           Team Member
                         </th>
-                        <th className="px-6 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">
+                        <th className="px-6 py-4 border-b border-[#ece8e1]">
                           Access Role
                         </th>
-                        <th className="px-6 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">
+                        <th className="px-6 py-4 border-b border-[#ece8e1]">
                           Account Status
                         </th>
-                        <th className="px-6 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">
+                        <th className="px-6 py-4 border-b border-[#ece8e1]">
                           2FA Status
                         </th>
                         {canWriteSettings && (
-                          <th className="px-6 py-5 text-right font-bold text-slate-400 uppercase tracking-widest text-[10px]">
+                          <th className="px-6 py-4 border-b border-[#ece8e1] text-right">
                             Action
                           </th>
                         )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#ece8e1]">
-                      {filteredUsers.map((user) => (
-                        <tr
-                          key={user.id}
-                          className="hover:bg-blue-50/30 transition-all group"
-                        >
-                          <td className="px-6 py-5">
-                            <div className="flex items-center gap-4">
-                              <div className="h-10 w-10 rounded-2xl bg-white border border-[#ece8e1] shadow-sm text-[#4f63ea] flex items-center justify-center font-bold text-sm uppercase">
-                                {user.firstName[0]}
-                                {user.lastName[0]}
-                              </div>
-                              <div>
-                                <div className="font-bold text-slate-800">
-                                  {user.firstName} {user.lastName}
+                      {users.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="py-12 text-center text-slate-400 text-sm"
+                          >
+                            No team members found matching criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        users.map((user) => (
+                          <tr
+                            key={user.id}
+                            className="hover:bg-blue-50/30 transition-all group"
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-4">
+                                <div className="h-9 w-9 rounded-xl bg-white border border-[#ece8e1] shadow-sm text-[#4f63ea] flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                                  {user.firstName[0]}
+                                  {user.lastName[0]}
                                 </div>
-                                <div className="text-[12px] text-slate-500">
-                                  {user.email}
+                                <div>
+                                  <div className="font-bold text-slate-800 text-[13px]">
+                                    {user.firstName} {user.lastName}
+                                  </div>
+                                  <div className="text-[12px] text-slate-500">
+                                    {user.email}
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-5">
-                            {(() => {
-                              const roleColors: Record<string, string> = {
-                                ADMIN: "bg-purple-50 text-purple-700 border-purple-200",
-                                FINANCE: "bg-emerald-50 text-emerald-700 border-emerald-200",
-                                OPERATIONS: "bg-blue-50 text-blue-700 border-blue-200",
-                                SALES: "bg-amber-50 text-amber-700 border-amber-200",
-                                ACCOUNTMANAGER: "bg-indigo-50 text-indigo-700 border-indigo-200",
-                                VIEWER: "bg-slate-100 text-slate-600 border-slate-200",
-                              };
-                              const colorClass = roleColors[user.role?.toUpperCase()] || "bg-slate-100 text-slate-600 border-slate-200";
-                              return (
-                                <span className={`inline-flex rounded-xl border px-3 py-1.5 text-[11px] font-extrabold tracking-tight ${colorClass}`}>
-                                  {user.role}
-                                </span>
-                              );
-                            })()}
-                          </td>
-                          <td className="px-6 py-5">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-600 border border-emerald-100">
-                              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{" "}
-                              Active
-                            </span>
-                          </td>
-                          <td className="px-6 py-5">
-                            {user.twoFactorEnabled ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 border border-emerald-200">
-                                Enabled
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500 border border-slate-200">
-                                Disabled
-                              </span>
-                            )}
-                          </td>
-                          {canWriteSettings && (
-                            <td className="px-6 py-5 text-right">
-                              <div className="flex justify-end gap-1">
-                                <button
-                                  onClick={() => setEditingUser(user)}
-                                  className="p-2.5 rounded-xl text-slate-400 hover:bg-white hover:text-[#4f63ea] hover:shadow-sm transition-all"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteUser(user.id)}
-                                  className="p-2.5 rounded-xl text-slate-400 hover:bg-white hover:text-red-500 hover:shadow-sm transition-all"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
                               </div>
                             </td>
-                          )}
-                        </tr>
-                      ))}
+                            <td className="px-6 py-4">
+                              {(() => {
+                                const roleColors: Record<string, string> = {
+                                  ADMIN:
+                                    "bg-purple-50 text-purple-700 border-purple-200",
+                                  FINANCE:
+                                    "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                  OPERATIONS:
+                                    "bg-blue-50 text-blue-700 border-blue-200",
+                                  SALES:
+                                    "bg-amber-50 text-amber-700 border-amber-200",
+                                  ACCOUNTMANAGER:
+                                    "bg-indigo-50 text-indigo-700 border-indigo-200",
+                                  VIEWER:
+                                    "bg-slate-100 text-slate-600 border-slate-200",
+                                };
+                                const colorClass =
+                                  roleColors[user.role?.toUpperCase()] ||
+                                  "bg-slate-100 text-slate-600 border-slate-200";
+                                return (
+                                  <span
+                                    className={`inline-flex rounded-xl border px-2.5 py-1 text-[11px] font-extrabold tracking-tight ${colorClass}`}
+                                  >
+                                    {user.role}
+                                  </span>
+                                );
+                              })()}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-600 border border-emerald-100">
+                                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{" "}
+                                Active
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              {user.twoFactorEnabled ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                                  Enabled
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-500 border border-slate-200">
+                                  Disabled
+                                </span>
+                              )}
+                            </td>
+                            {canWriteSettings && (
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex justify-end gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingUser(user)}
+                                    className="p-2 rounded-lg text-slate-400 hover:bg-white hover:text-[#4f63ea] hover:shadow-sm transition-all"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="p-2 rounded-lg text-slate-400 hover:bg-white hover:text-red-500 hover:shadow-sm transition-all"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
-              )}
+              </DataTableToolbar>
             </div>
           )}
 
-          {activeTab === "security" && (
-            <SecuritySettingsSection />
-          )}
+          {activeTab === "security" && <SecuritySettingsSection />}
         </div>
       </div>
 
@@ -1230,7 +1417,8 @@ export default function SettingsPage() {
                     Reset 2FA Authentication
                   </label>
                   <p className="mt-1 text-[11px] text-amber-700 leading-relaxed">
-                    Check this to disable 2FA and clear secret key for this member if they lost access to Microsoft Authenticator.
+                    Check this to disable 2FA and clear secret key for this
+                    member if they lost access to Microsoft Authenticator.
                   </p>
                 </div>
               )}

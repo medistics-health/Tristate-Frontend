@@ -34,14 +34,23 @@ export type SystemSettings = {
   credentialingReminderDays?: number;
 };
 
-export async function getAllUsers() {
+export type GetUsersParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: string;
+  twoFactorEnabled?: boolean | string;
+};
+
+export async function getAllUsers(params?: GetUsersParams) {
   try {
     const response = await apiConnector({
       method: "GET",
       url: userEndpoints.LIST,
+      params,
       credentials: true,
     });
-    return response.data.users;
+    return response.data;
   } catch (error) {
     throw error;
   }
