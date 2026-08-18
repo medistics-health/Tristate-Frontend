@@ -447,6 +447,18 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
     setOpenMenus((current) => ({ ...nextOpenMenus, ...current }));
   }, [activeModule, activeSubItem, location.pathname]);
 
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      savedSidebarScrollTop = el.scrollTop;
+    };
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
+
   useLayoutEffect(() => {
     const el = navRef.current;
     if (!el) return;
@@ -460,41 +472,47 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
 
   return (
     <aside
-      className={`relative h-full flex flex-col border-r border-[#ece8e1] bg-white transition-all duration-300 ease-in-out font-app-sans select-none z-30 ${
+      className={`relative h-full flex flex-col border-r border-[#ece8e1] bg-white transition-all duration-300 ease-in-out font-app-sans select-none z-30 shadow-[4px_0_15px_-3px_rgba(0,0,0,0.05)] ${
         isCollapsed ? "w-16" : "w-64"
       }`}
     >
       {/* Brand Header */}
-      <div className="flex h-16 items-center justify-between px-4 border-b border-[#ece8e1]">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 border border-[#e8e4dc]">
-            <img src="/tristate-metadata-logo.png" className="h-5 w-5 object-contain" alt="Logo" />
-          </div>
-          {!isCollapsed && (
-            <div className="flex flex-col truncate">
-              <span className="text-[14.5px] font-semibold text-slate-800 tracking-tight leading-none">
-                Tristate MSO
-              </span>
-              <span className="text-[11px] font-medium text-slate-400 mt-1 leading-none">
-                Enterprise Portal
-              </span>
+      <div className={`flex h-16 items-center border-b border-[#ece8e1] px-3.5 transition-all ${isCollapsed ? "justify-center" : "justify-between"}`}>
+        {isCollapsed ? (
+          <button
+            type="button"
+            onClick={toggleCollapse}
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 border border-[#e8e4dc] text-slate-700 hover:bg-slate-100 transition-all shadow-2xs cursor-pointer"
+            title="Expand sidebar"
+          >
+            <img src="/tristate-metadata-logo.png" className="h-5 w-5 object-contain cursor-pointer" alt="Logo" />
+          </button>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 min-w-0 overflow-hidden cursor-pointer" onClick={toggleCollapse} title="Collapse sidebar">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 border border-[#e8e4dc] cursor-pointer">
+                <img src="/tristate-metadata-logo.png" className="h-5 w-5 object-contain cursor-pointer" alt="Logo" />
+              </div>
+              <div className="flex flex-col truncate cursor-pointer">
+                <span className="text-[14.5px] font-semibold text-slate-800 tracking-tight leading-none cursor-pointer">
+                  Tristate MSO
+                </span>
+                <span className="text-[11px] font-medium text-slate-400 mt-1 leading-none cursor-pointer">
+                  CRM
+                </span>
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Collapse Toggle Button */}
-        <button
-          type="button"
-          onClick={toggleCollapse}
-          className="hidden lg:flex h-7 w-7 items-center justify-center rounded-lg border border-[#e5e0d8] bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
-          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
-        </button>
+            <button
+              type="button"
+              onClick={toggleCollapse}
+              className="hidden lg:flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#e5e0d8] bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft className="h-4 w-4 cursor-pointer" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Navigation Menu */}
@@ -521,7 +539,7 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
                   if (event.button === 0) event.preventDefault();
                 }}
                 className={({ isActive }) =>
-                  `group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium transition-all ${
+                  `group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium transition-all cursor-pointer ${
                     isActive
                       ? "bg-[#f4f2ee] text-[#4f63ea] font-semibold"
                       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
@@ -546,7 +564,7 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
               <button
                 type="button"
                 onClick={() => toggleMenu(step.label)}
-                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[14px] font-medium transition-all ${
+                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[14px] font-medium transition-all cursor-pointer ${
                   isActiveMenu
                     ? "bg-[#f4f2ee] text-slate-900 font-semibold"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
@@ -585,7 +603,7 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
                         onMouseDown={(event) => {
                           if (event.button === 0) event.preventDefault();
                         }}
-                        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] font-medium transition-colors ${
+                        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] font-medium transition-colors cursor-pointer ${
                           isActive
                             ? "bg-[#f4f2ee] text-[#4f63ea] font-semibold"
                             : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
