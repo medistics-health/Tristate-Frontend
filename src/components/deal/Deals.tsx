@@ -19,6 +19,11 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
 import { getAllPractices } from "../../services/operations/practices";
 import { getAllCompanies } from "../../services/operations/companies";
@@ -501,7 +506,6 @@ function DealsPage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -869,6 +873,138 @@ function DealsPage() {
       ]
     : [];
 
+  const activeFilterCount = [
+    filters.stage,
+    filters.practiceId,
+    filters.minValue,
+    filters.maxValue,
+  ].filter(Boolean).length;
+
+  const activeFilterChips = useMemo<ActiveFilterChip[]>(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.stage) {
+      chips.push({
+        key: "stage",
+        label: "Stage",
+        displayValue: formatStageLabel(filters.stage),
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, stage: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.practiceId) {
+      const practiceName =
+        practices.find((practice) => practice.id === filters.practiceId)?.name ||
+        filters.practiceId;
+      chips.push({
+        key: "practiceId",
+        label: "Practice",
+        displayValue: practiceName,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, practiceId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.minValue) {
+      chips.push({
+        key: "minValue",
+        label: "Min Value",
+        displayValue: filters.minValue,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, minValue: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.maxValue) {
+      chips.push({
+        key: "maxValue",
+        label: "Max Value",
+        displayValue: filters.maxValue,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, maxValue: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    return chips;
+  }, [filters, practices]);
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Stage
+        </span>
+        <Select
+          value={filters.stage}
+          onChange={(val) => {
+            setFilters((prev) => ({ ...prev, stage: val }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          options={[
+            { label: "All Stages", value: "" },
+            ...dealStageOptions.map((stage) => ({
+              label: formatStageLabel(stage),
+              value: stage,
+            })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Practice
+        </span>
+        <Select
+          value={filters.practiceId}
+          onChange={(val) => {
+            setFilters((prev) => ({ ...prev, practiceId: val }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          options={[
+            { label: "All Practices", value: "" },
+            ...practices.map((practice) => ({
+              label: practice.name,
+              value: practice.id,
+            })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Min Value
+        </span>
+        <input
+          type="number"
+          placeholder="Min Value"
+          value={filters.minValue}
+          onChange={(event) => {
+            setFilters((prev) => ({ ...prev, minValue: event.target.value }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Max Value
+        </span>
+        <input
+          type="number"
+          placeholder="Max Value"
+          value={filters.maxValue}
+          onChange={(event) => {
+            setFilters((prev) => ({ ...prev, maxValue: event.target.value }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        />
+      </label>
+    </>
+  );
+
   const detailPanel = (
     <aside className="app-panel app-detail-panel relative flex w-full max-w-full lg:w-[430px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
@@ -1066,16 +1202,6 @@ function DealsPage() {
     </aside>
   );
 
-  if (isLoading && rows.length === 0) {
-    return (
-      <AppLayout title="Deals" activeModule="Deals" activeSubItem="All Deals">
-        <div className="flex h-full items-center justify-center">
-          <div className="text-slate-400">Loading deals...</div>
-        </div>
-      </AppLayout>
-    );
-  }
-
   if (error && rows.length === 0) {
     return (
       <AppLayout title="Deals" activeModule="Deals" activeSubItem="All Deals">
@@ -1099,26 +1225,44 @@ function DealsPage() {
       activeModule="Deals"
       activeSubItem="All Deals"
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
+      // navbarActions={navbarActions}
     >
       <div className="app-split">
-        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
-              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
-              <span>All Deals</span>
-            </button>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel((current) => !current)}
-              >
-                Filters
-              </button>
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="All Deals"
+            subtitle="Deals"
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={() => {
+              setFilters({
+                stage: "",
+                practiceId: "",
+                minValue: "",
+                maxValue: "",
+              });
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            filterModalTitle="Filter Deals"
+            filterFields={filterFieldsModal}
+            addNewLabel={canManageDeals ? "New Deal" : undefined}
+            onAddNew={canManageDeals ? openCreateForm : undefined}
+            onRefresh={async () => {
+              try {
+                setIsLoading(true);
+                await refreshRows();
+              } catch (err) {
+                const message =
+                  err instanceof Error ? err.message : "Failed to load deals";
+                toast.error(message);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            isLoading={isLoading}
+            isSaving={isSaving || isSubmitting}
+            isDeleting={isDeleting}
+            extraActions={
               <button
                 type="button"
                 onClick={() =>
@@ -1128,233 +1272,101 @@ function DealsPage() {
                       : [{ id: "lastActivity", desc: true }],
                   )
                 }
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors"
               >
                 Sort
               </button>
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <select
-                value={filters.stage}
-                onChange={(event) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    stage: event.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Stages</option>
-                {dealStageOptions.map((stage) => (
-                  <option key={stage} value={stage}>
-                    {formatStageLabel(stage)}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={filters.practiceId}
-                onChange={(event) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    practiceId: event.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Practices</option>
-                {practices.map((practice) => (
-                  <option key={practice.id} value={practice.id}>
-                    {practice.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                placeholder="Min Value"
-                value={filters.minValue}
-                onChange={(event) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    minValue: event.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control w-32 rounded-md px-3 py-1.5 text-[13px]"
-              />
-              <input
-                type="number"
-                placeholder="Max Value"
-                value={filters.maxValue}
-                onChange={(event) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    maxValue: event.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control w-32 rounded-md px-3 py-1.5 text-[13px]"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  setFilters({
-                    stage: "",
-                    practiceId: "",
-                    minValue: "",
-                    maxValue: "",
-                  })
-                }
-                className="text-[13px] text-[#4f63ea] hover:underline"
-                disabled={
-                  !filters.stage &&
-                  !filters.practiceId &&
-                  !filters.minValue &&
-                  !filters.maxValue
-                }
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            {rows.length === 0 ? (
-              <div className="relative flex min-h-[400px] items-center justify-center">
-                <div className="flex max-w-md flex-col items-center px-6 text-center">
-                  <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    No deals found
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    Create your first deal to get started
-                  </p>
-                  {canManageDeals ? (
-                    <button
-                      type="button"
-                      onClick={openCreateForm}
-                      className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Create Deal
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              <table className="min-w-full border-separate border-spacing-0">
-                <thead className="sticky top-0 z-10 bg-white">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <th
-                          key={header.id}
-                          className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                        >
-                          {header.isPlaceholder ? null : (
-                            <button
-                              type="button"
-                              onClick={
-                                header.column.getCanSort()
-                                  ? header.column.getToggleSortingHandler()
-                                  : undefined
-                              }
-                              className="flex w-full items-center gap-2"
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </button>
-                          )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => {
-                    const isSelected = row.original.id === selectedRowId;
-                    return (
-                      <tr
-                        key={row.id}
-                        onClick={() => handleRowClick(row.original.id)}
-                        className={`cursor-pointer ${
-                          isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"
-                        }`}
+            }
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) =>
+              setPagination((prev) => ({ ...prev, page }))
+            }
+            onPageSizeChange={(newSize) =>
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }))
+            }
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {!isLoading && rows.length === 0 ? (
+                <div className="relative flex min-h-[400px] items-center justify-center">
+                  <div className="flex max-w-md flex-col items-center px-6 text-center">
+                    <EmptyStateIllustration />
+                    <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
+                      No deals found
+                    </h2>
+                    <p className="mt-2 text-[14px] text-slate-400">
+                      Create your first deal to get started
+                    </p>
+                    {canManageDeals ? (
+                      <button
+                        type="button"
+                        onClick={openCreateForm}
+                        className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
                       >
-                        {row.getVisibleCells().map((cell) => (
-                          <td
-                            key={cell.id}
-                            className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+                        <Plus className="h-3.5 w-3.5" />
+                        Create Deal
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <table className="min-w-full border-separate border-spacing-0 text-left">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header, index) => (
+                          <th
+                            key={header.id}
+                            className={`border-b border-[#eeebe5] px-4 py-3 font-medium ${
+                              index < headerGroup.headers.length - 1
+                                ? "border-r border-[#f2eee8]"
+                                : ""
+                            }`}
                           >
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
-                            )}
-                          </td>
+                            <SortableHeaderCell header={header} />
+                          </th>
                         ))}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
-                  {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: pagination.totalPages },
-                  (_, index) => index + 1,
-                ).map((page) => (
-                  <button
-                    type="button"
-                    key={page}
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+                    ))}
+                  </thead>
+                  <tbody className="text-[14px] text-slate-600">
+                    {table.getRowModel().rows.map((row) => {
+                      const isSelected = row.original.id === selectedRowId;
+                      return (
+                        <tr
+                          key={row.id}
+                          onClick={() => handleRowClick(row.original.id)}
+                          className={`cursor-pointer ${
+                            isSelected
+                              ? "bg-[#fcfbf9]"
+                              : "bg-white hover:bg-[#faf9f7]"
+                          }`}
+                        >
+                          {row.getVisibleCells().map((cell, index) => (
+                            <td
+                              key={cell.id}
+                              className={`border-b border-[#f4f1ec] px-4 py-3 ${
+                                index < row.getVisibleCells().length - 1
+                                  ? "border-r border-[#f5f2ed]"
+                                  : ""
+                              }`}
+                            >
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
+          </DataTableToolbar>
         </section>
 
         {showDetailPanel && detailPanel}

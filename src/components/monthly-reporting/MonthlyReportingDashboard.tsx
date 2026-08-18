@@ -15,7 +15,6 @@ import {
   Trash2,
   FileText,
   BarChart3,
-  Loader2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -74,7 +73,6 @@ function MonthlyReportingDashboard() {
     practiceName: "",
     serviceName: "",
   });
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -154,6 +152,24 @@ function MonthlyReportingDashboard() {
         .catch(() => {});
     }
   }, [showDetailPanel, practices.length]);
+
+  async function refreshRows() {
+    const params: Record<string, unknown> = {
+      page: pagination.page,
+      limit: pagination.limit,
+      search: filters.search || undefined,
+      status: filters.status || undefined,
+      practiceName: filters.practiceName || undefined,
+      serviceName: filters.serviceName || undefined,
+    };
+    if (sorting[0]?.id) {
+      params.sortBy = sorting[0].id;
+      params.sortOrder = sorting[0]?.desc ? "desc" : "asc";
+    }
+    const data = await getMonthlyReportsView(params as any);
+    setRows(data.rows);
+    setPagination(data.pagination);
+  }
 
   const columns = useMemo<ColumnDef<MonthlyReportRow>[]>(
     () => [
@@ -330,130 +346,57 @@ function MonthlyReportingDashboard() {
     setEditMetrics((prev) => ({ ...prev, [key]: value }));
   }
 
-  const [searchInput, setSearchInput] = useState("");
-  const [draftStatus, setDraftStatus] = useState("");
-  const [draftPracticeName, setDraftPracticeName] = useState("");
-  const [draftServiceName, setDraftServiceName] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("");
-  const [selectedPracticeName, setSelectedPracticeName] = useState("");
-  const [selectedServiceName, setSelectedServiceName] = useState("");
+  const navbarActions = [
+    {
+      label: "Submit Report",
+      icon: <Plus className="h-4 w-4" />,
+      onClick: () => navigate("/monthly-reporting/submit"),
+    },
+  ];
 
-  const handleOpenFilterModal = () => {
-    setDraftStatus(selectedStatus);
-    setDraftPracticeName(selectedPracticeName);
-    setDraftServiceName(selectedServiceName);
-  };
+  const activeFilterCount = [
+    filters.status,
+    filters.practiceName,
+    filters.serviceName,
+  ].filter(Boolean).length;
 
-  const handleApplyFilters = () => {
-    setSelectedStatus(draftStatus);
-    setSelectedPracticeName(draftPracticeName);
-    setSelectedServiceName(draftServiceName);
-    setFilters({
-      search: searchInput,
-      status: draftStatus,
-      practiceName: draftPracticeName,
-      serviceName: draftServiceName,
-    });
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  };
-
-  const resetFilters = () => {
-    setDraftStatus("");
-    setDraftPracticeName("");
-    setDraftServiceName("");
-    setSelectedStatus("");
-    setSelectedPracticeName("");
-    setSelectedServiceName("");
-    setSearchInput("");
-    setFilters({ search: "", status: "", practiceName: "", serviceName: "" });
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  };
-
-  const activeFilterCount =
-    (selectedStatus ? 1 : 0) +
-    (selectedPracticeName ? 1 : 0) +
-    (selectedServiceName ? 1 : 0);
-
-  const activeFilterChips = useMemo(() => {
+  const activeFilterChips = useMemo<ActiveFilterChip[]>(() => {
     const chips: ActiveFilterChip[] = [];
-    if (selectedStatus) {
+    if (filters.status) {
       chips.push({
         key: "status",
         label: "Status",
-        displayValue: selectedStatus,
+        displayValue: filters.status,
         onClear: () => {
-          setSelectedStatus("");
-          setDraftStatus("");
-          setFilters((prev) => ({ ...prev, status: "" }));
+          setFilters((curr) => ({ ...curr, status: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
         },
       });
     }
-    if (selectedPracticeName) {
+    if (filters.practiceName) {
       chips.push({
         key: "practiceName",
         label: "Practice",
-        displayValue: selectedPracticeName,
+        displayValue: filters.practiceName,
         onClear: () => {
-          setSelectedPracticeName("");
-          setDraftPracticeName("");
-          setFilters((prev) => ({ ...prev, practiceName: "" }));
+          setFilters((curr) => ({ ...curr, practiceName: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
         },
       });
     }
-    if (selectedServiceName) {
+    if (filters.serviceName) {
       chips.push({
         key: "serviceName",
         label: "Service",
-        displayValue: selectedServiceName,
+        displayValue: filters.serviceName,
         onClear: () => {
-          setSelectedServiceName("");
-          setDraftServiceName("");
-          setFilters((prev) => ({ ...prev, serviceName: "" }));
+          setFilters((curr) => ({ ...curr, serviceName: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
         },
       });
     }
     return chips;
-  }, [selectedStatus, selectedPracticeName, selectedServiceName]);
-
-  const exportCsv = async () => {
-    try {
-      toast.loading("Exporting CSV...", { id: "export-csv" });
-      const headers = ["Practice", "Service", "Month", "Year", "Due Date", "Status"];
-
-      await exportAllPagesToCsv({
-        filenamePrefix: "monthly_reports",
-        headers,
-        pageSize: 50,
-        fetchPage: async (page, limit) => {
-          const res = await getMonthlyReportsView({
-            page,
-            limit,
-            search: filters.search.trim() || undefined,
-            status: filters.status || undefined,
-            practiceName: filters.practiceName || undefined,
-            serviceName: filters.serviceName || undefined,
-            sortBy: sorting[0]?.id,
-            sortOrder: sorting[0]?.desc ? "desc" : "asc",
-          });
-          return {
-            items: res.rows,
-            totalPages: res.pagination.totalPages,
-          };
-        },
-        rowToCsvFields: (r) => [
-          r.values.practiceName,
-          r.values.serviceName,
-          r.values.month,
-          r.values.year,
-          r.values.dueDate,
-          r.values.status,
-        ],
-      });
-      toast.success("CSV Exported successfully", { id: "export-csv" });
-    } catch (e) {
-      toast.error("Failed to export CSV", { id: "export-csv" });
-    }
-  };
+  }, [filters.status, filters.practiceName, filters.serviceName]);
 
   const filterFieldsModal = (
     <>
@@ -462,8 +405,11 @@ function MonthlyReportingDashboard() {
           Status
         </span>
         <Select
-          value={draftStatus}
-          onChange={setDraftStatus}
+          value={filters.status}
+          onChange={(val) => {
+            setFilters((prev) => ({ ...prev, status: val }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
           options={[
             { label: "All Statuses", value: "" },
             { label: "Pending", value: "Pending" },
@@ -471,30 +417,34 @@ function MonthlyReportingDashboard() {
           ]}
         />
       </label>
-
       <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
-          Practice Name
+          Practice
         </span>
         <input
           type="text"
-          placeholder="Filter by practice..."
-          value={draftPracticeName}
-          onChange={(e) => setDraftPracticeName(e.target.value)}
-          className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+          placeholder="Search by practice..."
+          value={filters.practiceName}
+          onChange={(e) => {
+            setFilters((prev) => ({ ...prev, practiceName: e.target.value }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
         />
       </label>
-
       <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
-          Service Name
+          Service
         </span>
         <input
           type="text"
-          placeholder="Filter by service..."
-          value={draftServiceName}
-          onChange={(e) => setDraftServiceName(e.target.value)}
-          className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+          placeholder="Search by service..."
+          value={filters.serviceName}
+          onChange={(e) => {
+            setFilters((prev) => ({ ...prev, serviceName: e.target.value }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
         />
       </label>
     </>
@@ -507,45 +457,77 @@ function MonthlyReportingDashboard() {
       activeSubItem="Dashboard"
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
     >
-      <div className="app-split font-app-sans">
+      <div className="app-split">
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
           <DataTableToolbar
             title="Monthly Reporting Dashboard"
             subtitle="Monthly Reports"
-            searchPlaceholder="Search reports by practice or service..."
-            searchValue={searchInput}
-            onSearchChange={(val) => {
-              setSearchInput(val);
-              setFilters((prev) => ({ ...prev, search: val }));
+            searchPlaceholder="Search reports..."
+            searchValue={filters.search}
+            onSearchChange={(value) => {
+              setFilters((prev) => ({ ...prev, search: value }));
+              setPagination((prev) => ({ ...prev, page: 1 }));
             }}
             activeFilterCount={activeFilterCount}
             activeChips={activeFilterChips}
-            onResetFilters={resetFilters}
-            onApplyFilters={handleApplyFilters}
-            onOpenFilterModal={handleOpenFilterModal}
-            filterModalTitle="Filter Monthly Reports"
+            onResetFilters={() => {
+              setFilters({
+                search: "",
+                status: "",
+                practiceName: "",
+                serviceName: "",
+              });
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            filterModalTitle="Filter Reports"
             filterFields={filterFieldsModal}
             addNewLabel="Submit Report"
             onAddNew={() => navigate("/monthly-reporting/submit")}
-            onExport={exportCsv}
-            onRefresh={() => setPagination((prev) => ({ ...prev }))}
+            onRefresh={async () => {
+              try {
+                setIsLoading(true);
+                await refreshRows();
+              } catch (err) {
+                const message =
+                  err instanceof Error ? err.message : "Failed to load reports";
+                setError(message);
+                toast.error(message);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
             isLoading={isLoading}
+            isSaving={isSaving}
+            isDeleting={isDeleting}
+            extraActions={
+              <button
+                type="button"
+                onClick={() =>
+                  setSorting((current) =>
+                    current[0]?.id === "dueDate"
+                      ? [{ id: "dueDate", desc: !current[0].desc }]
+                      : [{ id: "dueDate", desc: true }],
+                  )
+                }
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors"
+              >
+                Sort
+              </button>
+            }
             page={pagination.page}
             pageSize={pagination.limit}
             totalRecords={pagination.total}
             totalPages={pagination.totalPages}
-            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
-            onPageSizeChange={(newSize) => {
-              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
-            }}
+            onPageChange={(page) =>
+              setPagination((prev) => ({ ...prev, page }))
+            }
+            onPageSizeChange={(newSize) =>
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }))
+            }
           >
+
             <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-              {isLoading ? (
-                <div className="flex min-h-[300px] items-center justify-center gap-2 text-slate-400">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span className="text-[13px]">Loading reports...</span>
-                </div>
-              ) : error && rows.length === 0 ? (
+              {!isLoading && error && rows.length === 0 ? (
                 <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
                   <div className="text-[13px] text-red-500">{error}</div>
                   <button
@@ -556,8 +538,9 @@ function MonthlyReportingDashboard() {
                     Retry
                   </button>
                 </div>
-              ) : rows.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full gap-3 py-16 text-slate-400">
+              ) : !isLoading && rows.length === 0 ? (
+              <div className="relative flex min-h-[400px] items-center justify-center">
+                <div className="flex max-w-md flex-col items-center px-6 text-center">
                   <EmptyStateIllustration />
                   <p className="text-[14px]">No reports found.</p>
                   <button
@@ -568,15 +551,20 @@ function MonthlyReportingDashboard() {
                     <Plus className="h-4 w-4" /> Submit Report
                   </button>
                 </div>
-              ) : (
-                <table className="w-full text-[13px]">
+              </div>
+            ) : (
+                <table className="min-w-full border-separate border-spacing-0 text-left">
                   <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
                     {table.getHeaderGroups().map((headerGroup) => (
-                      <tr key={headerGroup.id} className="border-b border-[#f0ece6] bg-[#faf9f7]">
-                        {headerGroup.headers.map((header) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header, index) => (
                           <th
                             key={header.id}
-                            className="px-4 py-3 text-left font-medium text-slate-500"
+                            className={`border-b border-[#eeebe5] px-4 py-3 font-medium ${
+                              index < headerGroup.headers.length - 1
+                                ? "border-r border-[#f2eee8]"
+                                : ""
+                            }`}
                           >
                             <SortableHeaderCell header={header} />
                           </th>
@@ -584,27 +572,48 @@ function MonthlyReportingDashboard() {
                       </tr>
                     ))}
                   </thead>
-                  <tbody>
-                    {table.getRowModel().rows.map((row) => {
-                      const isSelected = row.original.id === selectedRowId;
-                      return (
-                        <tr
-                          key={row.id}
-                          onClick={() => handleRowClick(row.original.id)}
-                          className={`cursor-pointer border-b border-[#f0ece6] transition-colors ${
-                            isSelected ? "bg-[#fcfbf9]" : "hover:bg-[#faf9f7]"
+                <tbody className="text-[14px] text-slate-600">
+                  {table.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className={
+                        selectedRowId === row.original.id
+                          ? "bg-[#fcfbf9]"
+                          : "bg-white"
+                      }
+                    >
+                      {row.getVisibleCells().map((cell, index) => (
+                        <td
+                          key={cell.id}
+                          className={`border-b border-[#f4f1ec] px-4 py-3 ${
+                            index < row.getVisibleCells().length - 1
+                              ? "border-r border-[#f5f2ed]"
+                              : ""
                           }`}
                         >
-                          {row.getVisibleCells().map((cell) => (
-                            <td key={cell.id} className="px-4 py-3 text-slate-600">
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          {cell.column.id === "practiceName" ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRowClick(row.original.id)}
+                              className="hover:text-[#4f63ea]"
+                            >
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </button>
+                          ) : (
+                            flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               )}
             </div>
           </DataTableToolbar>

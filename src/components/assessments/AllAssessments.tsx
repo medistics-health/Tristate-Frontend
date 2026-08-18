@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import type { NavbarAction } from "../layout/Navbar";
+import DataTableToolbar from "../shared/DataTableToolbar";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import {
   createAssessmentApi,
@@ -50,7 +51,6 @@ function AssessmentsPage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -453,20 +453,6 @@ function AssessmentsPage() {
     </aside>
   );
 
-  if (isLoading) {
-    return (
-      <AppLayout
-        title="Assessments"
-        activeModule="Assessments"
-        activeSubItem="All Assessments"
-      >
-        <div className="flex h-full items-center justify-center">
-          <div className="text-slate-400">Loading assessments...</div>
-        </div>
-      </AppLayout>
-    );
-  }
-
   if (error && rows.length === 0) {
     return (
       <AppLayout
@@ -494,170 +480,137 @@ function AssessmentsPage() {
       activeModule="Assessments"
       activeSubItem="All Assessments"
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
+      // navbarActions={navbarActions}
     >
       <div className="app-split">
-        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
-              <LayoutList className="h-3.5 w-3.5 text-slate-400" />
-              <span>All Assessments</span>
-            </button>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel((current) => !current)}
-              >
-                Filters
-              </button>
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="All Assessments"
+            subtitle="Assessments"
+            searchPlaceholder="Search by practice name..."
+            searchValue={filters.search}
+            onSearchChange={(value) => {
+              setFilters((prev) => ({ ...prev, search: value }));
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            activeFilterCount={0}
+            onResetFilters={() => {
+              setFilters({ search: "" });
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            addNewLabel={canManageAssessments ? "New record" : undefined}
+            onAddNew={canManageAssessments ? openCreateForm : undefined}
+            onRefresh={async () => {
+              try {
+                setIsLoading(true);
+                await refreshRows();
+              } catch (err) {
+                const message =
+                  err instanceof Error ? err.message : "Failed to load assessments";
+                toast.error(message);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            isLoading={isLoading}
+            isSaving={isSaving || isSubmitting}
+            isDeleting={isDeleting}
+            extraActions={
               <button
                 type="button"
                 onClick={() =>
                   setSortOrder((current) => (current === "asc" ? "desc" : "asc"))
                 }
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors"
               >
                 Sort
               </button>
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <input
-                type="text"
-                placeholder="Search by practice name..."
-                value={filters.search}
-                onChange={(event) => {
-                  setFilters((prev) => ({ ...prev, search: event.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              />
-              <button
-                type="button"
-                onClick={() => setFilters({ search: "" })}
-                className="text-[13px] text-[#4f63ea] hover:underline"
-                disabled={!filters.search}
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            {rows.length === 0 ? (
-              <div className="relative flex min-h-[400px] items-center justify-center">
-                <div className="flex max-w-md flex-col items-center px-6 text-center">
-                  <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    No assessments found
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    Create your first assessment to get started
-                  </p>
-                  {canManageAssessments ? (
-                    <button
-                      type="button"
-                      onClick={openCreateForm}
-                      className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Create Assessment
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              <table className="min-w-full border-separate border-spacing-0">
-                <thead className="sticky top-0 z-10 bg-white">
-                  <tr>
-                    <th className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400">
-                      Practice
-                    </th>
-                    <th className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400">
-                      Score
-                    </th>
-                    <th className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400">
-                      Created
-                    </th>
-                    <th className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400">
-                      Last Update
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
-                    const isSelected = row.id === selectedRowId;
-                    return (
-                      <tr
-                        key={row.id}
-                        onClick={() => handleRowClick(row.id)}
-                        className={`cursor-pointer ${isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+            }
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) =>
+              setPagination((prev) => ({ ...prev, page }))
+            }
+            onPageSizeChange={(newSize) =>
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }))
+            }
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {!isLoading && rows.length === 0 ? (
+                <div className="relative flex min-h-[400px] items-center justify-center">
+                  <div className="flex max-w-md flex-col items-center px-6 text-center">
+                    <EmptyStateIllustration />
+                    <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
+                      No assessments found
+                    </h2>
+                    <p className="mt-2 text-[14px] text-slate-400">
+                      Create your first assessment to get started
+                    </p>
+                    {canManageAssessments ? (
+                      <button
+                        type="button"
+                        onClick={openCreateForm}
+                        className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
                       >
-                        <td className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600">
-                          {String(row.values.practiceName || "-")}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600">
-                          {String(row.values.score ?? "-")}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600">
-                          {String(row.values.creationDate || "-")}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600">
-                          {String(row.values.lastUpdate || "-")}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from({ length: pagination.totalPages }, (_, index) => index + 1).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page ? "bg-[#4f63ea] text-white" : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+                        <Plus className="h-3.5 w-3.5" />
+                        Create Assessment
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <table className="min-w-full border-separate border-spacing-0 text-left">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="border-b border-[#eeebe5] border-r border-[#f2eee8] px-4 py-3 font-medium">
+                        Practice
+                      </th>
+                      <th className="border-b border-[#eeebe5] border-r border-[#f2eee8] px-4 py-3 font-medium">
+                        Score
+                      </th>
+                      <th className="border-b border-[#eeebe5] border-r border-[#f2eee8] px-4 py-3 font-medium">
+                        Created
+                      </th>
+                      <th className="border-b border-[#eeebe5] px-4 py-3 font-medium">
+                        Last Update
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-[14px] text-slate-600">
+                    {rows.map((row) => {
+                      const isSelected = row.id === selectedRowId;
+                      return (
+                        <tr
+                          key={row.id}
+                          onClick={() => handleRowClick(row.id)}
+                          className={`cursor-pointer ${
+                            isSelected
+                              ? "bg-[#fcfbf9]"
+                              : "bg-white hover:bg-[#faf9f7]"
+                          }`}
+                        >
+                          <td className="border-b border-[#f4f1ec] border-r border-[#f5f2ed] px-4 py-3">
+                            {String(row.values.practiceName || "-")}
+                          </td>
+                          <td className="border-b border-[#f4f1ec] border-r border-[#f5f2ed] px-4 py-3">
+                            {String(row.values.score ?? "-")}
+                          </td>
+                          <td className="border-b border-[#f4f1ec] border-r border-[#f5f2ed] px-4 py-3">
+                            {String(row.values.creationDate || "-")}
+                          </td>
+                          <td className="border-b border-[#f4f1ec] px-4 py-3">
+                            {String(row.values.lastUpdate || "-")}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
+          </DataTableToolbar>
         </section>
 
         {showDetailPanel && detailPanel}

@@ -14,13 +14,11 @@ import {
   ArrowRight,
   Building2,
   CheckCircle,
-  ChevronDown,
   Clock,
   FileText,
   LayoutGrid,
   MapPin,
   Plus,
-  Search,
   Target,
   User,
   Users,
@@ -28,6 +26,11 @@ import {
   XCircle,
 } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
 import {
   getOnboardings,
@@ -436,7 +439,6 @@ export default function AdminOnboardingReview() {
   const [activeTab, setActiveTab] = useState("overview");
   const [isUpdating, setIsUpdating] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   // Review Flow State
   const [isReviewing, setIsReviewing] = useState(false);
@@ -584,7 +586,7 @@ export default function AdminOnboardingReview() {
 
   useEffect(() => {
     loadData();
-  }, [pagination.page, filters.status, filters.search]);
+  }, [pagination.page, pagination.limit, filters.status, filters.search]);
 
   const selectedRow = useMemo(() => {
     const row = rows.find((item) => item.id === selectedRowId);
@@ -741,6 +743,45 @@ export default function AdminOnboardingReview() {
     getSortedRowModel: getSortedRowModel(),
     enableSortingRemoval: false,
   });
+
+  const activeFilterCount = filters.status ? 1 : 0;
+
+  const activeFilterChips = useMemo<ActiveFilterChip[]>(() => {
+    if (!filters.status) return [];
+    return [
+      {
+        key: "status",
+        label: "Status",
+        displayValue: statusLabels[filters.status] || filters.status,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, status: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      },
+    ];
+  }, [filters.status]);
+
+  const filterFieldsModal = (
+    <label className="block">
+      <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+        Status
+      </span>
+      <Select
+        value={filters.status}
+        onChange={(val) => {
+          setFilters((prev) => ({ ...prev, status: val }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        }}
+        options={[
+          { label: "All Statuses", value: "" },
+          { label: "Draft", value: "DRAFT" },
+          { label: "In Progress", value: "IN_PROGRESS" },
+          { label: "Completed", value: "COMPLETED" },
+          { label: "Cancelled", value: "CANCELLED" },
+        ]}
+      />
+    </label>
+  );
 
   const handleRowClick = async (rowId: string) => {
     setSelectedRowId(rowId);
@@ -4108,29 +4149,27 @@ export default function AdminOnboardingReview() {
       navbarIcon={<FileText className="h-4 w-4 text-slate-500" />}
     >
       <div className="app-split">
-        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search onboardings..."
-                className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none"
-                value={filters.search}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, search: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-              />
-            </div>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel(!showFilterPanel)}
-              >
-                Filter
-              </button>
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="Onboarding Review"
+            subtitle="Onboarding"
+            searchPlaceholder="Search onboardings..."
+            searchValue={filters.search}
+            onSearchChange={(value) => {
+              setFilters((prev) => ({ ...prev, search: value }));
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={() => {
+              setFilters({ search: "", status: "" });
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            filterModalTitle="Filter Onboardings"
+            filterFields={filterFieldsModal}
+            onRefresh={loadData}
+            isLoading={isLoading}
+            extraActions={
               <button
                 type="button"
                 onClick={() =>
@@ -4140,96 +4179,49 @@ export default function AdminOnboardingReview() {
                       : [{ id: "submissionDate", desc: true }],
                   )
                 }
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors"
               >
                 Sort
               </button>
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <select
-                value={filters.status}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, status: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Statuses</option>
-                <option value="DRAFT">Draft</option>
-                <option value="IN_PROGRESS">In Progress</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => {
-                  setFilters({ search: "", status: "" });
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                disabled={!filters.search && !filters.status}
-                className="text-[13px] text-[#4f63ea] hover:underline disabled:opacity-40"
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            <table className="min-w-full border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10 bg-white">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                        style={{
-                          width: header.getSize()
-                            ? `${header.getSize()}px`
-                            : undefined,
-                        }}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <button
-                            type="button"
-                            onClick={
-                              header.column.getCanSort()
-                                ? header.column.getToggleSortingHandler()
-                                : undefined
-                            }
-                            className="flex w-full items-center gap-2"
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                            {header.column.getIsSorted() === "asc" && (
-                              <ChevronDown className="h-3 w-3 rotate-180" />
-                            )}
-                            {header.column.getIsSorted() === "desc" && (
-                              <ChevronDown className="h-3 w-3" />
-                            )}
-                          </button>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={8} className="px-3 py-20 text-center">
-                      <div className="flex items-center justify-center gap-2 text-slate-400">
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-                        <span className="text-[13px]">Loading...</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  table.getRowModel().rows.map((row) => (
+            }
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) =>
+              setPagination((prev) => ({ ...prev, page }))
+            }
+            onPageSizeChange={(newSize) =>
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }))
+            }
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              <table className="min-w-full border-separate border-spacing-0 text-left">
+                <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header, index) => (
+                        <th
+                          key={header.id}
+                          className={`border-b border-[#eeebe5] px-4 py-3 font-medium ${
+                            index < headerGroup.headers.length - 1
+                              ? "border-r border-[#f2eee8]"
+                              : ""
+                          }`}
+                          style={{
+                            width: header.getSize()
+                              ? `${header.getSize()}px`
+                              : undefined,
+                          }}
+                        >
+                          <SortableHeaderCell header={header} />
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody className="text-[14px] text-slate-600">
+                  {table.getRowModel().rows.map((row) => (
                     <tr
                       key={row.id}
                       onClick={() => handleRowClick(row.original.id)}
@@ -4239,10 +4231,14 @@ export default function AdminOnboardingReview() {
                           : "bg-white hover:bg-[#faf9f7]"
                       }`}
                     >
-                      {row.getVisibleCells().map((cell) => (
+                      {row.getVisibleCells().map((cell, index) => (
                         <td
                           key={cell.id}
-                          className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+                          className={`border-b border-[#f4f1ec] px-4 py-3 ${
+                            index < row.getVisibleCells().length - 1
+                              ? "border-r border-[#f5f2ed]"
+                              : ""
+                          }`}
                         >
                           {flexRender(
                             cell.column.columnDef.cell,
@@ -4251,82 +4247,28 @@ export default function AdminOnboardingReview() {
                         </td>
                       ))}
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
 
-            {!isLoading && rows.length === 0 && (
-              <div className="relative flex min-h-[520px] items-center justify-center">
-                <div className="flex max-w-md flex-col items-center px-6 text-center">
-                  <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    No onboardings found
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    {filters.search || filters.status
-                      ? "Try adjusting your filters"
-                      : "No onboarding submissions yet"}
-                  </p>
+              {!isLoading && rows.length === 0 && (
+                <div className="relative flex min-h-[520px] items-center justify-center">
+                  <div className="flex max-w-md flex-col items-center px-6 text-center">
+                    <EmptyStateIllustration />
+                    <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
+                      No onboardings found
+                    </h2>
+                    <p className="mt-2 text-[14px] text-slate-400">
+                      {filters.search || filters.status
+                        ? "Try adjusting your filters"
+                        : "No onboarding submissions yet"}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total,
-                  )}{" "}
-                  of {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: Math.min(pagination.totalPages, 5) },
-                  (_, i) => i + 1,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+              )}
             </div>
-          )}
-        </div>
+          </DataTableToolbar>
+        </section>
 
         {showDetailPanel && selectedRow && (
           <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">

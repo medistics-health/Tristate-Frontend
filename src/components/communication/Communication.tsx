@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Mail, RefreshCw, Search, X } from "lucide-react";
+import { ChevronDown, Mail, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useSearchParams } from "react-router-dom";
 import AppLayout from "../layout/AppLayout";
+import DataTableToolbar, {
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
 import {
   getSentEmails,
   type SentEmail,
@@ -68,7 +71,6 @@ export default function CommunicationPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<SentEmail | null>(null);
   const [sentFromDate, setSentFromDate] = useState(initialSentFrom);
   const [sentToDate, setSentToDate] = useState(initialSentTo);
@@ -80,7 +82,6 @@ export default function CommunicationPage() {
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(25);
   const [totalEmails, setTotalEmails] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const didRunInitialLoad = useRef(false);
   const prevListQueryKeyRef = useRef("");
   const loadRequestIdRef = useRef(0);
   const [isRecipientDropdownOpen, setIsRecipientDropdownOpen] = useState(false);
@@ -122,21 +123,11 @@ export default function CommunicationPage() {
     currentFilterSignature === lastSuccessfulFilterSignature;
 
   const loadEmails = useCallback(
-    async ({
-      silent = false,
-      filters = {},
-    }: {
-      silent?: boolean;
-      filters?: SentEmailFilters;
-    } = {}) => {
+    async ({ filters = {} }: { filters?: SentEmailFilters } = {}) => {
       const requestId = loadRequestIdRef.current + 1;
       loadRequestIdRef.current = requestId;
       try {
-        if (silent) {
-          setRefreshing(true);
-        } else {
-          setIsLoading(true);
-        }
+        setIsLoading(true);
         const data = await getSentEmails(filters);
         if (requestId !== loadRequestIdRef.current) return;
         setEmails(data.emails);
@@ -167,7 +158,6 @@ export default function CommunicationPage() {
       } finally {
         if (requestId !== loadRequestIdRef.current) return;
         setIsLoading(false);
-        setRefreshing(false);
       }
     },
     [],
@@ -230,14 +220,12 @@ export default function CommunicationPage() {
     }
 
     loadEmails({
-      silent: didRunInitialLoad.current,
       filters: {
         ...activeFilters,
         page: currentPage,
         limit: pageSize,
       },
     });
-    didRunInitialLoad.current = true;
   }, [
     activeFilters,
     currentFilterSignature,
@@ -259,7 +247,6 @@ export default function CommunicationPage() {
   async function refreshCurrentResults() {
     if (hasInvalidDateRange) return;
     await loadEmails({
-      silent: true,
       filters: {
         ...activeFilters,
         page: currentPage,
@@ -285,198 +272,212 @@ export default function CommunicationPage() {
     };
   }, []);
 
+  const activeFilterCount = [
+    selectedRecipientEmail,
+    sentFromDate,
+    sentToDate,
+  ].filter(Boolean).length;
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (selectedRecipientEmail) {
+      chips.push({
+        key: "toEmail",
+        label: "Sent To Email",
+        displayValue: selectedRecipientEmail,
+        onClear: () => {
+          setRecipientInput("");
+          setSelectedRecipientEmail("");
+        },
+      });
+    }
+    if (sentFromDate) {
+      chips.push({
+        key: "sentFrom",
+        label: "Sent From",
+        displayValue: sentFromDate,
+        onClear: () => setSentFromDate(""),
+      });
+    }
+    if (sentToDate) {
+      chips.push({
+        key: "sentTo",
+        label: "Sent To",
+        displayValue: sentToDate,
+        onClear: () => setSentToDate(""),
+      });
+    }
+    return chips;
+  }, [selectedRecipientEmail, sentFromDate, sentToDate]);
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Sent From
+        </span>
+        <input
+          type="date"
+          value={sentFromDate}
+          onChange={(event) => setSentFromDate(event.target.value)}
+          max={sentToDate || undefined}
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Sent To
+        </span>
+        <input
+          type="date"
+          value={sentToDate}
+          onChange={(event) => setSentToDate(event.target.value)}
+          min={sentFromDate || undefined}
+          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+        />
+      </label>
+      <label className="block md:col-span-2 lg:col-span-3">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Sent To Email
+        </span>
+        <div className="relative">
+          <input
+            value={recipientInput}
+            onChange={(event) => {
+              setRecipientInput(event.target.value);
+              setIsRecipientDropdownOpen(true);
+            }}
+            onFocus={() => {
+              if (recipientBlurTimerRef.current) {
+                window.clearTimeout(recipientBlurTimerRef.current);
+                recipientBlurTimerRef.current = null;
+              }
+              setIsRecipientDropdownOpen(true);
+            }}
+            onBlur={() => {
+              recipientBlurTimerRef.current = window.setTimeout(() => {
+                setIsRecipientDropdownOpen(false);
+              }, 130);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setIsRecipientDropdownOpen(false);
+              }
+            }}
+            placeholder="Search recipient email..."
+            className="app-control w-full rounded-md px-3 py-2 pr-8 text-[13px]"
+          />
+          <ChevronDown
+            className={`pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-transform ${
+              isRecipientDropdownOpen ? "rotate-180" : ""
+            }`}
+          />
+          {isRecipientDropdownOpen ? (
+            <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[#ece8e1] bg-white py-1 shadow-lg">
+              {recipientOptions.length > 0 ? (
+                recipientOptions.map((recipient) => (
+                  <button
+                    key={recipient}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      setRecipientInput(recipient);
+                      setSelectedRecipientEmail(recipient);
+                      setIsRecipientDropdownOpen(false);
+                    }}
+                    className={`block w-full px-3 py-2 text-left text-[13px] transition-colors ${
+                      selectedRecipientEmail.toLowerCase() === recipient.toLowerCase()
+                        ? "bg-[#f0f2fe] text-[#4f63ea] font-medium"
+                        : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {recipient}
+                  </button>
+                ))
+              ) : (
+                <p className="px-3 py-2 text-[12px] text-slate-400">
+                  No matching emails
+                </p>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </label>
+      {hasInvalidDateRange ? (
+        <p className="md:col-span-2 lg:col-span-3 text-[12px] text-rose-500">
+          Sent From date cannot be after Sent To date.
+        </p>
+      ) : null}
+    </>
+  );
+
   return (
     <AppLayout title="Communication" activeSubItem="Communication">
-      <div className="flex h-full flex-col gap-3">
-        <section className="app-panel rounded-2xl border border-[#ece8e1] bg-white p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <Mail className="h-5 w-5" />
-              </div>
-              <div>
-                <h1 className="text-[18px] font-semibold text-slate-800">
-                  Communication Inbox
-                </h1>
-                <p className="text-[12px] text-slate-500">
-                  Sent email history from <span className="font-medium">{SENDER_EMAIL}</span>
+      <div className="app-split font-app-sans">
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="Communication Inbox"
+            subtitle={`Sent email history from ${SENDER_EMAIL}`}
+            searchPlaceholder="Search by subject, recipient, or body..."
+            searchValue={searchText}
+            onSearchChange={setSearchText}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={clearAllFilters}
+            filterModalTitle="Filter Communication"
+            filterFields={filterFieldsModal}
+            onRefresh={refreshCurrentResults}
+            isLoading={isLoading}
+            page={currentPage}
+            pageSize={pageSize}
+            totalRecords={totalEmails}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize as (typeof PAGE_SIZE_OPTIONS)[number]);
+            }}
+            pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
+          >
+            <div className="relative min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {hasInvalidDateRange ? (
+                <p className="px-4 pt-3 text-[12px] text-rose-500">
+                  Sent From date cannot be after Sent To date.
                 </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={refreshCurrentResults}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              disabled={refreshing || hasInvalidDateRange}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
-          </div>
-        </section>
+              ) : null}
+              {!isLoading && hasAnyFilterApplied && hasFetchedCurrentFilters ? (
+                <p className="px-4 pt-3 text-[12px] text-slate-500">
+                  Showing{" "}
+                  <span className="font-semibold text-slate-700">
+                    {emails.length}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-semibold text-slate-700">
+                    {totalEmails}
+                  </span>{" "}
+                  {totalEmails === 1 ? "mail" : "mails"} filtered.
+                </p>
+              ) : !isLoading && !hasAnyFilterApplied && hasFetchedCurrentFilters ? (
+                <p className="px-4 pt-3 text-[12px] text-slate-500">
+                  Showing{" "}
+                  <span className="font-semibold text-slate-700">
+                    {emails.length}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-semibold text-slate-700">
+                    {totalEmails}
+                  </span>{" "}
+                  {totalEmails === 1 ? "mail" : "mails"}.
+                </p>
+              ) : null}
 
-        <section className="app-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#ece8e1] bg-white">
-          <div className="border-b border-[#f0ece6] p-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="relative w-full max-w-sm">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={searchText}
-                  onChange={(event) => setSearchText(event.target.value)}
-                  placeholder="Search by subject, recipient, or body..."
-                  className="w-full rounded-lg border border-[#ece8e1] bg-[#fbfaf8] py-2 pl-9 pr-3 text-[13px] outline-none focus:border-[#4f63ea]"
-                />
-              </div>
-
-              <div className="flex min-w-[170px] flex-col gap-1">
-                <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Sent From
-                </label>
-                <input
-                  type="date"
-                  value={sentFromDate}
-                  onChange={(event) => setSentFromDate(event.target.value)}
-                  max={sentToDate || undefined}
-                  className="rounded-lg border border-[#ece8e1] bg-[#fbfaf8] px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-[#4f63ea]"
-                />
-              </div>
-
-              <div className="flex min-w-[170px] flex-col gap-1">
-                <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Sent To
-                </label>
-                <input
-                  type="date"
-                  value={sentToDate}
-                  onChange={(event) => setSentToDate(event.target.value)}
-                  min={sentFromDate || undefined}
-                  className="rounded-lg border border-[#ece8e1] bg-[#fbfaf8] px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-[#4f63ea]"
-                />
-              </div>
-
-              <div className="flex min-w-[260px] flex-1 flex-col gap-1">
-                <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Sent To Email
-                </label>
-                <div className="relative">
-                  <input
-                    value={recipientInput}
-                    onChange={(event) => {
-                      setRecipientInput(event.target.value);
-                      setIsRecipientDropdownOpen(true);
-                    }}
-                    onFocus={() => {
-                      if (recipientBlurTimerRef.current) {
-                        window.clearTimeout(recipientBlurTimerRef.current);
-                        recipientBlurTimerRef.current = null;
-                      }
-                      setIsRecipientDropdownOpen(true);
-                    }}
-                    onBlur={() => {
-                      recipientBlurTimerRef.current = window.setTimeout(() => {
-                        setIsRecipientDropdownOpen(false);
-                      }, 130);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") {
-                        setIsRecipientDropdownOpen(false);
-                      }
-                    }}
-                    placeholder="Search recipient email..."
-                    className="w-full rounded-lg border border-[#ece8e1] bg-[#fbfaf8] px-3 py-2 pr-8 text-[13px] text-slate-700 outline-none focus:border-[#4f63ea]"
-                  />
-                  <ChevronDown
-                    className={`pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-transform ${
-                      isRecipientDropdownOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                  {isRecipientDropdownOpen ? (
-                    <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[#ece8e1] bg-white py-1 shadow-lg">
-                      {recipientOptions.length > 0 ? (
-                        recipientOptions.map((recipient) => (
-                          <button
-                            key={recipient}
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => {
-                              setRecipientInput(recipient);
-                              setSelectedRecipientEmail(recipient);
-                              setIsRecipientDropdownOpen(false);
-                            }}
-                            className={`block w-full px-3 py-2 text-left text-[13px] transition-colors ${
-                              selectedRecipientEmail.toLowerCase() === recipient.toLowerCase()
-                                ? "bg-[#f0f2fe] text-[#4f63ea] font-medium"
-                                : "text-slate-700 hover:bg-slate-50"
-                            }`}
-                          >
-                            {recipient}
-                          </button>
-                        ))
-                      ) : (
-                        <p className="px-3 py-2 text-[12px] text-slate-400">
-                          No matching emails
-                        </p>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="rounded-lg border border-[#ece8e1] bg-white px-3 py-2 text-[12px] font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                Clear Filters
-              </button>
-            </div>
-            {hasInvalidDateRange ? (
-              <p className="mt-2 text-[12px] text-rose-500">
-                Sent From date cannot be after Sent To date.
-              </p>
-            ) : null}
-            {!isLoading && !refreshing && hasAnyFilterApplied && hasFetchedCurrentFilters ? (
-              <p className="mt-2 text-[12px] text-slate-500">
-                Showing{" "}
-                <span className="font-semibold text-slate-700">
-                  {emails.length}
-                </span>{" "}
-                of{" "}
-                <span className="font-semibold text-slate-700">
-                  {totalEmails}
-                </span>{" "}
-                {totalEmails === 1 ? "mail" : "mails"} filtered.
-              </p>
-            ) : !isLoading && !refreshing && !hasAnyFilterApplied && hasFetchedCurrentFilters ? (
-              <p className="mt-2 text-[12px] text-slate-500">
-                Showing{" "}
-                <span className="font-semibold text-slate-700">
-                  {emails.length}
-                </span>{" "}
-                of{" "}
-                <span className="font-semibold text-slate-700">
-                  {totalEmails}
-                </span>{" "}
-                {totalEmails === 1 ? "mail" : "mails"}.
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="relative min-h-0 flex-1 overflow-auto">
-              {isLoading ? (
-                <div className="flex h-full items-center justify-center text-[13px] text-slate-500">
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Loading communication emails...
-                </div>
-              ) : emails.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-slate-400">
+              {emails.length === 0 && !isLoading ? (
+                <div className="flex min-h-[400px] flex-col items-center justify-center gap-2 text-slate-400">
                   <Mail className="h-8 w-8" />
                   <p className="text-[14px]">No sent emails found.</p>
                 </div>
               ) : (
                 <table className="w-full text-left text-[13px]">
-                  <thead className="sticky top-0 bg-[#fbfaf8] text-[11px] uppercase tracking-wide text-slate-500">
+                  <thead className="sticky top-0 z-10 bg-[#fbfaf8] text-[11px] uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-4 py-3 font-semibold">Subject</th>
                       <th className="px-4 py-3 font-semibold">To</th>
@@ -514,70 +515,8 @@ export default function CommunicationPage() {
                   </tbody>
                 </table>
               )}
-
-              {refreshing && !isLoading ? (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-[2px]">
-                  <div className="inline-flex items-center gap-2 rounded-xl border border-[#ece8e1] bg-white px-4 py-3 text-[13px] font-medium text-slate-700 shadow-md">
-                    <RefreshCw className="h-4 w-4 animate-spin text-[#4f63ea]" />
-                    Loading page...
-                  </div>
-                </div>
-              ) : null}
             </div>
-
-            {!isLoading || emails.length > 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#f0ece6] bg-white px-4 py-3">
-                <div className="flex items-center gap-2 text-[12px] text-slate-500">
-                  <span>
-                    {totalEmails > 0
-                      ? `${(currentPage - 1) * pageSize + 1}-${(currentPage - 1) * pageSize + emails.length} of ${totalEmails}`
-                      : "0 of 0"}
-                  </span>
-                  <span>Rows per page</span>
-                  <select
-                    value={pageSize}
-                    disabled={refreshing || isLoading}
-                    onChange={(event) => {
-                      setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]);
-                    }}
-                    className="rounded-md border border-[#ece8e1] bg-white px-2 py-1 text-[12px] text-slate-700 outline-none focus:border-[#4f63ea] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {PAGE_SIZE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1 || refreshing || isLoading}
-                    className="rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Prev
-                  </button>
-                  <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-500">
-                    {refreshing ? <RefreshCw className="h-3 w-3 animate-spin text-[#4f63ea]" /> : null}
-                    Page{" "}
-                    <span className="font-semibold text-slate-700">{currentPage}</span> of{" "}
-                    <span className="font-semibold text-slate-700">{totalPages}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                    }
-                    disabled={currentPage >= totalPages || refreshing || isLoading}
-                    className="rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
+          </DataTableToolbar>
         </section>
       </div>
       {selectedEmail ? (

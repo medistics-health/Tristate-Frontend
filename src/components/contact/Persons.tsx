@@ -8,15 +8,12 @@ import {
 } from "@tanstack/react-table";
 import {
   CalendarDays,
-  ChevronDown,
   FileText,
-  LayoutGrid,
   SlidersHorizontal,
   Circle,
   Plus,
   Building2,
   X,
-  Pencil,
   Save,
   Mail,
   Phone,
@@ -24,15 +21,18 @@ import {
   Shield,
   Star,
   Trash2,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
 import type { PersonBody } from "../../components/contact/types";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { getStandardNavbarActions } from "../shared/PageComponents";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
+import { getResponsivePageSize } from "../shared/TablePagination";
 import type { PersonCellValue, PersonRow, PersonViewData } from "./types";
 import {
   createPersonApi,
@@ -176,18 +176,31 @@ export default function PersonsPage() {
   const [companiesLoading, setCompaniesLoading] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 10,
+    limit: getResponsivePageSize(),
     total: 0,
     totalPages: 0,
   });
-  const [filters, setFilters] = useState({
+  const [userSelectedPageSize, setUserSelectedPageSize] = useState(false);
+
+  type PersonFilters = {
+    search: string;
+    role: string;
+    influence: string;
+    practiceId: string;
+    practiceIds: string[];
+  };
+
+  const defaultFilters: PersonFilters = {
     search: "",
     role: "",
     influence: "",
     practiceId: "",
-    practiceIds: [] as string[],
-  });
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+    practiceIds: [],
+  };
+
+  const [filters, setFilters] = useState<PersonFilters>(defaultFilters);
+  const [draftFilters, setDraftFilters] = useState<PersonFilters>(defaultFilters);
+  const [searchInput, setSearchInput] = useState("");
   const [selectedPersonData, setSelectedPersonData] = useState<any>(null);
 
   const selectedRow = useMemo(
@@ -195,51 +208,141 @@ export default function PersonsPage() {
     [rows, selectedRowId],
   );
 
-  const whenToSearch = filters.search.length > 3 || filters.search.length === 0;
-
-  const disableMe =
-    !filters.search &&
-    !filters.role &&
-    !filters.influence &&
-    !filters.practiceId;
+  const whenToSearch = searchInput.length > 3 || searchInput.length === 0;
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const params: PersonQueryParams = {
-          page: pagination.page,
-          limit: pagination.limit,
-          ...(filters.search && { search: filters.search }),
-          ...(filters.role && { role: filters.role }),
-          ...(filters.influence && { influence: filters.influence }),
-          ...(filters.practiceId && { practiceId: filters.practiceId }),
-          sortBy: sorting[0]?.id || "createdAt",
-          sortOrder: sorting[0]?.desc ? "desc" : "asc",
-        };
-        const data = await getPersonsView(params);
-        setViewData(data);
-        setRows(data.rows);
-        setPagination(data.pagination);
-        const visibility: Record<string, boolean> = {};
-        data.fields.forEach((field) => {
-          visibility[field.id] = field.visible;
-        });
-        setColumnVisibility(visibility);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load persons";
-        setError(message);
-        toast.error(message);
-      } finally {
-        setIsLoading(false);
+    function handleResize() {
+      if (!userSelectedPageSize) {
+        const newSize = getResponsivePageSize();
+        setPagination((prev) => ({ ...prev, limit: newSize }));
       }
     }
-    if (whenToSearch) {
-      loadData();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [userSelectedPageSize]);
+
+  const handleOpenFilterModal = () => {
+    setDraftFilters(filters);
+    if (practices.length === 0) {
+      setPracticesLoading(true);
+      getAllPractices()
+        .then(setPractices)
+        .catch((err) => console.error("Failed to load practices:", err))
+        .finally(() => setPracticesLoading(false));
     }
-  }, [pagination.page, pagination.limit, sorting, filters]);
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(draftFilters);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
+    setSearchInput("");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const activeFilterCount = [
+    filters.role,
+    filters.influence,
+    filters.practiceId,
+  ].filter(Boolean).length;
+
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.role) {
+      chips.push({
+        key: "role",
+        label: "Role",
+        displayValue: filters.role,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, role: "" }));
+          setDraftFilters((curr) => ({ ...curr, role: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.influence) {
+      chips.push({
+        key: "influence",
+        label: "Influence",
+        displayValue: filters.influence.replace("_", " "),
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, influence: "" }));
+          setDraftFilters((curr) => ({ ...curr, influence: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.practiceId) {
+      const practiceName =
+        practices.find((practice) => practice.id === filters.practiceId)?.name ||
+        filters.practiceId;
+      chips.push({
+        key: "practiceId",
+        label: "Practice",
+        displayValue: practiceName,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, practiceId: "" }));
+          setDraftFilters((curr) => ({ ...curr, practiceId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    return chips;
+  }, [filters, practices]);
+
+  const refreshPersonRecords = async () => {
+    if (!whenToSearch) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      const params: PersonQueryParams = {
+        page: pagination.page,
+        limit: pagination.limit,
+        ...(searchInput.trim() && { search: searchInput.trim() }),
+        ...(filters.role && { role: filters.role }),
+        ...(filters.influence && { influence: filters.influence }),
+        ...(filters.practiceId && { practiceId: filters.practiceId }),
+        sortBy: sorting[0]?.id || "createdAt",
+        sortOrder: sorting[0]?.desc ? "desc" : "asc",
+      };
+      const data = await getPersonsView(params);
+      setViewData(data);
+      setRows(data.rows);
+      setPagination(data.pagination);
+      const visibility: Record<string, boolean> = {};
+      data.fields.forEach((field) => {
+        visibility[field.id] = field.visible;
+      });
+      setColumnVisibility(visibility);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load persons";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      refreshPersonRecords();
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    pagination.page,
+    pagination.limit,
+    sorting,
+    filters,
+    searchInput,
+    whenToSearch,
+  ]);
 
   // useEffect(() => {
   //   setPagination((prev) => ({ ...prev, page: 1 }));
@@ -587,16 +690,6 @@ export default function PersonsPage() {
         .finally(() => setCompaniesLoading(false));
     }
   }, [showDetailPanel, isEditing]);
-
-  useEffect(() => {
-    if (showFilterPanel && practices.length === 0) {
-      setPracticesLoading(true);
-      getAllPractices()
-        .then(setPractices)
-        .catch((err) => console.error("Failed to load practices:", err))
-        .finally(() => setPracticesLoading(false));
-    }
-  }, [showFilterPanel]);
 
   async function handleCreatePerson(e: React.FormEvent) {
     e.preventDefault();
@@ -1151,40 +1244,79 @@ export default function PersonsPage() {
     );
   };
 
-  if (isLoading) {
-    return (
-      <AppLayout
-        title="Peoples"
-        activeModule="Persons"
-        activeSubItem="All Persons"
-      >
-        <div className="flex h-full items-center justify-center">
-          <div className="text-slate-400">Loading persons...</div>
-        </div>
-      </AppLayout>
-    );
-  }
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Role
+        </span>
+        <Select
+          value={draftFilters.role}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, role: val }))
+          }
+          options={[
+            { label: "All Roles", value: "" },
+            ...roleOptions.map((role) => ({ label: role, value: role })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Influence
+        </span>
+        <Select
+          value={draftFilters.influence}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, influence: val }))
+          }
+          options={[
+            { label: "All Influence", value: "" },
+            ...influenceOptions.map((influence) => ({
+              label: influence.replace("_", " "),
+              value: influence,
+            })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Practice
+        </span>
+        <Select
+          value={draftFilters.practiceId}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, practiceId: val }))
+          }
+          disabled={practicesLoading}
+          options={[
+            {
+              label: practicesLoading ? "Loading practices..." : "All Practices",
+              value: "",
+            },
+            ...practices.map((practice) => ({
+              label: practice.name,
+              value: practice.id,
+            })),
+          ]}
+        />
+      </label>
+    </>
+  );
 
-  if (error && rows.length === 0) {
-    return (
-      <AppLayout
-        title="Peoples"
-        activeModule="Persons"
-        activeSubItem="All Persons"
-      >
-        <div className="flex h-full flex-col items-center justify-center gap-4">
-          <div className="text-red-500">{error}</div>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="app-control rounded-md px-4 py-2 text-[14px] font-medium"
-          >
-            Retry
-          </button>
+  const renderTableHeader = (header: any) => {
+    if (header.isPlaceholder) return null;
+    if (header.id === "select" || header.id === "add") {
+      return (
+        <div
+          className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
+        >
+          {flexRender(header.column.columnDef.header, header.getContext())}
         </div>
-      </AppLayout>
-    );
-  }
+      );
+    }
+    return <SortableHeaderCell header={header} />;
+  };
 
   return (
     <AppLayout
@@ -1192,39 +1324,35 @@ export default function PersonsPage() {
       activeModule="Persons"
       activeSubItem="All Persons"
       navbarIcon={<UserCircle className="h-4 w-4 text-slate-500" />}
-      navbarActions={
-        canWritePersons ? getStandardNavbarActions(openCreateForm) : []
-      }
+      // navbarActions={
+      //   canWritePersons ? getStandardNavbarActions(openCreateForm) : []
+      // }
     >
-      <div className="app-split">
-        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <div className="relative">
-              <LayoutGrid className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              {/*<ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />*/}
-              <div className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none">
-                All Peoples
-              </div>
-              {/*<select
-                value={viewId}
-                onChange={(e) => changeView(e.target.value)}
-                className="min-w-56 appearance-none rounded-md bg-transparent py-1.5 pl-8 pr-10 text-[14px] font-medium text-slate-700 outline-none"
-              >
-                {views.map((view) => (
-                  <option key={view.id} value={view.id}>
-                    {view.label}
-                  </option>
-                ))}
-              </select>*/}
-            </div>
-
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel(!showFilterPanel)}
-              >
-                Filters
-              </button>
+      <div className="app-split font-app-sans">
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="All Peoples"
+            subtitle="Persons"
+            searchPlaceholder="Search by name or email..."
+            searchValue={searchInput}
+            onSearchChange={(value) => {
+              setSearchInput(value);
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            activeFilterCount={activeFilterCount}
+            activeChips={activeFilterChips}
+            onResetFilters={resetFilters}
+            onApplyFilters={handleApplyFilters}
+            onOpenFilterModal={handleOpenFilterModal}
+            filterModalTitle="Filter Persons"
+            filterFields={filterFieldsModal}
+            addNewLabel={canWritePersons ? "Add Person" : undefined}
+            onAddNew={canWritePersons ? openCreateForm : undefined}
+            onRefresh={refreshPersonRecords}
+            isLoading={isLoading}
+            isSaving={isSubmitting}
+            isDeleting={isDeleting}
+            extraActions={
               <button
                 type="button"
                 onClick={() =>
@@ -1234,254 +1362,112 @@ export default function PersonsPage() {
                       : [{ id: "creationDate", desc: true }],
                   )
                 }
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors"
               >
                 Sort
               </button>
-              {/*<button type="button">Columns</button>*/}
-            </div>
-          </div>
-
-          {showFilterPanel && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#f0ece6] bg-[#faf9f7] px-4 py-2.5">
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={filters.search}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, search: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              />
-              <select
-                value={filters.role}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, role: e.target.value }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Roles</option>
-                {roleOptions.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={filters.influence}
-                onChange={(e) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    influence: e.target.value,
-                  }));
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="app-control rounded-md px-3 py-1.5 text-[13px]"
-              >
-                <option value="">All Influence</option>
-                {influenceOptions.map((influence) => (
-                  <option key={influence} value={influence}>
-                    {influence.replace("_", " ")}
-                  </option>
-                ))}
-              </select>
-              {practices.length > 0 && (
-                <select
-                  value={filters.practiceId}
-                  onChange={(e) => {
-                    setFilters((prev) => ({
-                      ...prev,
-                      practiceId: e.target.value,
-                    }));
-                    setPagination((prev) => ({ ...prev, page: 1 }));
-                  }}
-                  className="app-control rounded-md px-3 py-1.5 text-[13px]"
-                >
-                  <option value="">All Practices</option>
-                  {practices.map((practice) => (
-                    <option key={practice.id} value={practice.id}>
-                      {practice.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                type="button"
-                onClick={() =>
-                  setFilters({
-                    search: "",
-                    role: "",
-                    influence: "",
-                    practiceId: "",
-                    practiceIds: [],
-                  })
-                }
-                disabled={disableMe}
-                className="text-[13px] text-[#4f63ea] hover:underline"
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            <table className="min-w-full border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10 bg-white">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                        style={{
-                          width: header.getSize()
-                            ? `${header.getSize()}px`
-                            : undefined,
-                        }}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <button
-                            type="button"
-                            onClick={
-                              header.column.getCanSort()
-                                ? header.column.getToggleSortingHandler()
-                                : undefined
-                            }
-                            className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                            {header.column.getCanSort() &&
-                              header.id !== "select" &&
-                              (header.column.getIsSorted() === "asc" ? (
-                                <ArrowUp className="h-3 w-3 text-slate-500" />
-                              ) : header.column.getIsSorted() === "desc" ? (
-                                <ArrowDown className="h-3 w-3 text-slate-500" />
-                              ) : (
-                                <ArrowUpDown className="h-3 w-3 text-slate-300" />
-                              ))}
-                          </button>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    onClick={() => handleRowClick(row.original.id)}
-                    className={`cursor-pointer ${selectedRowId === row.original.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {rows.length === 0 ? (
-              <div className="relative flex min-h-[520px] items-center justify-center">
-                <div className="absolute inset-y-0 left-[42px] w-px bg-[#f7f2ec]" />
-                <div className="flex max-w-md flex-col items-center px-6 text-center">
-                  <EmptyStateIllustration />
-                  <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
-                    Add your first Person
-                  </h2>
-                  <p className="mt-2 text-[14px] text-slate-400">
-                    Use our API or add your first Person manually
-                  </p>
+            }
+            page={pagination.page}
+            pageSize={pagination.limit}
+            totalRecords={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onPageSizeChange={(newSize) => {
+              setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+              setUserSelectedPageSize(true);
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              {error && rows.length === 0 ? (
+                <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
+                  <div className="text-red-500">{error}</div>
                   <button
                     type="button"
-                    onClick={openCreateForm}
-                    className="app-control mt-5 inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium"
+                    onClick={refreshPersonRecords}
+                    className="app-control rounded-md px-4 py-2 text-[14px] font-medium"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add a Person
+                    Retry
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="border-b border-[#f4f1ec] px-4 py-2 text-[13px] text-slate-400">
-                <button
-                  type="button"
-                  onClick={openCreateForm}
-                  className="inline-flex items-center gap-2"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add New
-                </button>
-              </div>
-            )}
-          </div>
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-2.5">
-              <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                <span>
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total,
-                  )}{" "}
-                  of {pagination.total}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Previous
-                </button>
-                {Array.from(
-                  { length: pagination.totalPages },
-                  (_, i) => i + 1,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setPagination((prev) => ({ ...prev, page }))}
-                    className={`rounded px-2 py-1 text-[13px] ${
-                      pagination.page === page
-                        ? "bg-[#4f63ea] text-white"
-                        : "text-slate-500 hover:bg-[#f0ece6]"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                  className="rounded px-2 py-1 text-[13px] text-slate-500 hover:bg-[#f0ece6] disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  Next
-                </button>
-              </div>
+              ) : rows.length === 0 ? (
+                <div className="relative flex min-h-[400px] items-center justify-center">
+                  <div className="flex max-w-md flex-col items-center px-6 text-center">
+                    <EmptyStateIllustration />
+                    <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
+                      Add your first Person
+                    </h2>
+                    <p className="mt-2 text-[14px] text-slate-400">
+                      Use our API or add your first Person manually
+                    </p>
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="app-control mt-5 inline-flex items-center gap-2 rounded-md bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1]"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add a Person
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                <table className="min-w-full border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
+                            style={{
+                              width: header.getSize()
+                                ? `${header.getSize()}px`
+                                : undefined,
+                            }}
+                          >
+                            {renderTableHeader(header)}
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.map((row) => (
+                      <tr
+                        key={row.id}
+                        onClick={() => handleRowClick(row.original.id)}
+                        className={`cursor-pointer ${selectedRowId === row.original.id ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"}`}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <td
+                            key={cell.id}
+                            className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-4 py-3 text-[13px] text-slate-600 last:border-r-0"
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                  {/* <div className="border-b border-[#f4f1ec] px-4 py-2 text-[13px] text-slate-400">
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="inline-flex items-center gap-2"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add New
+                    </button>
+                  </div> */}
+                </>
+              )}
             </div>
-          )}
-        </div>
+          </DataTableToolbar>
+        </section>
 
         {showDetailPanel && selectedRow && (
           <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[380px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">

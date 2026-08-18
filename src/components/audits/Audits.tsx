@@ -499,7 +499,7 @@ function AuditListView({
       activeModule="Practices"
       activeSubItem={activeSubItem}
       navbarIcon={<LayoutList className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
+      // navbarActions={navbarActions}
     >
       <div className="app-split font-app-sans">
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
