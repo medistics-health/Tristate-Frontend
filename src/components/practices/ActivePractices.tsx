@@ -22,6 +22,9 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import type { NavbarAction } from "../layout/Navbar";
+import DataTableToolbar, {
+  SortableHeaderCell,
+} from "../shared/DataTableToolbar";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
 import {
   getPracticesView,
@@ -66,33 +69,34 @@ function ActivePracticesPage() {
 
   const [editForm, setEditForm] = useState<EditForm>(initialForm);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setIsLoading(true);
-        const data = await getPracticesView({ status: "ACTIVE" });
-        setRows(data.rows);
+  async function loadActivePractices() {
+    try {
+      setIsLoading(true);
+      const data = await getPracticesView({ status: "ACTIVE" });
+      setRows(data.rows);
 
-        const all = await getPracticesView({ status: "ACTIVE", limit: 1000 });
-        const fullPractices: Practice[] = [];
-        for (const row of all.rows) {
-          try {
-            const p = await getPractice(row.id);
-            fullPractices.push(p);
-          } catch {
-            // skip
-          }
+      const all = await getPracticesView({ status: "ACTIVE", limit: 1000 });
+      const fullPractices: Practice[] = [];
+      for (const row of all.rows) {
+        try {
+          const p = await getPractice(row.id);
+          fullPractices.push(p);
+        } catch {
+          // skip
         }
-        setAllPractices(fullPractices);
-      } catch (error) {
-        const msg =
-          error instanceof Error ? error.message : "Failed to load practices";
-        toast.error(msg);
-      } finally {
-        setIsLoading(false);
       }
+      setAllPractices(fullPractices);
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Failed to load practices";
+      toast.error(msg);
+    } finally {
+      setIsLoading(false);
     }
-    load();
+  }
+
+  useEffect(() => {
+    void loadActivePractices();
   }, []);
 
   async function loadPracticeDetail(id: string) {
@@ -301,20 +305,6 @@ function ActivePracticesPage() {
     "INBOUND",
   ];
 
-  if (isLoading) {
-    return (
-      <AppLayout
-        title="Practice"
-        activeModule="Practice"
-        activeSubItem="Active Practice"
-      >
-        <div className="flex h-full items-center justify-center text-[13px] text-slate-400">
-          Loading active practices...
-        </div>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout
       title="Practice"
@@ -324,100 +314,109 @@ function ActivePracticesPage() {
       // navbarActions={navbarActions}
     >
       <div className="app-split font-app-sans">
-        <div className="app-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
-          <div className="flex items-center gap-2 border-b border-[#f0ece6] px-4 py-3">
-            <span className="text-[15px] font-medium text-slate-700">
-              Active Practice
-            </span>
-            <span className="text-[14px] text-slate-400">
-              . {rows.length}
-            </span>
-
-            <div className="ml-auto flex items-center gap-6 text-[14px] text-slate-500">
-              <button type="button" onClick={() => setSorting((current) =>
-                current[0]?.id === "name"
-                  ? [{ id: "name", desc: !current[0].desc }]
-                  : [{ id: "name", desc: false }]
-              )}>
+        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          <DataTableToolbar
+            title="Active Practice"
+            subtitle={`${rows.length} records`}
+            activeFilterCount={0}
+            onResetFilters={() => undefined}
+            onRefresh={loadActivePractices}
+            isLoading={isLoading}
+            isSaving={isSaving}
+            isDeleting={isDeleting}
+            extraActions={
+              <button
+                type="button"
+                onClick={() =>
+                  setSorting((current) =>
+                    current[0]?.id === "name"
+                      ? [{ id: "name", desc: !current[0].desc }]
+                      : [{ id: "name", desc: false }],
+                  )
+                }
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors"
+              >
                 Sort
               </button>
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            <table className="min-w-full border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10 bg-white">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-3 py-2 text-left text-[13px] font-medium text-slate-400 last:border-r-0"
-                        style={{
-                          width: header.getSize()
-                            ? `${header.getSize()}px`
-                            : undefined,
-                        }}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <button
-                            type="button"
-                            onClick={
-                              header.column.getCanSort()
-                                ? header.column.getToggleSortingHandler()
-                                : undefined
-                            }
-                            className="flex w-full items-center gap-2"
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                          </button>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={columns.length}
-                      className="px-4 py-8 text-center text-[13px] text-slate-400"
-                    >
-                      No active practices found.
-                    </td>
-                  </tr>
-                ) : (
-                  table.getRowModel().rows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={
-                        selectedRowId === row.original.id
-                          ? "bg-[#fcfbf9]"
-                          : "bg-white"
-                      }
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
-                          className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-3 py-2 text-[13px] text-slate-600 last:border-r-0"
+            }
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+              <table className="min-w-full border-separate border-spacing-0 text-left">
+                <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header, index) => (
+                        <th
+                          key={header.id}
+                          className={`border-b border-[#eeebe5] px-4 py-3 font-medium ${
+                            index < headerGroup.headers.length - 1
+                              ? "border-r border-[#f2eee8]"
+                              : ""
+                          }`}
+                          style={{
+                            width: header.getSize()
+                              ? `${header.getSize()}px`
+                              : undefined,
+                          }}
                         >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
+                          {header.id === "add" ? (
+                            header.isPlaceholder ? null : (
+                              flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )
+                            )
+                          ) : (
+                            <SortableHeaderCell header={header} />
                           )}
-                        </td>
+                        </th>
                       ))}
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  ))}
+                </thead>
+                <tbody className="text-[14px] text-slate-600">
+                  {!isLoading && rows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={columns.length}
+                        className="px-4 py-8 text-center text-[13px] text-slate-400"
+                      >
+                        No active practices found.
+                      </td>
+                    </tr>
+                  ) : (
+                    table.getRowModel().rows.map((row) => (
+                      <tr
+                        key={row.id}
+                        className={
+                          selectedRowId === row.original.id
+                            ? "bg-[#fcfbf9]"
+                            : "bg-white"
+                        }
+                      >
+                        {row.getVisibleCells().map((cell, index) => (
+                          <td
+                            key={cell.id}
+                            className={`border-b border-[#f4f1ec] px-4 py-3 ${
+                              index < row.getVisibleCells().length - 1
+                                ? "border-r border-[#f5f2ed]"
+                                : ""
+                            }`}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </DataTableToolbar>
+        </section>
 
         {showDetailPanel && selectedPractice ? (
           <aside className="app-panel app-detail-panel relative flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">

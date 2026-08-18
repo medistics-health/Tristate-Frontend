@@ -98,8 +98,8 @@ const sidebarSteps: SidebarItem[] = [
       { label: "All Practices", to: "/practice/all-practices" },
       { label: "Pipeline Board", to: "/practice/pipeline" },
       { label: "Active Practices", to: "/practice/active-practice" },
-      { label: "Prospects", to: "/practice/prospects" },
-      { label: "Reminders Due", to: "/practice/reminder-dues" },
+      // { label: "Prospects", to: "/practice/prospects" },
+      // { label: "Reminders Due", to: "/practice/reminder-dues" },
     ],
   },
   {
