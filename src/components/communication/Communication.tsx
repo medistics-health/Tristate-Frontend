@@ -61,6 +61,14 @@ function getFilterSignature(filters: SentEmailFilters) {
   });
 }
 
+function looksLikePageSizePlaceholderTotal(
+  total: number,
+  pageSize: number,
+  rowCount: number,
+) {
+  return total === pageSize + 1 || (rowCount === pageSize && total === rowCount + 1);
+}
+
 export default function CommunicationPage() {
   const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
   const [searchParams] = useSearchParams();
@@ -83,6 +91,7 @@ export default function CommunicationPage() {
   const [totalPages, setTotalPages] = useState(1);
   const prevListQueryKeyRef = useRef("");
   const loadRequestIdRef = useRef(0);
+  const totalsByFilterRef = useRef<Map<string, number>>(new Map());
   const [isRecipientDropdownOpen, setIsRecipientDropdownOpen] = useState(false);
   const recipientBlurTimerRef = useRef<number | null>(null);
 
@@ -121,11 +130,27 @@ export default function CommunicationPage() {
         setIsLoading(true);
         const data = await getSentEmails(filters);
         if (requestId !== loadRequestIdRef.current) return;
-        setEmails(data.emails);
-        setTotalEmails(data.pagination.total);
-        setTotalPages(Math.max(1, data.pagination.totalPages));
+        const recipient = filters.toEmail?.trim().toLowerCase();
+        const emails = recipient
+          ? data.emails.filter((email) =>
+              email.to.some((to) => to.trim().toLowerCase() === recipient),
+            )
+          : data.emails;
+        const filterSignature = getFilterSignature(filters);
+        const pageLimit = filters.limit && filters.limit > 0 ? filters.limit : emails.length;
+        const previousTotal = totalsByFilterRef.current.get(filterSignature);
+        const incomingTotal = data.pagination.total;
+        const total =
+          previousTotal !== undefined &&
+          looksLikePageSizePlaceholderTotal(incomingTotal, pageLimit, emails.length)
+            ? previousTotal
+            : incomingTotal;
+        totalsByFilterRef.current.set(filterSignature, total);
+        setEmails(emails);
+        setTotalEmails(total);
+        setTotalPages(Math.max(1, Math.ceil(total / Math.max(pageLimit, 1))));
         const requestedPage = filters.page && filters.page > 0 ? filters.page : 1;
-        const lastPage = Math.max(1, data.pagination.totalPages);
+        const lastPage = Math.max(1, Math.ceil(total / Math.max(pageLimit, 1)));
         if (requestedPage > lastPage) {
           setCurrentPage(lastPage);
         }
