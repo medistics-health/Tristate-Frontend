@@ -187,6 +187,8 @@ export default function PersonsPage() {
     influence: string;
     practiceId: string;
     practiceIds: string[];
+    companyId: string;
+    status: string;
   };
 
   const defaultFilters: PersonFilters = {
@@ -195,6 +197,8 @@ export default function PersonsPage() {
     influence: "",
     practiceId: "",
     practiceIds: [],
+    companyId: "",
+    status: "",
   };
 
   const [filters, setFilters] = useState<PersonFilters>(defaultFilters);
@@ -229,6 +233,13 @@ export default function PersonsPage() {
         .catch((err) => console.error("Failed to load practices:", err))
         .finally(() => setPracticesLoading(false));
     }
+    if (companies.length === 0) {
+      setCompaniesLoading(true);
+      getAllCompanies()
+        .then(setCompanies)
+        .catch((err) => console.error("Failed to load companies:", err))
+        .finally(() => setCompaniesLoading(false));
+    }
   };
 
   const handleApplyFilters = () => {
@@ -247,6 +258,8 @@ export default function PersonsPage() {
     filters.role,
     filters.influence,
     filters.practiceId,
+    filters.companyId,
+    filters.status,
   ].filter(Boolean).length;
 
   const activeFilterChips = useMemo(() => {
@@ -290,8 +303,35 @@ export default function PersonsPage() {
         },
       });
     }
+    if (filters.companyId) {
+      const companyName =
+        companies.find((company) => company.id === filters.companyId)?.name ||
+        filters.companyId;
+      chips.push({
+        key: "companyId",
+        label: "Company",
+        displayValue: companyName,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, companyId: "" }));
+          setDraftFilters((curr) => ({ ...curr, companyId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.status) {
+      chips.push({
+        key: "status",
+        label: "Status",
+        displayValue: filters.status,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, status: "" }));
+          setDraftFilters((curr) => ({ ...curr, status: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
     return chips;
-  }, [filters, practices]);
+  }, [filters, practices, companies]);
 
   const refreshPersonRecords = async () => {
     if (!whenToSearch) return;
@@ -306,6 +346,8 @@ export default function PersonsPage() {
         ...(filters.role && { role: filters.role }),
         ...(filters.influence && { influence: filters.influence }),
         ...(filters.practiceId && { practiceId: filters.practiceId }),
+        ...(filters.companyId && { companyId: filters.companyId }),
+        ...(filters.status && { status: filters.status }),
         sortBy:
           (
             {
@@ -1278,6 +1320,46 @@ export default function PersonsPage() {
             ...practices.map((practice) => ({
               label: practice.name,
               value: practice.id,
+            })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Company
+        </span>
+        <Select
+          value={draftFilters.companyId}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, companyId: val }))
+          }
+          disabled={companiesLoading}
+          options={[
+            {
+              label: companiesLoading ? "Loading companies..." : "All Companies",
+              value: "",
+            },
+            ...companies.map((company) => ({
+              label: company.name,
+              value: company.id,
+            })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Status
+        </span>
+        <Select
+          value={draftFilters.status}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, status: val }))
+          }
+          options={[
+            { label: "All Statuses", value: "" },
+            ...statusOptions.map((status) => ({
+              label: status,
+              value: status,
             })),
           ]}
         />

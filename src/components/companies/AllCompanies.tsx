@@ -1294,7 +1294,7 @@ export default function AllCompaniesPage() {
           <DataTableToolbar
             title="All Companies"
             subtitle="Companies"
-            searchPlaceholder="Search by name or domain..."
+            searchPlaceholder="Search by name, domain, or tax ID..."
             searchValue={searchInput}
             onSearchChange={(value) => {
               setSearchInput(value);

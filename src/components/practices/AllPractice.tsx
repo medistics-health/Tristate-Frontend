@@ -1945,7 +1945,7 @@ export default function AllPracticePage() {
           <DataTableToolbar
             title="All Practices"
             subtitle="Practices"
-            searchPlaceholder="Search practices by name..."
+            searchPlaceholder="Search practices by name or NPI..."
             searchValue={searchInput}
             onSearchChange={(value) => {
               setSearchInput(value);
