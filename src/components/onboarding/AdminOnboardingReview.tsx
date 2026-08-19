@@ -62,10 +62,19 @@ type OnboardingRow = {
   priority: string;
   services: string[];
   submissionDate: string;
+  submissionDateIso: string;
   contacts: number;
   practices: number;
   original: Onboarding;
 };
+
+function getSubmissionDateFields(onboarding: Onboarding) {
+  const iso = onboarding.submissionDate || onboarding.createdAt || "";
+  return {
+    submissionDate: iso ? new Date(iso).toLocaleDateString() : "N/A",
+    submissionDateIso: iso,
+  };
+}
 
 const statusColors: Record<string, string> = {
   DRAFT: "bg-gray-100 text-gray-700",
@@ -274,12 +283,6 @@ const languageOptions = [
   { label: "Arabic", value: "ARABIC" },
   { label: "Other", value: "OTHER" },
 ];
-
-const priorityColors: Record<string, string> = {
-  HIGH: "bg-red-100 text-red-700",
-  MEDIUM: "bg-yellow-100 text-yellow-700",
-  LOW: "bg-green-100 text-green-700",
-};
 
 const columnHelper = createColumnHelper<OnboardingRow>();
 
@@ -506,6 +509,15 @@ export default function AdminOnboardingReview() {
       };
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
+      if (sorting[0]?.id) {
+        params.sortBy =
+          (
+            {
+              submissionDate: "submissionDate",
+            } as Record<string, string>
+          )[sorting[0].id] || sorting[0].id;
+        params.sortOrder = sorting[0].desc ? "desc" : "asc";
+      }
 
       const response = await getOnboardings(params);
       const filtering = response.onboardings.filter(
@@ -561,9 +573,7 @@ export default function AdminOnboardingReview() {
         status: ob.status || "DRAFT",
         priority: ob.priorityLevel || "MEDIUM",
         services: ob.requestedServices || [],
-        submissionDate: ob.submissionDate
-          ? new Date(ob.submissionDate).toLocaleDateString()
-          : "N/A",
+        ...getSubmissionDateFields(ob),
         contacts: ob.contacts?.length || 0,
         practices: ob.practices?.length || 0,
         original: ob,
@@ -586,7 +596,7 @@ export default function AdminOnboardingReview() {
 
   useEffect(() => {
     loadData();
-  }, [pagination.page, pagination.limit, filters.status, filters.search]);
+  }, [pagination.page, pagination.limit, filters.status, filters.search, sorting]);
 
   const selectedRow = useMemo(() => {
     const row = rows.find((item) => item.id === selectedRowId);
@@ -606,9 +616,7 @@ export default function AdminOnboardingReview() {
       status: selectedOnboarding.status || "DRAFT",
       priority: selectedOnboarding.priorityLevel || "MEDIUM",
       services: selectedOnboarding.requestedServices || [],
-      submissionDate: selectedOnboarding.submissionDate
-        ? new Date(selectedOnboarding.submissionDate).toLocaleDateString()
-        : "N/A",
+      ...getSubmissionDateFields(selectedOnboarding),
       contacts: selectedOnboarding.contacts?.length || 0,
       practices: selectedOnboarding.practices?.length || 0,
       original: selectedOnboarding,
@@ -669,22 +677,6 @@ export default function AdminOnboardingReview() {
         },
         size: 120,
       }),
-      columnHelper.accessor("priority", {
-        header: "Priority",
-        cell: (info) => {
-          const v = info.getValue();
-          return (
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                priorityColors[v] || "bg-gray-100 text-gray-700"
-              }`}
-            >
-              {v}
-            </span>
-          );
-        },
-        size: 100,
-      }),
       columnHelper.accessor("services", {
         header: "Services",
         cell: (info) => (
@@ -709,10 +701,16 @@ export default function AdminOnboardingReview() {
         ),
         size: 180,
       }),
-      columnHelper.accessor("submissionDate", {
+      columnHelper.accessor((row) => {
+        const timestamp = Date.parse(row.submissionDateIso || row.submissionDate || "");
+        return Number.isNaN(timestamp) ? 0 : timestamp;
+      }, {
+        id: "submissionDate",
         header: "Submitted",
         cell: (info) => (
-          <span className="text-slate-500">{info.getValue()}</span>
+          <span className="text-slate-500">
+            {info.row.original.submissionDate}
+          </span>
         ),
         size: 120,
       }),
@@ -848,9 +846,7 @@ export default function AdminOnboardingReview() {
                   status: onboarding.status || "DRAFT",
                   priority: onboarding.priorityLevel || "MEDIUM",
                   services: onboarding.requestedServices || [],
-                  submissionDate: onboarding.submissionDate
-                    ? new Date(onboarding.submissionDate).toLocaleDateString()
-                    : "N/A",
+                  ...getSubmissionDateFields(onboarding),
                   contacts: onboarding.contacts?.length || 0,
                   practices: onboarding.practices?.length || 0,
                   original: onboarding,
@@ -4214,7 +4210,10 @@ export default function AdminOnboardingReview() {
                               : undefined,
                           }}
                         >
-                          <SortableHeaderCell header={header} />
+                          <SortableHeaderCell
+                            key={`${header.id}-${header.column.getIsSorted() || "none"}`}
+                            header={header}
+                          />
                         </th>
                       ))}
                     </tr>

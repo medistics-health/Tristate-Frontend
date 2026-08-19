@@ -443,7 +443,12 @@ function AllAgreementsPage() {
       },
       {
         id: "creationDate",
-        accessorFn: (row: AgreementRow) => row.values.creationDate,
+        accessorFn: (row: AgreementRow) => {
+          const timestamp = Date.parse(
+            String(row.values.createdAt || row.values.creationDate || ""),
+          );
+          return Number.isNaN(timestamp) ? 0 : timestamp;
+        },
         header: () => "Created",
         cell: ({ row }: { row: { original: AgreementRow } }) =>
           String(row.original.values.creationDate),
@@ -497,7 +502,13 @@ function AllAgreementsPage() {
         practiceId: searchParams.get("practiceId") || undefined,
       };
       if (sorting[0]?.id) {
-        params.sortBy = sorting[0].id;
+        params.sortBy =
+          (
+            {
+              creationDate: "createdAt",
+              lastUpdate: "updatedAt",
+            } as Record<string, string>
+          )[sorting[0].id] || sorting[0].id;
         params.sortOrder = sorting[0]?.desc ? "desc" : "asc";
       }
 

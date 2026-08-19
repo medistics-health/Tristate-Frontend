@@ -45,6 +45,8 @@ function companyToRow(company: Company): CompanyRow {
       zip: company.zip || "",
       creationDate: new Date(company.createdAt).toLocaleString(),
       lastUpdate: new Date(company.updatedAt).toLocaleString(),
+      createdAt: company.createdAt,
+      updatedAt: company.updatedAt,
       practicesCount: company._count?.practices || 0,
       practiceGroupsCount: company._count?.practiceGroups || 0,
       taxIds: company.taxIds?.map((t) => t.taxIdNumber).join(", ") || "",

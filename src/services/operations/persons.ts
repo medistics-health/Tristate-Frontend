@@ -66,6 +66,8 @@ function personToRow(person: PersonWithPractices): PersonRow {
       companyNames: companyNames,
       creationDate: new Date(person.createdAt).toLocaleString(),
       lastUpdate: new Date(person.updatedAt).toLocaleString(),
+      createdAt: person.createdAt,
+      updatedAt: person.updatedAt,
     },
   };
 }

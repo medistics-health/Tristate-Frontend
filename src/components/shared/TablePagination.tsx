@@ -21,21 +21,36 @@ export default function TablePagination({
   onPageSizeChange,
   pageSizeOptions = [8, 15, 25, 50],
 }: TablePaginationProps) {
-  const startItem = totalRecords === 0 ? 0 : (page - 1) * pageSize + 1;
-  const endItem = Math.min(page * pageSize, totalRecords);
+  const effectiveTotalPages =
+    totalRecords === 0
+      ? 1
+      : Math.max(1, totalPages || Math.ceil(totalRecords / Math.max(pageSize, 1)));
+  const safePage = Math.min(Math.max(page, 1), effectiveTotalPages);
+  const startItem =
+    totalRecords === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const endItem =
+    totalRecords === 0 ? 0 : Math.min(safePage * pageSize, totalRecords);
 
   // Generate page numbers array with smart ellipsis logic
   const getPageNumbers = (): (number | string)[] => {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    if (effectiveTotalPages <= 7) {
+      return Array.from({ length: effectiveTotalPages }, (_, i) => i + 1);
     }
-    if (page <= 4) {
-      return [1, 2, 3, 4, 5, "...", totalPages];
+    if (safePage <= 4) {
+      return [1, 2, 3, 4, 5, "...", effectiveTotalPages];
     }
-    if (page >= totalPages - 3) {
-      return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    if (safePage >= effectiveTotalPages - 3) {
+      return [
+        1,
+        "...",
+        effectiveTotalPages - 4,
+        effectiveTotalPages - 3,
+        effectiveTotalPages - 2,
+        effectiveTotalPages - 1,
+        effectiveTotalPages,
+      ];
     }
-    return [1, "...", page - 1, page, page + 1, "...", totalPages];
+    return [1, "...", safePage - 1, safePage, safePage + 1, "...", effectiveTotalPages];
   };
 
   return (
@@ -70,8 +85,8 @@ export default function TablePagination({
       <div className="flex items-center gap-1.5">
         <button
           type="button"
-          onClick={() => onPageChange(page - 1)}
-          disabled={page <= 1}
+          onClick={() => onPageChange(safePage - 1)}
+          disabled={safePage <= 1}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#ece8e1] bg-white text-slate-600 transition-colors hover:bg-[#f7f5f1] disabled:cursor-not-allowed disabled:opacity-40 shadow-2xs"
           title="Previous Page"
         >
@@ -85,7 +100,7 @@ export default function TablePagination({
                 type="button"
                 onClick={() => onPageChange(p)}
                 className={`inline-flex h-8 min-w-[32px] items-center justify-center rounded-lg px-2.5 text-[13px] font-medium transition-all ${
-                  p === page
+                  p === safePage
                     ? "bg-[#4f63ea] text-white shadow-sm"
                     : "border border-[#ece8e1] bg-white text-slate-700 hover:bg-[#f7f5f1] shadow-2xs"
                 }`}
@@ -100,8 +115,8 @@ export default function TablePagination({
 
         <button
           type="button"
-          onClick={() => onPageChange(page + 1)}
-          disabled={page >= totalPages}
+          onClick={() => onPageChange(safePage + 1)}
+          disabled={safePage >= effectiveTotalPages}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#ece8e1] bg-white text-slate-600 transition-colors hover:bg-[#f7f5f1] disabled:cursor-not-allowed disabled:opacity-40 shadow-2xs"
           title="Next Page"
         >

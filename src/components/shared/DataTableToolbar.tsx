@@ -372,6 +372,7 @@ export function SortableHeaderCell({
 }: {
   header: any;
 }) {
+  "use no memo";
   if (!header || header.isPlaceholder) return null;
 
   const canSort = header.column.getCanSort();
@@ -380,7 +381,14 @@ export function SortableHeaderCell({
   return (
     <button
       type="button"
-      onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+      onClick={
+        canSort
+          ? (event) => {
+              event.preventDefault();
+              header.column.toggleSorting(isSorted === "asc");
+            }
+          : undefined
+      }
       className={`flex w-full items-center justify-between gap-1.5 font-medium transition-colors ${
         canSort ? "cursor-pointer hover:text-slate-800" : "cursor-default text-slate-400"
       }`}

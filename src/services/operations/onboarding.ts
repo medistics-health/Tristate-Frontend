@@ -541,6 +541,8 @@ export async function getOnboardings(params?: {
   limit?: number;
   search?: string;
   status?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
 }): Promise<{
   onboardings: Onboarding[];
   pagination: Record<string, unknown>;
@@ -551,6 +553,8 @@ export async function getOnboardings(params?: {
     if (params?.limit) queryString.set("limit", String(params.limit));
     if (params?.search) queryString.set("search", params.search);
     if (params?.status) queryString.set("status", params.status);
+    if (params?.sortBy) queryString.set("sortBy", params.sortBy);
+    if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 
     const url = queryString.toString()
       ? `${LIST}?${queryString.toString()}`

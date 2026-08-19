@@ -137,6 +137,8 @@ function companyToPanelRow(company: Company): CompanyRow {
       zip: company.zip || "",
       creationDate: new Date(company.createdAt).toLocaleString(),
       lastUpdate: new Date(company.updatedAt).toLocaleString(),
+      createdAt: company.createdAt,
+      updatedAt: company.updatedAt,
       practicesCount: company._count?.practices || 0,
       practiceGroupsCount: company._count?.practiceGroups || 0,
       taxIds:
@@ -290,7 +292,15 @@ export default function AllCompaniesPage() {
         limit: pagination.limit,
         ...(searchInput.trim() && { search: searchInput.trim() }),
         ...(filters.status && { status: filters.status }),
-        sortBy: sorting[0]?.id || "createdAt",
+        sortBy:
+          (
+            {
+              creationDate: "createdAt",
+              lastUpdate: "updatedAt",
+            } as Record<string, string>
+          )[sorting[0]?.id || "creationDate"] ||
+          sorting[0]?.id ||
+          "createdAt",
         sortOrder: sorting[0]?.desc ? "desc" : "asc",
       };
       const data = await getCompaniesView(params);
@@ -409,8 +419,16 @@ export default function AllCompaniesPage() {
 
         return {
           id: field.id,
-          accessorFn: (row: CompanyRow) =>
-            getCellDisplayValue(row.values[field.id]),
+          accessorFn: (row: CompanyRow) => {
+            if (field.id === "creationDate" || field.id === "lastUpdate") {
+              const isoKey = field.id === "creationDate" ? "createdAt" : "updatedAt";
+              const timestamp = Date.parse(
+                String(row.values[isoKey] || row.values[field.id] || ""),
+              );
+              return Number.isNaN(timestamp) ? 0 : timestamp;
+            }
+            return getCellDisplayValue(row.values[field.id]);
+          },
           header: () => (
             <div className="flex items-center gap-2">
               {iconMap[field.id] || (

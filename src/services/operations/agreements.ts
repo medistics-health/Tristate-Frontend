@@ -117,6 +117,8 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
       value: agreement.value?.toString() || "",
       creationDate: new Date(agreement.createdAt).toLocaleString(),
       lastUpdate: new Date(agreement.updatedAt).toLocaleString(),
+      createdAt: agreement.createdAt,
+      updatedAt: agreement.updatedAt,
       docusealId: agreement.docusealId?.toString() || "",
       docusealUrl: agreement.docusealUrl || "",
       signingStatus: signingStatus,

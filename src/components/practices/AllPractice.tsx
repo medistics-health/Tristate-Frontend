@@ -200,7 +200,6 @@ export default function AllPracticePage() {
   const [sorting, setSorting] = useState<SortingState>([
     { id: "creationDate", desc: true },
   ]);
-  const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   const [columnVisibility, setColumnVisibility] = useState<
     Record<string, boolean>
   >({});
@@ -388,7 +387,15 @@ export default function AllPracticePage() {
         ...(filters.status && { status: filters.status }),
         ...(filters.source && { source: filters.source }),
         ...(filters.companyId && { companyId: filters.companyId }),
-        sortBy: sorting[0]?.id || "createdAt",
+        sortBy:
+          (
+            {
+              creationDate: "createdAt",
+              lastUpdate: "updatedAt",
+            } as Record<string, string>
+          )[sorting[0]?.id || "creationDate"] ||
+          sorting[0]?.id ||
+          "createdAt",
         sortOrder: sorting[0]?.desc ? "desc" : "asc",
       };
       const data = await getPracticesView(params);
@@ -545,40 +552,6 @@ export default function AllPracticePage() {
 
   const columns = useMemo<ColumnDef<PracticeRow>[]>(() => {
     const cols: ColumnDef<PracticeRow>[] = [
-      {
-        id: "select",
-        header: () => (
-          <input
-            type="checkbox"
-            checked={
-              rows.length > 0 && rows.every((row) => selectedIds[row.id])
-            }
-            onChange={(event) =>
-              setSelectedIds(
-                event.target.checked
-                  ? Object.fromEntries(rows.map((row) => [row.id, true]))
-                  : {},
-              )
-            }
-            className="h-4 w-4 rounded border border-[#cec8bf]"
-          />
-        ),
-        cell: ({ row }) => (
-          <input
-            type="checkbox"
-            checked={Boolean(selectedIds[row.original.id])}
-            onChange={(event) =>
-              setSelectedIds((current) => ({
-                ...current,
-                [row.original.id]: event.target.checked,
-              }))
-            }
-            className="h-4 w-4 rounded border border-[#cec8bf]"
-          />
-        ),
-        enableSorting: false,
-        size: 42,
-      },
       ...visibleFields.map((field) => {
         const iconMap: Record<string, React.ReactNode> = {
           name: <FileText className="h-3.5 w-3.5 text-slate-400" />,
@@ -602,8 +575,16 @@ export default function AllPracticePage() {
 
         return {
           id: field.id,
-          accessorFn: (row: PracticeRow) =>
-            getCellDisplayValue(row.values[field.id]),
+          accessorFn: (row: PracticeRow) => {
+            if (field.id === "creationDate" || field.id === "lastUpdate") {
+              const isoKey = field.id === "creationDate" ? "createdAt" : "updatedAt";
+              const timestamp = Date.parse(
+                String(row.values[isoKey] || row.values[field.id] || ""),
+              );
+              return Number.isNaN(timestamp) ? 0 : timestamp;
+            }
+            return getCellDisplayValue(row.values[field.id]);
+          },
           header: () => (
             <div className="flex items-center gap-2">
               {iconMap[field.id] || (
@@ -665,7 +646,7 @@ export default function AllPracticePage() {
       },
     ];
     return cols;
-  }, [visibleFields, rows, selectedIds]);
+  }, [visibleFields, rows]);
 
   const table = useReactTable({
     data: rows,
@@ -678,22 +659,6 @@ export default function AllPracticePage() {
   });
 
   const renderCell = (row: PracticeRow, columnId: string) => {
-    if (columnId === "select") {
-      return (
-        <input
-          type="checkbox"
-          checked={Boolean(selectedIds[row.id])}
-          onChange={(event) =>
-            setSelectedIds((current) => ({
-              ...current,
-              [row.id]: event.target.checked,
-            }))
-          }
-          onClick={(e) => e.stopPropagation()}
-          className="h-4 w-4 rounded border border-[#cec8bf]"
-        />
-      );
-    }
     if (columnId === "add") return null;
     const value = row.values[columnId];
     const field = visibleFields.find((f) => f.id === columnId);
@@ -1955,11 +1920,9 @@ export default function AllPracticePage() {
     header: ReturnType<typeof table.getHeaderGroups>[number]["headers"][number],
   ) => {
     if (header.isPlaceholder) return null;
-    if (header.id === "select" || header.id === "add") {
+    if (header.id === "add") {
       return (
-        <div
-          className={`flex w-full items-center gap-2 ${header.id === "select" ? "justify-center" : ""}`}
-        >
+        <div className="flex w-full items-center gap-2">
           {flexRender(header.column.columnDef.header, header.getContext())}
         </div>
       );

@@ -96,7 +96,7 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Practices", to: "/practice/all-practices" },
-      { label: "Pipeline Board", to: "/practice/pipeline" },
+      // { label: "Pipeline Board", to: "/practice/pipeline" },
       { label: "Active Practices", to: "/practice/active-practice" },
       // { label: "Prospects", to: "/practice/prospects" },
       // { label: "Reminders Due", to: "/practice/reminder-dues" },
@@ -107,7 +107,7 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Agreements", to: "/agreements/all-agreements" },
-      { label: "Agreement Pipeline", to: "/agreements/pipeline" },
+      // { label: "Agreement Pipeline", to: "/agreements/pipeline" },
       {
         label: "Pending Approval",
         to: "/agreements/pending-approval",
