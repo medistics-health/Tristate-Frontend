@@ -39,6 +39,13 @@ function getCellValue(value: unknown): string {
   return String(value);
 }
 
+function getDateSortValue(row: PracticeRow, isoKey: string, displayKey: string): number {
+  const timestamp = Date.parse(
+    String(row.values[isoKey] || row.values[displayKey] || ""),
+  );
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
 function ActivePracticesPage() {
   const [rows, setRows] = useState<PracticeRow[]>([]);
   const [allPractices, setAllPractices] = useState<Practice[]>([]);
@@ -246,7 +253,7 @@ function ActivePracticesPage() {
       },
       {
         id: "creationDate",
-        accessorFn: (row) => getCellValue(row.values.creationDate),
+        accessorFn: (row) => getDateSortValue(row, "createdAt", "creationDate"),
         header: () => (
           <div className="flex items-center gap-2">
             <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
@@ -258,7 +265,7 @@ function ActivePracticesPage() {
       },
       {
         id: "lastUpdate",
-        accessorFn: (row) => getCellValue(row.values.lastUpdate),
+        accessorFn: (row) => getDateSortValue(row, "updatedAt", "lastUpdate"),
         header: () => (
           <div className="flex items-center gap-2">
             <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
@@ -367,7 +374,10 @@ function ActivePracticesPage() {
                               )
                             )
                           ) : (
-                            <SortableHeaderCell header={header} />
+                            <SortableHeaderCell
+                              key={`${header.id}-${header.column.getIsSorted() || "none"}`}
+                              header={header}
+                            />
                           )}
                         </th>
                       ))}

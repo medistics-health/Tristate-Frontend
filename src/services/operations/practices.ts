@@ -47,6 +47,8 @@ function practiceToRow(practice: Practice): PracticeRow {
       dealsCount: practice._count?.deals || 0,
       creationDate: new Date(practice.createdAt).toLocaleString(),
       lastUpdate: new Date(practice.updatedAt).toLocaleString(),
+      createdAt: practice.createdAt,
+      updatedAt: practice.updatedAt,
       createdBy: { name: "User", initials: "U" },
       updatedBy: { name: "User", initials: "U" },
     },

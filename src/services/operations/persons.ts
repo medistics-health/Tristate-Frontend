@@ -66,6 +66,8 @@ function personToRow(person: PersonWithPractices): PersonRow {
       companyNames: companyNames,
       creationDate: new Date(person.createdAt).toLocaleString(),
       lastUpdate: new Date(person.updatedAt).toLocaleString(),
+      createdAt: person.createdAt,
+      updatedAt: person.updatedAt,
     },
   };
 }
@@ -116,6 +118,8 @@ export type PersonQueryParams = {
   role?: string;
   influence?: string;
   practiceId?: string;
+  companyId?: string;
+  status?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 };
@@ -131,6 +135,8 @@ export async function getPersonsView(
     if (params?.role) queryString.set("role", params.role);
     if (params?.influence) queryString.set("influence", params.influence);
     if (params?.practiceId) queryString.set("practiceId", params.practiceId);
+    if (params?.companyId) queryString.set("companyId", params.companyId);
+    if (params?.status) queryString.set("status", params.status);
     if (params?.sortBy) queryString.set("sortBy", params.sortBy);
     if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 

@@ -97,6 +97,9 @@ const statusStyles: Record<string, string> = {
   TERMINATED: "bg-red-100 text-red-700",
   INACTIVE: "bg-red-100 text-red-700",
   ARCHIVED: "bg-zinc-100 text-zinc-600",
+  PENDING_APPROVAL: "bg-amber-100 text-amber-700",
+  APPROVED: "bg-emerald-100 text-emerald-700",
+  REJECTED: "bg-red-100 text-red-700",
 };
 
 const agreementStatusOptions = [
@@ -110,6 +113,12 @@ const agreementStatusOptions = [
 ];
 
 const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
+
+const approvalStatusOptions = [
+  "PENDING_APPROVAL",
+  "APPROVED",
+  "REJECTED",
+];
 
 const AUTO_INCLUDE_TEMPLATE_NAMES = [
   "Master Service Agreement",
@@ -293,7 +302,13 @@ function AllAgreementsPage() {
     total: 0,
     totalPages: 0,
   });
-  const [filters, setFilters] = useState({ search: "", status: "", type: "" });
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "",
+    type: "",
+    approvalStatus: "",
+    practiceId: "",
+  });
   const [sorting, setSorting] = useState<SortingState>([]);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [optionsLoading, setOptionsLoading] = useState(false);
@@ -443,7 +458,12 @@ function AllAgreementsPage() {
       },
       {
         id: "creationDate",
-        accessorFn: (row: AgreementRow) => row.values.creationDate,
+        accessorFn: (row: AgreementRow) => {
+          const timestamp = Date.parse(
+            String(row.values.createdAt || row.values.creationDate || ""),
+          );
+          return Number.isNaN(timestamp) ? 0 : timestamp;
+        },
         header: () => "Created",
         cell: ({ row }: { row: { original: AgreementRow } }) =>
           String(row.original.values.creationDate),
@@ -494,10 +514,18 @@ function AllAgreementsPage() {
         search: filters.search || undefined,
         status: filters.status || undefined,
         type: filters.type || undefined,
-        practiceId: searchParams.get("practiceId") || undefined,
+        approvalStatus: filters.approvalStatus || undefined,
+        practiceId:
+          filters.practiceId || searchParams.get("practiceId") || undefined,
       };
       if (sorting[0]?.id) {
-        params.sortBy = sorting[0].id;
+        params.sortBy =
+          (
+            {
+              creationDate: "createdAt",
+              lastUpdate: "updatedAt",
+            } as Record<string, string>
+          )[sorting[0].id] || sorting[0].id;
         params.sortOrder = sorting[0]?.desc ? "desc" : "asc";
       }
 
@@ -1205,7 +1233,22 @@ function AllAgreementsPage() {
       ]
     : [];
 
-  const activeFilterCount = [filters.status, filters.type].filter(Boolean).length;
+  const activeFilterCount = [
+    filters.status,
+    filters.type,
+    filters.approvalStatus,
+    filters.practiceId,
+  ].filter(Boolean).length;
+
+  const handleOpenFilterModal = () => {
+    if (practices.length === 0) {
+      setOptionsLoading(true);
+      getAllPractices()
+        .then(setPractices)
+        .catch((err) => console.error("Failed to load practices:", err))
+        .finally(() => setOptionsLoading(false));
+    }
+  };
 
   const activeFilterChips = useMemo(() => {
     const chips: ActiveFilterChip[] = [];
@@ -1231,8 +1274,33 @@ function AllAgreementsPage() {
         },
       });
     }
+    if (filters.approvalStatus) {
+      chips.push({
+        key: "approvalStatus",
+        label: "Approval Status",
+        displayValue: formatStatusLabel(filters.approvalStatus),
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, approvalStatus: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.practiceId) {
+      const practiceName =
+        practices.find((practice) => practice.id === filters.practiceId)?.name ||
+        filters.practiceId;
+      chips.push({
+        key: "practiceId",
+        label: "Practice",
+        displayValue: practiceName,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, practiceId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
     return chips;
-  }, [filters.status, filters.type]);
+  }, [filters.approvalStatus, filters.practiceId, filters.status, filters.type, practices]);
 
   const filterFieldsModal = (
     <>
@@ -1270,6 +1338,51 @@ function AllAgreementsPage() {
             ...agreementTypeOptions.map((type) => ({
               label: type,
               value: type,
+            })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Approval Status
+        </span>
+        <Select
+          value={filters.approvalStatus}
+          onChange={(val) => {
+            setFilters((prev) => ({ ...prev, approvalStatus: val }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          options={[
+            { label: "All Approval Statuses", value: "" },
+            ...approvalStatusOptions.map((status) => ({
+              label: formatStatusLabel(status),
+              value: status,
+            })),
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Practice
+        </span>
+        <Select
+          value={filters.practiceId}
+          onChange={(val) => {
+            setFilters((prev) => ({ ...prev, practiceId: val }));
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
+          disabled={optionsLoading && practices.length === 0}
+          options={[
+            {
+              label:
+                optionsLoading && practices.length === 0
+                  ? "Loading practices..."
+                  : "All Practices",
+              value: "",
+            },
+            ...practices.map((practice) => ({
+              label: practice.name,
+              value: practice.id,
             })),
           ]}
         />
@@ -2493,8 +2606,15 @@ function AllAgreementsPage() {
             activeFilterCount={activeFilterCount}
             activeChips={activeFilterChips}
             onResetFilters={() =>
-              setFilters({ search: "", status: "", type: "" })
+              setFilters({
+                search: "",
+                status: "",
+                type: "",
+                approvalStatus: "",
+                practiceId: "",
+              })
             }
+            onOpenFilterModal={handleOpenFilterModal}
             filterModalTitle="Filter Agreements"
             filterFields={filterFieldsModal}
             addNewLabel={canWriteAgreements ? "Add Agreement" : undefined}

@@ -117,6 +117,8 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
       value: agreement.value?.toString() || "",
       creationDate: new Date(agreement.createdAt).toLocaleString(),
       lastUpdate: new Date(agreement.updatedAt).toLocaleString(),
+      createdAt: agreement.createdAt,
+      updatedAt: agreement.updatedAt,
       docusealId: agreement.docusealId?.toString() || "",
       docusealUrl: agreement.docusealUrl || "",
       signingStatus: signingStatus,
@@ -244,6 +246,7 @@ export type AgreementQueryParams = {
   type?: string;
   practiceId?: string;
   dealId?: string;
+  approvalStatus?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 };
@@ -274,6 +277,7 @@ export async function getAgreementsView(
     if (params?.type) queryString.set("type", params.type);
     if (params?.practiceId) queryString.set("practiceId", params.practiceId);
     if (params?.dealId) queryString.set("dealId", params.dealId);
+    if (params?.approvalStatus) queryString.set("approvalStatus", params.approvalStatus);
     if (params?.sortBy) queryString.set("sortBy", params.sortBy);
     if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 
