@@ -541,7 +541,7 @@ function AllServicesPage() {
 
       <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
-          Active Status
+          Status
         </span>
         <Select
           value={draftFilters.isActive}

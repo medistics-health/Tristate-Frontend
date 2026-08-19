@@ -135,8 +135,6 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Services", to: "/service/all-services" },
-      { label: "Service Catalog", to: "/service/service-catalogs" },
-      { label: "Active Services", to: "/service/active-services" },
     ],
   },
   {
@@ -162,7 +160,6 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       { label: "All Invoices", to: "/invoice/all-invoices" },
-      { label: "Invoice Status Board", to: "/invoice/status-board" },
       { label: "Overdue Invoices", to: "/invoice/overdue" },
       // { label: "Stripe Transfer Center", to: "/invoice/stripe-payouts" },
     ],
@@ -199,7 +196,6 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [
       { label: "All Vendors", to: "/vendors/all-vendors" },
-      { label: "Vendor Contracts", to: "/vendors/contracts" },
       { label: "Vendor Payables", to: "/vendors/payables" },
     ],
   },
@@ -247,7 +243,6 @@ const sidebarSteps: SidebarItem[] = [
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "All Practice Audits", to: "/audit/all-practice-audits" },
-      { label: "All Audits", to: "/audit/all-audits" },
       { label: "Audit Status Board", to: "/audit/status-board" },
     ],
   },

@@ -162,7 +162,7 @@ export default function DataTableToolbar({
               <button
                 type="button"
                 onClick={onExport}
-                disabled={isSaving || isDeleting || isLoading}
+                disabled={isSaving || isDeleting || isLoading || totalRecords === 0}
                 className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] hover:border-[#dcd6cb] transition-colors disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-500"
               >
                 <Download className="h-4 w-4 text-slate-500" />

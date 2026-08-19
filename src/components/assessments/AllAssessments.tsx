@@ -58,7 +58,8 @@ function AssessmentsPage() {
     total: 0,
     totalPages: 0,
   });
-  const [filters, setFilters] = useState({ search: "" });
+  const [filters, setFilters] = useState({ search: "", practiceId: "" });
+  const [draftFilters, setDraftFilters] = useState({ search: "", practiceId: "" });
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [practices, setPractices] = useState<Practice[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -90,6 +91,12 @@ function AssessmentsPage() {
   }, []);
 
   useEffect(() => {
+    getAllPractices()
+      .then(setPractices)
+      .catch((err) => console.error("Failed to load practices:", err));
+  }, []);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       async function loadData() {
         try {
@@ -99,6 +106,7 @@ function AssessmentsPage() {
             page: pagination.page,
             limit: pagination.limit,
             search: filters.search || undefined,
+            practiceId: filters.practiceId || undefined,
             sortOrder,
           });
           setRows(data.rows);
@@ -119,14 +127,6 @@ function AssessmentsPage() {
 
     return () => clearTimeout(timer);
   }, [pagination.page, pagination.limit, filters, sortOrder]);
-
-  useEffect(() => {
-    if (showCreateForm && practices.length === 0) {
-      getAllPractices()
-        .then(setPractices)
-        .catch((err) => console.error("Failed to load practices:", err));
-    }
-  }, [showCreateForm, practices.length]);
 
   async function refreshRows(targetPage = pagination.page) {
     const data = await getAssessmentsView({
@@ -367,7 +367,17 @@ function AssessmentsPage() {
         <div className="absolute right-4 top-10 z-10 w-[205px] rounded-xl border border-[#ece8e1] bg-white p-2 shadow-[0_8px_32px_rgba(15,23,42,0.12)]">
           <button
             type="button"
-            onClick={() => setShowOptionsMenu(false)}
+            onClick={() => {
+              setShowOptionsMenu(false);
+              const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(selectedAssessment, null, 2));
+              const downloadAnchor = document.createElement('a');
+              downloadAnchor.setAttribute("href", dataStr);
+              downloadAnchor.setAttribute("download", `assessment_${selectedAssessment.id}.json`);
+              document.body.appendChild(downloadAnchor);
+              downloadAnchor.click();
+              downloadAnchor.remove();
+              toast.success("Assessment exported");
+            }}
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
           >
             <ExternalLink className="h-4 w-4" />
@@ -493,11 +503,57 @@ function AssessmentsPage() {
               setFilters((prev) => ({ ...prev, search: value }));
               setPagination((prev) => ({ ...prev, page: 1 }));
             }}
-            activeFilterCount={0}
-            onResetFilters={() => {
-              setFilters({ search: "" });
+            activeFilterCount={filters.practiceId ? 1 : 0}
+            activeChips={
+              filters.practiceId
+                ? [
+                    {
+                      key: "practiceId",
+                      label: "Practice",
+                      displayValue:
+                        practices.find((p) => p.id === filters.practiceId)?.name ||
+                        filters.practiceId,
+                      onClear: () => {
+                        setFilters((prev) => ({ ...prev, practiceId: "" }));
+                        setDraftFilters((prev) => ({ ...prev, practiceId: "" }));
+                        setPagination((prev) => ({ ...prev, page: 1 }));
+                      },
+                    },
+                  ]
+                : []
+            }
+            onOpenFilterModal={() => setDraftFilters(filters)}
+            onApplyFilters={() => {
+              setFilters(draftFilters);
               setPagination((prev) => ({ ...prev, page: 1 }));
             }}
+            onResetFilters={() => {
+              setFilters({ search: "", practiceId: "" });
+              setDraftFilters({ search: "", practiceId: "" });
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            filterModalTitle="Filter Assessments"
+            filterFields={
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+                  Practice
+                </span>
+                <select
+                  value={draftFilters.practiceId}
+                  onChange={(e) =>
+                    setDraftFilters((prev) => ({ ...prev, practiceId: e.target.value }))
+                  }
+                  className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+                >
+                  <option value="">All Practices</option>
+                  {practices.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            }
             addNewLabel={canManageAssessments ? "New record" : undefined}
             onAddNew={canManageAssessments ? openCreateForm : undefined}
             onRefresh={async () => {

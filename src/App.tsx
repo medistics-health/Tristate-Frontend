@@ -174,6 +174,7 @@ function App() {
         }
       />
 
+      {/*
       <Route
         path="/audit/all-audits"
         element={
@@ -182,6 +183,7 @@ function App() {
           </ModuleRoute>
         }
       />
+      */}
 
       <Route
         path="/audit/status-board"
@@ -370,6 +372,7 @@ function App() {
         }
       />
 
+      {/*
       <Route
         path="/service/service-catalogs"
         element={
@@ -387,6 +390,7 @@ function App() {
           </ModuleRoute>
         }
       />
+      */}
 
       <Route
         path="/partner/all-channel-partners"
@@ -433,6 +437,7 @@ function App() {
         }
       />
 
+      {/*
       <Route
         path="/invoice/status-board"
         element={
@@ -441,6 +446,7 @@ function App() {
           </ModuleRoute>
         }
       />
+      */}
 
       <Route
         path="/invoice/stripe-payouts"
@@ -477,6 +483,7 @@ function App() {
         }
       />
 
+      {/*
       <Route
         path="/vendors/contracts"
         element={
@@ -485,6 +492,7 @@ function App() {
           </ModuleRoute>
         }
       />
+      */}
 
       <Route
         path="/practice/pipeline"

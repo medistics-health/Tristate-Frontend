@@ -98,10 +98,6 @@ function BillingStatusBoardPage() {
           limit: 100,
         });
         setRows(data.rows);
-        const firstId = data.rows[0]?.id ?? null;
-        if (firstId && !selectedRunId) {
-          setSelectedRunId(firstId);
-        }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to load billing runs";
@@ -115,7 +111,10 @@ function BillingStatusBoardPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedRunId) return;
+    if (!selectedRunId) {
+      setSelectedRun(null);
+      return;
+    }
 
     async function loadRun() {
       try {
@@ -149,7 +148,7 @@ function BillingStatusBoardPage() {
   async function refreshAll(selectedId?: string | null) {
     const data = await getBillingRunsView({ page: 1, limit: 100 });
     setRows(data.rows);
-    const targetId = selectedId ?? selectedRunId ?? data.rows[0]?.id ?? null;
+    const targetId = selectedId ?? selectedRunId ?? null;
     if (targetId) {
       setSelectedRunId(targetId);
       const run = await getBillingRun(targetId);
@@ -191,44 +190,16 @@ function BillingStatusBoardPage() {
     }
   }
 
-  const navbarActions: NavbarAction[] = [
-    {
-      label: "Refresh",
-      icon: <Plus className="h-4 w-4" />,
-      onClick: () => refreshAll(),
-    },
-  ];
-
   return (
     <AppLayout
       title="Billing Status Board"
       activeModule="Billing"
       activeSubItem="Billing Status Board"
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
     >
       <div className="app-split font-app-sans">
         <div className="app-panel min-w-0 flex-1 overflow-hidden rounded-2xl bg-white shadow-sm border border-[#f0ece6]">
-          <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-700"
-            >
-              <LayoutGrid className="h-3.5 w-3.5 text-slate-400" />
-              <span>Billing Status Board</span>
-              <span className="text-slate-400">. {rows.length}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            </button>
 
-            <div className="flex items-center gap-6 text-[14px] text-slate-500">
-              <button type="button" onClick={() => setHidePosted((current) => !current)}>
-                Filter
-              </button>
-              <button type="button" onClick={() => setShowDetailPanel((prev) => !prev)}>
-                Options
-              </button>
-            </div>
-          </div>
 
           <div className="app-kanban-scroll min-h-0 h-full">
             <div className="grid min-w-[1050px] auto-cols-fr grid-flow-col h-full bg-[#fcfbf9]">

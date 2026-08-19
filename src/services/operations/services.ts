@@ -1,6 +1,7 @@
 import axios from "axios";
 import { apiConnector } from "../apiConnector";
 import { serviceEndpoints } from "../apis";
+import { formatUsDateTime } from "../../utils/csvExport";
 import type {
   Service,
   ServiceBody,
@@ -35,8 +36,8 @@ function serviceToRow(service: Service): ServiceRow {
       stripeConnectedAccountName: service.stripeConnectedAccountName ?? "",
       vendorName: service.vendor?.name ?? "",
       isActive: service.isActive,
-      creationDate: new Date(service.createdAt).toLocaleString(),
-      lastUpdate: new Date(service.updatedAt).toLocaleString(),
+      creationDate: formatUsDateTime(service.createdAt),
+      lastUpdate: formatUsDateTime(service.updatedAt),
     },
   };
 }

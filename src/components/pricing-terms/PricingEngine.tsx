@@ -735,6 +735,7 @@ export default function PricingEnginePage() {
         "Pricing Model",
         "Client Rate",
         "Vendor Rate",
+        "Margin",
         "Vendor",
         "Status",
         "Created Date & Time",
@@ -767,12 +768,16 @@ export default function PricingEnginePage() {
         rowToCsvFields: (term) => {
           const cl = extractClientRate(term);
           const vn = extractVendorRate(term);
+          const mg = cl - vn;
+          const mp = cl > 0 ? Number(((mg / cl) * 100).toFixed(2)) : 0;
           const overallStatus = getOverallStatus(term);
+          const marginText = term.pricingModel === "HYBRID" ? "-" : cl > 0 ? `${mp}%` : "-";
           return [
             term.service?.name || "",
             fmtModel(term.pricingModel) || "",
             term.pricingModel === "HYBRID" ? "-" : fmtModelValue(cl, term.pricingModel),
             term.pricingModel === "HYBRID" ? "-" : term.vendorId ? fmtModelValue(vn, term.pricingModel) : "-",
+            marginText,
             term.vendor?.name || "Vendor not available",
             overallStatus,
             formatUsDateTime(term.createdAt),
@@ -1044,16 +1049,22 @@ export default function PricingEnginePage() {
           <DataTableToolbar
             title="Rate Finalization"
             subtitle="Pricing Terms & Rates"
-            searchPlaceholder="Search pricing terms by service or vendor name..."
+            searchPlaceholder={
+              !selectedPracticeId || !selectedAgreementId
+                ? "Select a practice and agreement to search..."
+                : "Search pricing terms by service or vendor name..."
+            }
             searchValue={searchInput}
-            onSearchChange={setSearchInput}
+            onSearchChange={!selectedPracticeId || !selectedAgreementId ? undefined : setSearchInput}
             activeFilterCount={activeFilterCount}
             activeChips={activeFilterChips}
             onResetFilters={resetFilters}
             onApplyFilters={handleApplyFilters}
-            onOpenFilterModal={handleOpenFilterModal}
+            onOpenFilterModal={
+              !selectedPracticeId || !selectedAgreementId ? undefined : handleOpenFilterModal
+            }
             filterModalTitle="Filter Pricing Terms"
-            filterFields={filterFieldsModal}
+            filterFields={!selectedPracticeId || !selectedAgreementId ? undefined : filterFieldsModal}
             addNewLabel={canAddTerm ? "Add Pricing Term" : undefined}
             onAddNew={
               canAddTerm
@@ -1063,8 +1074,8 @@ export default function PricingEnginePage() {
                   }
                 : undefined
             }
-            onExport={selectedVersionId ? exportCsv : undefined}
-            onRefresh={loadTerms}
+            onExport={selectedVersionId && selectedPracticeId && selectedAgreementId ? exportCsv : undefined}
+            onRefresh={!selectedPracticeId || !selectedAgreementId ? undefined : loadTerms}
             isLoading={isLoading}
             isDeleting={isDeleting}
             page={pagination.page}

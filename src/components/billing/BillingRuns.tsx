@@ -3892,14 +3892,18 @@ function BillingRunsPage() {
     try {
       toast.loading("Exporting CSV...", { id: "export-csv" });
       const headers = [
-        "Run ID",
         "Practice",
-        "Period",
         "Status",
-        "Total Invoiced",
-        "Collections",
+        "Period",
+        "Net Services",
+        "Gross Invoice Total",
         "Processing Fee",
-        "Created Date & Time",
+        "Company Absorbed",
+        "Vendor Payable Amount",
+        "Total Margin",
+        "Payment Method",
+        "Items",
+        "Created",
       ];
 
       await exportAllPagesToCsv({
@@ -3925,14 +3929,18 @@ function BillingRunsPage() {
           };
         },
         rowToCsvFields: (r) => [
-          r.values.runNumber || r.id,
-          r.values.practiceName,
-          r.values.billingPeriod,
-          r.values.status,
-          r.values.totalInvoicedAmount,
-          r.values.totalCollectionsAmount,
-          r.values.processingFeeAmount,
-          formatUsDateTime(r.values.creationDate),
+          r.values.practiceName || "-",
+          formatStatusLabel(r.values.status || ""),
+          r.values.period || r.values.billingPeriod || "-",
+          r.values.netServices ?? "-",
+          r.values.grossInvoiceTotal ?? "-",
+          r.values.processingFee ?? "-",
+          r.values.companyAbsorbed ?? "-",
+          r.values.vendorPayable ?? "-",
+          r.values.totalMargin ?? "-",
+          r.values.paymentMethod || "-",
+          r.values.itemCount ?? "-",
+          r.values.createdAt || formatUsDateTime(r.values.creationDate),
         ],
       });
       toast.success("CSV Exported successfully", { id: "export-csv" });

@@ -380,7 +380,7 @@ export default function VendorPayableDashboard() {
   }
 
   const filterFieldsModal = (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
           Status
@@ -392,12 +392,12 @@ export default function VendorPayableDashboard() {
           }
           options={[
             { label: "All Statuses", value: "" },
-            { label: "DRAFT", value: "DRAFT" },
-            { label: "PENDING_APPROVAL", value: "PENDING_APPROVAL" },
-            { label: "APPROVED", value: "APPROVED" },
-            { label: "RELEASED", value: "RELEASED" },
-            { label: "PAID", value: "PAID" },
-            { label: "VOID", value: "VOID" },
+            { label: "Draft", value: "DRAFT" },
+            { label: "Pending Approval", value: "PENDING_APPROVAL" },
+            { label: "Approved", value: "APPROVED" },
+            { label: "Released", value: "RELEASED" },
+            { label: "Paid", value: "PAID" },
+            { label: "Void", value: "VOID" },
           ]}
         />
       </label>
@@ -453,8 +453,6 @@ export default function VendorPayableDashboard() {
             onOpenFilterModal={handleOpenFilterModal}
             filterModalTitle="Filter Vendor Payables"
             filterFields={filterFieldsModal}
-            addNewLabel={canWritePayables ? "Add Payable" : undefined}
-            onAddNew={canWritePayables ? () => setIsCreateModalOpen(true) : undefined}
             onRefresh={() => refreshPayables()}
             isLoading={isLoading}
             page={pagination.page}
@@ -696,77 +694,7 @@ export default function VendorPayableDashboard() {
         </section>
       </div>
 
-      {/* Create Payable Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <h3 className="text-base font-bold text-slate-800">Create Vendor Payable</h3>
-              <button onClick={() => setIsCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
 
-            <form onSubmit={handleCreatePayable} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Vendor</label>
-                <select
-                  required
-                  value={createForm.vendorId}
-                  onChange={(e) => setCreateForm(prev => ({ ...prev, vendorId: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                >
-                  <option value="">Select Vendor</option>
-                  {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Practice</label>
-                <select
-                  required
-                  value={createForm.practiceId}
-                  onChange={(e) => setCreateForm(prev => ({ ...prev, practiceId: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                >
-                  <option value="">Select Practice</option>
-                  {practices.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Total Amount ($)</label>
-                <input
-                  required
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={createForm.totalAmount}
-                  onChange={(e) => setCreateForm(prev => ({ ...prev, totalAmount: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                />
-              </div>
-
-              <div className="pt-4 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="flex-1 rounded-lg border border-slate-200 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 rounded-lg bg-indigo-600 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50 shadow-md shadow-indigo-200"
-                >
-                  {isSubmitting ? "Creating..." : "Create Payable"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
       {/* Statement Preview Modal */}
       {previewPayable && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">

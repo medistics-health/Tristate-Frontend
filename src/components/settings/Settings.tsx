@@ -1401,10 +1401,23 @@ export default function SettingsPage() {
               </div>
 
               {canWriteSettings && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs text-amber-900">
-                  <label className="flex items-center gap-2.5 font-semibold cursor-pointer">
+                <div
+                  className={`rounded-xl border p-3.5 text-xs ${
+                    editingUser.twoFactorEnabled
+                      ? "border-amber-200 bg-amber-50/60 text-amber-900"
+                      : "border-slate-200 bg-slate-50/60 text-slate-400 opacity-60"
+                  }`}
+                >
+                  <label
+                    className={`flex items-center gap-2.5 font-semibold ${
+                      editingUser.twoFactorEnabled
+                        ? "cursor-pointer"
+                        : "cursor-not-allowed"
+                    }`}
+                  >
                     <input
                       type="checkbox"
+                      disabled={!editingUser.twoFactorEnabled}
                       checked={!!editingUser.reset2FA}
                       onChange={(e) =>
                         setEditingUser({
@@ -1412,13 +1425,20 @@ export default function SettingsPage() {
                           reset2FA: e.target.checked,
                         })
                       }
-                      className="h-4 w-4 rounded border-amber-300 text-[#4f63ea] focus:ring-[#4f63ea]"
+                      className="h-4 w-4 rounded border-amber-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
                     />
                     Reset 2FA Authentication
                   </label>
-                  <p className="mt-1 text-[11px] text-amber-700 leading-relaxed">
-                    Check this to disable 2FA and clear secret key for this
-                    member if they lost access to Microsoft Authenticator.
+                  <p
+                    className={`mt-1 text-[11px] leading-relaxed ${
+                      editingUser.twoFactorEnabled
+                        ? "text-amber-700"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    {editingUser.twoFactorEnabled
+                      ? "Check this to disable 2FA and clear secret key for this member if they lost access to Microsoft Authenticator."
+                      : "2FA is currently disabled for this user."}
                   </p>
                 </div>
               )}

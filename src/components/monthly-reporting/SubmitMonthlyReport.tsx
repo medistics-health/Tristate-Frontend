@@ -189,7 +189,8 @@ function SubmitMonthlyReport() {
       activeModule="Monthly Reports"
       activeSubItem={isEditMode ? "Edit Report" : "Submit Report"}
     >
-      <div className="mx-auto flex h-full max-w-3xl flex-col gap-4 overflow-auto">
+      <div className="w-full h-full overflow-y-auto px-4 py-6">
+        <div className="mx-auto flex max-w-3xl flex-col gap-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -355,6 +356,7 @@ function SubmitMonthlyReport() {
             </div>
           </form>
         )}
+        </div>
       </div>
     </AppLayout>
   );

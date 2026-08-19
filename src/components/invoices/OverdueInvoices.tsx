@@ -15,6 +15,11 @@ import {
   Plus,
   Save,
   Trash2,
+  FileText,
+  Building2,
+  Calendar,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -364,7 +369,7 @@ function OverdueInvoicePage() {
         accessorFn: (row) => row.values.invoiceNumber,
         header: () => (
           <div className="flex items-center gap-2">
-            <Circle className="h-3.5 w-3.5 text-slate-400" />
+            <FileText className="h-3.5 w-3.5 text-slate-400" />
             <span>Invoice</span>
           </div>
         ),
@@ -384,7 +389,7 @@ function OverdueInvoicePage() {
         accessorFn: (row) => row.values.practiceName,
         header: () => (
           <div className="flex items-center gap-2">
-            <Circle className="h-3.5 w-3.5 text-slate-400" />
+            <Building2 className="h-3.5 w-3.5 text-slate-400" />
             <span>Practice</span>
           </div>
         ),
@@ -422,7 +427,7 @@ function OverdueInvoicePage() {
         accessorFn: (row) => row.values.dueDate,
         header: () => (
           <div className="flex items-center gap-2">
-            <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+            <Calendar className="h-3.5 w-3.5 text-slate-400" />
             <span>Due Date</span>
           </div>
         ),
@@ -434,7 +439,7 @@ function OverdueInvoicePage() {
         accessorFn: (row) => row.values.status,
         header: () => (
           <div className="flex items-center gap-2">
-            <Circle className="h-3.5 w-3.5 text-slate-400" />
+            <AlertCircle className="h-3.5 w-3.5 text-slate-400" />
             <span>Status</span>
           </div>
         ),
@@ -455,7 +460,7 @@ function OverdueInvoicePage() {
         accessorFn: (row) => row.values.creationDate,
         header: () => (
           <div className="flex items-center gap-2">
-            <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+            <Clock className="h-3.5 w-3.5 text-slate-400" />
             <span>Created</span>
           </div>
         ),

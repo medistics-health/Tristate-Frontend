@@ -157,13 +157,11 @@ function VendorContractPage() {
   const canManageVendors = canOperationsAndFinanceWrite(currentRole);
 
   const [cards, setCards] = useState(initialCards);
-  const [selectedAuditId, setSelectedAuditId] = useState(
-    initialCards[4]?.id ?? "",
-  );
+  const [selectedAuditId, setSelectedAuditId] = useState("");
   const [activeTab, setActiveTab] =
     useState<(typeof detailTabs)[number]["id"]>("home");
   const [hideClosed, setHideClosed] = useState(false);
-  const [showDetailPanel, setShowDetailPanel] = useState(true);
+  const [showDetailPanel, setShowDetailPanel] = useState(false);
 
   const visibleLanes = useMemo(
     () =>
@@ -183,33 +181,7 @@ function VendorContractPage() {
   );
 
   const selectedAudit =
-    cards.find((card) => card.id === selectedAuditId) ??
-    cards.find((card) =>
-      visibleLanes.some((lane) => lane.id === card.status),
-    ) ??
-    null;
-
-  function addAudit(status: VendorContractsStatus) {
-    const nextId = `audit-${cards.length + 1}`;
-    const newCard: VendorContractsCard = {
-      id: nextId,
-      title: "Untitled",
-      status,
-      type: "COMPLIANCE",
-      createdBy: "Siddhi Gajjar",
-      createdAt: "Created now",
-      overallScore: "Overall Score",
-      scoreLabel: "Overall Score",
-      suggestedService: "Suggested Services",
-      lastUpdate: "Apr 8, 2026 2:50 PM",
-      updatedBy: "Siddhi Gajjar",
-      practice: "New Practice",
-    };
-
-    setCards((current) => [newCard, ...current]);
-    setSelectedAuditId(nextId);
-    setShowDetailPanel(true);
-  }
+    cards.find((card) => card.id === selectedAuditId) ?? null;
 
   function sortLanesByCount() {
     setCards((current) =>
@@ -223,23 +195,12 @@ function VendorContractPage() {
     setShowDetailPanel((current) => !current);
   }
 
-  const navbarActions: NavbarAction[] = canManageVendors
-    ? [
-        {
-          label: "New record",
-          icon: <Plus className="h-4 w-4" />,
-          onClick: () => addAudit("scheduled"),
-        },
-      ]
-    : [];
-
   return (
     <AppLayout
       title="Vendors"
       activeModule="Vendors"
       activeSubItem="Vendor Contracts"
       navbarIcon={<LayoutGrid className="h-4 w-4 text-slate-500" />}
-      navbarActions={navbarActions}
     >
       <div className="app-split">
         <div className="app-panel min-w-0 flex-1 overflow-hidden rounded-2xl">
@@ -250,7 +211,7 @@ function VendorContractPage() {
             >
               <LayoutGrid className="h-3.5 w-3.5 text-slate-400" />
               <span>Agreement Pipeline</span>
-              <span className="text-slate-400">� {cards.length}</span>
+              <span className="text-slate-400">. {cards.length}</span>
               <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
             </button>
 

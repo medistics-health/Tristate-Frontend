@@ -130,6 +130,8 @@ function AuditStatusBoard() {
     dealId: string;
     type: string;
     score: string;
+    findings: string;
+    recommendations: string;
   };
 
   const initialFormState: AuditFormState = {
@@ -137,6 +139,8 @@ function AuditStatusBoard() {
     dealId: "",
     type: "COMPLIANCE",
     score: "",
+    findings: "",
+    recommendations: "",
   };
 
   const [editForm, setEditForm] = useState<AuditFormState>(initialFormState);
@@ -210,7 +214,15 @@ function AuditStatusBoard() {
       practiceId: audit.practiceId,
       dealId: audit.dealId || "",
       type: audit.type,
-      score: String(audit.score || ""),
+      score: String(audit.score ?? ""),
+      findings:
+        typeof audit.findings === "string"
+          ? audit.findings
+          : JSON.stringify(audit.findings || {}, null, 2),
+      recommendations:
+        typeof audit.recommendations === "string"
+          ? audit.recommendations
+          : JSON.stringify(audit.recommendations || {}, null, 2),
     };
   }
 
@@ -221,11 +233,26 @@ function AuditStatusBoard() {
   }, [selectedAudit]);
 
   function buildPayload(form: AuditFormState): Partial<AuditBody> {
+    let parsedFindings: unknown = form.findings;
+    let parsedRecommendations: unknown = form.recommendations;
+    try {
+      if (form.findings.trim().startsWith("{") || form.findings.trim().startsWith("[")) {
+        parsedFindings = JSON.parse(form.findings);
+      }
+    } catch (_) {}
+    try {
+      if (form.recommendations.trim().startsWith("{") || form.recommendations.trim().startsWith("[")) {
+        parsedRecommendations = JSON.parse(form.recommendations);
+      }
+    } catch (_) {}
+
     return {
       practiceId: form.practiceId,
       dealId: form.dealId || null,
       type: form.type as AuditBody["type"],
       ...(form.score ? { score: Number.parseFloat(form.score) } : {}),
+      findings: parsedFindings,
+      recommendations: parsedRecommendations,
     };
   }
 
@@ -574,6 +601,40 @@ function AuditStatusBoard() {
                         }
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                         placeholder="0"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Findings
+                      </label>
+                      <textarea
+                        value={editForm.findings}
+                        onChange={(event) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            findings: event.target.value,
+                          }))
+                        }
+                        className="app-control w-full min-h-[100px] rounded-md px-3 py-2 text-[13px]"
+                        placeholder="Enter findings..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Recommendations
+                      </label>
+                      <textarea
+                        value={editForm.recommendations}
+                        onChange={(event) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            recommendations: event.target.value,
+                          }))
+                        }
+                        className="app-control w-full min-h-[100px] rounded-md px-3 py-2 text-[13px]"
+                        placeholder="Enter recommendations..."
                       />
                     </div>
                   </div>

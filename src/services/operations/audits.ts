@@ -50,6 +50,8 @@ export type AuditQueryParams = {
   search?: string;
   type?: string;
   practiceId?: string;
+  dateFrom?: string;
+  dateTo?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 };
@@ -62,6 +64,8 @@ export async function getAuditsView(params?: AuditQueryParams): Promise<AuditVie
     if (params?.search) queryString.set("search", params.search);
     if (params?.type) queryString.set("type", params.type);
     if (params?.practiceId) queryString.set("practiceId", params.practiceId);
+    if (params?.dateFrom) queryString.set("dateFrom", params.dateFrom);
+    if (params?.dateTo) queryString.set("dateTo", params.dateTo);
     if (params?.sortBy) queryString.set("sortBy", params.sortBy);
     if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 

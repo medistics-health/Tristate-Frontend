@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, AlertCircle, CheckCircle2, Clock, CalendarDays } from "lucide-react";
 import toast from "react-hot-toast";
 import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
@@ -41,7 +41,6 @@ export default function AccountingSyncDashboard() {
   }
 
   useEffect(() => {
-    loadLogs(1);
     loadCompanies();
 
     const handleMessage = (event: MessageEvent) => {
@@ -54,24 +53,24 @@ export default function AccountingSyncDashboard() {
     return () => window.removeEventListener('message', handleMessage);
   }, []); // Run once on mount
 
-  // Check status and refresh logs ONLY when company selection changes
+  // Check status and refresh logs when company selection changes
   useEffect(() => {
     if (selectedCompanyId) {
       checkConnectionStatus(selectedCompanyId);
-      loadLogs(1); // Refresh logs for the newly selected company
+    } else {
+      setConnectionStatus(null);
     }
+    loadLogs(1);
   }, [selectedCompanyId]);
 
   async function loadCompanies() {
     try {
       const data = await getAllCompanies();
-      setCompanies(data);
-      // Only auto-select the first one if we don't have a selection yet
-      if (data.length > 0 && !selectedCompanyId) {
-        setSelectedCompanyId(data[0].id);
-      }
+      const companyList = Array.isArray(data) ? data : [];
+      setCompanies(companyList);
     } catch (error) {
-      toast.error("Failed to load companies.");
+      console.error("Failed to load companies:", error);
+      setCompanies([]);
     }
   }
 
@@ -142,6 +141,11 @@ export default function AccountingSyncDashboard() {
     }
     await loadLogs(pagination.page);
   }
+
+  const failedCount = useMemo(
+    () => logs.filter((l) => l.status === "FAILED").length,
+    [logs],
+  );
 
   function getStatusStyle(status: string) {
     switch (status) {

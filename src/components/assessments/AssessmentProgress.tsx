@@ -463,7 +463,17 @@ function AssessmentProgressPage() {
         <div className="absolute right-4 top-10 z-10 w-[205px] rounded-xl border border-[#ece8e1] bg-white p-2 shadow-[0_8px_32px_rgba(15,23,42,0.12)]">
           <button
             type="button"
-            onClick={() => setShowOptionsMenu(false)}
+            onClick={() => {
+              setShowOptionsMenu(false);
+              const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(selectedAssessment, null, 2));
+              const downloadAnchor = document.createElement('a');
+              downloadAnchor.setAttribute("href", dataStr);
+              downloadAnchor.setAttribute("download", `assessment_${selectedAssessment.id}.json`);
+              document.body.appendChild(downloadAnchor);
+              downloadAnchor.click();
+              downloadAnchor.remove();
+              toast.success("Assessment exported");
+            }}
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] text-slate-500 hover:bg-[#f7f5f1]"
           >
             <ExternalLink className="h-4 w-4" />

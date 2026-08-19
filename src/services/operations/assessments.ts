@@ -70,6 +70,7 @@ export type AssessmentQueryParams = {
   page?: number;
   limit?: number;
   search?: string;
+  practiceId?: string;
   sortOrder?: "asc" | "desc";
 };
 
@@ -79,6 +80,7 @@ export async function getAssessmentsView(params?: AssessmentQueryParams): Promis
     if (params?.page) queryString.set("page", String(params.page));
     if (params?.limit) queryString.set("limit", String(params.limit));
     if (params?.search) queryString.set("search", params.search);
+    if (params?.practiceId) queryString.set("practiceId", params.practiceId);
     if (params?.sortOrder) queryString.set("sortOrder", params.sortOrder);
 
     const url = queryString.toString() ? `${LIST}?${queryString.toString()}` : LIST;

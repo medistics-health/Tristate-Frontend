@@ -173,11 +173,17 @@ function AuditListView({
   type AuditFilters = {
     search: string;
     type: string;
+    practiceId: string;
+    dateFrom: string;
+    dateTo: string;
   };
 
   const defaultFilters: AuditFilters = {
     search: "",
     type: "",
+    practiceId: practiceId || "",
+    dateFrom: "",
+    dateTo: "",
   };
 
   const [filters, setFilters] = useState<AuditFilters>(defaultFilters);
@@ -188,6 +194,12 @@ function AuditListView({
   ]);
 
   const activeSort = sorting[0];
+
+  useEffect(() => {
+    getAllPractices()
+      .then(setPractices)
+      .catch((err) => console.error("Failed to load practices:", err));
+  }, []);
 
   const handleOpenFilterModal = () => {
     setDraftFilters(filters);
@@ -205,7 +217,12 @@ function AuditListView({
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
-  const activeFilterCount = [filters.type].filter(Boolean).length;
+  const activeFilterCount = [
+    filters.type,
+    filters.practiceId,
+    filters.dateFrom,
+    filters.dateTo,
+  ].filter(Boolean).length;
 
   const activeFilterChips = useMemo(() => {
     const chips: ActiveFilterChip[] = [];
@@ -221,8 +238,46 @@ function AuditListView({
         },
       });
     }
+    if (filters.practiceId) {
+      chips.push({
+        key: "practiceId",
+        label: "Practice",
+        displayValue:
+          practices.find((p) => p.id === filters.practiceId)?.name ||
+          filters.practiceId,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, practiceId: "" }));
+          setDraftFilters((curr) => ({ ...curr, practiceId: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.dateFrom) {
+      chips.push({
+        key: "dateFrom",
+        label: "From",
+        displayValue: filters.dateFrom,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dateFrom: "" }));
+          setDraftFilters((curr) => ({ ...curr, dateFrom: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.dateTo) {
+      chips.push({
+        key: "dateTo",
+        label: "To",
+        displayValue: filters.dateTo,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dateTo: "" }));
+          setDraftFilters((curr) => ({ ...curr, dateTo: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
     return chips;
-  }, [filters.type]);
+  }, [filters, practices]);
 
   const table = useReactTable({
     data: rows,
@@ -245,7 +300,9 @@ function AuditListView({
       };
       if (searchInput.trim()) params.search = searchInput.trim();
       if (filters.type) params.type = filters.type;
-      if (showPracticeFilter && practiceId) params.practiceId = practiceId;
+      if (filters.practiceId) params.practiceId = filters.practiceId;
+      if (filters.dateFrom) params.dateFrom = filters.dateFrom;
+      if (filters.dateTo) params.dateTo = filters.dateTo;
 
       const data = await getAuditsView(params as any);
       setRows(data.rows);
@@ -463,6 +520,22 @@ function AuditListView({
     <>
       <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Practice
+        </span>
+        <Select
+          value={draftFilters.practiceId}
+          onChange={(val) =>
+            setDraftFilters((prev) => ({ ...prev, practiceId: val }))
+          }
+          options={[
+            { label: "All Practices", value: "" },
+            ...practices.map((p) => ({ label: p.name, value: p.id })),
+          ]}
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
           Audit Type
         </span>
         <Select
@@ -476,6 +549,35 @@ function AuditListView({
           ]}
         />
       </label>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+            Created From
+          </span>
+          <input
+            type="date"
+            value={draftFilters.dateFrom}
+            onChange={(e) =>
+              setDraftFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
+            }
+            className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+            Created To
+          </span>
+          <input
+            type="date"
+            value={draftFilters.dateTo}
+            onChange={(e) =>
+              setDraftFilters((prev) => ({ ...prev, dateTo: e.target.value }))
+            }
+            className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
+          />
+        </label>
+      </div>
     </>
   );
 

@@ -1576,6 +1576,7 @@ function AllInvoicePage() {
       const headers = [
         "Invoice Number",
         "Practice",
+        "Net Amount",
         "Net Services",
         "Gross Invoice Total",
         "Processing Fee",
@@ -1611,6 +1612,7 @@ function AllInvoicePage() {
         rowToCsvFields: (r) => [
           r.values.invoiceNumber || r.id,
           r.values.practiceName,
+          r.values.netServices,
           r.values.netServices,
           r.values.grossInvoiceTotal,
           r.values.processingFee,

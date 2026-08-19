@@ -241,6 +241,13 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
   const sortDesc = sorting[0]?.desc ?? true;
 
   useEffect(() => {
+    setFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
+    setSearchInput("");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, [viewMode]);
+
+  useEffect(() => {
     async function loadData() {
       try {
         setIsLoading(true);
@@ -743,7 +750,7 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
             filterModalTitle="Filter Line Items"
             filterFields={filterFieldsModal}
             onExport={exportCsv}
-            onRefresh={() => setPagination((prev) => ({ ...prev }))}
+            onRefresh={() => setPagination((prev) => ({ ...prev, page: prev.page }))}
             isLoading={isLoading}
             isSaving={isSaving}
             isDeleting={isDeleting}

@@ -61,8 +61,6 @@ const ALL_NAV_ROUTES: NavRouteItem[] = [
   { section: "Onboarding", subSection: "Pending Submissions", to: "/onboarding/scope-list", icon: <ClipboardCheck className="h-4 w-4" /> },
 
   { section: "Services", subSection: "All Services", to: "/service/all-services", icon: <Briefcase className="h-4 w-4" /> },
-  { section: "Services", subSection: "Service Catalog", to: "/service/service-catalogs", icon: <Briefcase className="h-4 w-4" /> },
-  { section: "Services", subSection: "Active Services", to: "/service/active-services", icon: <Briefcase className="h-4 w-4" /> },
 
   { section: "Pricing Engine", subSection: "Pricing Engine", to: "/pricing/rate-finalization", icon: <Calculator className="h-4 w-4" /> },
 
@@ -70,7 +68,6 @@ const ALL_NAV_ROUTES: NavRouteItem[] = [
   { section: "Billing", subSection: "Billing Status Board", to: "/billing/status-board", icon: <Receipt className="h-4 w-4" /> },
 
   { section: "Invoices", subSection: "All Invoices", to: "/invoice/all-invoices", icon: <FileText className="h-4 w-4" /> },
-  { section: "Invoices", subSection: "Invoice Status Board", to: "/invoice/status-board", icon: <FileText className="h-4 w-4" /> },
   { section: "Invoices", subSection: "Overdue Invoices", to: "/invoice/overdue", icon: <FileText className="h-4 w-4" /> },
 
   { section: "Invoice Line Items", subSection: "Client Invoice Line Items", to: "/invoice/client-invoice-line-items", icon: <ListOrdered className="h-4 w-4" /> },
@@ -82,7 +79,6 @@ const ALL_NAV_ROUTES: NavRouteItem[] = [
   { section: "Purchase Orders", subSection: "Unpaid POs", to: "/purchase-orders/unpaid-pos", icon: <ShoppingCart className="h-4 w-4" /> },
 
   { section: "Vendors", subSection: "All Vendors", to: "/vendors/all-vendors", icon: <Truck className="h-4 w-4" /> },
-  { section: "Vendors", subSection: "Vendor Contracts", to: "/vendors/contracts", icon: <Truck className="h-4 w-4" /> },
   { section: "Vendors", subSection: "Vendor Payables", to: "/vendors/payables", icon: <Truck className="h-4 w-4" /> },
 
   { section: "Integrations", subSection: "Accounting Sync", to: "/integrations/accounting-sync", icon: <Zap className="h-4 w-4" /> },
@@ -98,7 +94,6 @@ const ALL_NAV_ROUTES: NavRouteItem[] = [
   { section: "Assessments", subSection: "Assessments Progress", to: "/assessment/progress", icon: <ListChecks className="h-4 w-4" /> },
 
   { section: "Audits", subSection: "All Practice Audits", to: "/audit/all-practice-audits", icon: <Shield className="h-4 w-4" /> },
-  { section: "Audits", subSection: "All Audits", to: "/audit/all-audits", icon: <Shield className="h-4 w-4" /> },
   { section: "Audits", subSection: "Audit Status Board", to: "/audit/status-board", icon: <Shield className="h-4 w-4" /> },
 
   { section: "Credentialing", subSection: "Dashboard", to: "/credentialing/dashboard", icon: <Stethoscope className="h-4 w-4" /> },
