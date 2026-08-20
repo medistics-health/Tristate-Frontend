@@ -255,6 +255,19 @@ const sidebarSteps: SidebarItem[] = [
     ],
   },
   {
+    label: "Onboarding Projects",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+    items: [
+      { label: "Dashboard / Projects", to: "/onboarding-projects/projects" },
+      { label: "Workstreams", to: "/onboarding-projects/workstreams" },
+      { label: "Tasks Tracker", to: "/onboarding-projects/tasks" },
+      { label: "Milestones", to: "/onboarding-projects/milestones" },
+      { label: "Risk Register", to: "/onboarding-projects/risks" },
+      { label: "Action Items", to: "/onboarding-projects/action-items" },
+      { label: "Task Templates", to: "/onboarding-projects/templates" },
+    ],
+  },
+  {
     label: "Settings",
     requiredRoles: [...MODULE_ACCESS.SETTINGS],
     items: [

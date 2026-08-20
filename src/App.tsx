@@ -61,6 +61,13 @@ import { BUSINESS_WRITE_ROLES, MODULE_ACCESS } from "./utils/auth";
 import CredentialingDashboardPage from "./components/credentialing/CredentialingDashboard";
 import CredentialingListPage from "./components/credentialing/CredentialingList";
 import CommunicationPage from "./components/communication/Communication";
+import OnboardingProjectsPage from "./components/onboarding-projects/OnboardingProjectsPage";
+import OnboardingWorkstreamsPage from "./components/onboarding-projects/OnboardingWorkstreamsPage";
+import OnboardingTasksPage from "./components/onboarding-projects/OnboardingTasksPage";
+import OnboardingMilestonesPage from "./components/onboarding-projects/OnboardingMilestonesPage";
+import OnboardingRisksPage from "./components/onboarding-projects/OnboardingRisksPage";
+import OnboardingActionItemsPage from "./components/onboarding-projects/OnboardingActionItemsPage";
+import OnboardingTemplatesPage from "./components/onboarding-projects/OnboardingTemplatesPage";
 
 function App() {
   function ModuleRoute({
@@ -153,6 +160,69 @@ function App() {
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <AllScopeOnboardings />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding-projects/projects"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <OnboardingProjectsPage />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding-projects/workstreams"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <OnboardingWorkstreamsPage />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding-projects/tasks"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <OnboardingTasksPage />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding-projects/milestones"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <OnboardingMilestonesPage />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding-projects/risks"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <OnboardingRisksPage />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding-projects/action-items"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <OnboardingActionItemsPage />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding-projects/templates"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <OnboardingTemplatesPage />
           </ModuleRoute>
         }
       />
