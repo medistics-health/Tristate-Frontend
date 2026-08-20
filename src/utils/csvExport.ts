@@ -1,6 +1,22 @@
 /**
+ * Formats a Date object or date string into standard US Date format:
+ * MM/DD/YYYY (e.g. "08/18/2026")
+ */
+export function formatUsDate(dateInput?: string | Date | number | null): string {
+  if (!dateInput) return "";
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return String(dateInput);
+
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const year = d.getFullYear();
+
+  return `${month}/${day}/${year}`;
+}
+
+/**
  * Formats a Date object or date string into standard US Date & Time format:
- * MM-DD-YYYY hh:mm:ss AM/PM (e.g. "08-18-2026 12:35:42 PM")
+ * MM/DD/YYYY hh:mm:ss AM/PM (e.g. "08/18/2026 12:35:42 PM")
  */
 export function formatUsDateTime(dateInput?: string | Date | number | null): string {
   if (!dateInput) return "";
@@ -19,7 +35,7 @@ export function formatUsDateTime(dateInput?: string | Date | number | null): str
   hours = hours ? hours : 12; // hour '0' should be '12'
   const formattedHours = String(hours).padStart(2, "0");
 
-  return `${month}-${day}-${year} ${formattedHours}:${minutes}:${seconds} ${ampm}`;
+  return `${month}/${day}/${year} ${formattedHours}:${minutes}:${seconds} ${ampm}`;
 }
 
 /**

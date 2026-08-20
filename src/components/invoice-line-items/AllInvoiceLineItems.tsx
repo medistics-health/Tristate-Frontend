@@ -750,7 +750,36 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
             filterModalTitle="Filter Line Items"
             filterFields={filterFieldsModal}
             onExport={exportCsv}
-            onRefresh={() => setPagination((prev) => ({ ...prev, page: prev.page }))}
+            onRefresh={async () => {
+              try {
+                setIsLoading(true);
+                setError(null);
+                const data = await getInvoiceLineItemsView({
+                  page: pagination.page,
+                  limit: pagination.limit,
+                  invoiceId: filters.invoiceId || undefined,
+                  serviceId: filters.serviceId || undefined,
+                  dateFrom: filters.dateFrom || undefined,
+                  dateTo: filters.dateTo || undefined,
+                  search: searchInput.trim() || undefined,
+                });
+                setRows(data.rows);
+                setPagination((prev) => ({
+                  ...prev,
+                  total: data.pagination.total,
+                  totalPages: data.pagination.totalPages,
+                }));
+              } catch (err) {
+                const message =
+                  err instanceof Error
+                    ? err.message
+                    : "Failed to load invoice line items";
+                setError(message);
+                toast.error(message);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
             isLoading={isLoading}
             isSaving={isSaving}
             isDeleting={isDeleting}

@@ -85,13 +85,17 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
   const completedSubmissions = submissions.filter(
     (s) => s.status === "completed",
   ).length;
-  const totalSubmissions = submissions.length;
-  const signingStatus =
-    totalSubmissions > 0
-      ? completedSubmissions === totalSubmissions
-        ? `${completedSubmissions}/${totalSubmissions} signed`
-        : `${totalSubmissions - completedSubmissions}/${totalSubmissions} pending`
-      : "";
+  const latestSubmission = agreement.docusealSubmissions?.[0];
+  const submissionStatus = latestSubmission?.status;
+
+  let signingStatus = "Not Sent";
+  if (submissionStatus === "completed") {
+    signingStatus = "Completed";
+  } else if (submissionStatus === "pending") {
+    signingStatus = "Pending Signature";
+  } else if (agreement.docusealId) {
+    signingStatus = "Template Created";
+  }
 
   return {
     id: agreement.id,
@@ -105,18 +109,12 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
       practiceId: agreement.practiceId || "",
       dealName: agreement.deal?.name || "",
       dealId: agreement.dealId || "",
-      effectiveDate: agreement.effectiveDate
-        ? new Date(agreement.effectiveDate).toLocaleDateString()
-        : "",
-      renewalDate: agreement.renewalDate
-        ? new Date(agreement.renewalDate).toLocaleDateString()
-        : "",
-      terminationDate: agreement.terminationDate
-        ? new Date(agreement.terminationDate).toLocaleDateString()
-        : "",
+      effectiveDate: formatUsDate(agreement.effectiveDate),
+      renewalDate: formatUsDate(agreement.renewalDate),
+      terminationDate: formatUsDate(agreement.terminationDate),
       value: agreement.value?.toString() || "",
-      creationDate: new Date(agreement.createdAt).toLocaleString(),
-      lastUpdate: new Date(agreement.updatedAt).toLocaleString(),
+      creationDate: formatUsDateTime(agreement.createdAt),
+      lastUpdate: formatUsDateTime(agreement.updatedAt),
       createdAt: agreement.createdAt,
       updatedAt: agreement.updatedAt,
       docusealId: agreement.docusealId?.toString() || "",

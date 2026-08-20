@@ -1,6 +1,7 @@
 import axios from "axios";
 import { apiConnector } from "../apiConnector";
 import { invoiceEndpoints } from "../apis";
+import { formatUsDate, formatUsDateTime } from "../../utils/csvExport";
 
 const { LIST, CREATE, GET, UPDATE, DELETE } = invoiceEndpoints;
 
@@ -176,7 +177,7 @@ function formatDateTime(value?: string | null) {
     return "-";
   }
 
-  return date.toLocaleString();
+  return formatUsDateTime(date);
 }
 
 function formatDate(value?: string | null) {
@@ -189,7 +190,7 @@ function formatDate(value?: string | null) {
     return "-";
   }
 
-  return date.toLocaleDateString();
+  return formatUsDate(date);
 }
 
 function buildInvoiceLabel(

@@ -1609,19 +1609,32 @@ function AllInvoicePage() {
             totalPages: res.pagination.totalPages,
           };
         },
-        rowToCsvFields: (r) => [
-          r.values.invoiceNumber || r.id,
-          r.values.practiceName,
-          r.values.netServices,
-          r.values.netServices,
-          r.values.grossInvoiceTotal,
-          r.values.processingFee,
-          r.values.companyAbsorbed,
-          r.values.paymentMethod,
-          r.values.status,
-          r.values.dueDate,
-          formatUsDateTime(r.values.creationDate),
-        ],
+        rowToCsvFields: (r) => {
+          const vals = r.values as any;
+          const netServicesNum = parseCurrencyToNumber(vals.netServices);
+          const netAmountRaw = vals.netAmount;
+          const netAmountNum = parseCurrencyToNumber(netAmountRaw);
+          let calculatedNetAmount: string | number = "-";
+          if (netServicesNum === 0) {
+            calculatedNetAmount = formatCurrency(0);
+          } else if (netAmountRaw !== undefined && netAmountRaw !== null && String(netAmountRaw).trim() !== "") {
+            calculatedNetAmount = formatCurrency(netAmountNum);
+          }
+
+          return [
+            vals.invoiceNumber || r.id,
+            vals.practiceName || "-",
+            calculatedNetAmount,
+            vals.netServices ?? "-",
+            vals.grossInvoiceTotal ?? "-",
+            vals.processingFee ?? "-",
+            vals.companyAbsorbed ?? "-",
+            vals.paymentMethod || "-",
+            vals.status || "-",
+            vals.dueDate || "-",
+            formatUsDateTime(vals.creationDate),
+          ];
+        },
       });
       toast.success("CSV Exported successfully", { id: "export-csv" });
     } catch (e) {

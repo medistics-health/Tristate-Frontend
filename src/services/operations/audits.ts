@@ -16,6 +16,8 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
+import { formatUsDateTime } from "../../utils/csvExport";
+
 function auditToRow(audit: Audit): AuditRow {
   return {
     id: audit.id,
@@ -29,8 +31,8 @@ function auditToRow(audit: Audit): AuditRow {
       dealId: audit.dealId || "",
       findings: audit.findings,
       recommendations: audit.recommendations,
-      creationDate: new Date(audit.createdAt).toLocaleString(),
-      lastUpdate: new Date(audit.updatedAt).toLocaleString(),
+      creationDate: formatUsDateTime(audit.createdAt),
+      lastUpdate: formatUsDateTime(audit.updatedAt),
     },
   };
 }

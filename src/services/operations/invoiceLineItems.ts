@@ -3,6 +3,7 @@ import { apiConnector } from "../apiConnector";
 import { invoiceEndpoints } from "../apis";
 import type { Invoice } from "./invoices";
 import type { Service } from "../../components/services/types";
+import { formatUsDateTime } from "../../utils/csvExport";
 
 const LINE_ITEMS_LIST = `${invoiceEndpoints.LIST}/line-items`;
 const LINE_ITEMS_CREATE = `${invoiceEndpoints.CREATE}/line-items`;
@@ -141,8 +142,8 @@ function lineItemToRow(lineItem: InvoiceLineItem): InvoiceLineItemRow {
       companyFeeDeductionAmount: formatCurrency(
         lineItem.companyFeeDeductionAmount ?? 0,
       ),
-      creationDate: new Date(lineItem.createdAt).toLocaleString(),
-      lastUpdate: new Date(lineItem.updatedAt).toLocaleString(),
+      creationDate: formatUsDateTime(lineItem.createdAt),
+      lastUpdate: formatUsDateTime(lineItem.updatedAt),
     },
   };
 }

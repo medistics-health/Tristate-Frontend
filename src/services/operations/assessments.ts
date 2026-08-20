@@ -51,6 +51,8 @@ export type AssessmentViewData = {
   };
 };
 
+import { formatUsDateTime } from "../../utils/csvExport";
+
 function assessmentToRow(assessment: Assessment): AssessmentRow {
   return {
     id: assessment.id,
@@ -60,8 +62,8 @@ function assessmentToRow(assessment: Assessment): AssessmentRow {
       practiceName: assessment.practice?.name || "",
       score: assessment.score ?? "-",
       responses: assessment.responses,
-      creationDate: new Date(assessment.createdAt).toLocaleString(),
-      lastUpdate: new Date(assessment.updatedAt).toLocaleString(),
+      creationDate: formatUsDateTime(assessment.createdAt),
+      lastUpdate: formatUsDateTime(assessment.updatedAt),
     },
   };
 }
