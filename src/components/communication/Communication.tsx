@@ -61,14 +61,6 @@ function getFilterSignature(filters: SentEmailFilters) {
   });
 }
 
-function looksLikePageSizePlaceholderTotal(
-  total: number,
-  pageSize: number,
-  rowCount: number,
-) {
-  return total === pageSize + 1 || (rowCount === pageSize && total === rowCount + 1);
-}
-
 export default function CommunicationPage() {
   const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
   const [searchParams] = useSearchParams();
@@ -140,11 +132,15 @@ export default function CommunicationPage() {
         const pageLimit = filters.limit && filters.limit > 0 ? filters.limit : emails.length;
         const previousTotal = totalsByFilterRef.current.get(filterSignature);
         const incomingTotal = data.pagination.total;
-        const total =
-          previousTotal !== undefined &&
-          looksLikePageSizePlaceholderTotal(incomingTotal, pageLimit, emails.length)
-            ? previousTotal
-            : incomingTotal;
+        const looksTruncated =
+          emails.length < pageLimit && incomingTotal === emails.length;
+        const total = Math.max(
+          incomingTotal,
+          emails.length,
+          looksTruncated || (previousTotal !== undefined && incomingTotal < previousTotal)
+            ? previousTotal ?? 0
+            : 0,
+        );
         totalsByFilterRef.current.set(filterSignature, total);
         setEmails(emails);
         setTotalEmails(total);
@@ -268,6 +264,7 @@ export default function CommunicationPage() {
 
   async function refreshCurrentResults() {
     if (hasInvalidDateRange) return;
+    totalsByFilterRef.current.delete(getFilterSignature(activeFilters));
     await loadEmails({
       filters: {
         ...activeFilters,
