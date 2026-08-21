@@ -249,6 +249,15 @@ export const mercuryEndpoints = {
   SYNC: BACKEND_URL + "/api/v1/mercury/sync",
 };
 
+export const onboardingWorkstreamEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/onboarding-workstreams",
+  LIST: BACKEND_URL + "/api/v1/onboarding-workstreams",
+  CREATE: BACKEND_URL + "/api/v1/onboarding-workstreams",
+  GET: (id: string) => BACKEND_URL + `/api/v1/onboarding-workstreams/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/onboarding-workstreams/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/onboarding-workstreams/${id}`,
+};
+
 export const communicationEndpoints = {
   SENT_EMAILS: BACKEND_URL + "/api/v1/emails/sent",
   HISTORY_BY_PERSON: (personId: string) =>

@@ -7,6 +7,7 @@ import type {
   PracticeRow,
   PracticeViewData,
 } from "../../components/practices/types";
+import { formatPracticeServiceLine } from "../../components/practices/serviceLines";
 
 export type { Practice, PracticeBody, PracticeRow, PracticeViewData };
 
@@ -35,6 +36,10 @@ function practiceToRow(practice: Practice): PracticeRow {
       status: practice.status,
       source: practice.source,
       bucket: practice.bucket.join(", "),
+      serviceLines: (practice.serviceLines || [])
+        .map((line) => formatPracticeServiceLine(line))
+        .join(", "),
+      serviceLineValues: practice.serviceLines || [],
       companyId: practice.companyId || "",
       companyName: practice.company?.name || "",
       taxIdId: practice.taxIdId || "",
@@ -73,6 +78,7 @@ const fields = [
   { id: "npi", label: "NPI", type: "text" as const, visible: true },
   { id: "status", label: "Status", type: "text" as const, visible: true },
   { id: "source", label: "Source", type: "text" as const, visible: true },
+  { id: "serviceLines", label: "Service Line", type: "text" as const, visible: true },
   { id: "bucket", label: "Bucket", type: "text" as const, visible: false },
   { id: "companyName", label: "Company", type: "text" as const, visible: true },
   { id: "taxIdNumber", label: "Tax ID", type: "text" as const, visible: false },

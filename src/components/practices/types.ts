@@ -1,3 +1,5 @@
+import type { PracticeServiceLine } from "./serviceLines";
+
 export type PracticeStatus = "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED";
 
 export type PracticeSource = "DIRECT" | "REFERRAL" | "CHANNEL_PARTNER" | "OUTBOUND" | "INBOUND";
@@ -18,6 +20,7 @@ export type PracticeBody = {
   status: PracticeStatus;
   source: PracticeSource;
   bucket: string[];
+  serviceLines?: PracticeServiceLine[];
   companyId?: string;
   taxIdId?: string;
   billingPaymentMethod?: "ACH" | "CREDIT_CARD";
@@ -47,6 +50,7 @@ export type Practice = {
   status: PracticeStatus;
   source: PracticeSource;
   bucket: string[];
+  serviceLines?: PracticeServiceLine[];
   companyId?: string;
   taxIdId?: string;
   billingPaymentMethod?: "ACH" | "CREDIT_CARD" | null;

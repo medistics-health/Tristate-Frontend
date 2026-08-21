@@ -34,6 +34,7 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import MultiSelect from "../shared/MultiSelect";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import type {
   PracticeBody,
@@ -44,6 +45,11 @@ import type {
   PracticeViewData,
   Person,
 } from "./types";
+import {
+  PRACTICE_SERVICE_LINE_OPTIONS,
+  parsePracticeServiceLines,
+  type PracticeServiceLine,
+} from "./serviceLines";
 import {
   createPracticeApi,
   getPracticesView,
@@ -158,6 +164,7 @@ type PracticeFormData = {
   status: string;
   source: string;
   bucket: string;
+  serviceLines: PracticeServiceLine[];
   companyId: string;
   taxIdId: string;
   billingPaymentMethod: "ACH" | "CREDIT_CARD" | "";
@@ -172,6 +179,7 @@ const initialFormData: PracticeFormData = {
   status: "LEAD",
   source: "DIRECT",
   bucket: "",
+  serviceLines: [],
   companyId: "",
   taxIdId: "",
   billingPaymentMethod: "",
@@ -449,6 +457,10 @@ export default function AllPracticePage() {
         bucket: Array.isArray(values.bucket)
           ? values.bucket.join(", ")
           : String(values.bucket || ""),
+        serviceLines: parsePracticeServiceLines(
+          (values as Record<string, unknown>).serviceLineValues ??
+            values.serviceLines,
+        ),
         companyId: String(values.companyId || ""),
         taxIdId: String(values.taxIdId || ""),
         billingPaymentMethod:
@@ -804,6 +816,27 @@ export default function AllPracticePage() {
     });
   }
 
+  function renderServiceLineSelect() {
+    return (
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Service Line
+        </label>
+        <MultiSelect
+          value={formData.serviceLines}
+          onChange={(selected) =>
+            setFormData((prev) => ({
+              ...prev,
+              serviceLines: parsePracticeServiceLines(selected),
+            }))
+          }
+          options={[...PRACTICE_SERVICE_LINE_OPTIONS]}
+          placeholder="Select service lines"
+        />
+      </div>
+    );
+  }
+
   async function handleCreatePractice(e: React.FormEvent) {
     e.preventDefault();
     if (!canWritePractices) {
@@ -840,6 +873,7 @@ export default function AllPracticePage() {
               .map((s) => s.trim())
               .filter(Boolean)
           : [],
+        serviceLines: formData.serviceLines,
         companyId: formData.companyId?.trim() || undefined,
         taxIdId: formData.taxIdId?.trim() || undefined,
         billingPaymentMethod: formData.billingPaymentMethod,
@@ -1006,6 +1040,7 @@ export default function AllPracticePage() {
                 .map((s) => s.trim())
                 .filter(Boolean)
             : [],
+          serviceLines: formData.serviceLines,
           companyId: formData.companyId?.trim() || undefined,
           taxIdId: formData.taxIdId?.trim() || undefined,
           billingPaymentMethod: formData.billingPaymentMethod,
@@ -1049,6 +1084,7 @@ export default function AllPracticePage() {
               .map((s) => s.trim())
               .filter(Boolean)
           : [],
+        serviceLines: formData.serviceLines,
         companyId: formData.companyId?.trim() || undefined,
         taxIdId: formData.taxIdId?.trim() || undefined,
         billingPaymentMethod: formData.billingPaymentMethod,
@@ -1693,6 +1729,8 @@ export default function AllPracticePage() {
             />
           </div>
         </div>
+
+        {renderServiceLineSelect()}
 
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
@@ -2346,6 +2384,8 @@ export default function AllPracticePage() {
                     />
                   </div>
                 </div>
+
+                {renderServiceLineSelect()}
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">

@@ -62,8 +62,14 @@ import type {
   PracticeSource,
   Practice,
 } from "../practices/types";
+import {
+  PRACTICE_SERVICE_LINE_OPTIONS,
+  parsePracticeServiceLines,
+  type PracticeServiceLine,
+} from "../practices/serviceLines";
 import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import MultiSelect from "../shared/MultiSelect";
 import AddressAutocomplete, {
   type AddressData,
 } from "../shared/AddressAutocomplete";
@@ -137,6 +143,7 @@ type LeadFormState = {
 
   practiceSource: PracticeSource;
   practiceBucket: string;
+  practiceServiceLines: PracticeServiceLine[];
   practiceTaxIdKey: string;
   billingPaymentMethod: "ACH" | "CREDIT_CARD" | "";
   credentialingChargeAmount: string;
@@ -197,6 +204,7 @@ const initialFormState: LeadFormState = {
 
   practiceSource: "DIRECT",
   practiceBucket: "",
+  practiceServiceLines: [],
   practiceTaxIdKey: "",
   billingPaymentMethod: "",
   credentialingChargeAmount: "",
@@ -552,6 +560,7 @@ function CreateLeadPage() {
             .split(",")
             .map((item) => item.trim())
             .filter(Boolean),
+          serviceLines: form.practiceServiceLines,
           companyId: companyId || undefined,
           ...(validGroupNpis.length > 0 && {
             groupNpis: validGroupNpis.map((g) => ({
@@ -2278,6 +2287,22 @@ function CreateLeadPage() {
                           placeholder="e.g. Radiology"
                         />
                       </label>
+                    </div>
+                    <div className="md:col-span-2">
+                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                        Service Line
+                      </span>
+                      <MultiSelect
+                        value={form.practiceServiceLines}
+                        onChange={(selected) =>
+                          updateField(
+                            "practiceServiceLines",
+                            parsePracticeServiceLines(selected),
+                          )
+                        }
+                        options={[...PRACTICE_SERVICE_LINE_OPTIONS]}
+                        placeholder="Select service lines"
+                      />
                     </div>
                     <div className="md:col-span-2 border-t border-[#e8e4dc] pt-3">
                       <div className="mb-2 flex items-center justify-between">
