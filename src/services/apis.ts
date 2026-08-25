@@ -267,6 +267,15 @@ export const onboardingRiskEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/onboarding-risks/${id}`,
 };
 
+export const onboardingActionItemEndpoints = {
+  BASE: BACKEND_URL + "/api/v1/onboarding-action-items",
+  LIST: BACKEND_URL + "/api/v1/onboarding-action-items",
+  CREATE: BACKEND_URL + "/api/v1/onboarding-action-items",
+  GET: (id: string) => BACKEND_URL + `/api/v1/onboarding-action-items/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/onboarding-action-items/${id}`,
+  DELETE: (id: string) => BACKEND_URL + `/api/v1/onboarding-action-items/${id}`,
+};
+
 export const communicationEndpoints = {
   SENT_EMAILS: BACKEND_URL + "/api/v1/emails/sent",
   HISTORY_BY_PERSON: (personId: string) =>
