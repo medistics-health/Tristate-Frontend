@@ -115,6 +115,16 @@ function normalizeGroupNpiStatus(value: unknown): string {
   return value === "INACTIVE" ? "INACTIVE" : "ACTIVE";
 }
 
+function toDateInput(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function buildFieldValuesByTemplateId(
   agreement: Agreement,
 ): Record<string, Record<string, string>> {
@@ -172,6 +182,7 @@ type PracticeFormData = {
   credentialingChargeAmount: string;
   processingFeeConfig: ProcessingFeeSettings;
   groupNpis: GroupNpiFormEntry[];
+  goLiveTarget: string;
 };
 
 const initialFormData: PracticeFormData = {
@@ -187,6 +198,7 @@ const initialFormData: PracticeFormData = {
   credentialingChargeAmount: "",
   processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(),
   groupNpis: [],
+  goLiveTarget: "",
 };
 
 const statusOptions = ["LEAD", "ACTIVE", "INACTIVE", "CLOSED"];
@@ -479,6 +491,9 @@ export default function AllPracticePage() {
           values.processingFeeConfig || systemSettings,
         ),
         groupNpis: existingGroupNpis,
+        goLiveTarget: toDateInput(
+          String((values as Record<string, unknown>).goLiveTarget || ""),
+        ),
       });
 
       const companyId = String(values.companyId || "");
@@ -909,6 +924,7 @@ export default function AllPracticePage() {
             ? Number(formData.credentialingChargeAmount)
             : undefined,
         processingFeeConfig: formData.processingFeeConfig,
+        goLiveTarget: formData.goLiveTarget || undefined,
       };
 
       const result = await createPracticeApi(practiceData);
@@ -1075,6 +1091,7 @@ export default function AllPracticePage() {
               ? Number(formData.credentialingChargeAmount)
               : undefined,
           processingFeeConfig: formData.processingFeeConfig,
+          goLiveTarget: formData.goLiveTarget || undefined,
         };
 
         setActivationPerson(eligiblePerson);
@@ -1118,6 +1135,7 @@ export default function AllPracticePage() {
             ? Number(formData.credentialingChargeAmount)
             : undefined,
         processingFeeConfig: formData.processingFeeConfig,
+        goLiveTarget: formData.goLiveTarget || undefined,
       };
 
       await updatePracticeApi(selectedRow.id, practiceData);
@@ -1698,6 +1716,21 @@ export default function AllPracticePage() {
             placeholder="National Provider Identifier"
             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
           />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            Go-Live Target
+          </label>
+          <input
+            type="date"
+            value={formData.goLiveTarget}
+            onChange={(e) => handleFormChange("goLiveTarget", e.target.value)}
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+          />
+          <p className="mt-1 text-[12px] text-slate-400">
+            Drives the onboarding dashboard countdown.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-3">
@@ -2348,6 +2381,23 @@ export default function AllPracticePage() {
                     placeholder="National Provider Identifier"
                     className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                   />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                    Go-Live Target
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.goLiveTarget}
+                    onChange={(e) =>
+                      handleFormChange("goLiveTarget", e.target.value)
+                    }
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  />
+                  <p className="mt-1 text-[12px] text-slate-400">
+                    Drives the onboarding dashboard countdown.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3">

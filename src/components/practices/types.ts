@@ -27,6 +27,7 @@ export type PracticeBody = {
   credentialingChargeAmount?: number | string | null;
   processingFeeConfig?: Record<string, unknown> | null;
   groupNpis?: GroupNpiEntry[];
+  goLiveTarget?: string | null;
 };
 
 export type Person = {
@@ -65,6 +66,7 @@ export type Practice = {
   persons?: Person[];
   agreements?: Agreement[];
   groupNpis?: { id: string; groupNpiNumber: string; groupName: string }[];
+  goLiveTarget?: string | null;
   _count?: { persons: number; deals: number; agreements: number };
 };
 

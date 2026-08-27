@@ -54,6 +54,7 @@ function practiceToRow(practice: Practice): PracticeRow {
       lastUpdate: new Date(practice.updatedAt).toLocaleString(),
       createdAt: practice.createdAt,
       updatedAt: practice.updatedAt,
+      goLiveTarget: practice.goLiveTarget || "",
       createdBy: { name: "User", initials: "U" },
       updatedBy: { name: "User", initials: "U" },
     },
