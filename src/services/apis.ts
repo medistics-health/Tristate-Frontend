@@ -48,6 +48,23 @@ export const credentialingEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/credentialing/${id}`,
 };
 
+export const onboardingProjectsEndpoints = {
+  PROJECTS: BACKEND_URL + "/api/v1/onboarding-projects/projects",
+  PROJECT_UPDATE: (id: string) => BACKEND_URL + `/api/v1/onboarding-projects/projects/${id}`,
+  TASKS: BACKEND_URL + "/api/v1/onboarding-projects/tasks",
+  TASK_CREATE: BACKEND_URL + "/api/v1/onboarding-projects/tasks",
+  TASK_UPDATE: (id: string) => BACKEND_URL + `/api/v1/onboarding-projects/tasks/${id}`,
+  TASK_DELETE: (id: string) => BACKEND_URL + `/api/v1/onboarding-projects/tasks/${id}`,
+  TEMPLATES: BACKEND_URL + "/api/v1/onboarding-projects/templates",
+  TEMPLATE_CREATE: BACKEND_URL + "/api/v1/onboarding-projects/templates",
+  TEMPLATE_UPDATE: (id: string) => BACKEND_URL + `/api/v1/onboarding-projects/templates/${id}`,
+  TEMPLATE_DELETE: (id: string) => BACKEND_URL + `/api/v1/onboarding-projects/templates/${id}`,
+  MILESTONES: BACKEND_URL + "/api/v1/onboarding-projects/milestones",
+  MILESTONE_CREATE: BACKEND_URL + "/api/v1/onboarding-projects/milestones",
+  MILESTONE_UPDATE: (id: string) => BACKEND_URL + `/api/v1/onboarding-projects/milestones/${id}`,
+  MILESTONE_DELETE: (id: string) => BACKEND_URL + `/api/v1/onboarding-projects/milestones/${id}`,
+};
+
 export const insuranceEndpoints = {
   BASE: BACKEND_URL + "/api/v1/insurance",
   CARRIERS: BACKEND_URL + "/api/v1/insurance/carriers",

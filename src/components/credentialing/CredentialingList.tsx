@@ -676,7 +676,7 @@ function CredentialingListPage() {
   }, [filters, assignedUserFilterLabel]);
 
   const filterFieldsModal = (
-    <>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
           Practice
@@ -853,7 +853,7 @@ function CredentialingListPage() {
           </span>
         </button>
       </div>
-    </>
+    </div>
   );
 
   return (

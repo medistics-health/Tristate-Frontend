@@ -192,6 +192,15 @@ function App() {
       />
 
       <Route
+        path="/onboarding-projects/*"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <OnboardingTasksPage />
+          </ModuleRoute>
+        }
+      />
+
+      <Route
         path="/onboarding-projects/milestones"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>

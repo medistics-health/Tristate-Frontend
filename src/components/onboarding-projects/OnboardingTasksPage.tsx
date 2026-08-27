@@ -1,15 +1,1258 @@
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  GripVertical,
+  Kanban,
+  Layers,
+  List,
+  Lock,
+  Plus,
+  ShieldAlert,
+  Sparkles,
+  User,
+  Loader2,
+} from "lucide-react";
+import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
+import DataTableToolbar, {
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
+import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import DatePicker from "../shared/DatePicker";
+import {
+  getTasksApi,
+  createTaskApi,
+  updateTaskApi,
+  deleteTaskApi,
+} from "../../services/operations/onboardingProjects";
+import { getPracticesView } from "../../services/operations/practices";
+import { getAllUsers } from "../../services/operations/users";
+
+// Types
+export type TaskStatus = "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETE";
+export type TaskPhase =
+  | "ONBOARDING_ACCESS"
+  | "ASSESSMENT_DISCOVERY"
+  | "PLANNING_CONFIGURATION"
+  | "TESTING_VALIDATION"
+  | "GO_LIVE_STABILIZATION";
+
+export type ServiceLine =
+  | "HR"
+  | "BENEFITS"
+  | "CREDENTIALING"
+  | "RCM"
+  | "CCM"
+  | "VBC"
+  | "BACK_OFFICE"
+  | "COMPLIANCE"
+  | "MSP_IT"
+  | "EMR"
+  | "SYNGATE"
+  | "SALES"
+  | "CREDIT_CARDS";
+
+export type TaskItem = {
+  id: string;
+  taskNumber: number;
+  taskCode?: string; // e.g. TASK3209192
+  name: string;
+  practiceId?: string;
+  practiceName: string;
+  workstreamId?: string;
+  serviceLine: ServiceLine;
+  phase: TaskPhase;
+  status: TaskStatus;
+  ownerUserId?: string;
+  ownerName: string;
+  startDate: string; // Formatted MM-DD-YYYY
+  dueDate: string;   // Formatted MM-DD-YYYY
+  deliverable?: string;
+  notes?: string;
+  dependencies: { id: string; name: string; taskNumber: number; taskCode?: string; isComplete: boolean }[];
+  actionItemsCount: number;
+  activityCount: number;
+};
+
+type TaskFilters = {
+  practiceId: string;
+  practiceName: string;
+  serviceLine: string;
+  phase: string;
+  status: string;
+  ownerUserId: string;
+  ownerName: string;
+  dueDateFrom: string;
+  dueDateTo: string;
+};
+
+const defaultFilters: TaskFilters = {
+  practiceId: "",
+  practiceName: "",
+  serviceLine: "",
+  phase: "",
+  status: "",
+  ownerUserId: "",
+  ownerName: "",
+  dueDateFrom: "",
+  dueDateTo: "",
+};
+
+// Formatting & Helper Functions
+export function formatToMMDDYYYY(dateInput?: Date | string | null): string {
+  if (!dateInput) return "";
+  if (typeof dateInput === "string" && /^\d{2}-\d{2}-\d{4}$/.test(dateInput)) {
+    return dateInput;
+  }
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return "";
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${month}-${day}-${year}`;
+}
+
+function getUserDisplayName(user: any) {
+  return (
+    [
+      [user.firstName, user.lastName].filter(Boolean).join(" ").trim(),
+      user.userName,
+      user.email,
+    ].find((entry) => Boolean(entry && String(entry).trim())) || ""
+  );
+}
+
+const PHASE_LABELS: Record<TaskPhase, string> = {
+  ONBOARDING_ACCESS: "Phase 1: Onboarding & Access",
+  ASSESSMENT_DISCOVERY: "Phase 2: Assessment & Discovery",
+  PLANNING_CONFIGURATION: "Phase 3: Planning & Configuration",
+  TESTING_VALIDATION: "Phase 4: Testing & Validation",
+  GO_LIVE_STABILIZATION: "Phase 5: Go-Live & Stabilization",
+};
+
+const PHASE_SHORT_BADGES: Record<TaskPhase, { label: string; color: string }> = {
+  ONBOARDING_ACCESS: { label: "P1: Access", color: "bg-purple-50 text-purple-700 border-purple-200" },
+  ASSESSMENT_DISCOVERY: { label: "P2: Discovery", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  PLANNING_CONFIGURATION: { label: "P3: Config", color: "bg-cyan-50 text-cyan-700 border-cyan-200" },
+  TESTING_VALIDATION: { label: "P4: Testing", color: "bg-amber-50 text-amber-700 border-amber-200" },
+  GO_LIVE_STABILIZATION: { label: "P5: Go-Live", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+};
+
+const STATUS_CONFIG: Record<
+  TaskStatus,
+  { label: string; bg: string; text: string; border: string; icon: React.ComponentType<{ className?: string }> }
+> = {
+  NOT_STARTED: {
+    label: "Not Started",
+    bg: "bg-slate-100",
+    text: "text-slate-700",
+    border: "border-slate-200",
+    icon: Clock,
+  },
+  IN_PROGRESS: {
+    label: "In Progress",
+    bg: "bg-blue-50",
+    text: "text-blue-700",
+    border: "border-blue-200",
+    icon: Activity,
+  },
+  BLOCKED: {
+    label: "Blocked",
+    bg: "bg-rose-50",
+    text: "text-rose-700",
+    border: "border-rose-200",
+    icon: Lock,
+  },
+  COMPLETE: {
+    label: "Complete",
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    border: "border-emerald-200",
+    icon: CheckCircle2,
+  },
+};
+
+const SERVICE_LINE_OPTIONS = [
+  { label: "All Service Lines", value: "" },
+  { label: "RCM", value: "RCM" },
+  { label: "Credentialing", value: "CREDENTIALING" },
+  { label: "CCM", value: "CCM" },
+  { label: "HR", value: "HR" },
+  { label: "MSP/IT", value: "MSP_IT" },
+  { label: "VBC", value: "VBC" },
+  { label: "Compliance", value: "COMPLIANCE" },
+];
+
+const PHASE_OPTIONS = [
+  { label: "All Phases", value: "" },
+  { label: "Phase 1: Onboarding & Access", value: "ONBOARDING_ACCESS" },
+  { label: "Phase 2: Assessment & Discovery", value: "ASSESSMENT_DISCOVERY" },
+  { label: "Phase 3: Planning & Configuration", value: "PLANNING_CONFIGURATION" },
+  { label: "Phase 4: Testing & Validation", value: "TESTING_VALIDATION" },
+  { label: "Phase 5: Go-Live & Stabilization", value: "GO_LIVE_STABILIZATION" },
+];
+
+const STATUS_OPTIONS = [
+  { label: "All Statuses", value: "" },
+  { label: "Not Started", value: "NOT_STARTED" },
+  { label: "In Progress", value: "IN_PROGRESS" },
+  { label: "Blocked", value: "BLOCKED" },
+  { label: "Complete", value: "COMPLETE" },
+];
 
 export default function OnboardingTasksPage() {
-  return (
-    <AppLayout title="Onboarding Tasks" activeModule="Onboarding Projects" activeSubItem="Tasks">
-      <div className="p-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-800">Onboarding Tasks</h2>
-          <p className="mt-2 text-slate-500">
-            Project tasks with phases, owners, start/due dates, and dependencies.
-          </p>
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
+  const [search, setSearch] = useState("");
+
+  // Searchable options from Backend API
+  const [practiceOptions, setPracticeOptions] = useState<SearchSelectOption[]>([]);
+  const [userOptions, setUserOptions] = useState<SearchSelectOption[]>([]);
+
+  // Filters State
+  const [filters, setFilters] = useState<TaskFilters>(defaultFilters);
+  const [draftFilters, setDraftFilters] = useState<TaskFilters>(defaultFilters);
+
+  // Drag and Drop state
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
+
+  // Drawer & Modal
+  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
+  const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
+
+  // New Task Form
+  const [newTaskName, setNewTaskName] = useState("");
+  const [newTaskPracticeId, setNewTaskPracticeId] = useState("");
+  const [newTaskPracticeName, setNewTaskPracticeName] = useState("");
+  const [newTaskServiceLine, setNewTaskServiceLine] = useState<ServiceLine>("RCM");
+  const [newTaskPhase, setNewTaskPhase] = useState<TaskPhase>("ONBOARDING_ACCESS");
+  const [newTaskOwnerUserId, setNewTaskOwnerUserId] = useState("");
+  const [newTaskOwnerName, setNewTaskOwnerName] = useState("");
+  const [newTaskDueDate, setNewTaskDueDate] = useState("");
+  const [newTaskDeliverable, setNewTaskDeliverable] = useState("");
+
+  // Load Practices and Users from backend API
+  useEffect(() => {
+    async function loadDropdowns() {
+      try {
+        const [practicesRes, usersRes] = await Promise.all([
+          getPracticesView({ limit: 2000 }).catch(() => ({ rows: [] })),
+          getAllUsers().catch(() => []),
+        ]);
+
+        if (practicesRes?.rows && practicesRes.rows.length > 0) {
+          const formattedPractices: SearchSelectOption[] = practicesRes.rows
+            .map((row) => ({
+              label: String(row.values.name || ""),
+              value: String(row.values.id || row.values.name || ""),
+            }))
+            .filter((e) => Boolean(e.value && e.label))
+            .sort((a, b) => a.label.localeCompare(b.label));
+
+          setPracticeOptions(formattedPractices);
+        }
+
+        if (Array.isArray(usersRes) && usersRes.length > 0) {
+          const formattedUsers: SearchSelectOption[] = usersRes
+            .map((user: any) => ({
+              label: [getUserDisplayName(user), user.role ? `(${user.role})` : ""]
+                .filter(Boolean)
+                .join(" ")
+                .trim(),
+              value: user.id || getUserDisplayName(user),
+              subLabel: [user.userName, user.email].filter(Boolean).join(" · "),
+            }))
+            .filter((e: any) => Boolean(e.value && e.label))
+            .sort((a: any, b: any) => a.label.localeCompare(b.label));
+
+          setUserOptions(formattedUsers);
+        }
+      } catch (err) {
+        console.error("Failed to load practices and users:", err);
+      }
+    }
+
+    void loadDropdowns();
+  }, []);
+
+  // Search filter functions for SearchSelect
+  const searchPracticeOptions = useMemo(
+    () => async (query: string) => {
+      const normalized = query.trim().toLowerCase();
+      return practiceOptions.filter((option) =>
+        normalized
+          ? option.label.toLowerCase().includes(normalized) ||
+            option.value.toLowerCase().includes(normalized)
+          : true
+      );
+    },
+    [practiceOptions]
+  );
+
+  const searchUserOptions = useMemo(
+    () => async (query: string) => {
+      const normalized = query.trim().toLowerCase();
+      return userOptions.filter((option) =>
+        normalized
+          ? option.label.toLowerCase().includes(normalized) ||
+            option.subLabel?.toLowerCase().includes(normalized) ||
+            option.value.toLowerCase().includes(normalized)
+          : true
+      );
+    },
+    [userOptions]
+  );
+
+  // Fetch tasks from API
+  const fetchTasks = async () => {
+    setIsLoading(true);
+    try {
+      const data = await getTasksApi({
+        search,
+        practiceId: filters.practiceId,
+        serviceLine: filters.serviceLine,
+        phase: filters.phase,
+        status: filters.status,
+        ownerUserId: filters.ownerUserId,
+        dueDateFrom: filters.dueDateFrom,
+        dueDateTo: filters.dueDateTo,
+      });
+
+      const formatted = data.map((t, idx) => ({
+        ...t,
+        taskCode: t.taskCode || `TASK${String(t.taskNumber || idx + 3209190).padStart(7, "0")}`,
+        startDate: formatToMMDDYYYY(t.startDate) || formatToMMDDYYYY(new Date()),
+        dueDate: formatToMMDDYYYY(t.dueDate) || formatToMMDDYYYY(new Date(Date.now() + 7 * 86400000)),
+      }));
+
+      setTasks(formatted);
+    } catch (error: any) {
+      console.error("Failed to load tasks:", error);
+      setTasks([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, [search, filters.serviceLine, filters.phase, filters.status, filters.practiceId, filters.ownerUserId]);
+
+  const updateDraftFilter = <K extends keyof TaskFilters>(key: K, value: TaskFilters[K]) => {
+    setDraftFilters((curr) => ({ ...curr, [key]: value }));
+  };
+
+  const handleOpenFilterModal = () => {
+    setDraftFilters(filters);
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(draftFilters);
+  };
+
+  const handleResetFilters = () => {
+    setFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
+    setSearch("");
+  };
+
+  // Filtered Tasks Calculation
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (search) {
+        const query = search.toLowerCase();
+        const matchesSearch =
+          t.name.toLowerCase().includes(query) ||
+          t.practiceName.toLowerCase().includes(query) ||
+          (t.deliverable && t.deliverable.toLowerCase().includes(query)) ||
+          (t.taskCode && t.taskCode.toLowerCase().includes(query)) ||
+          t.taskNumber.toString().includes(query);
+        if (!matchesSearch) return false;
+      }
+
+      if (filters.practiceId && t.practiceId && t.practiceId !== filters.practiceId) return false;
+      if (filters.practiceName && !t.practiceName.toLowerCase().includes(filters.practiceName.toLowerCase())) return false;
+      if (filters.serviceLine && t.serviceLine !== filters.serviceLine) return false;
+      if (filters.phase && t.phase !== filters.phase) return false;
+      if (filters.status && t.status !== filters.status) return false;
+      if (filters.ownerUserId && t.ownerUserId && t.ownerUserId !== filters.ownerUserId) return false;
+      if (filters.ownerName && !t.ownerName.toLowerCase().includes(filters.ownerName.toLowerCase())) return false;
+
+      return true;
+    });
+  }, [tasks, search, filters]);
+
+  // Metrics calculation
+  const metrics = useMemo(() => {
+    const total = tasks.length;
+    const completed = tasks.filter((t) => t.status === "COMPLETE").length;
+    const inProgress = tasks.filter((t) => t.status === "IN_PROGRESS").length;
+    const blocked = tasks.filter((t) => t.status === "BLOCKED").length;
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    return { total, completed, inProgress, blocked, pct };
+  }, [tasks]);
+
+  // Status Change Logic with Dependency Guard & API call
+  const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
+    const targetTask = tasks.find((t) => t.id === taskId);
+    if (!targetTask) return;
+
+    if (newStatus === "IN_PROGRESS") {
+      const hasUnmetDeps = targetTask.dependencies.some((dep) => !dep.isComplete);
+      if (hasUnmetDeps) {
+        toast.error(
+          `Cannot move ${targetTask.taskCode || `Task #${targetTask.taskNumber}`} to "In Progress". It has unmet predecessor dependencies blocking execution!`
+        );
+        return;
+      }
+    }
+
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id === taskId) {
+          return { ...t, status: newStatus };
+        }
+        if (t.dependencies.some((dep) => dep.id === taskId)) {
+          const updatedDeps = t.dependencies.map((dep) =>
+            dep.id === taskId ? { ...dep, isComplete: newStatus === "COMPLETE" } : dep
+          );
+          return { ...t, dependencies: updatedDeps };
+        }
+        return t;
+      })
+    );
+
+    if (selectedTask?.id === taskId) {
+      setSelectedTask((prev) => (prev ? { ...prev, status: newStatus } : null));
+    }
+
+    try {
+      await updateTaskApi(taskId, { status: newStatus });
+      toast.success(`${targetTask.taskCode || `Task #${targetTask.taskNumber}`} updated to ${newStatus}`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update task status");
+      fetchTasks();
+    }
+  };
+
+  // Drag and Drop Event Handlers
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    setDraggedTaskId(taskId);
+    e.dataTransfer.setData("text/plain", taskId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, status: TaskStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverStatus !== status) {
+      setDragOverStatus(status);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverStatus(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetStatus: TaskStatus) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData("text/plain") || draggedTaskId;
+    setDragOverStatus(null);
+    setDraggedTaskId(null);
+
+    if (taskId) {
+      handleUpdateStatus(taskId, targetStatus);
+    }
+  };
+
+  // Active Filter Chips
+  const activeFilterChips = useMemo(() => {
+    const chips: ActiveFilterChip[] = [];
+    if (filters.practiceName || filters.practiceId) {
+      chips.push({
+        key: "practice",
+        label: "Practice",
+        displayValue: filters.practiceName || filters.practiceId,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, practiceId: "", practiceName: "" }));
+          setDraftFilters((curr) => ({ ...curr, practiceId: "", practiceName: "" }));
+        },
+      });
+    }
+    if (filters.serviceLine) {
+      chips.push({
+        key: "serviceLine",
+        label: "Service Line",
+        displayValue: filters.serviceLine,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, serviceLine: "" }));
+          setDraftFilters((curr) => ({ ...curr, serviceLine: "" }));
+        },
+      });
+    }
+    if (filters.phase) {
+      chips.push({
+        key: "phase",
+        label: "Phase",
+        displayValue: PHASE_SHORT_BADGES[filters.phase as TaskPhase]?.label || filters.phase,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, phase: "" }));
+          setDraftFilters((curr) => ({ ...curr, phase: "" }));
+        },
+      });
+    }
+    if (filters.status) {
+      chips.push({
+        key: "status",
+        label: "Status",
+        displayValue: STATUS_CONFIG[filters.status as TaskStatus]?.label || filters.status,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, status: "" }));
+          setDraftFilters((curr) => ({ ...curr, status: "" }));
+        },
+      });
+    }
+    if (filters.ownerName || filters.ownerUserId) {
+      chips.push({
+        key: "owner",
+        label: "Owner",
+        displayValue: filters.ownerName || filters.ownerUserId,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, ownerUserId: "", ownerName: "" }));
+          setDraftFilters((curr) => ({ ...curr, ownerUserId: "", ownerName: "" }));
+        },
+      });
+    }
+    return chips;
+  }, [filters]);
+
+  const activeFilterCount = activeFilterChips.length;
+
+  // Filter Modal Fields Layout in a clean 2-Section Grid View
+  const filterFieldsModal = (
+    <div className="space-y-4">
+      {/* 3-Column Grid for Primary Select Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Practice Select */}
+        <label className="block">
+          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Practice</span>
+          <SearchSelect
+            value={draftFilters.practiceId}
+            displayLabel={draftFilters.practiceName}
+            onChange={(val, opt) => {
+              setDraftFilters((curr) => ({
+                ...curr,
+                practiceId: val,
+                practiceName: opt?.label || val,
+              }));
+            }}
+            onSearch={searchPracticeOptions}
+            clearable
+            toggleOnSelectSame
+            placeholder="Search practice"
+          />
+        </label>
+
+        {/* Assigned Owner Select */}
+        <label className="block">
+          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Assigned Owner</span>
+          <SearchSelect
+            value={draftFilters.ownerUserId}
+            displayLabel={draftFilters.ownerName}
+            onChange={(val, opt) => {
+              setDraftFilters((curr) => ({
+                ...curr,
+                ownerUserId: val,
+                ownerName: opt?.label || val,
+              }));
+            }}
+            onSearch={searchUserOptions}
+            clearable
+            toggleOnSelectSame
+            placeholder="Search assigned owner"
+          />
+        </label>
+
+        {/* Service Line Select */}
+        <label className="block">
+          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Service Line</span>
+          <Select
+            value={draftFilters.serviceLine}
+            onChange={(val) => updateDraftFilter("serviceLine", val)}
+            options={SERVICE_LINE_OPTIONS}
+            placeholder="Select Service Line"
+          />
+        </label>
+      </div>
+
+      {/* 3-Column Grid for Secondary Controls (Phase, Status, Date Range) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+        {/* Phase Select */}
+        <label className="block">
+          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Onboarding Phase</span>
+          <Select
+            value={draftFilters.phase}
+            onChange={(val) => updateDraftFilter("phase", val)}
+            options={PHASE_OPTIONS}
+            placeholder="Select Phase"
+          />
+        </label>
+
+        {/* Status Select */}
+        <label className="block">
+          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Status</span>
+          <Select
+            value={draftFilters.status}
+            onChange={(val) => updateDraftFilter("status", val)}
+            options={STATUS_OPTIONS}
+            placeholder="Select Status"
+          />
+        </label>
+
+        {/* Timeline Date Range */}
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Due From</span>
+            <DatePicker
+              value={draftFilters.dueDateFrom}
+              onChange={(val) => updateDraftFilter("dueDateFrom", val)}
+              placeholder="From date"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Due To</span>
+            <DatePicker
+              value={draftFilters.dueDateTo}
+              onChange={(val) => updateDraftFilter("dueDateTo", val)}
+              placeholder="To date"
+            />
+          </label>
         </div>
+      </div>
+    </div>
+  );
+
+  // Add Task handler
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskName.trim()) return;
+
+    try {
+      const created = await createTaskApi({
+        name: newTaskName,
+        practiceId: newTaskPracticeId,
+        serviceLine: newTaskServiceLine,
+        phase: newTaskPhase,
+        ownerUserId: newTaskOwnerUserId,
+        startDate: formatToMMDDYYYY(new Date()),
+        dueDate: formatToMMDDYYYY(newTaskDueDate ? new Date(newTaskDueDate) : new Date(Date.now() + 7 * 86400000)),
+        deliverable: newTaskDeliverable,
+      });
+
+      const formattedTask: TaskItem = {
+        ...created,
+        taskCode: created.taskCode || `TASK${String(Math.floor(1000000 + Math.random() * 9000000))}`,
+        startDate: formatToMMDDYYYY(created.startDate) || formatToMMDDYYYY(new Date()),
+        dueDate: formatToMMDDYYYY(created.dueDate) || formatToMMDDYYYY(new Date(Date.now() + 7 * 86400000)),
+      };
+
+      setTasks((prev) => [formattedTask, ...prev]);
+      toast.success(`Task ${formattedTask.taskCode} created successfully!`);
+      setIsNewTaskModalOpen(false);
+      setNewTaskName("");
+      setNewTaskDeliverable("");
+      setNewTaskPracticeId("");
+      setNewTaskPracticeName("");
+      setNewTaskOwnerUserId("");
+      setNewTaskOwnerName("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create task");
+    }
+  };
+
+  return (
+    <AppLayout title="Tasks Tracker" activeModule="Task Tracker" activeSubItem="Tasks">
+      <div className="space-y-6 p-6">
+        {/* Metric Summary Banner */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Tasks</span>
+              <Layers className="h-5 w-5 text-indigo-500" />
+            </div>
+            <div className="mt-2 text-2xl font-bold text-slate-800">{metrics.total}</div>
+            <div className="mt-1 text-xs text-slate-500">Active operational items</div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">In Progress</span>
+              <Activity className="h-5 w-5 text-blue-500" />
+            </div>
+            <div className="mt-2 text-2xl font-bold text-blue-700">{metrics.inProgress}</div>
+            <div className="mt-1 text-xs text-blue-600 font-medium">Under active work</div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Blocked Tasks</span>
+              <ShieldAlert className="h-5 w-5 text-rose-500" />
+            </div>
+            <div className="mt-2 text-2xl font-bold text-rose-700">{metrics.blocked}</div>
+            <div className="mt-1 text-xs text-rose-600 font-medium">Predecessor pending</div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Completed</span>
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            </div>
+            <div className="mt-2 text-2xl font-bold text-emerald-700">{metrics.completed}</div>
+            <div className="mt-1 text-xs text-emerald-600 font-medium">Deliverables done</div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Overall Progress</span>
+              <Sparkles className="h-5 w-5 text-amber-500" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-slate-800">{metrics.pct}%</span>
+              <span className="text-xs text-slate-500">complete</span>
+            </div>
+            <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100">
+              <div
+                className="h-1.5 rounded-full bg-emerald-500 transition-all duration-500"
+                style={{ width: `${metrics.pct}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Standardized DataTableToolbar like Credentialing Module */}
+        <DataTableToolbar
+          title="Tasks Tracker"
+          subtitle="Operational task tracker with automated phase gating, workstreams & drag-and-drop kanban"
+          searchPlaceholder="Search task code (e.g. TASK3209192), task name, practice..."
+          searchValue={search}
+          onSearchChange={setSearch}
+          activeFilterCount={activeFilterCount}
+          activeChips={activeFilterChips}
+          onResetFilters={handleResetFilters}
+          onApplyFilters={handleApplyFilters}
+          onOpenFilterModal={handleOpenFilterModal}
+          filterModalTitle="Filter Tasks Tracker"
+          filterFields={filterFieldsModal}
+          addNewLabel="Add Task"
+          onAddNew={() => setIsNewTaskModalOpen(true)}
+          extraActions={
+            <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+              <button
+                onClick={() => setViewMode("table")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  viewMode === "table"
+                    ? "bg-white text-slate-800 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <List className="h-3.5 w-3.5" />
+                Table
+              </button>
+              <button
+                onClick={() => setViewMode("kanban")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  viewMode === "kanban"
+                    ? "bg-white text-slate-800 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Kanban className="h-3.5 w-3.5" />
+                Kanban
+              </button>
+            </div>
+          }
+        />
+
+        {/* Main Content Area */}
+        {isLoading ? (
+          <div className="flex h-64 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
+              <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
+              Loading Onboarding Tasks...
+            </div>
+          </div>
+        ) : viewMode === "table" ? (
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  <tr>
+                    <th className="px-4 py-3">Task Code</th>
+                    <th className="px-4 py-3">Task Name & Practice</th>
+                    <th className="px-4 py-3">Service Line</th>
+                    <th className="px-4 py-3">Phase</th>
+                    <th className="px-4 py-3">Owner</th>
+                    <th className="px-4 py-3">Due Date (MM-DD-YYYY)</th>
+                    <th className="px-4 py-3">Dependencies</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-slate-700">
+                  {filteredTasks.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
+                        No onboarding tasks found matching your filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTasks.map((t) => {
+                      const statusInfo = STATUS_CONFIG[t.status];
+                      const phaseBadge = PHASE_SHORT_BADGES[t.phase];
+                      const hasUnmetDeps = t.dependencies.some((dep) => !dep.isComplete);
+                      const displayCode = t.taskCode || `TASK${String(t.taskNumber).padStart(6, "0")}`;
+
+                      return (
+                        <tr
+                          key={t.id}
+                          className="hover:bg-slate-50/80 transition-colors cursor-pointer"
+                          onClick={() => setSelectedTask(t)}
+                        >
+                          <td className="px-4 py-3.5 font-bold font-mono text-indigo-700 text-xs">
+                            {displayCode}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="font-medium text-slate-900">{t.name}</div>
+                            <div className="text-xs text-slate-500">{t.practiceName}</div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                              {t.serviceLine}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span
+                              className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${phaseBadge.color}`}
+                            >
+                              {phaseBadge.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+                                {t.ownerName.charAt(0)}
+                              </div>
+                              <span className="text-xs font-medium text-slate-700">{t.ownerName}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5 text-xs font-medium text-slate-700">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                              {t.dueDate}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {t.dependencies.length === 0 ? (
+                              <span className="text-xs text-slate-400">None</span>
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                {t.dependencies.map((dep) => (
+                                  <span
+                                    key={dep.id}
+                                    className={`inline-flex items-center gap-1 text-xs font-medium ${
+                                      dep.isComplete ? "text-emerald-600" : "text-amber-600"
+                                    }`}
+                                  >
+                                    {dep.isComplete ? (
+                                      <CheckCircle2 className="h-3 w-3" />
+                                    ) : (
+                                      <Lock className="h-3 w-3 text-amber-500" />
+                                    )}
+                                    {dep.taskCode || `TASK${dep.taskNumber}`}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+                            <select
+                              value={t.status}
+                              onChange={(e) => handleUpdateStatus(t.id, e.target.value as TaskStatus)}
+                              className={`rounded-lg border px-2.5 py-1 text-xs font-medium focus:outline-none ${statusInfo.bg} ${statusInfo.text} ${statusInfo.border}`}
+                            >
+                              <option value="NOT_STARTED">Not Started</option>
+                              <option value="IN_PROGRESS" disabled={hasUnmetDeps}>
+                                In Progress {hasUnmetDeps ? "(Blocked)" : ""}
+                              </option>
+                              <option value="BLOCKED">Blocked</option>
+                              <option value="COMPLETE">Complete</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setSelectedTask(t)}
+                              className="text-xs font-medium text-indigo-600 hover:text-indigo-900 hover:underline"
+                            >
+                              View Details
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          /* Kanban Board View with HTML5 Drag & Drop */
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            {(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETE"] as TaskStatus[]).map((statusKey) => {
+              const columnTasks = filteredTasks.filter((t) => t.status === statusKey);
+              const statusCfg = STATUS_CONFIG[statusKey];
+              const isOver = dragOverStatus === statusKey;
+
+              return (
+                <div
+                  key={statusKey}
+                  onDragOver={(e) => handleDragOver(e, statusKey)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, statusKey)}
+                  className={`flex flex-col rounded-xl border p-3 transition-colors ${
+                    isOver
+                      ? "border-indigo-400 bg-indigo-50/40 ring-2 ring-indigo-500/20"
+                      : "border-slate-200 bg-slate-50/60"
+                  }`}
+                >
+                  <div className="mb-3 flex items-center justify-between border-b border-slate-200 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${statusCfg.bg} border ${statusCfg.border}`} />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        {statusCfg.label}
+                      </h3>
+                    </div>
+                    <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-600 shadow-sm">
+                      {columnTasks.length}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 space-y-3 overflow-y-auto min-h-[420px]">
+                    {columnTasks.length === 0 ? (
+                      <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-slate-200 text-xs text-slate-400">
+                        Drop task here
+                      </div>
+                    ) : (
+                      columnTasks.map((t) => {
+                        const isBeingDragged = draggedTaskId === t.id;
+                        const displayCode = t.taskCode || `TASK${String(t.taskNumber).padStart(6, "0")}`;
+
+                        return (
+                          <div
+                            key={t.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, t.id)}
+                            onClick={() => setSelectedTask(t)}
+                            className={`group relative rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md cursor-grab active:cursor-grabbing space-y-2.5 ${
+                              isBeingDragged ? "opacity-40 scale-95 border-dashed border-indigo-400" : ""
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5">
+                                <GripVertical className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 transition-colors" />
+                                <span className="text-xs font-bold font-mono text-indigo-700">{displayCode}</span>
+                              </div>
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                                {t.serviceLine}
+                              </span>
+                            </div>
+
+                            <h4 className="text-sm font-semibold text-slate-800 line-clamp-2">{t.name}</h4>
+                            <p className="text-xs text-slate-500">{t.practiceName}</p>
+
+                            <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
+                              <div className="flex items-center gap-1 text-slate-600 font-medium">
+                                <Calendar className="h-3 w-3 text-slate-400" />
+                                {t.dueDate}
+                              </div>
+                              <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                                <User className="h-3 w-3 text-indigo-500" />
+                                {t.ownerName.split(" ")[0]}
+                              </div>
+                            </div>
+
+                            {t.dependencies.length > 0 && (
+                              <div className="rounded bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800 flex items-center gap-1">
+                                <Lock className="h-3 w-3 text-amber-600" />
+                                Depends on {t.dependencies.map((d) => d.taskCode || `TASK${d.taskNumber}`).join(", ")}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Task Details Modal (Centered Popup) */}
+        {selectedTask && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="p-6 border-b border-slate-200 bg-slate-50/50 flex items-start justify-between">
+                <div>
+                  <span className="text-xs font-bold font-mono tracking-wider text-indigo-600">
+                    {selectedTask.taskCode || `TASK${selectedTask.taskNumber}`} • {selectedTask.serviceLine}
+                  </span>
+                  <h3 className="text-xl font-bold text-slate-900 mt-1">{selectedTask.name}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{selectedTask.practiceName}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedTask(null)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="p-6 space-y-6 overflow-y-auto">
+                {/* Current Task Status */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600">Current Task Status</label>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETE"] as TaskStatus[]).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => handleUpdateStatus(selectedTask.id, st)}
+                        className={`rounded-lg border py-2 px-3 text-xs font-semibold transition-all ${
+                          selectedTask.status === st
+                            ? `${STATUS_CONFIG[st].bg} ${STATUS_CONFIG[st].text} ${STATUS_CONFIG[st].border} ring-2 ring-indigo-500/20 shadow-sm`
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {STATUS_CONFIG[st].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Metadata Grid with MM-DD-YYYY Dates */}
+                <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs">
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Phase</span>
+                    <span className="font-semibold text-slate-800">{PHASE_LABELS[selectedTask.phase]}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Assigned Owner</span>
+                    <span className="font-semibold text-slate-800">{selectedTask.ownerName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Start Date (MM-DD-YYYY)</span>
+                    <span className="font-semibold text-slate-800">{selectedTask.startDate}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Due Date (MM-DD-YYYY)</span>
+                    <span className="font-semibold text-slate-800">{selectedTask.dueDate}</span>
+                  </div>
+                </div>
+
+                {/* Deliverable & Notes */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Expected Deliverable</h4>
+                    <div className="text-sm font-medium text-slate-800 bg-slate-50 p-3 rounded-xl border border-slate-200 min-h-[70px]">
+                      {selectedTask.deliverable || "No deliverable specified"}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Notes & Context</h4>
+                    <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 min-h-[70px]">
+                      {selectedTask.notes || "No notes logged."}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dependencies Section */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Task Dependencies</h4>
+                  {selectedTask.dependencies.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">No predecessor dependencies required for this task.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedTask.dependencies.map((dep) => (
+                        <div
+                          key={dep.id}
+                          className="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-xs bg-white"
+                        >
+                          <div className="flex items-center gap-2">
+                            {dep.isComplete ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            ) : (
+                              <Lock className="h-4 w-4 text-amber-500" />
+                            )}
+                            <span className="font-bold font-mono text-indigo-700">{dep.taskCode || `TASK${dep.taskNumber}`}:</span>
+                            <span className="text-slate-600">{dep.name}</span>
+                          </div>
+                          <span
+                            className={`font-semibold ${
+                              dep.isComplete ? "text-emerald-600" : "text-amber-600"
+                            }`}
+                          >
+                            {dep.isComplete ? "Complete" : "Blocking"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-slate-200 p-4 bg-slate-50 flex justify-end">
+                <button
+                  onClick={() => setSelectedTask(null)}
+                  className="rounded-xl bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+                >
+                  Close Details
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Create New Task with SearchSelect for Practice and Owner */}
+        {isNewTaskModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h3 className="text-lg font-bold text-slate-900">
+                  Create Onboarding Task
+                </h3>
+                <button
+                  onClick={() => setIsNewTaskModalOpen(false)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <form onSubmit={handleCreateTask} className="mt-4 space-y-4 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Task Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Provider Malpractice Verification"
+                    value={newTaskName}
+                    onChange={(e) => setNewTaskName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Practice</label>
+                    <SearchSelect
+                      value={newTaskPracticeId}
+                      displayLabel={newTaskPracticeName}
+                      onChange={(val, opt) => {
+                        setNewTaskPracticeId(val);
+                        setNewTaskPracticeName(opt?.label || val);
+                      }}
+                      onSearch={searchPracticeOptions}
+                      clearable
+                      toggleOnSelectSame
+                      placeholder="Search practice"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Assigned Owner</label>
+                    <SearchSelect
+                      value={newTaskOwnerUserId}
+                      displayLabel={newTaskOwnerName}
+                      onChange={(val, opt) => {
+                        setNewTaskOwnerUserId(val);
+                        setNewTaskOwnerName(opt?.label || val);
+                      }}
+                      onSearch={searchUserOptions}
+                      clearable
+                      toggleOnSelectSame
+                      placeholder="Search user owner"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Service Line</label>
+                    <Select
+                      value={newTaskServiceLine}
+                      onChange={(val) => setNewTaskServiceLine(val as ServiceLine)}
+                      options={SERVICE_LINE_OPTIONS.filter((o) => o.value !== "")}
+                      placeholder="Select Service Line"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Phase</label>
+                    <Select
+                      value={newTaskPhase}
+                      onChange={(val) => setNewTaskPhase(val as TaskPhase)}
+                      options={PHASE_OPTIONS.filter((o) => o.value !== "")}
+                      placeholder="Select Phase"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Due Date</label>
+                    <DatePicker
+                      value={newTaskDueDate}
+                      onChange={(val) => setNewTaskDueDate(val)}
+                      placeholder="MM-DD-YYYY"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Expected Deliverable</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Audit Approval Pack"
+                      value={newTaskDeliverable}
+                      onChange={(e) => setNewTaskDeliverable(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setIsNewTaskModalOpen(false)}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+                  >
+                    Save Task
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
