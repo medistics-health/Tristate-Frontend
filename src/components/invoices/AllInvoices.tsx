@@ -368,6 +368,13 @@ function AllInvoicePage() {
             String(row.original.values.practiceName || "-"),
         },
         {
+          id: "createdBy",
+          accessorFn: (row: InvoiceRow) => row.values.createdBy,
+          header: () => "Created By",
+          cell: ({ row }: { row: { original: InvoiceRow } }) =>
+            String(row.original.values.createdBy || "-"),
+        },
+        {
           id: "status",
           accessorFn: (row: InvoiceRow) => row.values.status,
           header: () => "Status",
@@ -903,6 +910,21 @@ function AllInvoicePage() {
                       : null
                   }
                   infoRows={[
+                    ...(selectedInvoice?.createdByUser
+                      ? [
+                          {
+                            label: "Created By",
+                            value:
+                              [selectedInvoice.createdByUser.firstName, selectedInvoice.createdByUser.lastName]
+                                .filter(Boolean)
+                                .join(" ")
+                                .trim() ||
+                              selectedInvoice.createdByUser.userName ||
+                              selectedInvoice.createdByUser.email ||
+                              "-",
+                          },
+                        ]
+                      : []),
                     ...(selectedInvoice?.practice?.name
                       ? [
                           {

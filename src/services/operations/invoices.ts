@@ -80,6 +80,13 @@ export type Invoice = {
       marginAmount?: string | null;
     } | null;
   }>;
+  createdByUser?: {
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    userName?: string | null;
+    email?: string | null;
+  } | null;
   purchaseOrders?: Array<{ id: string }>;
   invoiceNumber: string;
   paymentMethod?: string | null;
@@ -108,6 +115,7 @@ export type InvoiceRow = {
     id: string;
     practiceId: string;
     practiceName: string;
+    createdBy: string;
     agreementLabel: string;
     agreementId: string;
     netServices: string;
@@ -213,12 +221,20 @@ function invoiceToRow(invoice: Invoice): InvoiceRow {
     ? `${invoice.agreement.type ?? "Agreement"} • ${invoice.agreement.id.slice(0, 8).toUpperCase()}`
     : "-";
 
+  const createdByName = invoice.createdByUser
+    ? [invoice.createdByUser.firstName, invoice.createdByUser.lastName].filter(Boolean).join(" ").trim() ||
+      invoice.createdByUser.userName ||
+      invoice.createdByUser.email ||
+      "-"
+    : "-";
+
   return {
     id: invoice.id,
     values: {
       id: invoice.id,
       practiceId: invoice.practiceId,
       practiceName: invoice.practice?.name || "-",
+      createdBy: createdByName,
       agreementLabel,
       agreementId: invoice.agreementId || "",
       netServices: formatCurrency(invoice.subtotalAmount || 0),

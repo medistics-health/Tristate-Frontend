@@ -846,6 +846,13 @@ function BillingRunsPage() {
             row.original.values.practiceName,
         },
         {
+          id: "createdBy",
+          accessorFn: (row: BillingRunRow) => row.values.createdBy,
+          header: () => "Created By",
+          cell: ({ row }: { row: { original: BillingRunRow } }) =>
+            row.original.values.createdBy || "-",
+        },
+        {
           id: "status",
           accessorFn: (row: BillingRunRow) => row.values.status,
           header: () => "Status",
@@ -1717,6 +1724,21 @@ function BillingRunsPage() {
                   label: "Period",
                   value: `${formatDateTime(selectedRun.periodStart).split(",")[0]} - ${formatDateTime(selectedRun.periodEnd).split(",")[0]}`,
                 },
+                ...(selectedRun.createdByUser
+                  ? [
+                      {
+                        label: "Created By",
+                        value:
+                          [selectedRun.createdByUser.firstName, selectedRun.createdByUser.lastName]
+                            .filter(Boolean)
+                            .join(" ")
+                            .trim() ||
+                          selectedRun.createdByUser.userName ||
+                          selectedRun.createdByUser.email ||
+                          "-",
+                      },
+                    ]
+                  : []),
                 ...(selectedRun.approvedAt
                   ? [
                       {
