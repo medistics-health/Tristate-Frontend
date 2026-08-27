@@ -284,8 +284,9 @@ function CredentialingDashboardPage() {
 
     async function loadAssignedUsers() {
       try {
-        const users = await getAllUsers();
+        const usersResponse = await getAllUsers();
         if (!active) return;
+        const users = usersResponse.users || [];
         setAssignedUserOptions(
           users
             .map((user: any) => {
@@ -322,7 +323,8 @@ function CredentialingDashboardPage() {
 
   async function loadFilterOptions() {
     try {
-      const users = await getAllUsers();
+      const usersResponse = await getAllUsers();
+      const users = usersResponse.users || [];
       setAssignedUserOptions(
         users
           .map((user: any) => {
