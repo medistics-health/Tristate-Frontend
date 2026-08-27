@@ -15,6 +15,7 @@ import {
   User,
   Loader2,
   Edit,
+  Trash2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
@@ -71,10 +72,16 @@ export type TaskItem = {
   ownerUserId?: string;
   ownerName: string;
   startDate: string; // Formatted MM-DD-YYYY
-  dueDate: string;   // Formatted MM-DD-YYYY
+  dueDate: string; // Formatted MM-DD-YYYY
   deliverable?: string;
   notes?: string;
-  dependencies: { id: string; name: string; taskNumber: number; taskCode?: string; isComplete: boolean }[];
+  dependencies: {
+    id: string;
+    name: string;
+    taskNumber: number;
+    taskCode?: string;
+    isComplete: boolean;
+  }[];
   actionItemsCount: number;
   activityCount: number;
 };
@@ -135,17 +142,39 @@ const PHASE_LABELS: Record<TaskPhase, string> = {
   GO_LIVE_STABILIZATION: "Phase 5: Go-Live & Stabilization",
 };
 
-const PHASE_SHORT_BADGES: Record<TaskPhase, { label: string; color: string }> = {
-  ONBOARDING_ACCESS: { label: "P1: Access", color: "bg-purple-50 text-purple-700 border-purple-200" },
-  ASSESSMENT_DISCOVERY: { label: "P2: Discovery", color: "bg-blue-50 text-blue-700 border-blue-200" },
-  PLANNING_CONFIGURATION: { label: "P3: Config", color: "bg-cyan-50 text-cyan-700 border-cyan-200" },
-  TESTING_VALIDATION: { label: "P4: Testing", color: "bg-amber-50 text-amber-700 border-amber-200" },
-  GO_LIVE_STABILIZATION: { label: "P5: Go-Live", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-};
+const PHASE_SHORT_BADGES: Record<TaskPhase, { label: string; color: string }> =
+  {
+    ONBOARDING_ACCESS: {
+      label: "P1: Access",
+      color: "bg-purple-50 text-purple-700 border-purple-200",
+    },
+    ASSESSMENT_DISCOVERY: {
+      label: "P2: Discovery",
+      color: "bg-blue-50 text-blue-700 border-blue-200",
+    },
+    PLANNING_CONFIGURATION: {
+      label: "P3: Config",
+      color: "bg-cyan-50 text-cyan-700 border-cyan-200",
+    },
+    TESTING_VALIDATION: {
+      label: "P4: Testing",
+      color: "bg-amber-50 text-amber-700 border-amber-200",
+    },
+    GO_LIVE_STABILIZATION: {
+      label: "P5: Go-Live",
+      color: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    },
+  };
 
 const STATUS_CONFIG: Record<
   TaskStatus,
-  { label: string; bg: string; text: string; border: string; icon: React.ComponentType<{ className?: string }> }
+  {
+    label: string;
+    bg: string;
+    text: string;
+    border: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }
 > = {
   NOT_STARTED: {
     label: "Not Started",
@@ -192,7 +221,10 @@ const PHASE_OPTIONS = [
   { label: "All Phases", value: "" },
   { label: "Phase 1: Onboarding & Access", value: "ONBOARDING_ACCESS" },
   { label: "Phase 2: Assessment & Discovery", value: "ASSESSMENT_DISCOVERY" },
-  { label: "Phase 3: Planning & Configuration", value: "PLANNING_CONFIGURATION" },
+  {
+    label: "Phase 3: Planning & Configuration",
+    value: "PLANNING_CONFIGURATION",
+  },
   { label: "Phase 4: Testing & Validation", value: "TESTING_VALIDATION" },
   { label: "Phase 5: Go-Live & Stabilization", value: "GO_LIVE_STABILIZATION" },
 ];
@@ -212,10 +244,16 @@ export default function OnboardingTasksPage() {
   const [search, setSearch] = useState("");
 
   // Searchable options from Backend API
-  const [practiceOptions, setPracticeOptions] = useState<SearchSelectOption[]>([]);
+  const [practiceOptions, setPracticeOptions] = useState<SearchSelectOption[]>(
+    [],
+  );
   const [userOptions, setUserOptions] = useState<SearchSelectOption[]>([]);
-  const [newTaskOwnerOptions, setNewTaskOwnerOptions] = useState<SearchSelectOption[]>([]);
-  const [editTaskOwnerOptions, setEditTaskOwnerOptions] = useState<SearchSelectOption[]>([]);
+  const [newTaskOwnerOptions, setNewTaskOwnerOptions] = useState<
+    SearchSelectOption[]
+  >([]);
+  const [editTaskOwnerOptions, setEditTaskOwnerOptions] = useState<
+    SearchSelectOption[]
+  >([]);
 
   // Filters State
   const [filters, setFilters] = useState<TaskFilters>(defaultFilters);
@@ -233,8 +271,10 @@ export default function OnboardingTasksPage() {
   const [newTaskName, setNewTaskName] = useState("");
   const [newTaskPracticeId, setNewTaskPracticeId] = useState("");
   const [newTaskPracticeName, setNewTaskPracticeName] = useState("");
-  const [newTaskServiceLine, setNewTaskServiceLine] = useState<ServiceLine>("RCM");
-  const [newTaskPhase, setNewTaskPhase] = useState<TaskPhase>("ONBOARDING_ACCESS");
+  const [newTaskServiceLine, setNewTaskServiceLine] =
+    useState<ServiceLine>("RCM");
+  const [newTaskPhase, setNewTaskPhase] =
+    useState<TaskPhase>("ONBOARDING_ACCESS");
   const [newTaskOwnerUserId, setNewTaskOwnerUserId] = useState("");
   const [newTaskOwnerName, setNewTaskOwnerName] = useState("");
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
@@ -245,8 +285,10 @@ export default function OnboardingTasksPage() {
   const [editTaskName, setEditTaskName] = useState("");
   const [editTaskPracticeId, setEditTaskPracticeId] = useState("");
   const [editTaskPracticeName, setEditTaskPracticeName] = useState("");
-  const [editTaskServiceLine, setEditTaskServiceLine] = useState<ServiceLine>("RCM");
-  const [editTaskPhase, setEditTaskPhase] = useState<TaskPhase>("ONBOARDING_ACCESS");
+  const [editTaskServiceLine, setEditTaskServiceLine] =
+    useState<ServiceLine>("RCM");
+  const [editTaskPhase, setEditTaskPhase] =
+    useState<TaskPhase>("ONBOARDING_ACCESS");
   const [editTaskOwnerUserId, setEditTaskOwnerUserId] = useState("");
   const [editTaskOwnerName, setEditTaskOwnerName] = useState("");
   const [editTaskStartDate, setEditTaskStartDate] = useState("");
@@ -260,7 +302,7 @@ export default function OnboardingTasksPage() {
       try {
         const [practicesRes, usersRes] = await Promise.all([
           getPracticesView({ limit: 2000 }).catch(() => ({ rows: [] })),
-          getAllUsers().catch(() => []),
+          getAllUsers({ limit: 1000 }).catch(() => []),
         ]);
 
         if (practicesRes?.rows && practicesRes.rows.length > 0) {
@@ -275,11 +317,15 @@ export default function OnboardingTasksPage() {
           setPracticeOptions(formattedPractices);
         }
 
-        const usersArray = (usersRes as any)?.users || (Array.isArray(usersRes) ? usersRes : []);
+        const usersArray =
+          (usersRes as any)?.users || (Array.isArray(usersRes) ? usersRes : []);
         if (Array.isArray(usersArray) && usersArray.length > 0) {
           const formattedUsers: SearchSelectOption[] = usersArray
             .map((user: any) => ({
-              label: [getUserDisplayName(user), user.role ? `(${user.role})` : ""]
+              label: [
+                getUserDisplayName(user),
+                user.role ? `(${user.role})` : "",
+              ]
                 .filter(Boolean)
                 .join(" ")
                 .trim(),
@@ -308,19 +354,27 @@ export default function OnboardingTasksPage() {
     let active = true;
     async function loadPracticeOwners() {
       try {
-        const data = await getPersonsView({ limit: 1000, practiceId: newTaskPracticeId });
+        const data = await getPersonsView({
+          limit: 1000,
+          practiceId: newTaskPracticeId,
+        });
         if (!active) return;
         if (data?.rows && data.rows.length > 0) {
           const formatted = data.rows
             .map((row: any) => ({
-              label: String(row.values.fullName || `${row.values.firstName || ""} ${row.values.lastName || ""}`.trim()),
+              label: String(
+                row.values.fullName ||
+                  `${row.values.firstName || ""} ${row.values.lastName || ""}`.trim(),
+              ),
               value: String(row.values.id || ""),
               subLabel: String(row.values.role || row.values.email || ""),
             }))
             .filter((e) => Boolean(e.value && e.label))
             .sort((a, b) => a.label.localeCompare(b.label));
 
-          setNewTaskOwnerOptions(formatted.length > 0 ? formatted : userOptions);
+          setNewTaskOwnerOptions(
+            formatted.length > 0 ? formatted : userOptions,
+          );
         } else {
           setNewTaskOwnerOptions(userOptions);
         }
@@ -329,7 +383,9 @@ export default function OnboardingTasksPage() {
       }
     }
     void loadPracticeOwners();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [newTaskPracticeId, userOptions]);
 
   // Filter Owners dynamically when Practice is selected in Edit Modal
@@ -341,19 +397,27 @@ export default function OnboardingTasksPage() {
     let active = true;
     async function loadEditPracticeOwners() {
       try {
-        const data = await getPersonsView({ limit: 1000, practiceId: editTaskPracticeId });
+        const data = await getPersonsView({
+          limit: 1000,
+          practiceId: editTaskPracticeId,
+        });
         if (!active) return;
         if (data?.rows && data.rows.length > 0) {
           const formatted = data.rows
             .map((row: any) => ({
-              label: String(row.values.fullName || `${row.values.firstName || ""} ${row.values.lastName || ""}`.trim()),
+              label: String(
+                row.values.fullName ||
+                  `${row.values.firstName || ""} ${row.values.lastName || ""}`.trim(),
+              ),
               value: String(row.values.id || ""),
               subLabel: String(row.values.role || row.values.email || ""),
             }))
             .filter((e) => Boolean(e.value && e.label))
             .sort((a, b) => a.label.localeCompare(b.label));
 
-          setEditTaskOwnerOptions(formatted.length > 0 ? formatted : userOptions);
+          setEditTaskOwnerOptions(
+            formatted.length > 0 ? formatted : userOptions,
+          );
         } else {
           setEditTaskOwnerOptions(userOptions);
         }
@@ -362,7 +426,9 @@ export default function OnboardingTasksPage() {
       }
     }
     void loadEditPracticeOwners();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [editTaskPracticeId, userOptions]);
 
   // Search filter functions for SearchSelect
@@ -373,10 +439,10 @@ export default function OnboardingTasksPage() {
         normalized
           ? option.label.toLowerCase().includes(normalized) ||
             option.value.toLowerCase().includes(normalized)
-          : true
+          : true,
       );
     },
-    [practiceOptions]
+    [practiceOptions],
   );
 
   const searchUserOptions = useMemo(
@@ -387,10 +453,10 @@ export default function OnboardingTasksPage() {
           ? option.label.toLowerCase().includes(normalized) ||
             option.subLabel?.toLowerCase().includes(normalized) ||
             option.value.toLowerCase().includes(normalized)
-          : true
+          : true,
       );
     },
-    [userOptions]
+    [userOptions],
   );
 
   const searchNewTaskOwnerOptions = useMemo(
@@ -401,10 +467,10 @@ export default function OnboardingTasksPage() {
           ? option.label.toLowerCase().includes(normalized) ||
             option.subLabel?.toLowerCase().includes(normalized) ||
             option.value.toLowerCase().includes(normalized)
-          : true
+          : true,
       );
     },
-    [newTaskOwnerOptions]
+    [newTaskOwnerOptions],
   );
 
   const searchEditTaskOwnerOptions = useMemo(
@@ -415,35 +481,62 @@ export default function OnboardingTasksPage() {
           ? option.label.toLowerCase().includes(normalized) ||
             option.subLabel?.toLowerCase().includes(normalized) ||
             option.value.toLowerCase().includes(normalized)
-          : true
+          : true,
       );
     },
-    [editTaskOwnerOptions]
+    [editTaskOwnerOptions],
   );
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTasksCount, setTotalTasksCount] = useState(0);
+  const [backendMetrics, setBackendMetrics] = useState({
+    total: 0,
+    completed: 0,
+    inProgress: 0,
+    blocked: 0,
+    pct: 0,
+  });
 
   // Fetch tasks from API
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-      const data = await getTasksApi({
-        search,
-        practiceId: filters.practiceId,
-        serviceLine: filters.serviceLine,
-        phase: filters.phase,
-        status: filters.status,
-        ownerUserId: filters.ownerUserId,
-        dueDateFrom: filters.dueDateFrom,
-        dueDateTo: filters.dueDateTo,
-      });
+      const params: Record<string, any> = {
+        page: currentPage,
+        pageSize,
+      };
+      if (search.trim()) params.search = search.trim();
+      if (filters.practiceId) params.practiceId = filters.practiceId;
+      if (filters.serviceLine) params.serviceLine = filters.serviceLine;
+      if (filters.phase) params.phase = filters.phase;
+      if (filters.status) params.status = filters.status;
+      if (filters.ownerUserId) params.ownerUserId = filters.ownerUserId;
+      if (filters.dueDateFrom) params.dueDateFrom = filters.dueDateFrom;
+      if (filters.dueDateTo) params.dueDateTo = filters.dueDateTo;
 
-      const formatted = data.map((t, idx) => ({
+      const resData = await getTasksApi(params);
+
+      const formatted = resData.tasks.map((t, idx) => ({
         ...t,
-        taskCode: t.taskCode || `TASK${String(t.taskNumber || idx + 3209190).padStart(7, "0")}`,
-        startDate: formatToMMDDYYYY(t.startDate) || formatToMMDDYYYY(new Date()),
-        dueDate: formatToMMDDYYYY(t.dueDate) || formatToMMDDYYYY(new Date(Date.now() + 7 * 86400000)),
+        taskCode:
+          t.taskCode ||
+          `TASK${String(t.taskNumber || idx + 3209190).padStart(7, "0")}`,
+        startDate:
+          formatToMMDDYYYY(t.startDate) || formatToMMDDYYYY(new Date()),
+        dueDate:
+          formatToMMDDYYYY(t.dueDate) ||
+          formatToMMDDYYYY(new Date(Date.now() + 7 * 86400000)),
       }));
 
       setTasks(formatted);
+      setTotalTasksCount(resData.totalTasks);
+      setTotalPages(resData.totalPages);
+      if (resData.metrics) {
+        setBackendMetrics(resData.metrics);
+      }
     } catch (error: any) {
       console.error("Failed to load tasks:", error);
       setTasks([]);
@@ -454,9 +547,23 @@ export default function OnboardingTasksPage() {
 
   useEffect(() => {
     fetchTasks();
-  }, [search, filters.serviceLine, filters.phase, filters.status, filters.practiceId, filters.ownerUserId]);
+  }, [
+    currentPage,
+    pageSize,
+    search,
+    filters.serviceLine,
+    filters.phase,
+    filters.status,
+    filters.practiceId,
+    filters.ownerUserId,
+    filters.dueDateFrom,
+    filters.dueDateTo,
+  ]);
 
-  const updateDraftFilter = <K extends keyof TaskFilters>(key: K, value: TaskFilters[K]) => {
+  const updateDraftFilter = <K extends keyof TaskFilters>(
+    key: K,
+    value: TaskFilters[K],
+  ) => {
     setDraftFilters((curr) => ({ ...curr, [key]: value }));
   };
 
@@ -466,49 +573,25 @@ export default function OnboardingTasksPage() {
 
   const handleApplyFilters = () => {
     setFilters(draftFilters);
+    setCurrentPage(1);
   };
 
   const handleResetFilters = () => {
     setFilters(defaultFilters);
     setDraftFilters(defaultFilters);
     setSearch("");
+    setCurrentPage(1);
   };
 
-  // Filtered Tasks Calculation
+  // Filtered Tasks Calculation (API handles backend search/filters, fallback locally if search string provided)
   const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
-      if (search) {
-        const query = search.toLowerCase();
-        const matchesSearch =
-          t.name.toLowerCase().includes(query) ||
-          t.practiceName.toLowerCase().includes(query) ||
-          (t.deliverable && t.deliverable.toLowerCase().includes(query)) ||
-          (t.taskCode && t.taskCode.toLowerCase().includes(query)) ||
-          t.taskNumber.toString().includes(query);
-        if (!matchesSearch) return false;
-      }
-
-      if (filters.practiceId && t.practiceId && t.practiceId !== filters.practiceId) return false;
-      if (filters.practiceName && !t.practiceName.toLowerCase().includes(filters.practiceName.toLowerCase())) return false;
-      if (filters.serviceLine && t.serviceLine !== filters.serviceLine) return false;
-      if (filters.phase && t.phase !== filters.phase) return false;
-      if (filters.status && t.status !== filters.status) return false;
-      if (filters.ownerUserId && t.ownerUserId && t.ownerUserId !== filters.ownerUserId) return false;
-      if (filters.ownerName && !t.ownerName.toLowerCase().includes(filters.ownerName.toLowerCase())) return false;
-
-      return true;
-    });
-  }, [tasks, search, filters]);
-
-  // Metrics calculation
-  const metrics = useMemo(() => {
-    const total = tasks.length;
-    const completed = tasks.filter((t) => t.status === "COMPLETE").length;
-    const inProgress = tasks.filter((t) => t.status === "IN_PROGRESS").length;
-    const blocked = tasks.filter((t) => t.status === "BLOCKED").length;
-    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-    return { total, completed, inProgress, blocked, pct };
+    return tasks;
   }, [tasks]);
+
+  // Metrics from Backend Filter-Wise Calculation
+  const metrics = useMemo(() => {
+    return backendMetrics;
+  }, [backendMetrics]);
 
   // Status Change Logic with Dependency Guard & API call
   const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
@@ -516,10 +599,12 @@ export default function OnboardingTasksPage() {
     if (!targetTask) return;
 
     if (newStatus === "IN_PROGRESS") {
-      const hasUnmetDeps = targetTask.dependencies.some((dep) => !dep.isComplete);
+      const hasUnmetDeps = targetTask.dependencies.some(
+        (dep) => !dep.isComplete,
+      );
       if (hasUnmetDeps) {
         toast.error(
-          `Cannot move ${targetTask.taskCode || `Task #${targetTask.taskNumber}`} to "In Progress". It has unmet predecessor dependencies blocking execution!`
+          `Cannot move ${targetTask.taskCode || `Task #${targetTask.taskNumber}`} to "In Progress". It has unmet predecessor dependencies blocking execution!`,
         );
         return;
       }
@@ -532,12 +617,14 @@ export default function OnboardingTasksPage() {
         }
         if (t.dependencies.some((dep) => dep.id === taskId)) {
           const updatedDeps = t.dependencies.map((dep) =>
-            dep.id === taskId ? { ...dep, isComplete: newStatus === "COMPLETE" } : dep
+            dep.id === taskId
+              ? { ...dep, isComplete: newStatus === "COMPLETE" }
+              : dep,
           );
           return { ...t, dependencies: updatedDeps };
         }
         return t;
-      })
+      }),
     );
 
     if (selectedTask?.id === taskId) {
@@ -546,7 +633,9 @@ export default function OnboardingTasksPage() {
 
     try {
       await updateTaskApi(taskId, { status: newStatus });
-      toast.success(`${targetTask.taskCode || `Task #${targetTask.taskNumber}`} updated to ${newStatus}`);
+      toast.success(
+        `${targetTask.taskCode || `Task #${targetTask.taskNumber}`} updated to ${newStatus}`,
+      );
     } catch (err: any) {
       toast.error(err.message || "Failed to update task status");
       fetchTasks();
@@ -594,7 +683,11 @@ export default function OnboardingTasksPage() {
         displayValue: filters.practiceName || filters.practiceId,
         onClear: () => {
           setFilters((curr) => ({ ...curr, practiceId: "", practiceName: "" }));
-          setDraftFilters((curr) => ({ ...curr, practiceId: "", practiceName: "" }));
+          setDraftFilters((curr) => ({
+            ...curr,
+            practiceId: "",
+            practiceName: "",
+          }));
         },
       });
     }
@@ -613,7 +706,9 @@ export default function OnboardingTasksPage() {
       chips.push({
         key: "phase",
         label: "Phase",
-        displayValue: PHASE_SHORT_BADGES[filters.phase as TaskPhase]?.label || filters.phase,
+        displayValue:
+          PHASE_SHORT_BADGES[filters.phase as TaskPhase]?.label ||
+          filters.phase,
         onClear: () => {
           setFilters((curr) => ({ ...curr, phase: "" }));
           setDraftFilters((curr) => ({ ...curr, phase: "" }));
@@ -624,7 +719,8 @@ export default function OnboardingTasksPage() {
       chips.push({
         key: "status",
         label: "Status",
-        displayValue: STATUS_CONFIG[filters.status as TaskStatus]?.label || filters.status,
+        displayValue:
+          STATUS_CONFIG[filters.status as TaskStatus]?.label || filters.status,
         onClear: () => {
           setFilters((curr) => ({ ...curr, status: "" }));
           setDraftFilters((curr) => ({ ...curr, status: "" }));
@@ -638,7 +734,33 @@ export default function OnboardingTasksPage() {
         displayValue: filters.ownerName || filters.ownerUserId,
         onClear: () => {
           setFilters((curr) => ({ ...curr, ownerUserId: "", ownerName: "" }));
-          setDraftFilters((curr) => ({ ...curr, ownerUserId: "", ownerName: "" }));
+          setDraftFilters((curr) => ({
+            ...curr,
+            ownerUserId: "",
+            ownerName: "",
+          }));
+        },
+      });
+    }
+    if (filters.dueDateFrom) {
+      chips.push({
+        key: "dueDateFrom",
+        label: "Due From",
+        displayValue: filters.dueDateFrom,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dueDateFrom: "" }));
+          setDraftFilters((curr) => ({ ...curr, dueDateFrom: "" }));
+        },
+      });
+    }
+    if (filters.dueDateTo) {
+      chips.push({
+        key: "dueDateTo",
+        label: "Due To",
+        displayValue: filters.dueDateTo,
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, dueDateTo: "" }));
+          setDraftFilters((curr) => ({ ...curr, dueDateTo: "" }));
         },
       });
     }
@@ -650,99 +772,109 @@ export default function OnboardingTasksPage() {
   // Filter Modal Fields Layout in a clean 2-Section Grid View
   const filterFieldsModal = (
     <>
-        {/* Practice Select */}
-        <label className="block">
-          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Practice</span>
-          <SearchSelect
-            value={draftFilters.practiceId}
-            displayLabel={draftFilters.practiceName}
-            onChange={(val, opt) => {
-              setDraftFilters((curr) => ({
-                ...curr,
-                practiceId: val,
-                practiceName: opt?.label || val,
-              }));
-            }}
-            onSearch={searchPracticeOptions}
-            clearable
-            toggleOnSelectSame
-            placeholder="Search practice"
-          />
-        </label>
+      {/* Practice Select */}
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Practice
+        </span>
+        <SearchSelect
+          value={draftFilters.practiceId}
+          displayLabel={draftFilters.practiceName}
+          onChange={(val, opt) => {
+            setDraftFilters((curr) => ({
+              ...curr,
+              practiceId: val,
+              practiceName: opt?.label || val,
+            }));
+          }}
+          onSearch={searchPracticeOptions}
+          clearable
+          toggleOnSelectSame
+          placeholder="Search practice"
+        />
+      </label>
 
-        {/* Assigned Owner Select */}
-        <label className="block">
-          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Assigned Owner</span>
-          <SearchSelect
-            value={draftFilters.ownerUserId}
-            displayLabel={draftFilters.ownerName}
-            onChange={(val, opt) => {
-              setDraftFilters((curr) => ({
-                ...curr,
-                ownerUserId: val,
-                ownerName: opt?.label || val,
-              }));
-            }}
-            onSearch={searchUserOptions}
-            clearable
-            toggleOnSelectSame
-            placeholder="Search assigned owner"
-          />
-        </label>
+      {/* Assigned Owner Select */}
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Assigned Owner
+        </span>
+        <SearchSelect
+          value={draftFilters.ownerUserId}
+          displayLabel={draftFilters.ownerName}
+          onChange={(val, opt) => {
+            setDraftFilters((curr) => ({
+              ...curr,
+              ownerUserId: val,
+              ownerName: opt?.label || val,
+            }));
+          }}
+          onSearch={searchUserOptions}
+          clearable
+          toggleOnSelectSame
+          placeholder="Search assigned owner"
+        />
+      </label>
 
-        {/* Service Line Select */}
-        <label className="block">
-          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Service Line</span>
-          <Select
-            value={draftFilters.serviceLine}
-            onChange={(val) => updateDraftFilter("serviceLine", val)}
-            options={SERVICE_LINE_OPTIONS}
-            placeholder="Select Service Line"
-          />
-        </label>
+      {/* Service Line Select */}
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Service Line
+        </span>
+        <Select
+          value={draftFilters.serviceLine}
+          onChange={(val) => updateDraftFilter("serviceLine", val)}
+          options={SERVICE_LINE_OPTIONS}
+          placeholder="Select Service Line"
+        />
+      </label>
 
-        {/* Phase Select */}
-        <label className="block">
-          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Onboarding Phase</span>
-          <Select
-            value={draftFilters.phase}
-            onChange={(val) => updateDraftFilter("phase", val)}
-            options={PHASE_OPTIONS}
-            placeholder="Select Phase"
-          />
-        </label>
+      {/* Phase Select */}
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Onboarding Phase
+        </span>
+        <Select
+          value={draftFilters.phase}
+          onChange={(val) => updateDraftFilter("phase", val)}
+          options={PHASE_OPTIONS}
+          placeholder="Select Phase"
+        />
+      </label>
 
-        {/* Status Select */}
-        <label className="block">
-          <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Status</span>
-          <Select
-            value={draftFilters.status}
-            onChange={(val) => updateDraftFilter("status", val)}
-            options={STATUS_OPTIONS}
-            placeholder="Select Status"
-          />
-        </label>
-
-        {/* Timeline Date Range */}
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Due From</span>
-            <DatePicker
-              value={draftFilters.dueDateFrom}
-              onChange={(val) => updateDraftFilter("dueDateFrom", val)}
-              placeholder="From date"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Due To</span>
-            <DatePicker
-              value={draftFilters.dueDateTo}
-              onChange={(val) => updateDraftFilter("dueDateTo", val)}
-              placeholder="To date"
-            />
-          </label>
-        </div>
-
+      {/* Timeline Date Range */}
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Due From
+        </span>
+        <DatePicker
+          value={draftFilters.dueDateFrom}
+          onChange={(val) => updateDraftFilter("dueDateFrom", val)}
+          placeholder="From date"
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Due To
+        </span>
+        <DatePicker
+          value={draftFilters.dueDateTo}
+          onChange={(val) => updateDraftFilter("dueDateTo", val)}
+          placeholder="To date"
+        />
+      </label>
+      {/* Status Select */}
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Status
+        </span>
+        <Select
+          value={draftFilters.status}
+          onChange={(val) => updateDraftFilter("status", val)}
+          options={STATUS_OPTIONS}
+          placeholder="Select Status"
+        />
+      </label>
     </>
   );
 
@@ -759,15 +891,24 @@ export default function OnboardingTasksPage() {
         phase: newTaskPhase,
         ownerUserId: newTaskOwnerUserId,
         startDate: formatToMMDDYYYY(new Date()),
-        dueDate: formatToMMDDYYYY(newTaskDueDate ? new Date(newTaskDueDate) : new Date(Date.now() + 7 * 86400000)),
+        dueDate: formatToMMDDYYYY(
+          newTaskDueDate
+            ? new Date(newTaskDueDate)
+            : new Date(Date.now() + 7 * 86400000),
+        ),
         deliverable: newTaskDeliverable,
       });
 
       const formattedTask: TaskItem = {
         ...created,
-        taskCode: created.taskCode || `TASK${String(Math.floor(1000000 + Math.random() * 9000000))}`,
-        startDate: formatToMMDDYYYY(created.startDate) || formatToMMDDYYYY(new Date()),
-        dueDate: formatToMMDDYYYY(created.dueDate) || formatToMMDDYYYY(new Date(Date.now() + 7 * 86400000)),
+        taskCode:
+          created.taskCode ||
+          `TASK${String(Math.floor(1000000 + Math.random() * 9000000))}`,
+        startDate:
+          formatToMMDDYYYY(created.startDate) || formatToMMDDYYYY(new Date()),
+        dueDate:
+          formatToMMDDYYYY(created.dueDate) ||
+          formatToMMDDYYYY(new Date(Date.now() + 7 * 86400000)),
       };
 
       setTasks((prev) => [formattedTask, ...prev]);
@@ -814,9 +955,13 @@ export default function OnboardingTasksPage() {
         notes: editTaskNotes,
       };
 
-      setTasks((prev) => prev.map((t) => (t.id === selectedTask.id ? updatedTaskItem : t)));
+      setTasks((prev) =>
+        prev.map((t) => (t.id === selectedTask.id ? updatedTaskItem : t)),
+      );
       setSelectedTask(updatedTaskItem);
-      toast.success(`Task ${selectedTask.taskCode || `TASK${selectedTask.taskNumber}`} updated!`);
+      toast.success(
+        `Task ${selectedTask.taskCode || `TASK${selectedTask.taskNumber}`} updated!`,
+      );
       setIsEditTaskModalOpen(false);
     } catch (err: any) {
       toast.error(err.message || "Failed to update task");
@@ -824,64 +969,12 @@ export default function OnboardingTasksPage() {
   };
 
   return (
-    <AppLayout title="Tasks Tracker" activeModule="Task Tracker" activeSubItem="Tasks">
-      <div className="space-y-6 p-6">
-        {/* Metric Summary Banner */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Tasks</span>
-              <Layers className="h-5 w-5 text-indigo-500" />
-            </div>
-            <div className="mt-2 text-2xl font-bold text-slate-800">{metrics.total}</div>
-            <div className="mt-1 text-xs text-slate-500">Active operational items</div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">In Progress</span>
-              <Activity className="h-5 w-5 text-blue-500" />
-            </div>
-            <div className="mt-2 text-2xl font-bold text-blue-700">{metrics.inProgress}</div>
-            <div className="mt-1 text-xs text-blue-600 font-medium">Under active work</div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Blocked Tasks</span>
-              <ShieldAlert className="h-5 w-5 text-rose-500" />
-            </div>
-            <div className="mt-2 text-2xl font-bold text-rose-700">{metrics.blocked}</div>
-            <div className="mt-1 text-xs text-rose-600 font-medium">Predecessor pending</div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Completed</span>
-              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-            </div>
-            <div className="mt-2 text-2xl font-bold text-emerald-700">{metrics.completed}</div>
-            <div className="mt-1 text-xs text-emerald-600 font-medium">Deliverables done</div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Overall Progress</span>
-              <Sparkles className="h-5 w-5 text-amber-500" />
-            </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-800">{metrics.pct}%</span>
-              <span className="text-xs text-slate-500">complete</span>
-            </div>
-            <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100">
-              <div
-                className="h-1.5 rounded-full bg-emerald-500 transition-all duration-500"
-                style={{ width: `${metrics.pct}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
+    <AppLayout
+      title="Tasks Tracker"
+      activeModule="Task Tracker"
+      activeSubItem="Tasks"
+    >
+      <div className="space-y-4 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#f7f5f1] p-2">
         {/* Standardized DataTableToolbar like Credentialing Module */}
         <DataTableToolbar
           title="Tasks Tracker"
@@ -925,6 +1018,89 @@ export default function OnboardingTasksPage() {
             </div>
           }
         />
+        {/* Metric Summary Banner */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Total Tasks
+              </span>
+              <Layers className="h-5 w-5 text-indigo-500" />
+            </div>
+            <div className="mt-2 text-2xl font-bold text-slate-800">
+              {metrics.total}
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              Active operational items
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                In Progress
+              </span>
+              <Activity className="h-5 w-5 text-blue-500" />
+            </div>
+            <div className="mt-2 text-2xl font-bold text-blue-700">
+              {metrics.inProgress}
+            </div>
+            <div className="mt-1 text-xs text-blue-600 font-medium">
+              Under active work
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Blocked Tasks
+              </span>
+              <ShieldAlert className="h-5 w-5 text-rose-500" />
+            </div>
+            <div className="mt-2 text-2xl font-bold text-rose-700">
+              {metrics.blocked}
+            </div>
+            <div className="mt-1 text-xs text-rose-600 font-medium">
+              Predecessor pending
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Completed
+              </span>
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            </div>
+            <div className="mt-2 text-2xl font-bold text-emerald-700">
+              {metrics.completed}
+            </div>
+            <div className="mt-1 text-xs text-emerald-600 font-medium">
+              Deliverables done
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Overall Progress
+              </span>
+              <Sparkles className="h-5 w-5 text-amber-500" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-slate-800">
+                {metrics.pct}%
+              </span>
+              <span className="text-xs text-slate-500">complete</span>
+            </div>
+            <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100">
+              <div
+                className="h-1.5 rounded-full bg-emerald-500 transition-all duration-500"
+                style={{ width: `${metrics.pct}%` }}
+              />
+            </div>
+          </div>
+        </div>
 
         {/* Main Content Area */}
         {isLoading ? (
@@ -954,7 +1130,10 @@ export default function OnboardingTasksPage() {
                 <tbody className="divide-y divide-slate-200 text-slate-700">
                   {filteredTasks.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
+                      <td
+                        colSpan={9}
+                        className="px-4 py-12 text-center text-slate-500"
+                      >
                         No onboarding tasks found matching your filters.
                       </td>
                     </tr>
@@ -962,8 +1141,12 @@ export default function OnboardingTasksPage() {
                     filteredTasks.map((t) => {
                       const statusInfo = STATUS_CONFIG[t.status];
                       const phaseBadge = PHASE_SHORT_BADGES[t.phase];
-                      const hasUnmetDeps = t.dependencies.some((dep) => !dep.isComplete);
-                      const displayCode = t.taskCode || `TASK${String(t.taskNumber).padStart(6, "0")}`;
+                      const hasUnmetDeps = t.dependencies.some(
+                        (dep) => !dep.isComplete,
+                      );
+                      const displayCode =
+                        t.taskCode ||
+                        `TASK${String(t.taskNumber).padStart(6, "0")}`;
 
                       return (
                         <tr
@@ -975,8 +1158,12 @@ export default function OnboardingTasksPage() {
                             {displayCode}
                           </td>
                           <td className="px-4 py-3.5">
-                            <div className="font-medium text-slate-900">{t.name}</div>
-                            <div className="text-xs text-slate-500">{t.practiceName}</div>
+                            <div className="font-medium text-slate-900">
+                              {t.name}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {t.practiceName}
+                            </div>
                           </td>
                           <td className="px-4 py-3.5">
                             <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
@@ -995,7 +1182,9 @@ export default function OnboardingTasksPage() {
                               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
                                 {t.ownerName.charAt(0)}
                               </div>
-                              <span className="text-xs font-medium text-slate-700">{t.ownerName}</span>
+                              <span className="text-xs font-medium text-slate-700">
+                                {t.ownerName}
+                              </span>
                             </div>
                           </td>
                           <td className="px-4 py-3.5 text-xs font-medium text-slate-700">
@@ -1006,14 +1195,18 @@ export default function OnboardingTasksPage() {
                           </td>
                           <td className="px-4 py-3.5">
                             {t.dependencies.length === 0 ? (
-                              <span className="text-xs text-slate-400">None</span>
+                              <span className="text-xs text-slate-400">
+                                None
+                              </span>
                             ) : (
                               <div className="flex flex-col gap-1">
                                 {t.dependencies.map((dep) => (
                                   <span
                                     key={dep.id}
                                     className={`inline-flex items-center gap-1 text-xs font-medium ${
-                                      dep.isComplete ? "text-emerald-600" : "text-amber-600"
+                                      dep.isComplete
+                                        ? "text-emerald-600"
+                                        : "text-amber-600"
                                     }`}
                                   >
                                     {dep.isComplete ? (
@@ -1027,21 +1220,24 @@ export default function OnboardingTasksPage() {
                               </div>
                             )}
                           </td>
-                          <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
-                            <select
+                          <td
+                            className="px-4 py-3.5 min-w-[145px]"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Select
                               value={t.status}
-                              onChange={(e) => handleUpdateStatus(t.id, e.target.value as TaskStatus)}
-                              className={`rounded-lg border px-2.5 py-1 text-xs font-medium focus:outline-none ${statusInfo.bg} ${statusInfo.text} ${statusInfo.border}`}
-                            >
-                              <option value="NOT_STARTED">Not Started</option>
-                              <option value="IN_PROGRESS" disabled={hasUnmetDeps}>
-                                In Progress {hasUnmetDeps ? "(Blocked)" : ""}
-                              </option>
-                              <option value="BLOCKED">Blocked</option>
-                              <option value="COMPLETE">Complete</option>
-                            </select>
+                              onChange={(val) => handleUpdateStatus(t.id, val as TaskStatus)}
+                              options={STATUS_OPTIONS.filter((o) => o.value !== "").map((o) => ({
+                                ...o,
+                                label: hasUnmetDeps && o.value === "IN_PROGRESS" ? `${o.label} (Blocked)` : o.label,
+                              }))}
+                              className={`!py-1 !px-2.5 !text-xs !font-bold rounded-lg transition-colors ${statusInfo.bg} ${statusInfo.text} ${statusInfo.border}`}
+                            />
                           </td>
-                          <td className="px-4 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td
+                            className="px-4 py-3.5 text-right"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <button
                               onClick={() => setSelectedTask(t)}
                               className="text-xs font-medium text-indigo-600 hover:text-indigo-900 hover:underline"
@@ -1056,12 +1252,66 @@ export default function OnboardingTasksPage() {
                 </tbody>
               </table>
             </div>
+            {/* Table Footer Pagination */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+              <div className="flex items-center gap-2">
+                <span>Rows per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+                <span className="ml-2">
+                  Showing <span className="font-semibold text-slate-900">{totalTasksCount === 0 ? 0 : (currentPage - 1) * pageSize + 1}</span> to{" "}
+                  <span className="font-semibold text-slate-900">{Math.min(currentPage * pageSize, totalTasksCount)}</span> of{" "}
+                  <span className="font-semibold text-slate-900">{totalTasksCount}</span> entries
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white transition-colors"
+                >
+                  Previous
+                </button>
+                <span className="px-2 font-semibold text-slate-700">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
           /* Kanban Board View with HTML5 Drag & Drop */
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            {(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETE"] as TaskStatus[]).map((statusKey) => {
-              const columnTasks = filteredTasks.filter((t) => t.status === statusKey);
+            {(
+              [
+                "NOT_STARTED",
+                "IN_PROGRESS",
+                "BLOCKED",
+                "COMPLETE",
+              ] as TaskStatus[]
+            ).map((statusKey) => {
+              const columnTasks = filteredTasks.filter(
+                (t) => t.status === statusKey,
+              );
               const statusCfg = STATUS_CONFIG[statusKey];
               const isOver = dragOverStatus === statusKey;
 
@@ -1079,7 +1329,9 @@ export default function OnboardingTasksPage() {
                 >
                   <div className="mb-3 flex items-center justify-between border-b border-slate-200 pb-2.5">
                     <div className="flex items-center gap-2">
-                      <span className={`h-2.5 w-2.5 rounded-full ${statusCfg.bg} border ${statusCfg.border}`} />
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${statusCfg.bg} border ${statusCfg.border}`}
+                      />
                       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
                         {statusCfg.label}
                       </h3>
@@ -1097,7 +1349,9 @@ export default function OnboardingTasksPage() {
                     ) : (
                       columnTasks.map((t) => {
                         const isBeingDragged = draggedTaskId === t.id;
-                        const displayCode = t.taskCode || `TASK${String(t.taskNumber).padStart(6, "0")}`;
+                        const displayCode =
+                          t.taskCode ||
+                          `TASK${String(t.taskNumber).padStart(6, "0")}`;
 
                         return (
                           <div
@@ -1106,21 +1360,29 @@ export default function OnboardingTasksPage() {
                             onDragStart={(e) => handleDragStart(e, t.id)}
                             onClick={() => setSelectedTask(t)}
                             className={`group relative rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md cursor-grab active:cursor-grabbing space-y-2.5 ${
-                              isBeingDragged ? "opacity-40 scale-95 border-dashed border-indigo-400" : ""
+                              isBeingDragged
+                                ? "opacity-40 scale-95 border-dashed border-indigo-400"
+                                : ""
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-1.5">
                                 <GripVertical className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 transition-colors" />
-                                <span className="text-xs font-bold font-mono text-indigo-700">{displayCode}</span>
+                                <span className="text-xs font-bold font-mono text-indigo-700">
+                                  {displayCode}
+                                </span>
                               </div>
                               <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
                                 {t.serviceLine}
                               </span>
                             </div>
 
-                            <h4 className="text-sm font-semibold text-slate-800 line-clamp-2">{t.name}</h4>
-                            <p className="text-xs text-slate-500">{t.practiceName}</p>
+                            <h4 className="text-sm font-semibold text-slate-800 line-clamp-2">
+                              {t.name}
+                            </h4>
+                            <p className="text-xs text-slate-500">
+                              {t.practiceName}
+                            </p>
 
                             <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
                               <div className="flex items-center gap-1 text-slate-600 font-medium">
@@ -1136,7 +1398,12 @@ export default function OnboardingTasksPage() {
                             {t.dependencies.length > 0 && (
                               <div className="rounded bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800 flex items-center gap-1">
                                 <Lock className="h-3 w-3 text-amber-600" />
-                                Depends on {t.dependencies.map((d) => d.taskCode || `TASK${d.taskNumber}`).join(", ")}
+                                Depends on{" "}
+                                {t.dependencies
+                                  .map(
+                                    (d) => d.taskCode || `TASK${d.taskNumber}`,
+                                  )
+                                  .join(", ")}
                               </div>
                             )}
                           </div>
@@ -1158,10 +1425,15 @@ export default function OnboardingTasksPage() {
               <div className="p-6 border-b border-slate-200 bg-slate-50/50 flex items-start justify-between">
                 <div>
                   <span className="text-xs font-bold font-mono tracking-wider text-indigo-600">
-                    {selectedTask.taskCode || `TASK${selectedTask.taskNumber}`} • {selectedTask.serviceLine}
+                    {selectedTask.taskCode || `TASK${selectedTask.taskNumber}`}{" "}
+                    • {selectedTask.serviceLine}
                   </span>
-                  <h3 className="text-xl font-bold text-slate-900 mt-1">{selectedTask.name}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">{selectedTask.practiceName}</p>
+                  <h3 className="text-xl font-bold text-slate-900 mt-1">
+                    {selectedTask.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {selectedTask.practiceName}
+                  </p>
                 </div>
                 <button
                   onClick={() => setSelectedTask(null)}
@@ -1173,33 +1445,70 @@ export default function OnboardingTasksPage() {
 
               {/* Scrollable Body */}
               <div className="p-6 space-y-6 overflow-y-auto">
-                {/* Current Task Status & Edit Trigger */}
+                {/* Current Task Status & Action Triggers */}
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-600">Current Task Status</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditTaskName(selectedTask.name);
-                      setEditTaskPracticeId(selectedTask.practiceId || "");
-                      setEditTaskPracticeName(selectedTask.practiceName);
-                      setEditTaskServiceLine(selectedTask.serviceLine);
-                      setEditTaskPhase(selectedTask.phase);
-                      setEditTaskOwnerUserId(selectedTask.ownerUserId || "");
-                      setEditTaskOwnerName(selectedTask.ownerName);
-                      setEditTaskStartDate(selectedTask.startDate);
-                      setEditTaskDueDate(selectedTask.dueDate);
-                      setEditTaskDeliverable(selectedTask.deliverable || "");
-                      setEditTaskNotes(selectedTask.notes || "");
-                      setIsEditTaskModalOpen(true);
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
-                  >
-                    <Edit className="h-3.5 w-3.5" />
-                    Edit Task Details
-                  </button>
+                  <label className="text-xs font-semibold text-slate-600">
+                    Current Task Status
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditTaskName(selectedTask.name);
+                        setEditTaskPracticeId(selectedTask.practiceId || "");
+                        setEditTaskPracticeName(selectedTask.practiceName);
+                        setEditTaskServiceLine(selectedTask.serviceLine);
+                        setEditTaskPhase(selectedTask.phase);
+                        setEditTaskOwnerUserId(selectedTask.ownerUserId || "");
+                        setEditTaskOwnerName(selectedTask.ownerName);
+                        setEditTaskStartDate(selectedTask.startDate);
+                        setEditTaskDueDate(selectedTask.dueDate);
+                        setEditTaskDeliverable(selectedTask.deliverable || "");
+                        setEditTaskNotes(selectedTask.notes || "");
+                        setIsEditTaskModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                      Edit Task Details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (
+                          window.confirm(
+                            `Are you sure you want to delete task "${selectedTask.name}"?`,
+                          )
+                        ) {
+                          try {
+                            await deleteTaskApi(selectedTask.id);
+                            setTasks((prev) =>
+                              prev.filter((item) => item.id !== selectedTask.id),
+                            );
+                            setSelectedTask(null);
+                            toast.success("Task deleted successfully");
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to delete task");
+                          }
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-100 transition-colors"
+                      title="Delete Task"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETE"] as TaskStatus[]).map((st) => (
+                  {(
+                    [
+                      "NOT_STARTED",
+                      "IN_PROGRESS",
+                      "BLOCKED",
+                      "COMPLETE",
+                    ] as TaskStatus[]
+                  ).map((st) => (
                     <button
                       key={st}
                       onClick={() => handleUpdateStatus(selectedTask.id, st)}
@@ -1218,32 +1527,50 @@ export default function OnboardingTasksPage() {
                 <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs">
                   <div>
                     <span className="text-slate-400 block mb-0.5">Phase</span>
-                    <span className="font-semibold text-slate-800">{PHASE_LABELS[selectedTask.phase]}</span>
+                    <span className="font-semibold text-slate-800">
+                      {PHASE_LABELS[selectedTask.phase]}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block mb-0.5">Assigned Owner</span>
-                    <span className="font-semibold text-slate-800">{selectedTask.ownerName}</span>
+                    <span className="text-slate-400 block mb-0.5">
+                      Assigned Owner
+                    </span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTask.ownerName}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block mb-0.5">Start Date (MM-DD-YYYY)</span>
-                    <span className="font-semibold text-slate-800">{selectedTask.startDate}</span>
+                    <span className="text-slate-400 block mb-0.5">
+                      Start Date (MM-DD-YYYY)
+                    </span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTask.startDate}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block mb-0.5">Due Date (MM-DD-YYYY)</span>
-                    <span className="font-semibold text-slate-800">{selectedTask.dueDate}</span>
+                    <span className="text-slate-400 block mb-0.5">
+                      Due Date (MM-DD-YYYY)
+                    </span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTask.dueDate}
+                    </span>
                   </div>
                 </div>
 
                 {/* Deliverable & Notes */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Expected Deliverable</h4>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      Expected Deliverable
+                    </h4>
                     <div className="text-sm font-medium text-slate-800 bg-slate-50 p-3 rounded-xl border border-slate-200 min-h-[70px]">
                       {selectedTask.deliverable || "No deliverable specified"}
                     </div>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Notes & Context</h4>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      Notes & Context
+                    </h4>
                     <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 min-h-[70px]">
                       {selectedTask.notes || "No notes logged."}
                     </div>
@@ -1252,9 +1579,13 @@ export default function OnboardingTasksPage() {
 
                 {/* Dependencies Section */}
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Task Dependencies</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
+                    Task Dependencies
+                  </h4>
                   {selectedTask.dependencies.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">No predecessor dependencies required for this task.</p>
+                    <p className="text-xs text-slate-400 italic">
+                      No predecessor dependencies required for this task.
+                    </p>
                   ) : (
                     <div className="space-y-2">
                       {selectedTask.dependencies.map((dep) => (
@@ -1268,12 +1599,16 @@ export default function OnboardingTasksPage() {
                             ) : (
                               <Lock className="h-4 w-4 text-amber-500" />
                             )}
-                            <span className="font-bold font-mono text-indigo-700">{dep.taskCode || `TASK${dep.taskNumber}`}:</span>
+                            <span className="font-bold font-mono text-indigo-700">
+                              {dep.taskCode || `TASK${dep.taskNumber}`}:
+                            </span>
                             <span className="text-slate-600">{dep.name}</span>
                           </div>
                           <span
                             className={`font-semibold ${
-                              dep.isComplete ? "text-emerald-600" : "text-amber-600"
+                              dep.isComplete
+                                ? "text-emerald-600"
+                                : "text-amber-600"
                             }`}
                           >
                             {dep.isComplete ? "Complete" : "Blocking"}
@@ -1313,9 +1648,14 @@ export default function OnboardingTasksPage() {
                   ✕
                 </button>
               </div>
-              <form onSubmit={handleCreateTask} className="mt-4 space-y-4 text-xs">
+              <form
+                onSubmit={handleCreateTask}
+                className="mt-4 space-y-4 text-xs"
+              >
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Task Name *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Task Name *
+                  </label>
                   <input
                     type="text"
                     required
@@ -1328,7 +1668,9 @@ export default function OnboardingTasksPage() {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Practice</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Practice
+                    </label>
                     <SearchSelect
                       value={newTaskPracticeId}
                       displayLabel={newTaskPracticeName}
@@ -1345,7 +1687,9 @@ export default function OnboardingTasksPage() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Assigned Owner</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Assigned Owner
+                    </label>
                     <SearchSelect
                       value={newTaskOwnerUserId}
                       displayLabel={newTaskOwnerName}
@@ -1363,16 +1707,24 @@ export default function OnboardingTasksPage() {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Service Line</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Service Line
+                    </label>
                     <Select
                       value={newTaskServiceLine}
-                      onChange={(val) => setNewTaskServiceLine(val as ServiceLine)}
-                      options={SERVICE_LINE_OPTIONS.filter((o) => o.value !== "")}
+                      onChange={(val) =>
+                        setNewTaskServiceLine(val as ServiceLine)
+                      }
+                      options={SERVICE_LINE_OPTIONS.filter(
+                        (o) => o.value !== "",
+                      )}
                       placeholder="Select Service Line"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Phase</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Phase
+                    </label>
                     <Select
                       value={newTaskPhase}
                       onChange={(val) => setNewTaskPhase(val as TaskPhase)}
@@ -1384,7 +1736,9 @@ export default function OnboardingTasksPage() {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Due Date</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Due Date
+                    </label>
                     <DatePicker
                       value={newTaskDueDate}
                       onChange={(val) => setNewTaskDueDate(val)}
@@ -1392,7 +1746,9 @@ export default function OnboardingTasksPage() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Expected Deliverable</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Expected Deliverable
+                    </label>
                     <input
                       type="text"
                       placeholder="e.g. Audit Approval Pack"
@@ -1438,9 +1794,14 @@ export default function OnboardingTasksPage() {
                   ✕
                 </button>
               </div>
-              <form onSubmit={handleEditTask} className="mt-4 space-y-4 text-xs">
+              <form
+                onSubmit={handleEditTask}
+                className="mt-4 space-y-4 text-xs"
+              >
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Task Name *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Task Name *
+                  </label>
                   <input
                     type="text"
                     required
@@ -1452,7 +1813,9 @@ export default function OnboardingTasksPage() {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Practice</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Practice
+                    </label>
                     <SearchSelect
                       value={editTaskPracticeId}
                       displayLabel={editTaskPracticeName}
@@ -1469,7 +1832,9 @@ export default function OnboardingTasksPage() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Assigned Owner</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Assigned Owner
+                    </label>
                     <SearchSelect
                       value={editTaskOwnerUserId}
                       displayLabel={editTaskOwnerName}
@@ -1487,16 +1852,24 @@ export default function OnboardingTasksPage() {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Service Line</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Service Line
+                    </label>
                     <Select
                       value={editTaskServiceLine}
-                      onChange={(val) => setEditTaskServiceLine(val as ServiceLine)}
-                      options={SERVICE_LINE_OPTIONS.filter((o) => o.value !== "")}
+                      onChange={(val) =>
+                        setEditTaskServiceLine(val as ServiceLine)
+                      }
+                      options={SERVICE_LINE_OPTIONS.filter(
+                        (o) => o.value !== "",
+                      )}
                       placeholder="Select Service Line"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Phase</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Phase
+                    </label>
                     <Select
                       value={editTaskPhase}
                       onChange={(val) => setEditTaskPhase(val as TaskPhase)}
@@ -1508,7 +1881,9 @@ export default function OnboardingTasksPage() {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Start Date</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Start Date
+                    </label>
                     <DatePicker
                       value={editTaskStartDate}
                       onChange={(val) => setEditTaskStartDate(val)}
@@ -1516,7 +1891,9 @@ export default function OnboardingTasksPage() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Due Date</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Due Date
+                    </label>
                     <DatePicker
                       value={editTaskDueDate}
                       onChange={(val) => setEditTaskDueDate(val)}
@@ -1527,7 +1904,9 @@ export default function OnboardingTasksPage() {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Expected Deliverable</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Expected Deliverable
+                    </label>
                     <input
                       type="text"
                       placeholder="e.g. Audit Approval Pack"
@@ -1537,7 +1916,9 @@ export default function OnboardingTasksPage() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Notes & Context</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Notes & Context
+                    </label>
                     <input
                       type="text"
                       placeholder="Logged notes..."

@@ -88,6 +88,13 @@ export type BillingRunListItem = {
   updatedAt: string;
   notes?: string | null;
   practice?: { id: string; name: string } | null;
+  createdByUser?: {
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    userName?: string | null;
+    email?: string | null;
+  } | null;
   items?: Array<{
     clientAmount: string;
     vendorAmount?: string | null;
@@ -205,6 +212,7 @@ export type BillingRunRow = {
   id: string;
   values: {
     practiceName: string;
+    createdBy: string;
     status: BillingRunStatus;
     period: string;
     snapshotCount: number;
@@ -341,11 +349,18 @@ export function getBillingRunProcessingSummary(run: {
 
 function toBillingRunRow(run: BillingRunListItem): BillingRunRow {
   const summary = getBillingRunProcessingSummary(run);
+  const createdByName = run.createdByUser
+    ? [run.createdByUser.firstName, run.createdByUser.lastName].filter(Boolean).join(" ").trim() ||
+      run.createdByUser.userName ||
+      run.createdByUser.email ||
+      "-"
+    : "-";
 
   return {
     id: run.id,
     values: {
       practiceName: run.practice?.name || "-",
+      createdBy: createdByName,
       status: run.status,
       period: `${formatDate(run.periodStart)} - ${formatDate(run.periodEnd)}`,
       snapshotCount: run._count?.inputSnapshots || 0,

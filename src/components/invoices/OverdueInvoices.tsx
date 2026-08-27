@@ -397,6 +397,17 @@ function OverdueInvoicePage() {
         size: 220,
       },
       {
+        id: "createdBy",
+        accessorFn: (row) => row.values.createdBy,
+        header: () => (
+          <div className="flex items-center gap-2">
+            <span>Created By</span>
+          </div>
+        ),
+        cell: ({ row }) => row.original.values.createdBy || "-",
+        size: 180,
+      },
+      {
         id: "totalAmount",
         accessorFn: (row) =>
           row.values.grossInvoiceTotal ||
@@ -768,6 +779,20 @@ function OverdueInvoicePage() {
                         {selectedInvoice.practice?.name || "-"}
                       </span>
                     </div>
+                    {selectedInvoice.createdByUser && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Created By</span>
+                        <span className="text-right text-slate-700">
+                          {[selectedInvoice.createdByUser.firstName, selectedInvoice.createdByUser.lastName]
+                            .filter(Boolean)
+                            .join(" ")
+                            .trim() ||
+                            selectedInvoice.createdByUser.userName ||
+                            selectedInvoice.createdByUser.email ||
+                            "-"}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Agreement</span>
                       <span className="text-right text-slate-700">

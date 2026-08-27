@@ -52,7 +52,20 @@ export type UpdateTaskPayload = {
   notes?: string;
 };
 
-export async function getTasksApi(params?: TaskQueryParams): Promise<TaskItem[]> {
+export async function getTasksApi(params?: TaskQueryParams): Promise<{
+  tasks: TaskItem[];
+  totalTasks: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  metrics: {
+    total: number;
+    completed: number;
+    inProgress: number;
+    blocked: number;
+    pct: number;
+  };
+}> {
   try {
     const response = await apiConnector({
       method: "GET",
@@ -61,9 +74,29 @@ export async function getTasksApi(params?: TaskQueryParams): Promise<TaskItem[]>
       credentials: true,
     });
     if (response?.data?.success && Array.isArray(response.data.tasks)) {
-      return response.data.tasks;
+      return {
+        tasks: response.data.tasks,
+        totalTasks: response.data.totalTasks || response.data.tasks.length,
+        page: response.data.page || 1,
+        pageSize: response.data.pageSize || 10,
+        totalPages: response.data.totalPages || 1,
+        metrics: response.data.metrics || {
+          total: response.data.tasks.length,
+          completed: response.data.tasks.filter((t: any) => t.status === "COMPLETE").length,
+          inProgress: response.data.tasks.filter((t: any) => t.status === "IN_PROGRESS").length,
+          blocked: response.data.tasks.filter((t: any) => t.status === "BLOCKED").length,
+          pct: 0,
+        },
+      };
     }
-    return [];
+    return {
+      tasks: [],
+      totalTasks: 0,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+      metrics: { total: 0, completed: 0, inProgress: 0, blocked: 0, pct: 0 },
+    };
   } catch (error) {
     console.error("Failed to fetch Tasks Tracker:", getErrorMessage(error, "Failed to fetch tasks"));
     throw new Error(getErrorMessage(error, "Failed to fetch tasks"));
