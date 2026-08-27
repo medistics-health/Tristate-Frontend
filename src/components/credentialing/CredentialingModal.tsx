@@ -222,12 +222,14 @@ export default function CredentialingModal({
     let active = true;
     async function loadOptions() {
       try {
-        const [practiceView, users] = await Promise.all([
+        const [practiceView, usersResponse] = await Promise.all([
           getPracticesView({ limit: 1000 }),
           getAllUsers(),
         ]);
 
         if (!active) return;
+        
+        const users = usersResponse.users || [];
 
         setPracticeOptions(
           practiceView.rows
