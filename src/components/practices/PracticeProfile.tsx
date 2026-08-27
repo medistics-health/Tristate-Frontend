@@ -43,6 +43,7 @@ import {
   getPractice,
   type Practice,
 } from "../../services/operations/practices";
+import { formatPracticeServiceLine } from "./serviceLines";
 import { getDealsByPractice, type Deal } from "../../services/operations/deals";
 import { getPricingTerms } from "../../services/operations/pricingEngine";
 import {
@@ -838,6 +839,25 @@ export default function PracticeProfilePage() {
                           className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
                         >
                           {service.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    "-"
+                  )
+                }
+              />
+              <InfoRow
+                label="Service Line"
+                value={
+                  practice.serviceLines?.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {practice.serviceLines.map((line) => (
+                        <span
+                          key={line}
+                          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                        >
+                          {formatPracticeServiceLine(line)}
                         </span>
                       ))}
                     </div>
