@@ -14,7 +14,9 @@ import AppLayout from "../layout/AppLayout";
 import Select from "../shared/Select";
 import DatePicker from "../shared/DatePicker";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
-import DataTableToolbar, { type ActiveFilterChip } from "../shared/DataTableToolbar";
+import DataTableToolbar, {
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
 import TablePagination from "../shared/TablePagination";
 import {
   getMilestonesApi,
@@ -24,7 +26,11 @@ import {
 } from "../../services/operations/onboardingProjects";
 import { getPracticesView } from "../../services/operations/practices";
 
-export type MilestoneStatus = "NOT_STARTED" | "ON_TRACK" | "AT_RISK" | "COMPLETE";
+export type MilestoneStatus =
+  | "NOT_STARTED"
+  | "ON_TRACK"
+  | "AT_RISK"
+  | "COMPLETE";
 
 export type MilestoneItem = {
   id: string;
@@ -53,7 +59,13 @@ const defaultFilters: MilestoneFilters = {
 
 const STATUS_CONFIG: Record<
   MilestoneStatus,
-  { label: string; bg: string; text: string; border: string; icon: React.ElementType }
+  {
+    label: string;
+    bg: string;
+    text: string;
+    border: string;
+    icon: React.ElementType;
+  }
 > = {
   NOT_STARTED: {
     label: "Not Started",
@@ -111,7 +123,8 @@ export default function OnboardingMilestonesPage() {
 
   // Filters State
   const [filters, setFilters] = useState<MilestoneFilters>(defaultFilters);
-  const [draftFilters, setDraftFilters] = useState<MilestoneFilters>(defaultFilters);
+  const [draftFilters, setDraftFilters] =
+    useState<MilestoneFilters>(defaultFilters);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -120,24 +133,31 @@ export default function OnboardingMilestonesPage() {
   // Modals
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingMilestone, setEditingMilestone] = useState<MilestoneItem | null>(null);
+  const [editingMilestone, setEditingMilestone] =
+    useState<MilestoneItem | null>(null);
 
   // Form State
   const [formCode, setFormCode] = useState("");
   const [formDescription, setFormDescription] = useState("");
-  const [formPracticeName, setFormPracticeName] = useState("Summit Medical Arts (Dr. Shah)");
+  const [formPracticeName, setFormPracticeName] = useState(
+    "Summit Medical Arts (Dr. Shah)",
+  );
   const [formServiceLine, setFormServiceLine] = useState("RCM");
   const [formTargetWeek, setFormTargetWeek] = useState("Week 1");
   const [formTargetDate, setFormTargetDate] = useState("");
   const [formStatus, setFormStatus] = useState<MilestoneStatus>("ON_TRACK");
 
   // Practices searchable options
-  const [practiceOptions, setPracticeOptions] = useState<SearchSelectOption[]>([]);
+  const [practiceOptions, setPracticeOptions] = useState<SearchSelectOption[]>(
+    [],
+  );
 
   useEffect(() => {
     async function loadPractices() {
       try {
-        const res = await getPracticesView({ limit: 2000 }).catch(() => ({ rows: [] }));
+        const res = await getPracticesView({ limit: 2000 }).catch(() => ({
+          rows: [],
+        }));
         if (res?.rows && res.rows.length > 0) {
           const formatted = res.rows
             .map((r) => ({
@@ -159,7 +179,7 @@ export default function OnboardingMilestonesPage() {
       const q = query.toLowerCase();
       return practiceOptions.filter((p) => p.label.toLowerCase().includes(q));
     },
-    [practiceOptions]
+    [practiceOptions],
   );
 
   const fetchMilestones = async () => {
@@ -173,10 +193,14 @@ export default function OnboardingMilestonesPage() {
       if (Array.isArray(data)) {
         let filtered = data;
         if (filters.serviceLine) {
-          filtered = filtered.filter((m) => m.serviceLine === filters.serviceLine);
+          filtered = filtered.filter(
+            (m) => m.serviceLine === filters.serviceLine,
+          );
         }
         if (filters.practiceName) {
-          filtered = filtered.filter((m) => m.practiceName === filters.practiceName);
+          filtered = filtered.filter(
+            (m) => m.practiceName === filters.practiceName,
+          );
         }
         setMilestones(filtered);
       } else {
@@ -211,7 +235,9 @@ export default function OnboardingMilestonesPage() {
   };
 
   const activeFilterCount = useMemo(() => {
-    return [filters.status, filters.serviceLine, filters.practiceName].filter(Boolean).length;
+    return [filters.status, filters.serviceLine, filters.practiceName].filter(
+      Boolean,
+    ).length;
   }, [filters]);
 
   const activeFilterChips = useMemo(() => {
@@ -312,7 +338,8 @@ export default function OnboardingMilestonesPage() {
   };
 
   const handleDeleteMilestone = async (id: string, code: string) => {
-    if (!window.confirm(`Are you sure you want to delete Milestone ${code}?`)) return;
+    if (!window.confirm(`Are you sure you want to delete Milestone ${code}?`))
+      return;
 
     try {
       await deleteMilestoneApi(id);
@@ -342,12 +369,16 @@ export default function OnboardingMilestonesPage() {
   }, [milestones]);
 
   const filterFieldsModal = (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <>
       <label className="block">
-        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Practice</span>
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Practice
+        </span>
         <SearchSelect
           value={draftFilters.practiceName}
-          onChange={(val) => setDraftFilters((curr) => ({ ...curr, practiceName: val }))}
+          onChange={(val) =>
+            setDraftFilters((curr) => ({ ...curr, practiceName: val }))
+          }
           onSearch={searchPracticeOptions}
           clearable
           toggleOnSelectSame
@@ -356,50 +387,42 @@ export default function OnboardingMilestonesPage() {
       </label>
 
       <label className="block">
-        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Status</span>
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Status
+        </span>
         <Select
           value={draftFilters.status}
-          onChange={(val) => setDraftFilters((curr) => ({ ...curr, status: val }))}
+          onChange={(val) =>
+            setDraftFilters((curr) => ({ ...curr, status: val }))
+          }
           options={STATUS_OPTIONS}
           placeholder="Select Status"
         />
       </label>
 
       <label className="block">
-        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Service Line</span>
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Service Line
+        </span>
         <Select
           value={draftFilters.serviceLine}
-          onChange={(val) => setDraftFilters((curr) => ({ ...curr, serviceLine: val }))}
+          onChange={(val) =>
+            setDraftFilters((curr) => ({ ...curr, serviceLine: val }))
+          }
           options={SERVICE_LINE_OPTIONS}
           placeholder="Select Service Line"
         />
       </label>
-    </div>
+    </>
   );
 
   return (
-    <AppLayout title="Onboarding Milestones" activeModule="Task Tracker" activeSubItem="Milestones">
-      <div className="space-y-6 p-6 font-app-sans">
-        {/* Metrics Bar */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Checkpoints</div>
-            <div className="mt-2 text-2xl font-bold text-slate-800">{metrics.total}</div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wider text-emerald-600">On Track</div>
-            <div className="mt-2 text-2xl font-bold text-emerald-700">{metrics.onTrack}</div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wider text-amber-600">At Risk</div>
-            <div className="mt-2 text-2xl font-bold text-amber-700">{metrics.atRisk}</div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Completed</div>
-            <div className="mt-2 text-2xl font-bold text-indigo-700">{metrics.complete}</div>
-          </div>
-        </div>
-
+    <AppLayout
+      title="Onboarding Milestones"
+      activeModule="Task Tracker"
+      activeSubItem="Milestones"
+    >
+      <div className="space-y-4 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#f7f5f1] p-2">
         {/* Standardized DataTableToolbar like Credentialing Module */}
         <DataTableToolbar
           title="Project Milestones"
@@ -420,7 +443,41 @@ export default function OnboardingMilestonesPage() {
             setIsNewModalOpen(true);
           }}
         />
-
+        {/* Metrics Bar */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Total Checkpoints
+            </div>
+            <div className="mt-2 text-2xl font-bold text-slate-800">
+              {metrics.total}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wider text-emerald-600">
+              On Track
+            </div>
+            <div className="mt-2 text-2xl font-bold text-emerald-700">
+              {metrics.onTrack}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wider text-amber-600">
+              At Risk
+            </div>
+            <div className="mt-2 text-2xl font-bold text-amber-700">
+              {metrics.atRisk}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
+              Completed
+            </div>
+            <div className="mt-2 text-2xl font-bold text-indigo-700">
+              {metrics.complete}
+            </div>
+          </div>
+        </div>
         {/* Milestones Data Table */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           {isLoading ? (
@@ -432,7 +489,8 @@ export default function OnboardingMilestonesPage() {
             </div>
           ) : milestones.length === 0 ? (
             <div className="p-12 text-center text-xs text-slate-400">
-              No project milestones found. Click "Add Milestone" to create a new checkpoint.
+              No project milestones found. Click "Add Milestone" to create a new
+              checkpoint.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -450,17 +508,25 @@ export default function OnboardingMilestonesPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {paginatedMilestones.map((m) => {
-                    const statusConf = STATUS_CONFIG[m.status] || STATUS_CONFIG.NOT_STARTED;
+                    const statusConf =
+                      STATUS_CONFIG[m.status] || STATUS_CONFIG.NOT_STARTED;
                     const StatusIcon = statusConf.icon;
 
                     return (
-                      <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
+                      <tr
+                        key={m.id}
+                        className="hover:bg-slate-50/80 transition-colors"
+                      >
                         <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">
                           {m.milestoneCode}
                         </td>
                         <td className="py-3.5 px-4">
-                          <div className="font-semibold text-slate-900">{m.practiceName}</div>
-                          <div className="text-[11px] font-medium text-slate-400">{m.serviceLine}</div>
+                          <div className="font-semibold text-slate-900">
+                            {m.practiceName}
+                          </div>
+                          <div className="text-[11px] font-medium text-slate-400">
+                            {m.serviceLine}
+                          </div>
                         </td>
                         <td className="py-3.5 px-4 font-medium text-slate-800 max-w-md">
                           {m.description}
@@ -489,7 +555,9 @@ export default function OnboardingMilestonesPage() {
                               <Edit className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => handleDeleteMilestone(m.id, m.milestoneCode)}
+                              onClick={() =>
+                                handleDeleteMilestone(m.id, m.milestoneCode)
+                              }
                               className="rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
                               title="Delete Milestone"
                             >
@@ -524,7 +592,9 @@ export default function OnboardingMilestonesPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 font-app-sans">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                <h3 className="text-base font-bold text-slate-900">Add Project Milestone</h3>
+                <h3 className="text-base font-bold text-slate-900">
+                  Add Project Milestone
+                </h3>
                 <button
                   onClick={() => setIsNewModalOpen(false)}
                   className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
@@ -533,9 +603,14 @@ export default function OnboardingMilestonesPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleCreateMilestone} className="mt-4 space-y-4 text-xs">
+              <form
+                onSubmit={handleCreateMilestone}
+                className="mt-4 space-y-4 text-xs"
+              >
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Milestone ID (e.g. M1, M2)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Milestone ID (e.g. M1, M2)
+                  </label>
                   <input
                     type="text"
                     placeholder="Auto-generated if left blank"
@@ -546,7 +621,9 @@ export default function OnboardingMilestonesPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Description *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Description *
+                  </label>
                   <textarea
                     rows={2}
                     required
@@ -559,7 +636,9 @@ export default function OnboardingMilestonesPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Practice</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Practice
+                    </label>
                     <SearchSelect
                       options={practiceOptions}
                       value={formPracticeName}
@@ -569,11 +648,15 @@ export default function OnboardingMilestonesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Service Line</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Service Line
+                    </label>
                     <Select
                       value={formServiceLine}
                       onChange={(val) => setFormServiceLine(val)}
-                      options={SERVICE_LINE_OPTIONS.filter((o) => o.value !== "")}
+                      options={SERVICE_LINE_OPTIONS.filter(
+                        (o) => o.value !== "",
+                      )}
                       placeholder="Select Service Line"
                     />
                   </div>
@@ -581,7 +664,9 @@ export default function OnboardingMilestonesPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Target Week</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Target Week
+                    </label>
                     <input
                       type="text"
                       placeholder="e.g. Week 1 or Week 8-16"
@@ -591,7 +676,9 @@ export default function OnboardingMilestonesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Target Date</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Target Date
+                    </label>
                     <DatePicker
                       value={formTargetDate}
                       onChange={(val) => setFormTargetDate(val)}
@@ -601,7 +688,9 @@ export default function OnboardingMilestonesPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Status
+                  </label>
                   <Select
                     value={formStatus}
                     onChange={(val) => setFormStatus(val as MilestoneStatus)}
@@ -635,7 +724,9 @@ export default function OnboardingMilestonesPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 font-app-sans">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                <h3 className="text-base font-bold text-slate-900">Edit Project Milestone</h3>
+                <h3 className="text-base font-bold text-slate-900">
+                  Edit Project Milestone
+                </h3>
                 <button
                   onClick={() => {
                     setIsEditModalOpen(false);
@@ -647,9 +738,14 @@ export default function OnboardingMilestonesPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleUpdateMilestone} className="mt-4 space-y-4 text-xs">
+              <form
+                onSubmit={handleUpdateMilestone}
+                className="mt-4 space-y-4 text-xs"
+              >
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Milestone ID</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Milestone ID
+                  </label>
                   <input
                     type="text"
                     value={formCode}
@@ -659,7 +755,9 @@ export default function OnboardingMilestonesPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Description *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Description *
+                  </label>
                   <textarea
                     rows={2}
                     required
@@ -671,7 +769,9 @@ export default function OnboardingMilestonesPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Target Week</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Target Week
+                    </label>
                     <input
                       type="text"
                       value={formTargetWeek}
@@ -680,7 +780,9 @@ export default function OnboardingMilestonesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Target Date</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Target Date
+                    </label>
                     <DatePicker
                       value={formTargetDate}
                       onChange={(val) => setFormTargetDate(val)}
@@ -690,7 +792,9 @@ export default function OnboardingMilestonesPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Status
+                  </label>
                   <Select
                     value={formStatus}
                     onChange={(val) => setFormStatus(val as MilestoneStatus)}

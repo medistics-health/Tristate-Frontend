@@ -299,7 +299,9 @@ export default function DataTableToolbar({
 
             {/* Modal Body */}
             <div className="max-h-[calc(80vh-140px)] overflow-y-auto custom-scrollbar p-6">
-              {filterFields}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {filterFields}
+              </div>
             </div>
 
             {/* Modal Footer */}
