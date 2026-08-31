@@ -1224,15 +1224,22 @@ export default function OnboardingTasksPage() {
                             className="px-4 py-3.5 min-w-[145px]"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <Select
+                            <select
                               value={t.status}
-                              onChange={(val) => handleUpdateStatus(t.id, val as TaskStatus)}
-                              options={STATUS_OPTIONS.filter((o) => o.value !== "").map((o) => ({
-                                ...o,
-                                label: hasUnmetDeps && o.value === "IN_PROGRESS" ? `${o.label} (Blocked)` : o.label,
-                              }))}
-                              className={`!py-1 !px-2.5 !text-xs !font-bold rounded-lg transition-colors ${statusInfo.bg} ${statusInfo.text} ${statusInfo.border}`}
-                            />
+                              onChange={(e) => handleUpdateStatus(t.id, e.target.value as TaskStatus)}
+                              className={`rounded-lg border px-2.5 py-1 text-xs font-bold focus:outline-none transition-colors cursor-pointer ${statusInfo.bg} ${statusInfo.text} ${statusInfo.border}`}
+                            >
+                              <option value="NOT_STARTED" className="bg-white text-slate-800 font-normal">Not Started</option>
+                              <option
+                                value="IN_PROGRESS"
+                                disabled={hasUnmetDeps}
+                                className="bg-white text-slate-800 font-normal"
+                              >
+                                In Progress {hasUnmetDeps ? "(Blocked)" : ""}
+                              </option>
+                              <option value="BLOCKED" className="bg-white text-slate-800 font-normal">Blocked</option>
+                              <option value="COMPLETE" className="bg-white text-slate-800 font-normal">Complete</option>
+                            </select>
                           </td>
                           <td
                             className="px-4 py-3.5 text-right"

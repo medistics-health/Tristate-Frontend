@@ -128,11 +128,11 @@ export default function Select({
     <div className="relative w-full" ref={containerRef}>
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`flex items-center justify-between rounded-md px-3 py-2 text-[13px] transition-colors select-none ${
+        className={`flex items-center justify-between app-control rounded-md px-3 py-2 text-[13px] bg-white transition-colors select-none ${
           disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
-        } ${isOpen ? "ring-2 ring-indigo-500/20" : ""} ${className}`}
+        } ${isOpen ? "border-[#4f63ea] ring-1 ring-[#4f63ea]/20" : ""} ${className}`}
       >
-        <span className={`truncate ${selectedOption ? "font-medium" : "text-slate-400"}`}>
+        <span className={`truncate ${selectedOption ? "text-slate-800 font-medium" : "text-slate-400"}`}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
