@@ -142,6 +142,79 @@ export function calcMarginPreview(
   };
 }
 
+export function isPercentageBasedModel(model: PricingModel | string): boolean {
+  return [
+    "PERCENT_COLLECTIONS",
+    "PERCENT_REVENUE",
+    "PERCENT_PROFIT",
+    "SUCCESS_FEE",
+  ].includes(model as PricingModel);
+}
+
+function sumPricingConfig(
+  config?: Partial<PricingConfigShape> | VendorPricingShape | null,
+  model?: PricingModel | string,
+): number {
+  if (!config) return 0;
+
+  if (model && isPercentageBasedModel(model)) {
+    if (config.percentage) return parseFloat(config.percentage) || 0;
+  }
+
+  if (config.amount) return parseFloat(config.amount) || 0;
+  if (config.unitRate) return parseFloat(config.unitRate) || 0;
+  if (config.percentage) return parseFloat(config.percentage) || 0;
+  if (config.cptCodes?.length) {
+    return config.cptCodes.reduce(
+      (sum, row) => sum + (parseFloat(row.rate || "0") || 0),
+      0,
+    );
+  }
+  if (config.components?.length) {
+    return config.components.reduce(
+      (sum, component) => sum + (parseFloat(component.value || "0") || 0),
+      0,
+    );
+  }
+  return 0;
+}
+
+export function extractClientRate(term: AgreementServiceTerm): number {
+  return sumPricingConfig(term.pricingConfig as PricingConfigShape, term.pricingModel);
+}
+
+export function extractVendorRate(term: AgreementServiceTerm): number {
+  const config = term.pricingConfig as PricingConfigShape;
+  const vendorPricing = (config?.vendorPricing ??
+    null) as VendorPricingShape | null;
+  const vendorModel =
+    (vendorPricing?.pricingModel as PricingModel) ?? term.pricingModel;
+  const nestedVendorTotal = sumPricingConfig(vendorPricing, vendorModel);
+  if (nestedVendorTotal > 0) return nestedVendorTotal;
+
+  const raw = term.minimumFee;
+  if (raw === null || raw === undefined) return 0;
+  const n = typeof raw === "number" ? raw : parseFloat(String(raw));
+  return isNaN(n) ? 0 : n;
+}
+
+export function formatPricingModelValue(
+  value: number | null | undefined,
+  model: PricingModel | string,
+): string {
+  if (value === null || value === undefined) return "-";
+  const n = Number(value);
+  if (isNaN(n)) return "-";
+
+  if (isPercentageBasedModel(model)) {
+    return `${n.toFixed(2)}%`;
+  }
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(n);
+}
+
 // ── API calls (delegate to existing service-terms endpoints) ───────────────
 
 export type PricingTermsParams = {
