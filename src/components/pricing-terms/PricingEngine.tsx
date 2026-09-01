@@ -331,6 +331,9 @@ export default function PricingEnginePage() {
   const profileAgreementId = searchParams.get("agreementId") || "";
   const profileVersionId = searchParams.get("versionId") || "";
   const profileAction = searchParams.get("action") || "";
+  const profileServiceId = searchParams.get("serviceId") || "";
+  const profileVendorId = searchParams.get("vendorId") || "";
+  const profilePricingModel = searchParams.get("pricingModel") || "";
 
   const [practices, setPractices] = useState<Practice[]>([]);
   const [selectedPractice, setSelectedPractice] = useState<Practice | null>(
@@ -392,8 +395,18 @@ export default function PricingEnginePage() {
     termStatus: "",
   };
 
-  const [filters, setFilters] = useState<RateFilters>(defaultFilters);
-  const [draftFilters, setDraftFilters] = useState<RateFilters>(defaultFilters);
+  const [filters, setFilters] = useState<RateFilters>({
+    ...defaultFilters,
+    serviceId: profileServiceId,
+    vendorId: profileVendorId,
+    pricingModel: profilePricingModel,
+  });
+  const [draftFilters, setDraftFilters] = useState<RateFilters>({
+    ...defaultFilters,
+    serviceId: profileServiceId,
+    vendorId: profileVendorId,
+    pricingModel: profilePricingModel,
+  });
   const [searchInput, setSearchInput] = useState("");
 
   const [showWizard, setShowWizard] = useState(false);

@@ -45,7 +45,13 @@ import {
 } from "../../services/operations/practices";
 import { formatPracticeServiceLine } from "./serviceLines";
 import { getDealsByPractice, type Deal } from "../../services/operations/deals";
-import { getPricingTerms } from "../../services/operations/pricingEngine";
+import {
+  extractClientRate,
+  extractVendorRate,
+  formatPricingModelValue,
+  getPricingTerms,
+  MARGIN_THRESHOLD_PCT,
+} from "../../services/operations/pricingEngine";
 import {
   getEmailHistoryByPersonId,
   type SentEmail,
@@ -492,6 +498,16 @@ export default function PracticeProfilePage() {
     if (selectedVersionId) params.set("versionId", selectedVersionId);
     return `/pricing-engine/rate-finalization?${params.toString()}`;
   }, [practiceId, selectedAgreementId, selectedVersionId]);
+
+  function pricingTermRateFinalizationUrl(term: AgreementServiceTerm) {
+    const params = new URLSearchParams({ practiceId });
+    if (selectedAgreementId) params.set("agreementId", selectedAgreementId);
+    if (selectedVersionId) params.set("versionId", selectedVersionId);
+    if (term.serviceId) params.set("serviceId", term.serviceId);
+    if (term.vendorId) params.set("vendorId", term.vendorId);
+    if (term.pricingModel) params.set("pricingModel", term.pricingModel);
+    return `/pricing-engine/rate-finalization?${params.toString()}`;
+  }
 
   const totalPracticeEmails = useMemo(
     () =>
@@ -1573,34 +1589,90 @@ export default function PracticeProfilePage() {
                   <div className="mt-4 overflow-hidden rounded-2xl border border-[#ece8e1]">
                     {terms.length ? (
                       <div className="divide-y divide-[#ece8e1]">
-                        {terms.map((term) => (
-                          <div
-                            key={term.id}
-                            className="grid gap-3 bg-white p-4 md:grid-cols-[1fr_160px_160px]"
-                          >
-                            <div>
-                              <p className="font-semibold text-slate-900">
-                                {term.service?.name || "Service"}
-                              </p>
-                              <p className="mt-1 text-sm text-slate-500">
-                                {formatLabel(term.pricingModel)} •{" "}
-                                {term.vendor?.name || "No vendor"}
-                              </p>
-                            </div>
-                            <div className="text-sm">
-                              <p className="text-slate-400">Effective</p>
-                              <p className="font-medium text-slate-700">
-                                {formatDate(term.effectiveDate)}
-                              </p>
-                            </div>
-                            <div className="text-sm">
-                              <p className="text-slate-400">Status</p>
-                              <p className="font-medium text-slate-700">
-                                {term.isActive ? "Active" : "Inactive"}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                        {terms.map((term) => {
+                          const clientRate = extractClientRate(term);
+                          const vendorRate = extractVendorRate(term);
+                          const marginPct =
+                            clientRate > 0
+                              ? Number(
+                                  (
+                                    ((clientRate - vendorRate) / clientRate) *
+                                    100
+                                  ).toFixed(2),
+                                )
+                              : 0;
+                          const isHybrid = term.pricingModel === "HYBRID";
+
+                          return (
+                            <Link
+                              key={term.id}
+                              to={pricingTermRateFinalizationUrl(term)}
+                              className="grid gap-3 bg-white p-4 transition hover:bg-[#fbfaf8] md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(88px,0.7fr))_130px_110px]"
+                            >
+                              <div>
+                                <p className="font-semibold text-slate-900">
+                                  {term.service?.name || "Service"}
+                                </p>
+                                <p className="mt-1 text-sm text-slate-500">
+                                  {formatLabel(term.pricingModel)} •{" "}
+                                  {term.vendor?.name || "No vendor"}
+                                </p>
+                              </div>
+                              <div className="text-sm">
+                                <p className="text-slate-400">Client Rate</p>
+                                <p className="font-medium text-slate-700">
+                                  {isHybrid
+                                    ? "-"
+                                    : formatPricingModelValue(
+                                        clientRate,
+                                        term.pricingModel,
+                                      )}
+                                </p>
+                              </div>
+                              <div className="text-sm">
+                                <p className="text-slate-400">Vendor Rate</p>
+                                <p className="font-medium text-slate-700">
+                                  {isHybrid
+                                    ? "-"
+                                    : term.vendorId
+                                      ? formatPricingModelValue(
+                                          vendorRate,
+                                          term.pricingModel,
+                                        )
+                                      : "-"}
+                                </p>
+                              </div>
+                              <div className="text-sm">
+                                <p className="text-slate-400">Margin</p>
+                                <p
+                                  className={`font-medium ${
+                                    isHybrid || clientRate <= 0
+                                      ? "text-slate-700"
+                                      : marginPct < MARGIN_THRESHOLD_PCT
+                                        ? "text-amber-600"
+                                        : "text-emerald-600"
+                                  }`}
+                                >
+                                  {isHybrid || clientRate <= 0
+                                    ? "-"
+                                    : `${marginPct.toFixed(2)}%`}
+                                </p>
+                              </div>
+                              <div className="text-sm">
+                                <p className="text-slate-400">Effective</p>
+                                <p className="font-medium text-slate-700">
+                                  {formatDate(term.effectiveDate)}
+                                </p>
+                              </div>
+                              <div className="text-sm">
+                                <p className="text-slate-400">Status</p>
+                                <p className="font-medium text-slate-700">
+                                  {term.isActive ? "Active" : "Inactive"}
+                                </p>
+                              </div>
+                            </Link>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">

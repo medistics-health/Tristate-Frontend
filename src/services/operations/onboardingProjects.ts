@@ -25,6 +25,8 @@ export type TaskQueryParams = {
   ownerUserId?: string;
   dueDateFrom?: string;
   dueDateTo?: string;
+  page?: number;
+  pageSize?: number;
 };
 
 export type CreateTaskPayload = {
