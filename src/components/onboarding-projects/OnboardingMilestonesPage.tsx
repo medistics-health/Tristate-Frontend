@@ -18,6 +18,7 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import TablePagination from "../shared/TablePagination";
+import { TableSkeletonLoader } from "../shared/tablePageUtils";
 import {
   getMilestonesApi,
   createMilestoneApi,
@@ -479,21 +480,17 @@ export default function OnboardingMilestonesPage() {
           </div>
         </div>
         {/* Milestones Data Table */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          {isLoading ? (
-            <div className="flex h-64 items-center justify-center p-8">
-              <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
-                Loading Milestones...
+        {isLoading ? (
+          <TableSkeletonLoader columns={8} rows={5} />
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            {milestones.length === 0 ? (
+              <div className="p-12 text-center text-xs text-slate-400">
+                No project milestones found. Click "Add Milestone" to create a new
+                checkpoint.
               </div>
-            </div>
-          ) : milestones.length === 0 ? (
-            <div className="p-12 text-center text-xs text-slate-400">
-              No project milestones found. Click "Add Milestone" to create a new
-              checkpoint.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
+            ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
@@ -590,6 +587,7 @@ export default function OnboardingMilestonesPage() {
             }}
           />
         </div>
+        )}
 
         {/* Create Milestone Modal */}
         {isNewModalOpen && (

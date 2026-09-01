@@ -178,3 +178,63 @@ export function DetailCard({
     </div>
   );
 }
+
+export function TableSkeletonLoader({
+  columns = 6,
+  rows = 5,
+}: {
+  columns?: number;
+  rows?: number;
+}) {
+  return (
+    <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs animate-pulse">
+      <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3.5 flex items-center gap-4">
+        {Array.from({ length: columns }).map((_, i) => (
+          <div
+            key={i}
+            className={`h-3.5 rounded-md bg-slate-200/80 ${
+              i === 0 ? "w-28" : i === 1 ? "w-44" : "flex-1"
+            }`}
+          />
+        ))}
+      </div>
+      <div className="divide-y divide-slate-100">
+        {Array.from({ length: rows }).map((_, rIdx) => (
+          <div key={rIdx} className="px-4 py-3.5 flex items-center gap-4">
+            <div className="h-4 w-24 rounded-md bg-slate-200/70" />
+            <div className="h-4 w-40 rounded-md bg-slate-100" />
+            <div className="h-4 w-28 rounded-md bg-slate-100" />
+            <div className="h-5 w-20 rounded-full bg-slate-200/60" />
+            <div className="h-4 flex-1 rounded-md bg-slate-100" />
+            <div className="h-6 w-16 rounded-md bg-slate-200/70 ml-auto" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CardGridSkeletonLoader({ count = 6 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-pulse">
+      {Array.from({ length: count }).map((_, idx) => (
+        <div
+          key={idx}
+          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-32 rounded-md bg-slate-200" />
+            <div className="h-5 w-16 rounded-full bg-slate-100" />
+          </div>
+          <div className="h-3 w-48 rounded-md bg-slate-100" />
+          <div className="h-3 w-36 rounded-md bg-slate-100" />
+          <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+            <div className="h-3 w-20 rounded-md bg-slate-100" />
+            <div className="h-6 w-24 rounded-xl bg-slate-200/80" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+

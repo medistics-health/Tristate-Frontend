@@ -13,6 +13,7 @@ import AppLayout from "../layout/AppLayout";
 import Select from "../shared/Select";
 import DatePicker from "../shared/DatePicker";
 import DataTableToolbar, { type ActiveFilterChip } from "../shared/DataTableToolbar";
+import { CardGridSkeletonLoader } from "../shared/tablePageUtils";
 import {
   getTemplatesApi,
   createTemplateApi,
@@ -315,8 +316,8 @@ export default function OnboardingTemplatesPage() {
         setTemplates(data);
         if (data.length > 0) {
           const targetId = selectId || selectedTemplate?.id;
-          const matched = data.find((t) => t.id === targetId);
-          setSelectedTemplate(matched || data[0]);
+          const matched = targetId ? data.find((t) => t.id === targetId) : null;
+          setSelectedTemplate(matched || null);
         } else {
           setSelectedTemplate(null);
         }
@@ -780,11 +781,8 @@ export default function OnboardingTemplatesPage() {
           >
             <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
               {isLoading ? (
-                <div className="flex h-64 items-center justify-center rounded-xl border border-slate-200 bg-white p-8">
-                  <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
-                    Loading Templates...
-                  </div>
+                <div className="p-4">
+                  <CardGridSkeletonLoader count={6} />
                 </div>
               ) : templates.length === 0 ? (
                 <div className="relative flex min-h-[300px] items-center justify-center p-8 text-center text-xs text-slate-400">
