@@ -334,6 +334,7 @@ export default function PricingEnginePage() {
   const profileServiceId = searchParams.get("serviceId") || "";
   const profileVendorId = searchParams.get("vendorId") || "";
   const profilePricingModel = searchParams.get("pricingModel") || "";
+  const profileTermId = searchParams.get("termId") || "";
 
   const [practices, setPractices] = useState<Practice[]>([]);
   const [selectedPractice, setSelectedPractice] = useState<Practice | null>(
@@ -411,6 +412,7 @@ export default function PricingEnginePage() {
 
   const [showWizard, setShowWizard] = useState(false);
   const [profileCreateHandled, setProfileCreateHandled] = useState(false);
+  const [profileTermHandled, setProfileTermHandled] = useState(false);
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [editingTerm, setEditingTerm] = useState<AgreementServiceTerm | null>(
     null,
@@ -727,6 +729,14 @@ export default function PricingEnginePage() {
           total: d.pagination.totalRecords,
           totalPages: d.pagination.totalPages,
         }));
+      }
+      if (!profileTermHandled && profileTermId) {
+        const matched = (d.terms || []).find((term) => term.id === profileTermId);
+        if (matched) {
+          setSelectedTerm(matched);
+          setShowDetail(true);
+          setProfileTermHandled(true);
+        }
       }
     } catch (e) {
       console.error("Failed to load pricing terms:", e);

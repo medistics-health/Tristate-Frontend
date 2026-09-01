@@ -506,6 +506,7 @@ export default function PracticeProfilePage() {
     if (term.serviceId) params.set("serviceId", term.serviceId);
     if (term.vendorId) params.set("vendorId", term.vendorId);
     if (term.pricingModel) params.set("pricingModel", term.pricingModel);
+    if (term.id) params.set("termId", term.id);
     return `/pricing-engine/rate-finalization?${params.toString()}`;
   }
 
@@ -1607,10 +1608,9 @@ export default function PracticeProfilePage() {
                           const isHybrid = term.pricingModel === "HYBRID";
 
                           return (
-                            <Link
+                            <div
                               key={term.id}
-                              to={pricingTermRateFinalizationUrl(term)}
-                              className="grid gap-3 bg-white p-4 transition hover:bg-[#fbfaf8] md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(88px,0.7fr))_130px_110px]"
+                              className="grid gap-3 bg-white p-4 md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(88px,0.7fr))_130px_110px_auto]"
                             >
                               <div>
                                 <p className="font-semibold text-slate-900">
@@ -1673,7 +1673,13 @@ export default function PracticeProfilePage() {
                                   {term.isActive ? "Active" : "Inactive"}
                                 </p>
                               </div>
-                            </Link>
+                              <Link
+                                to={pricingTermRateFinalizationUrl(term)}
+                                className="inline-flex items-center justify-center self-center rounded-xl border border-[#ded8cf] bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                              >
+                                View
+                              </Link>
+                            </div>
                           );
                         })}
                       </div>
