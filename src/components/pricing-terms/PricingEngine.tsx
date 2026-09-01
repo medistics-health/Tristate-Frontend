@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -46,6 +46,7 @@ import type {
 } from "../../services/operations/agreements";
 import {
   getAgreementsView,
+  getAgreementServiceTerm,
   getAgreementVersions,
   type AgreementVersion,
   updateAgreementServiceTermApi,
@@ -412,7 +413,7 @@ export default function PricingEnginePage() {
 
   const [showWizard, setShowWizard] = useState(false);
   const [profileCreateHandled, setProfileCreateHandled] = useState(false);
-  const [profileTermHandled, setProfileTermHandled] = useState(false);
+  const profileTermHandledRef = useRef(false);
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [editingTerm, setEditingTerm] = useState<AgreementServiceTerm | null>(
     null,
@@ -703,6 +704,67 @@ export default function PricingEnginePage() {
     filters.termStatus,
   ]);
 
+  useEffect(() => {
+    const navigatedWithTarget = Boolean(
+      profileTermId ||
+        profileServiceId ||
+        profileVendorId ||
+        profilePricingModel,
+    );
+    if (!navigatedWithTarget) return;
+    if (profileTermHandledRef.current) return;
+    if (!selectedAgreementId || !selectedVersionId) return;
+    if (isLoading) return;
+
+    const matched = terms.find((term) => {
+      if (profileTermId) return term.id === profileTermId;
+      const serviceId = term.serviceId || term.service?.id;
+      if (profileServiceId && serviceId !== profileServiceId) return false;
+      if (profileVendorId && term.vendorId !== profileVendorId) return false;
+      if (profilePricingModel && term.pricingModel !== profilePricingModel) {
+        return false;
+      }
+      return true;
+    });
+
+    if (matched) {
+      profileTermHandledRef.current = true;
+      setSelectedTerm(matched);
+      setShowDetail(true);
+      return;
+    }
+
+    if (profileTermId) {
+      let cancelled = false;
+      getAgreementServiceTerm(profileTermId)
+        .then((term) => {
+          if (cancelled || !term) return;
+          profileTermHandledRef.current = true;
+          setSelectedTerm(term);
+          setShowDetail(true);
+        })
+        .catch((error) => {
+          console.error("Failed to open pricing term detail:", error);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (terms.length === 0) return;
+    profileTermHandledRef.current = true;
+  }, [
+    terms,
+    isLoading,
+    selectedAgreementId,
+    selectedVersionId,
+    profileTermId,
+    profileServiceId,
+    profileVendorId,
+    profilePricingModel,
+  ]);
+
   async function loadTerms() {
     if (!selectedVersionId || !selectedAgreementId) return;
 
@@ -729,14 +791,6 @@ export default function PricingEnginePage() {
           total: d.pagination.totalRecords,
           totalPages: d.pagination.totalPages,
         }));
-      }
-      if (!profileTermHandled && profileTermId) {
-        const matched = (d.terms || []).find((term) => term.id === profileTermId);
-        if (matched) {
-          setSelectedTerm(matched);
-          setShowDetail(true);
-          setProfileTermHandled(true);
-        }
       }
     } catch (e) {
       console.error("Failed to load pricing terms:", e);
@@ -1193,6 +1247,7 @@ export default function PricingEnginePage() {
         border-b border-[#f0ece6]
         transition-all duration-200
         ${draggingIndex === index ? "opacity-50 bg-blue-50 scale-[1.01]" : ""}
+        ${selectedTerm?.id === term.id ? "bg-[#f7f5f1]" : ""}
     `}
                       >
                         <td className="px-2 py-2">
