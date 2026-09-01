@@ -438,11 +438,6 @@ export default function OnboardingMilestonesPage() {
           onOpenFilterModal={handleOpenFilterModal}
           filterModalTitle="Filter Project Milestones"
           filterFields={filterFieldsModal}
-          addNewLabel="Add Milestone"
-          onAddNew={() => {
-            resetForm();
-            setIsNewModalOpen(true);
-          }}
         />
         {/* Metrics Bar */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

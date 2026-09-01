@@ -99,6 +99,14 @@ const ALL_NAV_ROUTES: NavRouteItem[] = [
   { section: "Credentialing", subSection: "Dashboard", to: "/credentialing/dashboard", icon: <Stethoscope className="h-4 w-4" /> },
   { section: "Credentialing", subSection: "All Credentialing", to: "/credentialing/list", icon: <Stethoscope className="h-4 w-4" /> },
 
+  { section: "Project Management", subSection: "Projects Overview", to: "/project-management/projects", icon: <ClipboardCheck className="h-4 w-4" /> },
+  { section: "Project Management", subSection: "Workstreams", to: "/project-management/workstreams", icon: <ClipboardCheck className="h-4 w-4" /> },
+  { section: "Project Management", subSection: "Tasks Tracker", to: "/project-management/tasks", icon: <ClipboardCheck className="h-4 w-4" /> },
+  { section: "Project Management", subSection: "Milestones", to: "/project-management/milestones", icon: <ClipboardCheck className="h-4 w-4" /> },
+  { section: "Project Management", subSection: "Risks & Issues", to: "/project-management/risks", icon: <ClipboardCheck className="h-4 w-4" /> },
+  { section: "Project Management", subSection: "Action Items", to: "/project-management/action-items", icon: <ClipboardCheck className="h-4 w-4" /> },
+  { section: "Project Management", subSection: "Task Templates", to: "/project-management/templates", icon: <ClipboardCheck className="h-4 w-4" /> },
+
   { section: "Settings", subSection: "General Settings", to: "/settings/general", icon: <SettingsIcon className="h-4 w-4" /> },
   { section: "Settings", subSection: "API & Integrations", to: "/settings/integrations", icon: <SettingsIcon className="h-4 w-4" /> },
   { section: "Settings", subSection: "Team Management", to: "/settings/team", icon: <SettingsIcon className="h-4 w-4" /> },

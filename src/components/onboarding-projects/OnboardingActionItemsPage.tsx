@@ -579,7 +579,7 @@ export default function OnboardingActionItemsPage() {
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
           <DataTableToolbar
             title="Action Items"
-            subtitle="Onboarding Projects"
+            subtitle="Project Management"
             searchPlaceholder="Search notes, practices, or tasks..."
             searchValue={filters.search}
             onSearchChange={(value) => {

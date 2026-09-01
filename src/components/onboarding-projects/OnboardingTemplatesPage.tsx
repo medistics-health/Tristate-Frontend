@@ -1162,7 +1162,7 @@ export default function OnboardingTemplatesPage() {
                           className="w-full rounded-xl border border-slate-200 py-2 pl-8 pr-2.5 text-xs bg-white focus:border-indigo-500 focus:outline-none"
                         />
                       </div>
-                      <span className="mt-1 block text-[10px] text-slate-400">Start +{taskItemStartOffset || 0} days from kickoff</span>
+                      <span className="mt-1 block text-[10px] text-slate-400">+{taskItemStartOffset || 0} days from kickoff</span>
                     </div>
                   ) : (
                     <div>
@@ -1218,7 +1218,7 @@ export default function OnboardingTemplatesPage() {
                           className="w-full rounded-xl border border-slate-200 py-2 pl-8 pr-2.5 text-xs bg-white focus:border-indigo-500 focus:outline-none"
                         />
                       </div>
-                      <span className="mt-1 block text-[10px] text-indigo-500 font-medium">Due +{taskItemDueOffset || 7} days from kickoff</span>
+                      <span className="mt-1 block text-[10px] text-indigo-500 font-medium">+{taskItemDueOffset || 7} days from kickoff</span>
                     </div>
                   ) : (
                     <div>

@@ -481,7 +481,7 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
   return (
     <aside
       className={`relative h-full flex flex-col border-r border-[#ece8e1] bg-white transition-all duration-300 ease-in-out font-app-sans select-none z-30 shadow-[4px_0_15px_-3px_rgba(0,0,0,0.05)] ${
-        isCollapsed ? "w-16" : "w-64"
+        isCollapsed ? "w-16" : "w-72"
       }`}
     >
       {/* Brand Header */}
@@ -622,7 +622,7 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
                             isActive ? "bg-[#4f63ea]" : "bg-slate-300"
                           }`}
                         />
-                        <span className="truncate">{item.label}</span>
+                        <span className="whitespace-normal leading-tight">{item.label}</span>
                       </NavLink>
                     );
                   })}

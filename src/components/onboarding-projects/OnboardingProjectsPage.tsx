@@ -575,7 +575,7 @@ export default function OnboardingProjectsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f0ece6] bg-gradient-to-r from-white via-[#fcfbf8] to-[#f7f3eb] px-5 py-4">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Onboarding Projects
+                Project Management
               </div>
               <h1 className="mt-0.5 text-[22px] font-semibold tracking-tight text-slate-800">
                 Dashboard

@@ -16,6 +16,7 @@ import {
   Loader2,
   Edit,
   Trash2,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
@@ -42,7 +43,8 @@ export type TaskPhase =
   | "ASSESSMENT_DISCOVERY"
   | "PLANNING_CONFIGURATION"
   | "TESTING_VALIDATION"
-  | "GO_LIVE_STABILIZATION";
+  | "GO_LIVE_STABILIZATION"
+  | "HYPERCARE_OPTIMIZATION";
 
 export type ServiceLine =
   | "HR"
@@ -82,6 +84,8 @@ export type TaskItem = {
     taskNumber: number;
     taskCode?: string;
     isComplete: boolean;
+    requiredStatus?: TaskStatus;
+    status?: TaskStatus;
   }[];
   actionItemsCount: number;
   activityCount: number;
@@ -141,6 +145,7 @@ const PHASE_LABELS: Record<TaskPhase, string> = {
   PLANNING_CONFIGURATION: "Phase 3: Planning & Configuration",
   TESTING_VALIDATION: "Phase 4: Testing & Validation",
   GO_LIVE_STABILIZATION: "Phase 5: Go-Live & Stabilization",
+  HYPERCARE_OPTIMIZATION: "Phase 6: Hypercare & Optimization",
 };
 
 const PHASE_SHORT_BADGES: Record<TaskPhase, { label: string; color: string }> =
@@ -164,6 +169,10 @@ const PHASE_SHORT_BADGES: Record<TaskPhase, { label: string; color: string }> =
     GO_LIVE_STABILIZATION: {
       label: "P5: Go-Live",
       color: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    },
+    HYPERCARE_OPTIMIZATION: {
+      label: "P6: Hypercare",
+      color: "bg-indigo-50 text-indigo-700 border-indigo-200",
     },
   };
 
@@ -297,6 +306,8 @@ export default function OnboardingTasksPage() {
   const [editTaskDueDate, setEditTaskDueDate] = useState("");
   const [editTaskDeliverable, setEditTaskDeliverable] = useState("");
   const [editTaskNotes, setEditTaskNotes] = useState("");
+  const [editTaskDependencies, setEditTaskDependencies] = useState<any[]>([]);
+  const [isAddDependencyModalOpen, setIsAddDependencyModalOpen] = useState<"IN_PROGRESS" | "COMPLETE" | false>(false);
 
   // Load Practices and Users from backend API
   useEffect(() => {
@@ -332,7 +343,7 @@ export default function OnboardingTasksPage() {
                 .join(" ")
                 .trim(),
               value: user.id || getUserDisplayName(user),
-              subLabel: [user.userName, user.email].filter(Boolean).join(" · "),
+              subLabel: [user.userName, user.email].filter(Boolean).join(" Â· "),
             }))
             .filter((e: any) => Boolean(e.value && e.label))
             .sort((a: any, b: any) => a.label.localeCompare(b.label));
@@ -1066,6 +1077,8 @@ export default function OnboardingTasksPage() {
         dueDate: editTaskDueDate,
         deliverable: editTaskDeliverable,
         notes: editTaskNotes,
+        dependencies: editTaskDependencies.map(d => ({ dependsOnTaskId: d.id, requiredStatus: d.requiredStatus || 'COMPLETE' })),
+
       });
 
       const updatedTaskItem: TaskItem = {
@@ -1082,6 +1095,7 @@ export default function OnboardingTasksPage() {
         dueDate: editTaskDueDate || selectedTask.dueDate,
         deliverable: editTaskDeliverable,
         notes: editTaskNotes,
+        dependencies: editTaskDependencies,
       };
 
       setTasks((prev) =>
@@ -1326,30 +1340,14 @@ export default function OnboardingTasksPage() {
                             {t.updatedAt || t.createdAt || "-"}
                           </td>
                           <td className="px-4 py-3.5">
-                            {t.dependencies.length === 0 ? (
-                              <span className="text-xs text-slate-400">
-                                None
+                            {t.dependencies.length > 0 ? (
+                              <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+                                YES
                               </span>
                             ) : (
-                              <div className="flex flex-col gap-1">
-                                {t.dependencies.map((dep) => (
-                                  <span
-                                    key={dep.id}
-                                    className={`inline-flex items-center gap-1 text-xs font-medium ${
-                                      dep.isComplete
-                                        ? "text-emerald-600"
-                                        : "text-amber-600"
-                                    }`}
-                                  >
-                                    {dep.isComplete ? (
-                                      <CheckCircle2 className="h-3 w-3" />
-                                    ) : (
-                                      <Lock className="h-3 w-3 text-amber-500" />
-                                    )}
-                                    {dep.taskCode || `TASK${dep.taskNumber}`}
-                                  </span>
-                                ))}
-                              </div>
+                              <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">
+                                NO
+                              </span>
                             )}
                           </td>
                           <td
@@ -1570,6 +1568,89 @@ export default function OnboardingTasksPage() {
           </div>
         )}
 
+        
+      {/* Add Dependency Selection Modal */}
+      {isAddDependencyModalOpen !== false && selectedTask && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between border-b border-slate-200 p-4">
+              <h3 className="text-lg font-bold text-slate-900">Select Dependency</h3>
+              <button
+                type="button"
+                onClick={() => setIsAddDependencyModalOpen(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto min-h-0 flex-1 space-y-4">
+              {Object.entries(
+                tasks
+                  .filter(t => t.workstreamId === selectedTask.workstreamId && t.id !== selectedTask.id)
+                  .reduce((acc, t) => {
+                    const p = t.phase || "OTHER";
+                    if (!acc[p]) acc[p] = [];
+                    acc[p].push(t);
+                    return acc;
+                  }, {} as Record<string, TaskItem[]>)
+              ).map(([phaseKey, phaseTasks]) => (
+                <div key={phaseKey} className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 font-semibold text-xs text-slate-700">
+                    {PHASE_LABELS[phaseKey as TaskPhase] || phaseKey}
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {phaseTasks.map(t => {
+                      const isSelected = editTaskDependencies.some(d => d.id === t.id && d.requiredStatus === isAddDependencyModalOpen);
+                      return (
+                        <label key={t.id} className={`flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer ${isSelected ? 'bg-indigo-50/30' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditTaskDependencies([...editTaskDependencies, { 
+                                  id: t.id, 
+                                  name: t.name, 
+                                  taskNumber: t.taskNumber, 
+                                  requiredStatus: isAddDependencyModalOpen,
+                                  status: t.status 
+                                }]);
+                              } else {
+                                setEditTaskDependencies(editTaskDependencies.filter(d => !(d.id === t.id && d.requiredStatus === isAddDependencyModalOpen)));
+                              }
+                            }}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
+                          />
+                          <span className="text-sm font-medium text-slate-700">{t.name}</span>
+                          <span className="ml-auto text-[10px] uppercase font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                            {t.status.replace("_", " ")}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              
+              {tasks.filter(t => t.workstreamId === selectedTask.workstreamId && t.id !== selectedTask.id).length === 0 && (
+                <div className="text-center p-4 text-sm text-slate-500">
+                  No other tasks found in this workstream.
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsAddDependencyModalOpen(false)}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
         {/* Task Details Modal (Centered Popup) */}
         {selectedTask && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
@@ -1579,7 +1660,7 @@ export default function OnboardingTasksPage() {
                 <div>
                   <span className="text-xs font-bold font-mono tracking-wider text-indigo-600">
                     {selectedTask.taskCode || `TASK${selectedTask.taskNumber}`}{" "}
-                    • {selectedTask.serviceLine}
+                    â€¢ {selectedTask.serviceLine}
                   </span>
                   <h3 className="text-xl font-bold text-slate-900 mt-1">
                     {selectedTask.name}
@@ -1592,7 +1673,7 @@ export default function OnboardingTasksPage() {
                   onClick={() => setSelectedTask(null)}
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors"
                 >
-                  ✕
+                  <X className="h-5 w-5" />
                 </button>
               </div>
 
@@ -1634,6 +1715,7 @@ export default function OnboardingTasksPage() {
                         setEditTaskStartDate(selectedTask.startDate);
                         setEditTaskDueDate(selectedTask.dueDate);
                         setEditTaskDeliverable(selectedTask.deliverable || "");
+                        setEditTaskDependencies(selectedTask.dependencies || []);
                         setEditTaskNotes(selectedTask.notes || "");
                         setIsEditTaskModalOpen(true);
                       }}
@@ -1793,8 +1875,8 @@ export default function OnboardingTasksPage() {
                   onClick={() => setIsNewTaskModalOpen(false)}
                   className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                 >
-                  ✕
-                </button>
+                  <X className="h-5 w-5" />
+              </button>
               </div>
               <form
                 onSubmit={handleCreateTask}
@@ -1930,7 +2012,7 @@ export default function OnboardingTasksPage() {
         {/* Modal: Edit Task Modal */}
         {isEditTaskModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-            <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150" style={{ maxHeight: "90vh", overflowY: "auto" }}>
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h3 className="text-lg font-bold text-slate-900">
                   Edit Onboarding Task
@@ -1939,8 +2021,8 @@ export default function OnboardingTasksPage() {
                   onClick={() => setIsEditTaskModalOpen(false)}
                   className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                 >
-                  ✕
-                </button>
+                  <X className="h-5 w-5" />
+              </button>
               </div>
               <form
                 onSubmit={handleEditTask}
@@ -2088,6 +2170,139 @@ export default function OnboardingTasksPage() {
                   </div>
                 </div>
 
+                
+                {/* Dependencies Section */}
+                <div className="mt-4 pt-4 border-t border-slate-200 mb-6 flex flex-col gap-6">
+                  
+                  {/* Prerequisites to Start */}
+                  <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200 flex flex-col">
+                    <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800">Prerequisites to Start</label>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Tasks that must be IN PROGRESS or COMPLETE to start this task</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddDependencyModalOpen("IN_PROGRESS")}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded transition-colors shadow-sm"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add
+                      </button>
+                    </div>
+                    <div className="flex-1">
+                      {editTaskDependencies.filter(d => d.requiredStatus === "IN_PROGRESS").length === 0 ? (
+                        <div className="text-xs text-slate-400 italic text-center py-6 bg-white rounded-lg border border-slate-100 border-dashed">
+                          No start prerequisites
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {editTaskDependencies.filter(d => d.requiredStatus === "IN_PROGRESS").map((dep) => {
+                            const isMet = dep.status === "IN_PROGRESS" || dep.status === "COMPLETE";
+                            return (
+                              <div key={dep.id} className="flex flex-col p-2 bg-white rounded-lg border border-slate-200 shadow-sm relative pr-8">
+                                <span className="font-medium text-slate-800 text-xs mb-1 line-clamp-2 pr-4">{dep.name}</span>
+                                <div className="flex items-center justify-between mt-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${isMet ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                                      {isMet ? "MET" : dep.status.replace("_", " ")}
+                                    </span>
+                                  </div>
+                                  <select 
+                                    value={dep.requiredStatus}
+                                    onChange={(e) => {
+                                      const newDeps = editTaskDependencies.map(d => 
+                                        d.id === dep.id ? { ...d, requiredStatus: e.target.value } : d
+                                      );
+                                      setEditTaskDependencies(newDeps);
+                                    }}
+                                    className="text-[10px] border-slate-200 rounded py-0.5 pl-2 pr-6 text-slate-600 bg-slate-50 focus:ring-indigo-500 focus:border-indigo-500"
+                                  >
+                                    <option value="IN_PROGRESS">Requires: In Progress / Complete</option>
+                                    <option value="COMPLETE">Requires: Complete</option>
+                                  </select>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditTaskDependencies(editTaskDependencies.filter(d => d.id !== dep.id))}
+                                  className="absolute top-2 right-2 text-slate-400 hover:text-red-500 transition-colors p-1"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Prerequisites to Finish */}
+                  <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200 flex flex-col">
+                    <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800">Prerequisites to Finish</label>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Tasks that must be COMPLETE to finish this task</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddDependencyModalOpen("COMPLETE")}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded transition-colors shadow-sm"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add
+                      </button>
+                    </div>
+                    <div className="flex-1">
+                      {editTaskDependencies.filter(d => d.requiredStatus === "COMPLETE").length === 0 ? (
+                        <div className="text-xs text-slate-400 italic text-center py-6 bg-white rounded-lg border border-slate-100 border-dashed">
+                          No finish prerequisites
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {editTaskDependencies.filter(d => d.requiredStatus === "COMPLETE").map((dep) => {
+                            const isMet = dep.status === "COMPLETE";
+                            return (
+                              <div key={dep.id} className="flex flex-col p-2 bg-white rounded-lg border border-slate-200 shadow-sm relative pr-8">
+                                <span className="font-medium text-slate-800 text-xs mb-1 line-clamp-2 pr-4">{dep.name}</span>
+                                <div className="flex items-center justify-between mt-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${isMet ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                                      {isMet ? "MET" : dep.status.replace("_", " ")}
+                                    </span>
+                                  </div>
+                                  <select 
+                                    value={dep.requiredStatus}
+                                    onChange={(e) => {
+                                      const newDeps = editTaskDependencies.map(d => 
+                                        d.id === dep.id ? { ...d, requiredStatus: e.target.value } : d
+                                      );
+                                      setEditTaskDependencies(newDeps);
+                                    }}
+                                    className="text-[10px] border-slate-200 rounded py-0.5 pl-2 pr-6 text-slate-600 bg-slate-50 focus:ring-indigo-500 focus:border-indigo-500"
+                                  >
+                                    <option value="IN_PROGRESS">Requires: In Progress / Complete</option>
+                                    <option value="COMPLETE">Requires: Complete</option>
+                                  </select>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditTaskDependencies(editTaskDependencies.filter(d => d.id !== dep.id))}
+                                  className="absolute top-2 right-2 text-slate-400 hover:text-red-500 transition-colors p-1"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2 mt-2 text-[11px] text-slate-500 bg-indigo-50/50 p-2.5 rounded-lg flex items-start gap-2 border border-indigo-100">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-indigo-400 mt-0.5 shrink-0" />
+                    <span>Adding a prerequisite will automatically set this task to BLOCKED. The task will automatically transition to IN PROGRESS and COMPLETE as its prerequisites are met.</span>
+                  </div>
+                </div>
                 <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-6">
                   <button
                     type="button"

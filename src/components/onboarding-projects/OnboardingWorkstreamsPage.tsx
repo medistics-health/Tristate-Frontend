@@ -575,7 +575,7 @@ export default function OnboardingWorkstreamsPage() {
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
           <DataTableToolbar
             title="Workstreams"
-            subtitle="Onboarding Projects"
+            subtitle="Project Management"
             searchPlaceholder="Search by practice name..."
             searchValue={filters.search}
             onSearchChange={(value) => {
