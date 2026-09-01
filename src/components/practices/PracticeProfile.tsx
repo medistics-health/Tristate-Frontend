@@ -668,9 +668,12 @@ export default function PracticeProfilePage() {
       const termData = await getPricingTerms({
         agreementId,
         agreementVersionId,
+        termStatus: "Active",
         limit: 100,
       });
-      setTerms(termData.terms ?? []);
+      setTerms(
+        (termData.terms ?? []).filter((term) => term.isActive !== false),
+      );
     } catch (error) {
       setTerms([]);
       toast.error(
@@ -1677,7 +1680,7 @@ export default function PracticeProfilePage() {
                     ) : (
                       <p className="bg-[#fbfaf8] p-5 text-sm text-slate-500">
                         {selectedAgreement
-                          ? "No pricing terms yet for this agreement version."
+                          ? "No active pricing terms for this agreement version."
                           : "Select an agreement to manage pricing terms."}
                       </p>
                     )}
