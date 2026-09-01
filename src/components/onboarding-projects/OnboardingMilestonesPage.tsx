@@ -419,7 +419,7 @@ export default function OnboardingMilestonesPage() {
   return (
     <AppLayout
       title="Onboarding Milestones"
-      activeModule="Task Tracker"
+      activeModule="Project Management"
       activeSubItem="Milestones"
     >
       <div className="space-y-4 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#f7f5f1] p-2">
@@ -502,6 +502,7 @@ export default function OnboardingMilestonesPage() {
                     <th className="py-3.5 px-4">Description</th>
                     <th className="py-3.5 px-4">Target Week</th>
                     <th className="py-3.5 px-4">Target Date</th>
+                    <th className="py-3.5 px-4">Last Updated</th>
                     <th className="py-3.5 px-4">Status</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
@@ -536,6 +537,9 @@ export default function OnboardingMilestonesPage() {
                         </td>
                         <td className="py-3.5 px-4 text-slate-600 font-mono">
                           {m.targetDate}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
+                          {m.updatedAt || m.createdAt || "-"}
                         </td>
                         <td className="py-3.5 px-4">
                           <span
@@ -744,18 +748,6 @@ export default function OnboardingMilestonesPage() {
               >
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Milestone ID
-                  </label>
-                  <input
-                    type="text"
-                    value={formCode}
-                    onChange={(e) => setFormCode(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
                     Description *
                   </label>
                   <textarea
@@ -770,17 +762,6 @@ export default function OnboardingMilestonesPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Target Week
-                    </label>
-                    <input
-                      type="text"
-                      value={formTargetWeek}
-                      onChange={(e) => setFormTargetWeek(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
                       Target Date
                     </label>
                     <DatePicker
@@ -789,18 +770,17 @@ export default function OnboardingMilestonesPage() {
                       placeholder="MM-DD-YYYY"
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Status
-                  </label>
-                  <Select
-                    value={formStatus}
-                    onChange={(val) => setFormStatus(val as MilestoneStatus)}
-                    options={STATUS_OPTIONS.filter((o) => o.value !== "")}
-                    placeholder="Select Status"
-                  />
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Status
+                    </label>
+                    <Select
+                      value={formStatus}
+                      onChange={(val) => setFormStatus(val as MilestoneStatus)}
+                      options={STATUS_OPTIONS.filter((o) => o.value !== "")}
+                      placeholder="Select Status"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-6">

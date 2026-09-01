@@ -571,7 +571,7 @@ export default function OnboardingActionItemsPage() {
   return (
     <AppLayout
       title="Onboarding Action Items"
-      activeModule="Onboarding Projects"
+      activeModule="Project Management"
       activeSubItem="Action Items"
       navbarIcon={<CheckSquare className="h-4 w-4 text-slate-500" />}
     >

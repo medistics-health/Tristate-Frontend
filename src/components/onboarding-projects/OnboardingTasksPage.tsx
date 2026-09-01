@@ -291,6 +291,7 @@ export default function OnboardingTasksPage() {
     useState<TaskPhase>("ONBOARDING_ACCESS");
   const [editTaskOwnerUserId, setEditTaskOwnerUserId] = useState("");
   const [editTaskOwnerName, setEditTaskOwnerName] = useState("");
+  const [editTaskStatus, setEditTaskStatus] = useState<TaskStatus>("NOT_STARTED");
   const [editTaskStartDate, setEditTaskStartDate] = useState("");
   const [editTaskDueDate, setEditTaskDueDate] = useState("");
   const [editTaskDeliverable, setEditTaskDeliverable] = useState("");
@@ -933,6 +934,7 @@ export default function OnboardingTasksPage() {
       const updated = await updateTaskApi(selectedTask.id, {
         name: editTaskName,
         phase: editTaskPhase,
+        status: editTaskStatus,
         ownerUserId: editTaskOwnerUserId || undefined,
         startDate: editTaskStartDate,
         dueDate: editTaskDueDate,
@@ -947,6 +949,7 @@ export default function OnboardingTasksPage() {
         practiceName: editTaskPracticeName || selectedTask.practiceName,
         serviceLine: editTaskServiceLine,
         phase: editTaskPhase,
+        status: editTaskStatus,
         ownerUserId: editTaskOwnerUserId,
         ownerName: editTaskOwnerName || selectedTask.ownerName,
         startDate: editTaskStartDate || selectedTask.startDate,
@@ -971,7 +974,7 @@ export default function OnboardingTasksPage() {
   return (
     <AppLayout
       title="Tasks Tracker"
-      activeModule="Task Tracker"
+      activeModule="Project Management"
       activeSubItem="Tasks"
     >
       <div className="space-y-4 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#f7f5f1] p-2">
@@ -1121,7 +1124,8 @@ export default function OnboardingTasksPage() {
                     <th className="px-4 py-3">Service Line</th>
                     <th className="px-4 py-3">Phase</th>
                     <th className="px-4 py-3">Owner</th>
-                    <th className="px-4 py-3">Due Date (MM-DD-YYYY)</th>
+                    <th className="px-4 py-3">Due Date</th>
+                    <th className="px-4 py-3">Last Updated</th>
                     <th className="px-4 py-3">Dependencies</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-right">Actions</th>
@@ -1131,7 +1135,7 @@ export default function OnboardingTasksPage() {
                   {filteredTasks.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         className="px-4 py-12 text-center text-slate-500"
                       >
                         No onboarding tasks found matching your filters.
@@ -1192,6 +1196,9 @@ export default function OnboardingTasksPage() {
                               <Calendar className="h-3.5 w-3.5 text-slate-400" />
                               {t.dueDate}
                             </div>
+                          </td>
+                          <td className="px-4 py-3.5 text-xs font-mono text-slate-500">
+                            {t.updatedAt || t.createdAt || "-"}
                           </td>
                           <td className="px-4 py-3.5">
                             {t.dependencies.length === 0 ? (
@@ -1452,11 +1459,27 @@ export default function OnboardingTasksPage() {
 
               {/* Scrollable Body */}
               <div className="p-6 space-y-6 overflow-y-auto">
-                {/* Current Task Status & Action Triggers */}
+                {/* Current Task Status Header Badge */}
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-600">
-                    Current Task Status
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-600">
+                      Current Task Status:
+                    </span>
+                    {(() => {
+                      const statusConf =
+                        STATUS_CONFIG[selectedTask.status] ||
+                        STATUS_CONFIG.NOT_STARTED;
+                      const StatusIcon = statusConf.icon;
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border ${statusConf.bg} ${statusConf.text} ${statusConf.border}`}
+                        >
+                          <StatusIcon className="h-3.5 w-3.5" />
+                          {statusConf.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -1466,6 +1489,7 @@ export default function OnboardingTasksPage() {
                         setEditTaskPracticeName(selectedTask.practiceName);
                         setEditTaskServiceLine(selectedTask.serviceLine);
                         setEditTaskPhase(selectedTask.phase);
+                        setEditTaskStatus(selectedTask.status);
                         setEditTaskOwnerUserId(selectedTask.ownerUserId || "");
                         setEditTaskOwnerName(selectedTask.ownerName);
                         setEditTaskStartDate(selectedTask.startDate);
@@ -1506,28 +1530,6 @@ export default function OnboardingTasksPage() {
                       Delete
                     </button>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {(
-                    [
-                      "NOT_STARTED",
-                      "IN_PROGRESS",
-                      "BLOCKED",
-                      "COMPLETE",
-                    ] as TaskStatus[]
-                  ).map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => handleUpdateStatus(selectedTask.id, st)}
-                      className={`rounded-lg border py-2 px-3 text-xs font-semibold transition-all ${
-                        selectedTask.status === st
-                          ? `${STATUS_CONFIG[st].bg} ${STATUS_CONFIG[st].text} ${STATUS_CONFIG[st].border} ring-2 ring-indigo-500/20 shadow-sm`
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {STATUS_CONFIG[st].label}
-                    </button>
-                  ))}
                 </div>
 
                 {/* Metadata Grid with MM-DD-YYYY Dates */}
@@ -1857,7 +1859,7 @@ export default function OnboardingTasksPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
                       Service Line
@@ -1882,6 +1884,17 @@ export default function OnboardingTasksPage() {
                       onChange={(val) => setEditTaskPhase(val as TaskPhase)}
                       options={PHASE_OPTIONS.filter((o) => o.value !== "")}
                       placeholder="Select Phase"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Status
+                    </label>
+                    <Select
+                      value={editTaskStatus}
+                      onChange={(val) => setEditTaskStatus(val as TaskStatus)}
+                      options={STATUS_OPTIONS.filter((o) => o.value !== "")}
+                      placeholder="Select Status"
                     />
                   </div>
                 </div>

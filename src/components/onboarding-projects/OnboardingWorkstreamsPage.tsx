@@ -567,7 +567,7 @@ export default function OnboardingWorkstreamsPage() {
   return (
     <AppLayout
       title="Onboarding Workstreams"
-      activeModule="Onboarding Projects"
+      activeModule="Project Management"
       activeSubItem="Workstreams"
       navbarIcon={<GitBranch className="h-4 w-4 text-slate-500" />}
     >

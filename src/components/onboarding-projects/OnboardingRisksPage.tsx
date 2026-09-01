@@ -592,8 +592,8 @@ export default function OnboardingRisksPage() {
   return (
     <AppLayout
       title="Onboarding Risk Register"
-      activeModule="Onboarding Projects"
-      activeSubItem="Risks"
+      activeModule="Project Management"
+      activeSubItem="Risk Register"
       navbarIcon={<AlertTriangle className="h-4 w-4 text-slate-500" />}
     >
       <div className="app-split">
