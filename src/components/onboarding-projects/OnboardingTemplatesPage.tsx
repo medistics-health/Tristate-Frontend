@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Calendar,
   ChevronLeft,
   Edit,
   Loader2,
@@ -10,7 +11,9 @@ import {
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import Select from "../shared/Select";
+import DatePicker from "../shared/DatePicker";
 import DataTableToolbar, { type ActiveFilterChip } from "../shared/DataTableToolbar";
+import { CardGridSkeletonLoader } from "../shared/tablePageUtils";
 import {
   getTemplatesApi,
   createTemplateApi,
@@ -50,8 +53,12 @@ export type TemplateTaskItem = {
   phase: TaskPhase;
   defaultOwnerId?: string;
   defaultOwnerName?: string;
+  startMode?: "OFFSET" | "FIXED_DATE";
+  dueMode?: "OFFSET" | "FIXED_DATE";
   startOffsetDays: number;
   dueOffsetDays: number;
+  fixedStartDate?: string;
+  fixedDueDate?: string;
   deliverable?: string;
   notes?: string;
 };
@@ -146,8 +153,12 @@ export default function OnboardingTemplatesPage() {
   const [taskItemPhase, setTaskItemPhase] = useState<TaskPhase>("ONBOARDING_ACCESS");
   const [taskItemDefaultOwnerId, setTaskItemDefaultOwnerId] = useState("");
   const [taskItemDefaultOwnerName, setTaskItemDefaultOwnerName] = useState("");
+  const [taskItemStartMode, setTaskItemStartMode] = useState<"OFFSET" | "FIXED_DATE">("OFFSET");
+  const [taskItemDueMode, setTaskItemDueMode] = useState<"OFFSET" | "FIXED_DATE">("OFFSET");
   const [taskItemStartOffset, setTaskItemStartOffset] = useState<number>(0);
   const [taskItemDueOffset, setTaskItemDueOffset] = useState<number>(7);
+  const [taskItemFixedStartDate, setTaskItemFixedStartDate] = useState("");
+  const [taskItemFixedDueDate, setTaskItemFixedDueDate] = useState("");
   const [taskItemDeliverable, setTaskItemDeliverable] = useState("");
   const [taskItemNotes, setTaskItemNotes] = useState("");
 
@@ -178,8 +189,12 @@ export default function OnboardingTemplatesPage() {
     setTaskItemPhase("ONBOARDING_ACCESS");
     setTaskItemDefaultOwnerId("");
     setTaskItemDefaultOwnerName("");
+    setTaskItemStartMode("OFFSET");
+    setTaskItemDueMode("OFFSET");
     setTaskItemStartOffset(0);
     setTaskItemDueOffset(7);
+    setTaskItemFixedStartDate("");
+    setTaskItemFixedDueDate("");
     setTaskItemDeliverable("");
     setTaskItemNotes("");
     setIsTaskModalOpen(true);
@@ -191,8 +206,12 @@ export default function OnboardingTemplatesPage() {
     setTaskItemPhase(item.phase);
     setTaskItemDefaultOwnerId(item.defaultOwnerId || "");
     setTaskItemDefaultOwnerName(item.defaultOwnerName || "");
+    setTaskItemStartMode(item.startMode || (item.fixedStartDate ? "FIXED_DATE" : "OFFSET"));
+    setTaskItemDueMode(item.dueMode || (item.fixedDueDate ? "FIXED_DATE" : "OFFSET"));
     setTaskItemStartOffset(item.startOffsetDays ?? 0);
     setTaskItemDueOffset(item.dueOffsetDays ?? 7);
+    setTaskItemFixedStartDate(item.fixedStartDate || "");
+    setTaskItemFixedDueDate(item.fixedDueDate || "");
     setTaskItemDeliverable(item.deliverable || "");
     setTaskItemNotes(item.notes || "");
     setIsTaskModalOpen(true);
@@ -206,19 +225,27 @@ export default function OnboardingTemplatesPage() {
     const existingTasks = selectedTemplate.tasks || [];
     let updatedTasks: TemplateTaskItem[] = [];
 
+    const taskPayload = {
+      taskName: taskItemName.trim(),
+      phase: taskItemPhase,
+      defaultOwnerId: taskItemDefaultOwnerId || undefined,
+      defaultOwnerName: taskItemDefaultOwnerName || undefined,
+      startMode: taskItemStartMode,
+      dueMode: taskItemDueMode,
+      startOffsetDays: Number(taskItemStartOffset) || 0,
+      dueOffsetDays: Number(taskItemDueOffset) || 7,
+      fixedStartDate: taskItemStartMode === "FIXED_DATE" ? taskItemFixedStartDate : undefined,
+      fixedDueDate: taskItemDueMode === "FIXED_DATE" ? taskItemFixedDueDate : undefined,
+      deliverable: taskItemDeliverable.trim() || undefined,
+      notes: taskItemNotes.trim() || undefined,
+    };
+
     if (editingTaskItem) {
       updatedTasks = existingTasks.map((t) => {
         if ((t.id && t.id === editingTaskItem.id) || t.taskNumber === editingTaskItem.taskNumber) {
           return {
             ...t,
-            taskName: taskItemName.trim(),
-            phase: taskItemPhase,
-            defaultOwnerId: taskItemDefaultOwnerId || undefined,
-            defaultOwnerName: taskItemDefaultOwnerName || undefined,
-            startOffsetDays: Number(taskItemStartOffset) || 0,
-            dueOffsetDays: Number(taskItemDueOffset) || 7,
-            deliverable: taskItemDeliverable.trim() || undefined,
-            notes: taskItemNotes.trim() || undefined,
+            ...taskPayload,
           };
         }
         return t;
@@ -227,14 +254,7 @@ export default function OnboardingTemplatesPage() {
       const newTaskNumber = existingTasks.length + 1;
       const newTaskObj: TemplateTaskItem = {
         taskNumber: newTaskNumber,
-        taskName: taskItemName.trim(),
-        phase: taskItemPhase,
-        defaultOwnerId: taskItemDefaultOwnerId || undefined,
-        defaultOwnerName: taskItemDefaultOwnerName || undefined,
-        startOffsetDays: Number(taskItemStartOffset) || 0,
-        dueOffsetDays: Number(taskItemDueOffset) || 7,
-        deliverable: taskItemDeliverable.trim() || undefined,
-        notes: taskItemNotes.trim() || undefined,
+        ...taskPayload,
       };
       updatedTasks = [...existingTasks, newTaskObj];
     }
@@ -296,8 +316,8 @@ export default function OnboardingTemplatesPage() {
         setTemplates(data);
         if (data.length > 0) {
           const targetId = selectId || selectedTemplate?.id;
-          const matched = data.find((t) => t.id === targetId);
-          setSelectedTemplate(matched || data[0]);
+          const matched = targetId ? data.find((t) => t.id === targetId) : null;
+          setSelectedTemplate(matched || null);
         } else {
           setSelectedTemplate(null);
         }
@@ -680,11 +700,17 @@ export default function OnboardingTemplatesPage() {
 
                           <div className="flex flex-col items-end gap-1 shrink-0">
                             <div className="text-right">
-                              <span className="font-semibold text-indigo-700 text-[11px]">
-                                Due +{item.dueOffsetDays}d
+                              <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 text-[11px] bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                                <Calendar className="h-3 w-3 text-indigo-500" />
+                                {item.dueMode === "FIXED_DATE" || item.fixedDueDate
+                                  ? `Due: ${item.fixedDueDate}`
+                                  : `Due +${item.dueOffsetDays}d`}
                               </span>
-                              <div className="text-[10px] text-slate-400 font-medium">
-                                Start +{item.startOffsetDays}d
+                              <div className="mt-0.5 text-[10px] text-slate-400 font-medium flex items-center justify-end gap-1">
+                                <Calendar className="h-2.5 w-2.5 text-slate-400" />
+                                {item.startMode === "FIXED_DATE" || item.fixedStartDate
+                                  ? `Start: ${item.fixedStartDate}`
+                                  : `Start +${item.startOffsetDays}d`}
                               </div>
                             </div>
                             <div className="flex items-center gap-1 mt-1 opacity-90">
@@ -720,7 +746,7 @@ export default function OnboardingTemplatesPage() {
   ) : null;
 
   return (
-    <AppLayout title="Onboarding Task Templates" activeModule="Task Tracker" activeSubItem="Task Templates">
+    <AppLayout title="Onboarding Task Templates" activeModule="Project Management" activeSubItem="Task Templates">
       <div className="app-split p-2 font-app-sans">
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
           <DataTableToolbar
@@ -755,11 +781,8 @@ export default function OnboardingTemplatesPage() {
           >
             <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
               {isLoading ? (
-                <div className="flex h-64 items-center justify-center rounded-xl border border-slate-200 bg-white p-8">
-                  <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
-                    Loading Templates...
-                  </div>
+                <div className="p-4">
+                  <CardGridSkeletonLoader count={6} />
                 </div>
               ) : templates.length === 0 ? (
                 <div className="relative flex min-h-[300px] items-center justify-center p-8 text-center text-xs text-slate-400">
@@ -1013,7 +1036,7 @@ export default function OnboardingTemplatesPage() {
       {/* Add / Edit Task Item to Blueprint Modal */}
       {isTaskModalOpen && selectedTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 font-app-sans">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 font-app-sans">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
@@ -1030,92 +1053,187 @@ export default function OnboardingTemplatesPage() {
             </div>
 
             <form onSubmit={handleSaveTaskItem} className="mt-4 space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Standard Phase *</label>
-                <select
-                  value={taskItemPhase}
-                  onChange={(e) => setTaskItemPhase(e.target.value as TaskPhase)}
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none bg-white"
-                >
-                  {(
-                    [
-                      "ONBOARDING_ACCESS",
-                      "ASSESSMENT_DISCOVERY",
-                      "PLANNING_CONFIGURATION",
-                      "TESTING_VALIDATION",
-                      "GO_LIVE_STABILIZATION",
-                    ] as TaskPhase[]
-                  ).map((phase) => (
-                    <option key={phase} value={phase}>
-                      {PHASE_LABELS[phase]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Task Item Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. EHR & PM System Access Setup"
-                  value={taskItemName}
-                  onChange={(e) => setTaskItemName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Default Owner</label>
-                <SearchSelect
-                  value={taskItemDefaultOwnerId}
-                  displayLabel={taskItemDefaultOwnerName}
-                  onChange={(val, opt) => {
-                    setTaskItemDefaultOwnerId(val);
-                    setTaskItemDefaultOwnerName(opt?.label || val);
-                  }}
-                  onSearch={searchUserOptions}
-                  clearable
-                  toggleOnSelectSame
-                  placeholder="Select default owner user"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              {/* Row 1: Task Name & Standard Phase */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Start Offset (Days)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Task Item Name *</label>
                   <input
-                    type="number"
-                    min={0}
-                    value={taskItemStartOffset}
-                    onChange={(e) => setTaskItemStartOffset(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Due Offset (Days) *</label>
-                  <input
-                    type="number"
-                    min={1}
+                    type="text"
                     required
-                    value={taskItemDueOffset}
-                    onChange={(e) => setTaskItemDueOffset(Number(e.target.value))}
+                    placeholder="e.g. EHR & PM System Access Setup"
+                    value={taskItemName}
+                    onChange={(e) => setTaskItemName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Standard Phase *</label>
+                  <select
+                    value={taskItemPhase}
+                    onChange={(e) => setTaskItemPhase(e.target.value as TaskPhase)}
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none bg-white"
+                  >
+                    {(
+                      [
+                        "ONBOARDING_ACCESS",
+                        "ASSESSMENT_DISCOVERY",
+                        "PLANNING_CONFIGURATION",
+                        "TESTING_VALIDATION",
+                        "GO_LIVE_STABILIZATION",
+                      ] as TaskPhase[]
+                    ).map((phase) => (
+                      <option key={phase} value={phase}>
+                        {PHASE_LABELS[phase]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2: Default Owner & Deliverable */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Default Owner</label>
+                  <SearchSelect
+                    value={taskItemDefaultOwnerId}
+                    displayLabel={taskItemDefaultOwnerName}
+                    onChange={(val, opt) => {
+                      setTaskItemDefaultOwnerId(val);
+                      setTaskItemDefaultOwnerName(opt?.label || val);
+                    }}
+                    onSearch={searchUserOptions}
+                    clearable
+                    toggleOnSelectSame
+                    placeholder="Select default owner user"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Deliverable</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Signed ERA Enrollment Form"
+                    value={taskItemDeliverable}
+                    onChange={(e) => setTaskItemDeliverable(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Deliverable</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Signed ERA Enrollment Form"
-                  value={taskItemDeliverable}
-                  onChange={(e) => setTaskItemDeliverable(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
-                />
+              {/* Row 3: 2-Column Grid for Start Date & Due Date Configurations */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+                {/* Start Date Configuration */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block font-semibold text-slate-700">Start Date Calculation</label>
+                    <div className="flex items-center gap-1 rounded-lg bg-slate-200/60 p-0.5 text-[10px] font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setTaskItemStartMode("OFFSET")}
+                        className={`rounded-md px-2 py-0.5 transition-colors ${
+                          taskItemStartMode === "OFFSET"
+                            ? "bg-white text-indigo-700 shadow-xs"
+                            : "text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        Days Offset
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTaskItemStartMode("FIXED_DATE")}
+                        className={`rounded-md px-2 py-0.5 transition-colors ${
+                          taskItemStartMode === "FIXED_DATE"
+                            ? "bg-white text-indigo-700 shadow-xs"
+                            : "text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        Fixed Date
+                      </button>
+                    </div>
+                  </div>
+                  {taskItemStartMode === "OFFSET" ? (
+                    <div>
+                      <div className="relative flex items-center">
+                        <Calendar className="absolute left-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                        <input
+                          type="number"
+                          min={0}
+                          value={taskItemStartOffset}
+                          onChange={(e) => setTaskItemStartOffset(Number(e.target.value))}
+                          className="w-full rounded-xl border border-slate-200 py-2 pl-8 pr-2.5 text-xs bg-white focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                      <span className="mt-1 block text-[10px] text-slate-400">Start +{taskItemStartOffset || 0} days from kickoff</span>
+                    </div>
+                  ) : (
+                    <div>
+                      <DatePicker
+                        value={taskItemFixedStartDate}
+                        onChange={(val) => setTaskItemFixedStartDate(val)}
+                        placeholder="MM-DD-YYYY"
+                      />
+                      <span className="mt-1 block text-[10px] text-indigo-600 font-medium">Direct fixed start date when task is created</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Due Date Configuration */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block font-semibold text-slate-700">Due Date Calculation *</label>
+                    <div className="flex items-center gap-1 rounded-lg bg-slate-200/60 p-0.5 text-[10px] font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setTaskItemDueMode("OFFSET")}
+                        className={`rounded-md px-2 py-0.5 transition-colors ${
+                          taskItemDueMode === "OFFSET"
+                            ? "bg-white text-indigo-700 shadow-xs"
+                            : "text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        Days Offset
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTaskItemDueMode("FIXED_DATE")}
+                        className={`rounded-md px-2 py-0.5 transition-colors ${
+                          taskItemDueMode === "FIXED_DATE"
+                            ? "bg-white text-indigo-700 shadow-xs"
+                            : "text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        Fixed Date
+                      </button>
+                    </div>
+                  </div>
+                  {taskItemDueMode === "OFFSET" ? (
+                    <div>
+                      <div className="relative flex items-center">
+                        <Calendar className="absolute left-2.5 h-3.5 w-3.5 text-indigo-500 pointer-events-none" />
+                        <input
+                          type="number"
+                          min={1}
+                          required
+                          value={taskItemDueOffset}
+                          onChange={(e) => setTaskItemDueOffset(Number(e.target.value))}
+                          className="w-full rounded-xl border border-slate-200 py-2 pl-8 pr-2.5 text-xs bg-white focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                      <span className="mt-1 block text-[10px] text-indigo-500 font-medium">Due +{taskItemDueOffset || 7} days from kickoff</span>
+                    </div>
+                  ) : (
+                    <div>
+                      <DatePicker
+                        value={taskItemFixedDueDate}
+                        onChange={(val) => setTaskItemFixedDueDate(val)}
+                        placeholder="MM-DD-YYYY"
+                      />
+                      <span className="mt-1 block text-[10px] text-indigo-600 font-medium">Direct fixed due date when task is created</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
+              {/* Row 4: Notes / Instructions (Full Width) */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Notes / Instructions</label>
                 <textarea
@@ -1127,7 +1245,7 @@ export default function OnboardingTemplatesPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-6">
+              <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-4">
                 <button
                   type="button"
                   onClick={() => setIsTaskModalOpen(false)}
@@ -1140,7 +1258,7 @@ export default function OnboardingTemplatesPage() {
                   disabled={isSubmitting}
                   className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                 >
-                  {isSubmitting ? "Saving..." : editingTaskItem ? "Update Task" : "Add Task Item"}
+                  {isSubmitting ? "Saving..." : editingTaskItem ? "Update Task Item" : "Add Task Item"}
                 </button>
               </div>
             </form>

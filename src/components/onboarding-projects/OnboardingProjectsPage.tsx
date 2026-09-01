@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
+import { CardGridSkeletonLoader } from "../shared/tablePageUtils";
 import { formatPracticeServiceLine } from "../practices/serviceLines";
 import {
   getMilestonesApi,
@@ -607,9 +608,7 @@ export default function OnboardingProjectsPage() {
         </div>
 
         {isLoading ? (
-          <div className="flex min-h-[360px] items-center justify-center rounded-2xl border border-[#ece8e1] bg-white">
-            <Loader2 className="h-6 w-6 animate-spin text-[#4f63ea]" />
-          </div>
+          <CardGridSkeletonLoader count={6} />
         ) : (
           <>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">

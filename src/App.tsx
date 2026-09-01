@@ -165,7 +165,7 @@ function App() {
       />
 
       <Route
-        path="/onboarding-projects/projects"
+        path="/project-management/projects"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <OnboardingProjectsPage />
@@ -174,7 +174,7 @@ function App() {
       />
 
       <Route
-        path="/onboarding-projects/workstreams"
+        path="/project-management/workstreams"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <OnboardingWorkstreamsPage />
@@ -183,7 +183,7 @@ function App() {
       />
 
       <Route
-        path="/onboarding-projects/tasks"
+        path="/project-management/tasks"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <OnboardingTasksPage />
@@ -192,7 +192,7 @@ function App() {
       />
 
       <Route
-        path="/onboarding-projects/*"
+        path="/project-management/*"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <OnboardingTasksPage />
@@ -201,7 +201,7 @@ function App() {
       />
 
       <Route
-        path="/onboarding-projects/milestones"
+        path="/project-management/milestones"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <OnboardingMilestonesPage />
@@ -210,7 +210,7 @@ function App() {
       />
 
       <Route
-        path="/onboarding-projects/risks"
+        path="/project-management/risks"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <OnboardingRisksPage />
@@ -219,7 +219,7 @@ function App() {
       />
 
       <Route
-        path="/onboarding-projects/action-items"
+        path="/project-management/action-items"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <OnboardingActionItemsPage />
@@ -228,7 +228,7 @@ function App() {
       />
 
       <Route
-        path="/onboarding-projects/templates"
+        path="/project-management/templates"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <OnboardingTemplatesPage />

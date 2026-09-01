@@ -25,6 +25,7 @@ import DataTableToolbar, {
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import DatePicker from "../shared/DatePicker";
+import { TableSkeletonLoader, CardGridSkeletonLoader } from "../shared/tablePageUtils";
 import {
   getTasksApi,
   createTaskApi,
@@ -291,6 +292,7 @@ export default function OnboardingTasksPage() {
     useState<TaskPhase>("ONBOARDING_ACCESS");
   const [editTaskOwnerUserId, setEditTaskOwnerUserId] = useState("");
   const [editTaskOwnerName, setEditTaskOwnerName] = useState("");
+  const [editTaskStatus, setEditTaskStatus] = useState<TaskStatus>("NOT_STARTED");
   const [editTaskStartDate, setEditTaskStartDate] = useState("");
   const [editTaskDueDate, setEditTaskDueDate] = useState("");
   const [editTaskDeliverable, setEditTaskDeliverable] = useState("");
@@ -500,7 +502,119 @@ export default function OnboardingTasksPage() {
     pct: 0,
   });
 
-  // Fetch tasks from API
+  // Kanban dedicated per-status state & pagination
+  const [kanbanTasks, setKanbanTasks] = useState<Record<TaskStatus, TaskItem[]>>({
+    NOT_STARTED: [],
+    IN_PROGRESS: [],
+    BLOCKED: [],
+    COMPLETE: [],
+  });
+  const [kanbanPage, setKanbanPage] = useState<Record<TaskStatus, number>>({
+    NOT_STARTED: 1,
+    IN_PROGRESS: 1,
+    BLOCKED: 1,
+    COMPLETE: 1,
+  });
+  const [kanbanHasMore, setKanbanHasMore] = useState<Record<TaskStatus, boolean>>({
+    NOT_STARTED: false,
+    IN_PROGRESS: false,
+    BLOCKED: false,
+    COMPLETE: false,
+  });
+  const [isKanbanLoading, setIsKanbanLoading] = useState<Record<TaskStatus, boolean>>({
+    NOT_STARTED: false,
+    IN_PROGRESS: false,
+    BLOCKED: false,
+    COMPLETE: false,
+  });
+
+  // Dedicated Kanban API fetcher per status column
+  const fetchKanbanStatus = async (statusKey: TaskStatus, pageNum: number, append = false) => {
+    setIsKanbanLoading((prev) => ({ ...prev, [statusKey]: true }));
+    try {
+      const params: Record<string, any> = {
+        page: pageNum,
+        pageSize: 10,
+        status: statusKey,
+      };
+      if (search.trim()) params.search = search.trim();
+      if (filters.practiceId) params.practiceId = filters.practiceId;
+      if (filters.serviceLine) params.serviceLine = filters.serviceLine;
+      if (filters.phase) params.phase = filters.phase;
+      if (filters.ownerUserId) params.ownerUserId = filters.ownerUserId;
+      if (filters.dueDateFrom) params.dueDateFrom = filters.dueDateFrom;
+      if (filters.dueDateTo) params.dueDateTo = filters.dueDateTo;
+
+      const resData = await getTasksApi(params);
+      const formatted = resData.tasks.map((t, idx) => ({
+        ...t,
+        taskCode:
+          t.taskCode ||
+          `TASK${String(t.taskNumber || idx + 3209190).padStart(7, "0")}`,
+        startDate:
+          formatToMMDDYYYY(t.startDate) || formatToMMDDYYYY(new Date()),
+        dueDate:
+          formatToMMDDYYYY(t.dueDate) ||
+          formatToMMDDYYYY(new Date(Date.now() + 7 * 86400000)),
+      }));
+
+      setKanbanTasks((prev) => ({
+        ...prev,
+        [statusKey]: append ? [...(prev[statusKey] || []), ...formatted] : formatted,
+      }));
+
+      setKanbanHasMore((prev) => ({
+        ...prev,
+        [statusKey]: pageNum < resData.totalPages,
+      }));
+    } catch (err) {
+      console.error(`Failed to load kanban tasks for status ${statusKey}:`, err);
+    } finally {
+      setIsKanbanLoading((prev) => ({ ...prev, [statusKey]: false }));
+    }
+  };
+
+  const loadMoreKanbanStatus = (statusKey: TaskStatus) => {
+    const nextPage = (kanbanPage[statusKey] || 1) + 1;
+    setKanbanPage((prev) => ({ ...prev, [statusKey]: nextPage }));
+    void fetchKanbanStatus(statusKey, nextPage, true);
+  };
+
+  // Dedicated overall metrics fetcher for top Statistics bar
+  const fetchGlobalMetrics = async () => {
+    try {
+      const params: Record<string, any> = { page: 1, pageSize: 1 };
+      if (search.trim()) params.search = search.trim();
+      if (filters.practiceId) params.practiceId = filters.practiceId;
+      if (filters.serviceLine) params.serviceLine = filters.serviceLine;
+      if (filters.phase) params.phase = filters.phase;
+      if (filters.status) params.status = filters.status;
+      if (filters.ownerUserId) params.ownerUserId = filters.ownerUserId;
+      if (filters.dueDateFrom) params.dueDateFrom = filters.dueDateFrom;
+      if (filters.dueDateTo) params.dueDateTo = filters.dueDateTo;
+
+      const resData = await getTasksApi(params);
+      if (resData.metrics) {
+        setBackendMetrics(resData.metrics);
+      }
+    } catch (err) {
+      console.error("Failed to load overall metrics:", err);
+    }
+  };
+
+  const initKanbanBoard = () => {
+    const statuses: TaskStatus[] = ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETE"];
+    setKanbanPage({
+      NOT_STARTED: 1,
+      IN_PROGRESS: 1,
+      BLOCKED: 1,
+      COMPLETE: 1,
+    });
+    void fetchGlobalMetrics();
+    statuses.forEach((st) => void fetchKanbanStatus(st, 1, false));
+  };
+
+  // Fetch tasks for Table View
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
@@ -546,8 +660,13 @@ export default function OnboardingTasksPage() {
   };
 
   useEffect(() => {
-    fetchTasks();
+    if (viewMode === "table") {
+      fetchTasks();
+    } else {
+      initKanbanBoard();
+    }
   }, [
+    viewMode,
     currentPage,
     pageSize,
     search,
@@ -633,9 +752,17 @@ export default function OnboardingTasksPage() {
 
     try {
       await updateTaskApi(taskId, { status: newStatus });
+      const statusLabel = STATUS_CONFIG[newStatus]?.label || newStatus;
       toast.success(
-        `${targetTask.taskCode || `Task #${targetTask.taskNumber}`} updated to ${newStatus}`,
+        `${targetTask.taskCode || `Task #${targetTask.taskNumber}`} updated to ${statusLabel}`,
       );
+      // Immediately refresh top Statistics bar & view data across Table or Kanban columns
+      void fetchGlobalMetrics();
+      if (viewMode === "kanban") {
+        initKanbanBoard();
+      } else {
+        fetchTasks();
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to update task status");
       fetchTasks();
@@ -933,6 +1060,7 @@ export default function OnboardingTasksPage() {
       const updated = await updateTaskApi(selectedTask.id, {
         name: editTaskName,
         phase: editTaskPhase,
+        status: editTaskStatus,
         ownerUserId: editTaskOwnerUserId || undefined,
         startDate: editTaskStartDate,
         dueDate: editTaskDueDate,
@@ -947,6 +1075,7 @@ export default function OnboardingTasksPage() {
         practiceName: editTaskPracticeName || selectedTask.practiceName,
         serviceLine: editTaskServiceLine,
         phase: editTaskPhase,
+        status: editTaskStatus,
         ownerUserId: editTaskOwnerUserId,
         ownerName: editTaskOwnerName || selectedTask.ownerName,
         startDate: editTaskStartDate || selectedTask.startDate,
@@ -971,7 +1100,7 @@ export default function OnboardingTasksPage() {
   return (
     <AppLayout
       title="Tasks Tracker"
-      activeModule="Task Tracker"
+      activeModule="Project Management"
       activeSubItem="Tasks"
     >
       <div className="space-y-4 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#f7f5f1] p-2">
@@ -1104,12 +1233,11 @@ export default function OnboardingTasksPage() {
 
         {/* Main Content Area */}
         {isLoading ? (
-          <div className="flex h-64 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
-              <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
-              Loading Onboarding Tasks...
-            </div>
-          </div>
+          viewMode === "table" ? (
+            <TableSkeletonLoader columns={10} rows={6} />
+          ) : (
+            <CardGridSkeletonLoader count={6} />
+          )
         ) : viewMode === "table" ? (
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
@@ -1121,7 +1249,8 @@ export default function OnboardingTasksPage() {
                     <th className="px-4 py-3">Service Line</th>
                     <th className="px-4 py-3">Phase</th>
                     <th className="px-4 py-3">Owner</th>
-                    <th className="px-4 py-3">Due Date (MM-DD-YYYY)</th>
+                    <th className="px-4 py-3">Due Date</th>
+                    <th className="px-4 py-3">Last Updated</th>
                     <th className="px-4 py-3">Dependencies</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-right">Actions</th>
@@ -1131,7 +1260,7 @@ export default function OnboardingTasksPage() {
                   {filteredTasks.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         className="px-4 py-12 text-center text-slate-500"
                       >
                         No onboarding tasks found matching your filters.
@@ -1192,6 +1321,9 @@ export default function OnboardingTasksPage() {
                               <Calendar className="h-3.5 w-3.5 text-slate-400" />
                               {t.dueDate}
                             </div>
+                          </td>
+                          <td className="px-4 py-3.5 text-xs font-mono text-slate-500">
+                            {t.updatedAt || t.createdAt || "-"}
                           </td>
                           <td className="px-4 py-3.5">
                             {t.dependencies.length === 0 ? (
@@ -1306,7 +1438,7 @@ export default function OnboardingTasksPage() {
             </div>
           </div>
         ) : (
-          /* Kanban Board View with HTML5 Drag & Drop */
+          /* Kanban Board View with Dedicated Per-Status API Queries & View More */
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             {(
               [
@@ -1316,11 +1448,11 @@ export default function OnboardingTasksPage() {
                 "COMPLETE",
               ] as TaskStatus[]
             ).map((statusKey) => {
-              const columnTasks = filteredTasks.filter(
-                (t) => t.status === statusKey,
-              );
+              const columnTasks = kanbanTasks[statusKey] || [];
               const statusCfg = STATUS_CONFIG[statusKey];
               const isOver = dragOverStatus === statusKey;
+              const hasMore = kanbanHasMore[statusKey];
+              const isColLoading = isKanbanLoading[statusKey];
 
               return (
                 <div
@@ -1349,7 +1481,7 @@ export default function OnboardingTasksPage() {
                   </div>
 
                   <div className="flex-1 space-y-3 overflow-y-auto min-h-[420px]">
-                    {columnTasks.length === 0 ? (
+                    {columnTasks.length === 0 && !isColLoading ? (
                       <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-slate-200 text-xs text-slate-400">
                         Drop task here
                       </div>
@@ -1417,6 +1549,20 @@ export default function OnboardingTasksPage() {
                         );
                       })
                     )}
+
+                    {/* Per-Status View More Button */}
+                    {hasMore && (
+                      <div className="pt-2 text-center">
+                        <button
+                          type="button"
+                          disabled={isColLoading}
+                          onClick={() => loadMoreKanbanStatus(statusKey)}
+                          className="w-full rounded-xl border border-indigo-200 bg-indigo-50/70 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                        >
+                          {isColLoading ? "Loading..." : "View More"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1452,11 +1598,27 @@ export default function OnboardingTasksPage() {
 
               {/* Scrollable Body */}
               <div className="p-6 space-y-6 overflow-y-auto">
-                {/* Current Task Status & Action Triggers */}
+                {/* Current Task Status Header Badge */}
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-600">
-                    Current Task Status
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-600">
+                      Current Task Status:
+                    </span>
+                    {(() => {
+                      const statusConf =
+                        STATUS_CONFIG[selectedTask.status] ||
+                        STATUS_CONFIG.NOT_STARTED;
+                      const StatusIcon = statusConf.icon;
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border ${statusConf.bg} ${statusConf.text} ${statusConf.border}`}
+                        >
+                          <StatusIcon className="h-3.5 w-3.5" />
+                          {statusConf.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -1466,6 +1628,7 @@ export default function OnboardingTasksPage() {
                         setEditTaskPracticeName(selectedTask.practiceName);
                         setEditTaskServiceLine(selectedTask.serviceLine);
                         setEditTaskPhase(selectedTask.phase);
+                        setEditTaskStatus(selectedTask.status);
                         setEditTaskOwnerUserId(selectedTask.ownerUserId || "");
                         setEditTaskOwnerName(selectedTask.ownerName);
                         setEditTaskStartDate(selectedTask.startDate);
@@ -1506,28 +1669,6 @@ export default function OnboardingTasksPage() {
                       Delete
                     </button>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {(
-                    [
-                      "NOT_STARTED",
-                      "IN_PROGRESS",
-                      "BLOCKED",
-                      "COMPLETE",
-                    ] as TaskStatus[]
-                  ).map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => handleUpdateStatus(selectedTask.id, st)}
-                      className={`rounded-lg border py-2 px-3 text-xs font-semibold transition-all ${
-                        selectedTask.status === st
-                          ? `${STATUS_CONFIG[st].bg} ${STATUS_CONFIG[st].text} ${STATUS_CONFIG[st].border} ring-2 ring-indigo-500/20 shadow-sm`
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {STATUS_CONFIG[st].label}
-                    </button>
-                  ))}
                 </div>
 
                 {/* Metadata Grid with MM-DD-YYYY Dates */}
@@ -1789,7 +1930,7 @@ export default function OnboardingTasksPage() {
         {/* Modal: Edit Task Modal */}
         {isEditTaskModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h3 className="text-lg font-bold text-slate-900">
                   Edit Onboarding Task
@@ -1857,7 +1998,7 @@ export default function OnboardingTasksPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
                       Service Line
@@ -1882,6 +2023,17 @@ export default function OnboardingTasksPage() {
                       onChange={(val) => setEditTaskPhase(val as TaskPhase)}
                       options={PHASE_OPTIONS.filter((o) => o.value !== "")}
                       placeholder="Select Phase"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Status
+                    </label>
+                    <Select
+                      value={editTaskStatus}
+                      onChange={(val) => setEditTaskStatus(val as TaskStatus)}
+                      options={STATUS_OPTIONS.filter((o) => o.value !== "")}
+                      placeholder="Select Status"
                     />
                   </div>
                 </div>
