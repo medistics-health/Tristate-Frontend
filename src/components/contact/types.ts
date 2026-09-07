@@ -15,6 +15,7 @@ export type DocusealSubmission = {
   externalId: number;
   status: string;
   url?: string;
+  signedDocUrl?: string;
   signedDocUrls?: string;
   auditLogUrl?: string;
   embedUrl?: string;

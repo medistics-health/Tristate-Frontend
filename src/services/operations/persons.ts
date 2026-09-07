@@ -23,7 +23,7 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
-type PersonWithPractices = Person & {
+export type PersonWithPractices = Person & {
   practices?: { practice: { id: string; name: string } }[];
   companies?: { company: { id: string; name: string } }[];
   docusealSubmissions?: {
@@ -32,6 +32,7 @@ type PersonWithPractices = Person & {
     externalId: number;
     status: string;
     url?: string;
+    signedDocUrl?: string;
     signedDocUrls?: string;
     auditLogUrl?: string;
     embedUrl?: string;

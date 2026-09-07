@@ -916,6 +916,15 @@ export default function PracticeProfilePage() {
                     <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">
                       {formatLabel(person.role)}
                     </p>
+                    {person.id ? (
+                      <Link
+                        to={`/people/${person.id}/profile`}
+                        className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-900"
+                      >
+                        View Profile
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    ) : null}
                   </div>
                 ))
               ) : (

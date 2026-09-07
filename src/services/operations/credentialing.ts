@@ -24,6 +24,7 @@ export type CredentialingQueryParams = {
   search?: string;
   practice?: string;
   provider?: string;
+  providerId?: string;
   insuranceCompany?: string;
   status?: string;
   credentialingType?: string;
@@ -84,6 +85,7 @@ function buildQueryString(params?: CredentialingQueryParams) {
   if (params?.search) queryString.set("search", params.search);
   if (params?.practice) queryString.set("practice", params.practice);
   if (params?.provider) queryString.set("provider", params.provider);
+  if (params?.providerId) queryString.set("providerId", params.providerId);
   if (params?.insuranceCompany) queryString.set("insuranceCompany", params.insuranceCompany);
   if (params?.status) queryString.set("status", params.status);
   if (params?.credentialingType) queryString.set("credentialingType", params.credentialingType);

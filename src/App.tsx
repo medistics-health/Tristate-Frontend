@@ -39,6 +39,7 @@ import BillingRunsPage from "./components/billing/BillingRuns";
 import BillingStatusBoardPage from "./components/billing/BillingStatusBoard";
 import DealsPage from "./components/deal/Deals";
 import PersonsPage from "./components/contact/Persons";
+import PersonProfilePage from "./components/contact/PersonProfile";
 import AllCompaniesPage from "./components/companies/AllCompanies";
 import AgreementPipelinePage from "./components/agreements/agreements-pipeline/AgreementPipeline";
 import DocumentSigningPage from "./components/shared/DocumentSigningPage";
@@ -663,6 +664,16 @@ function App() {
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <PersonsPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/people/:id/profile"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <UUIDProtectedRoute>
+              <PersonProfilePage />
+            </UUIDProtectedRoute>
           </ModuleRoute>
         }
       />
