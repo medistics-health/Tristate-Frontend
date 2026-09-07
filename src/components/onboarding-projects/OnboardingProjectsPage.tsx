@@ -634,7 +634,7 @@ export default function OnboardingProjectsPage() {
             <section className="rounded-2xl border border-[#ece8e1] bg-white p-5 shadow-xs">
               <SectionHeader
                 title="Projects"
-                to="/onboarding-projects/workstreams"
+                to="/project-management/workstreams"
                 count={filteredProjects.length}
               />
               {filteredProjects.length === 0 ? (
@@ -644,7 +644,7 @@ export default function OnboardingProjectsPage() {
                   {filteredProjects.slice(0, 6).map((project) => (
                     <Link
                       key={project.id}
-                      to="/onboarding-projects/workstreams"
+                      to="/project-management/workstreams"
                       className="rounded-xl border border-[#ece8e1] bg-[#fcfbf9] p-4 transition-colors hover:border-[#d7d2c8] hover:bg-white"
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -701,7 +701,7 @@ export default function OnboardingProjectsPage() {
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <DashboardPanel
                 title="Workstreams needing attention"
-                to="/onboarding-projects/workstreams"
+                to="/project-management/workstreams"
                 icon={<GitBranch className="h-4 w-4 text-orange-500" />}
                 count={attentionWorkstreams.length}
               >
@@ -738,7 +738,7 @@ export default function OnboardingProjectsPage() {
 
               <DashboardPanel
                 title="Blocked & overdue tasks"
-                to="/onboarding-projects/tasks"
+                to="/project-management/tasks"
                 icon={<Activity className="h-4 w-4 text-rose-500" />}
                 count={attentionTasks.length}
               >
@@ -777,7 +777,7 @@ export default function OnboardingProjectsPage() {
 
               <DashboardPanel
                 title="Milestones at risk"
-                to="/onboarding-projects/milestones"
+                to="/project-management/milestones"
                 icon={<Flag className="h-4 w-4 text-amber-500" />}
                 count={attentionMilestones.length}
               >
@@ -819,7 +819,7 @@ export default function OnboardingProjectsPage() {
 
               <DashboardPanel
                 title="Upcoming go-lives"
-                to="/onboarding-projects/milestones"
+                to="/project-management/milestones"
                 icon={<AlertTriangle className="h-4 w-4 text-indigo-500" />}
                 count={upcomingMilestones.length}
               >
@@ -848,7 +848,7 @@ export default function OnboardingProjectsPage() {
 
               <DashboardPanel
                 title="Open risks"
-                to="/onboarding-projects/risks"
+                to="/project-management/risks"
                 icon={<ShieldAlert className="h-4 w-4 text-rose-500" />}
                 count={openRisks.length}
               >
@@ -883,7 +883,7 @@ export default function OnboardingProjectsPage() {
 
               <DashboardPanel
                 title="Open action items"
-                to="/onboarding-projects/action-items"
+                to="/project-management/action-items"
                 icon={<CheckSquare className="h-4 w-4 text-sky-500" />}
                 count={openActionItems.length}
               >
@@ -919,7 +919,7 @@ export default function OnboardingProjectsPage() {
 
             <DashboardPanel
               title="Active task templates"
-              to="/onboarding-projects/templates"
+              to="/project-management/templates"
               icon={<Layers className="h-4 w-4 text-indigo-500" />}
               count={activeTemplates.length}
             >
@@ -930,7 +930,7 @@ export default function OnboardingProjectsPage() {
                   {activeTemplates.map((template) => (
                     <Link
                       key={template.id}
-                      to="/onboarding-projects/templates"
+                      to="/project-management/templates"
                       className="rounded-xl border border-[#ece8e1] bg-[#fcfbf9] p-4 hover:border-[#d7d2c8]"
                     >
                       <div className="text-[13px] font-semibold text-slate-800">
