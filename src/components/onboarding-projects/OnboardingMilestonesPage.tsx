@@ -1,13 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Flag,
-  Plus,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  Loader2,
   Edit,
   Trash2,
+  Eye,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
@@ -26,12 +22,15 @@ import {
   deleteMilestoneApi,
 } from "../../services/operations/onboardingProjects";
 import { getPracticesView } from "../../services/operations/practices";
-
-export type MilestoneStatus =
-  | "NOT_STARTED"
-  | "ON_TRACK"
-  | "AT_RISK"
-  | "COMPLETE";
+import {
+  type ActivityLogEntry,
+  getCurrentUserName,
+  detectFieldChanges,
+  appendActivityLog,
+  getEntityActivityLogs,
+  saveEntityActivityLogs,
+  ActivityLogSection,
+} from "../../utils/activityLogs";
 
 export type MilestoneItem = {
   id: string;
@@ -41,70 +40,19 @@ export type MilestoneItem = {
   serviceLine: string;
   targetWeek: string;
   targetDate: string;
-  status: MilestoneStatus;
   createdAt?: string;
   updatedAt?: string;
 };
 
 type MilestoneFilters = {
-  status: string;
   serviceLine: string;
   practiceName: string;
 };
 
 const defaultFilters: MilestoneFilters = {
-  status: "",
   serviceLine: "",
   practiceName: "",
 };
-
-const STATUS_CONFIG: Record<
-  MilestoneStatus,
-  {
-    label: string;
-    bg: string;
-    text: string;
-    border: string;
-    icon: React.ElementType;
-  }
-> = {
-  NOT_STARTED: {
-    label: "Not Started",
-    bg: "bg-slate-100",
-    text: "text-slate-700",
-    border: "border-slate-200",
-    icon: Clock,
-  },
-  ON_TRACK: {
-    label: "On Track",
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    border: "border-emerald-200",
-    icon: CheckCircle2,
-  },
-  AT_RISK: {
-    label: "At Risk",
-    bg: "bg-amber-50",
-    text: "text-amber-700",
-    border: "border-amber-200",
-    icon: AlertTriangle,
-  },
-  COMPLETE: {
-    label: "Complete",
-    bg: "bg-indigo-50",
-    text: "text-indigo-700",
-    border: "border-indigo-200",
-    icon: CheckCircle2,
-  },
-};
-
-const STATUS_OPTIONS = [
-  { label: "All Statuses", value: "" },
-  { label: "Not Started", value: "NOT_STARTED" },
-  { label: "On Track", value: "ON_TRACK" },
-  { label: "At Risk", value: "AT_RISK" },
-  { label: "Complete", value: "COMPLETE" },
-];
 
 const SERVICE_LINE_OPTIONS = [
   { label: "All Service Lines", value: "" },
@@ -136,6 +84,27 @@ export default function OnboardingMilestonesPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingMilestone, setEditingMilestone] =
     useState<MilestoneItem | null>(null);
+  const [viewingMilestone, setViewingMilestone] =
+    useState<MilestoneItem | null>(null);
+  const [milestoneActivities, setMilestoneActivities] = useState<ActivityLogEntry[]>([]);
+
+  useEffect(() => {
+    if (viewingMilestone?.id) {
+      const initialLogs: ActivityLogEntry[] = [
+        {
+          id: `created_${viewingMilestone.id}`,
+          action: "Milestone Created",
+          details: `Milestone ${viewingMilestone.milestoneCode || "Checkpoint"} initialized`,
+          actor: "System",
+          userName: "System",
+          createdAt: viewingMilestone.createdAt || new Date().toISOString(),
+        },
+      ];
+      setMilestoneActivities(getEntityActivityLogs("milestone", viewingMilestone.id, initialLogs));
+    } else {
+      setMilestoneActivities([]);
+    }
+  }, [viewingMilestone?.id]);
 
   // Form State
   const [formCode, setFormCode] = useState("");
@@ -146,7 +115,6 @@ export default function OnboardingMilestonesPage() {
   const [formServiceLine, setFormServiceLine] = useState("RCM");
   const [formTargetWeek, setFormTargetWeek] = useState("Week 1");
   const [formTargetDate, setFormTargetDate] = useState("");
-  const [formStatus, setFormStatus] = useState<MilestoneStatus>("ON_TRACK");
 
   // Practices searchable options
   const [practiceOptions, setPracticeOptions] = useState<SearchSelectOption[]>(
@@ -187,7 +155,6 @@ export default function OnboardingMilestonesPage() {
     setIsLoading(true);
     try {
       const data = await getMilestonesApi({
-        status: filters.status,
         search,
       });
 
@@ -236,7 +203,7 @@ export default function OnboardingMilestonesPage() {
   };
 
   const activeFilterCount = useMemo(() => {
-    return [filters.status, filters.serviceLine, filters.practiceName].filter(
+    return [filters.serviceLine, filters.practiceName].filter(
       Boolean,
     ).length;
   }, [filters]);
@@ -249,14 +216,6 @@ export default function OnboardingMilestonesPage() {
         label: "Practice",
         displayValue: filters.practiceName,
         onClear: () => setFilters((curr) => ({ ...curr, practiceName: "" })),
-      });
-    }
-    if (filters.status) {
-      chips.push({
-        key: "status",
-        label: "Status",
-        displayValue: filters.status,
-        onClear: () => setFilters((curr) => ({ ...curr, status: "" })),
       });
     }
     if (filters.serviceLine) {
@@ -289,8 +248,22 @@ export default function OnboardingMilestonesPage() {
         serviceLine: formServiceLine,
         targetWeek: formTargetWeek,
         targetDate: formTargetDate,
-        status: formStatus,
       });
+
+      if (created?.id) {
+        const currentName = getCurrentUserName();
+        const initialLogs: ActivityLogEntry[] = [
+          {
+            id: `act_${Date.now()}`,
+            action: "Milestone Created",
+            details: `Milestone ${created.milestoneCode || "item"} was created`,
+            actor: currentName,
+            userName: currentName,
+            createdAt: new Date().toISOString(),
+          },
+        ];
+        saveEntityActivityLogs("milestone", created.id, initialLogs);
+      }
 
       toast.success(`Milestone ${created.milestoneCode || "entry"} created!`);
       setIsNewModalOpen(false);
@@ -309,7 +282,6 @@ export default function OnboardingMilestonesPage() {
     setFormServiceLine(m.serviceLine);
     setFormTargetWeek(m.targetWeek);
     setFormTargetDate(m.targetDate);
-    setFormStatus(m.status);
     setIsEditModalOpen(true);
   };
 
@@ -325,8 +297,51 @@ export default function OnboardingMilestonesPage() {
         serviceLine: formServiceLine,
         targetWeek: formTargetWeek,
         targetDate: formTargetDate,
-        status: formStatus,
       });
+
+      const changes = detectFieldChanges(
+        {
+          milestoneCode: editingMilestone.milestoneCode,
+          description: editingMilestone.description,
+          practiceName: editingMilestone.practiceName,
+          serviceLine: editingMilestone.serviceLine,
+          targetWeek: editingMilestone.targetWeek,
+          targetDate: editingMilestone.targetDate,
+        },
+        {
+          milestoneCode: formCode,
+          description: formDescription,
+          practiceName: formPracticeName,
+          serviceLine: formServiceLine,
+          targetWeek: formTargetWeek,
+          targetDate: formTargetDate,
+        },
+        {
+          milestoneCode: "Code",
+          description: "Description",
+          practiceName: "Practice",
+          serviceLine: "Service Line",
+          targetWeek: "Target Week",
+          targetDate: "Target Date",
+        }
+      );
+
+      if (changes.length > 0) {
+        const currentLogs = getEntityActivityLogs("milestone", editingMilestone.id);
+        const currentName = getCurrentUserName();
+        const updatedLogs = appendActivityLog(currentLogs, {
+          id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          action: "Milestone Updated",
+          details: changes.join("; "),
+          actor: currentName,
+          userName: currentName,
+          createdAt: new Date().toISOString(),
+        });
+        saveEntityActivityLogs("milestone", editingMilestone.id, updatedLogs);
+        if (viewingMilestone?.id === editingMilestone.id) {
+          setMilestoneActivities(updatedLogs);
+        }
+      }
 
       toast.success(`Milestone ${updated.milestoneCode || "item"} updated!`);
       setIsEditModalOpen(false);
@@ -358,7 +373,6 @@ export default function OnboardingMilestonesPage() {
     setFormServiceLine("RCM");
     setFormTargetWeek("Week 1");
     setFormTargetDate("");
-    setFormStatus("ON_TRACK");
   };
 
   const metrics = useMemo(() => {
@@ -384,20 +398,6 @@ export default function OnboardingMilestonesPage() {
           clearable
           toggleOnSelectSame
           placeholder="Search practice"
-        />
-      </label>
-
-      <label className="block">
-        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
-          Status
-        </span>
-        <Select
-          value={draftFilters.status}
-          onChange={(val) =>
-            setDraftFilters((curr) => ({ ...curr, status: val }))
-          }
-          options={STATUS_OPTIONS}
-          placeholder="Select Status"
         />
       </label>
 
@@ -440,43 +440,35 @@ export default function OnboardingMilestonesPage() {
           filterFields={filterFieldsModal}
         />
         {/* Metrics Bar */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Total Checkpoints
             </div>
             <div className="mt-2 text-2xl font-bold text-slate-800">
-              {metrics.total}
-            </div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wider text-emerald-600">
-              On Track
-            </div>
-            <div className="mt-2 text-2xl font-bold text-emerald-700">
-              {metrics.onTrack}
-            </div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wider text-amber-600">
-              At Risk
-            </div>
-            <div className="mt-2 text-2xl font-bold text-amber-700">
-              {metrics.atRisk}
+              {milestones.length}
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
-              Completed
+              Unique Practices
             </div>
             <div className="mt-2 text-2xl font-bold text-indigo-700">
-              {metrics.complete}
+              {new Set(milestones.map((m) => m.practiceName)).size}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wider text-emerald-600">
+              Active Service Lines
+            </div>
+            <div className="mt-2 text-2xl font-bold text-emerald-700">
+              {new Set(milestones.map((m) => m.serviceLine)).size}
             </div>
           </div>
         </div>
         {/* Milestones Data Table */}
         {isLoading ? (
-          <TableSkeletonLoader columns={8} rows={5} />
+          <TableSkeletonLoader columns={7} rows={5} />
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             {milestones.length === 0 ? (
@@ -495,20 +487,16 @@ export default function OnboardingMilestonesPage() {
                     <th className="py-3.5 px-4">Target Week</th>
                     <th className="py-3.5 px-4">Target Date</th>
                     <th className="py-3.5 px-4">Last Updated</th>
-                    <th className="py-3.5 px-4">Status</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {paginatedMilestones.map((m) => {
-                    const statusConf =
-                      STATUS_CONFIG[m.status] || STATUS_CONFIG.NOT_STARTED;
-                    const StatusIcon = statusConf.icon;
-
                     return (
                       <tr
                         key={m.id}
-                        className="hover:bg-slate-50/80 transition-colors"
+                        onClick={() => setViewingMilestone(m)}
+                        className="hover:bg-slate-50/80 transition-colors cursor-pointer"
                       >
                         <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">
                           {m.milestoneCode}
@@ -533,16 +521,15 @@ export default function OnboardingMilestonesPage() {
                         <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
                           {m.updatedAt || m.createdAt || "-"}
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${statusConf.bg} ${statusConf.text} ${statusConf.border}`}
-                          >
-                            <StatusIcon className="h-3 w-3" />
-                            {statusConf.label}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setViewingMilestone(m)}
+                              className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                              title="View Details & Activity"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
                             <button
                               onClick={() => handleOpenEdit(m)}
                               className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
@@ -684,18 +671,6 @@ export default function OnboardingMilestonesPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Status
-                  </label>
-                  <Select
-                    value={formStatus}
-                    onChange={(val) => setFormStatus(val as MilestoneStatus)}
-                    options={STATUS_OPTIONS.filter((o) => o.value !== "")}
-                    placeholder="Select Status"
-                  />
-                </div>
-
                 <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-6">
                   <button
                     type="button"
@@ -752,28 +727,15 @@ export default function OnboardingMilestonesPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Target Date
-                    </label>
-                    <DatePicker
-                      value={formTargetDate}
-                      onChange={(val) => setFormTargetDate(val)}
-                      placeholder="MM-DD-YYYY"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Status
-                    </label>
-                    <Select
-                      value={formStatus}
-                      onChange={(val) => setFormStatus(val as MilestoneStatus)}
-                      options={STATUS_OPTIONS.filter((o) => o.value !== "")}
-                      placeholder="Select Status"
-                    />
-                  </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Target Date
+                  </label>
+                  <DatePicker
+                    value={formTargetDate}
+                    onChange={(val) => setFormTargetDate(val)}
+                    placeholder="MM-DD-YYYY"
+                  />
                 </div>
 
                 <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-6">
@@ -795,6 +757,102 @@ export default function OnboardingMilestonesPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* View Details Milestone Modal with Activity Log */}
+        {viewingMilestone && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 font-app-sans overflow-hidden max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/50">
+                <div className="flex items-center gap-2.5">
+                  <span className="font-mono text-sm font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
+                    {viewingMilestone.milestoneCode}
+                  </span>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Milestone Details
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setViewingMilestone(null)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                  <div>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      Description
+                    </span>
+                    <p className="mt-0.5 text-sm font-medium text-slate-800">
+                      {viewingMilestone.description}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200/80">
+                    <div>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+                        Practice
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700">
+                        {viewingMilestone.practiceName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+                        Service Line
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700">
+                        {viewingMilestone.serviceLine}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+                        Target Week
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700">
+                        {viewingMilestone.targetWeek}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+                        Target Date
+                      </span>
+                      <span className="text-xs font-semibold font-mono text-slate-700">
+                        {viewingMilestone.targetDate || "-"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <ActivityLogSection logs={milestoneActivities} title="Milestone Activity History" />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 p-4 bg-slate-50 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const m = viewingMilestone;
+                    setViewingMilestone(null);
+                    handleOpenEdit(m);
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Edit Milestone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewingMilestone(null)}
+                  className="rounded-xl bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         )}

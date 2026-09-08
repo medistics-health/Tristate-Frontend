@@ -31,6 +31,15 @@ import {
   type RiskRow,
 } from "../../services/operations/onboardingRisks";
 import { canBusinessWrite, readStoredUser } from "../../utils/auth";
+import {
+  type ActivityLogEntry,
+  getCurrentUserName,
+  detectFieldChanges,
+  appendActivityLog,
+  getEntityActivityLogs,
+  saveEntityActivityLogs,
+  ActivityLogSection,
+} from "../../utils/activityLogs";
 
 type PracticeOption = { id: string; name: string };
 type UserOption = { id: string; firstName: string; lastName: string; email: string };
@@ -60,6 +69,7 @@ export default function OnboardingRisksPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [selectedRisk, setSelectedRisk] = useState<OnboardingRisk | null>(null);
+  const [riskActivities, setRiskActivities] = useState<ActivityLogEntry[]>([]);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -186,6 +196,17 @@ export default function OnboardingRisksPage() {
     try {
       const risk = await getRisk(rowId);
       setSelectedRisk(risk);
+      const initialLogs: ActivityLogEntry[] = [
+        {
+          id: `created_${risk.id}`,
+          action: "Risk Created",
+          details: `Risk R-${risk.riskNumber || "1"} created with status "${risk.status || "OPEN"}"`,
+          actor: "System",
+          userName: "System",
+          createdAt: risk.createdAt || new Date().toISOString(),
+        },
+      ];
+      setRiskActivities(getEntityActivityLogs("risk", rowId, initialLogs));
       setEditForm({
         practiceId: risk.practiceId,
         workstreamId: risk.workstreamId || "",
@@ -213,7 +234,7 @@ export default function OnboardingRisksPage() {
 
     setIsSubmitting(true);
     try {
-      await createRiskApi({
+      const created = await createRiskApi({
         practiceId: createForm.practiceId,
         workstreamId: createForm.workstreamId || null,
         description: createForm.description,
@@ -223,6 +244,22 @@ export default function OnboardingRisksPage() {
         ownerUserId: createForm.ownerUserId || null,
         status: createForm.status,
       });
+
+      if (created?.id) {
+        const currentName = getCurrentUserName();
+        const initialLogs: ActivityLogEntry[] = [
+          {
+            id: `act_${Date.now()}`,
+            action: "Risk Created",
+            details: `Risk R-${created.riskNumber || "new"} created with status "${createForm.status}"`,
+            actor: currentName,
+            userName: currentName,
+            createdAt: new Date().toISOString(),
+          },
+        ];
+        saveEntityActivityLogs("risk", created.id, initialLogs);
+      }
+
       closeCreateForm();
       await refreshRows(1);
       setPagination((prev) => ({ ...prev, page: 1 }));
@@ -253,6 +290,49 @@ export default function OnboardingRisksPage() {
         ownerUserId: editForm.ownerUserId || null,
         status: editForm.status,
       });
+
+      const changes = detectFieldChanges(
+        {
+          description: selectedRisk.description,
+          impact: selectedRisk.impact,
+          probability: selectedRisk.probability,
+          mitigation: selectedRisk.mitigation || "",
+          ownerUserId: selectedRisk.ownerUserId || "",
+          status: selectedRisk.status,
+        },
+        {
+          description: editForm.description,
+          impact: editForm.impact,
+          probability: editForm.probability,
+          mitigation: editForm.mitigation || "",
+          ownerUserId: editForm.ownerUserId || "",
+          status: editForm.status,
+        },
+        {
+          description: "Description",
+          impact: "Impact",
+          probability: "Probability",
+          mitigation: "Mitigation Plan",
+          ownerUserId: "Risk Owner",
+          status: "Status",
+        }
+      );
+
+      if (changes.length > 0) {
+        const currentLogs = getEntityActivityLogs("risk", selectedRisk.id);
+        const currentName = getCurrentUserName();
+        const updatedLogs = appendActivityLog(currentLogs, {
+          id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          action: "Risk Updated",
+          details: changes.join("; "),
+          actor: currentName,
+          userName: currentName,
+          createdAt: new Date().toISOString(),
+        });
+        saveEntityActivityLogs("risk", selectedRisk.id, updatedLogs);
+        setRiskActivities(updatedLogs);
+      }
+
       setSelectedRisk(updated);
       await refreshRows();
       toast.success("Risk updated");
@@ -561,6 +641,8 @@ export default function OnboardingRisksPage() {
             </div>
 
             {renderFormFields(editForm, setEditForm, { includePractice: false })}
+
+            <ActivityLogSection logs={riskActivities} title="Risk Activity History" />
           </div>
 
           {canWrite ? (

@@ -240,7 +240,7 @@ export async function deleteTemplateApi(id: string): Promise<boolean> {
   }
 }
 
-export async function getMilestonesApi(params?: { status?: string; search?: string }): Promise<any[]> {
+export async function getMilestonesApi(params?: { search?: string; [key: string]: any }): Promise<any[]> {
   try {
     const response = await apiConnector({
       method: "GET",

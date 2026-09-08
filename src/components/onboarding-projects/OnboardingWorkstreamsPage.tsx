@@ -25,6 +25,15 @@ import {
   type WorkstreamRow,
 } from "../../services/operations/onboardingWorkstreams";
 import { canBusinessWrite, readStoredUser } from "../../utils/auth";
+import {
+  appendActivityLog,
+  detectFieldChanges,
+  getEntityActivityLogs,
+  saveEntityActivityLogs,
+  getCurrentUserName,
+  ActivityLogSection,
+  type ActivityLogEntry,
+} from "../../utils/activityLogs";
 
 type PracticeOption = { id: string; name: string };
 type UserOption = { id: string; firstName: string; lastName: string; email: string };
@@ -167,6 +176,8 @@ export default function OnboardingWorkstreamsPage() {
     setSelectedWorkstream(null);
   }
 
+  const [workstreamActivities, setWorkstreamActivities] = useState<ActivityLogEntry[]>([]);
+
   async function handleRowClick(rowId: string) {
     setSelectedRowId(rowId);
     setShowDetailPanel(true);
@@ -184,6 +195,19 @@ export default function OnboardingWorkstreamsPage() {
         targetDate: toDateInput(workstream.targetDate),
         notes: workstream.notes || "",
       });
+
+      // Load activities
+      const initialLogs: ActivityLogEntry[] = [
+        {
+          id: `created_${workstream.id}`,
+          action: "Workstream Created",
+          details: `Practice: ${workstream.practice?.name || "Practice"}; Service Line: ${formatPracticeServiceLine(String(workstream.serviceLine))}`,
+          actor: workstream.owner ? ownerLabel(workstream.owner as any) : "Admin",
+          createdAt: workstream.createdAt || new Date().toISOString(),
+        },
+      ];
+      const logs = getEntityActivityLogs("workstream", rowId, initialLogs);
+      setWorkstreamActivities(logs);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load workstream";
@@ -202,7 +226,7 @@ export default function OnboardingWorkstreamsPage() {
 
     setIsSubmitting(true);
     try {
-      await createWorkstreamApi({
+      const created = await createWorkstreamApi({
         practiceId: createForm.practiceId,
         serviceLine: createForm.serviceLine,
         status: createForm.status,
@@ -210,6 +234,18 @@ export default function OnboardingWorkstreamsPage() {
         targetDate: createForm.targetDate || null,
         notes: createForm.notes || null,
       });
+
+      // Log creation with current user
+      const userName = getCurrentUserName();
+      const initialEntry: ActivityLogEntry = {
+        id: `created_${created.id}`,
+        action: "Workstream Created",
+        details: `Practice: ${practices.find((p) => p.id === createForm.practiceId)?.name || "Practice"}; Service Line: ${formatPracticeServiceLine(createForm.serviceLine)}`,
+        actor: userName,
+        createdAt: new Date().toISOString(),
+      };
+      saveEntityActivityLogs("workstream", created.id, [initialEntry]);
+
       closeCreateForm();
       await refreshRows(1);
       setPagination((prev) => ({ ...prev, page: 1 }));
@@ -225,6 +261,31 @@ export default function OnboardingWorkstreamsPage() {
     event.preventDefault();
     if (!selectedWorkstream) return;
 
+    // Detect actual changes
+    const oldValues = {
+      serviceLine: String(selectedWorkstream.serviceLine || ""),
+      status: String(selectedWorkstream.status || ""),
+      ownerUserId: selectedWorkstream.ownerUserId || "",
+      targetDate: toDateInput(selectedWorkstream.targetDate),
+      notes: selectedWorkstream.notes || "",
+    };
+
+    const newValues = {
+      serviceLine: editForm.serviceLine || "",
+      status: editForm.status || "",
+      ownerUserId: editForm.ownerUserId || "",
+      targetDate: editForm.targetDate || "",
+      notes: editForm.notes || "",
+    };
+
+    const changes = detectFieldChanges(oldValues, newValues, {
+      serviceLine: "Service Line",
+      status: "Status",
+      ownerUserId: "Owner",
+      targetDate: "Target Date",
+      notes: "Notes",
+    });
+
     setIsSaving(true);
     try {
       const updated = await updateWorkstreamApi(selectedWorkstream.id, {
@@ -234,7 +295,22 @@ export default function OnboardingWorkstreamsPage() {
         targetDate: editForm.targetDate || null,
         notes: editForm.notes || null,
       });
+
       setSelectedWorkstream(updated);
+
+      // Only append activity if there are real changes
+      if (changes.length > 0) {
+        const currentName = getCurrentUserName();
+        const nextLogs = appendActivityLog(workstreamActivities, {
+          action: "Workstream Updated",
+          details: changes.join("; "),
+          actor: currentName,
+          userName: currentName,
+        });
+        setWorkstreamActivities(nextLogs);
+        saveEntityActivityLogs("workstream", selectedWorkstream.id, nextLogs);
+      }
+
       await refreshRows();
       toast.success("Workstream updated");
     } catch (err) {
@@ -536,6 +612,8 @@ export default function OnboardingWorkstreamsPage() {
                 </div>
               )}
             </div>
+
+            <ActivityLogSection logs={workstreamActivities} />
           </div>
 
           {canWrite ? (
