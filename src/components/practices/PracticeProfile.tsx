@@ -5,6 +5,7 @@ import {
   Building2,
   CalendarClock,
   ChevronDown,
+  ClipboardCheck,
   DollarSign,
   FileSignature,
   FileText,
@@ -56,6 +57,14 @@ import {
   getEmailHistoryByPersonId,
   type SentEmail,
 } from "../../services/operations/communication";
+import {
+  getCredentialingRequestById,
+  getCredentialingRequestsView,
+} from "../../services/operations/credentialing";
+import { formatPayerDisplayLabel } from "../../services/operations/insurance";
+import CredentialingModal from "../credentialing/CredentialingModal";
+import { formatDateLabel } from "../credentialing/credentialingStore";
+import type { CredentialingRecord } from "../credentialing/types";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -280,6 +289,74 @@ function stripHtml(html: string) {
     .trim();
 }
 
+function credentialingStatusClass(status?: string | null) {
+  switch (status) {
+    case "Application Submitted":
+      return "bg-[#f0f2fe] text-[#4f63ea]";
+    case "In Process - Payer Review":
+      return "bg-amber-50 text-amber-800";
+    case "Pending Additional Info":
+      return "bg-amber-100/70 text-amber-900";
+    case "Contracted - Direct":
+      return "bg-emerald-50 text-emerald-700";
+    case "Contracted - IPA/Delegated":
+      return "bg-teal-50 text-teal-700";
+    case "Declined / Application Rejected":
+      return "bg-rose-50 text-rose-700";
+    case "Re-credentialing Due":
+      return "bg-orange-50 text-orange-700";
+    case "Terminated":
+    case "Out-of-Network (OON)":
+      return "bg-slate-100 text-slate-600";
+    default:
+      return "bg-slate-100 text-slate-700";
+  }
+}
+
+function credentialingBelongsToPractice(
+  record: CredentialingRecord,
+  practiceId: string,
+  name: string,
+) {
+  if (record.practiceId && record.practiceId === practiceId) return true;
+  const normalizedName = name.trim().toLowerCase();
+  if (!normalizedName) return false;
+  return record.practice?.trim().toLowerCase() === normalizedName;
+}
+
+async function loadPracticeCredentialing(practiceId: string, name: string) {
+  const empty = { credentialingRequests: [] as CredentialingRecord[] };
+  const [byPracticeId, byPracticeName] = await Promise.all([
+    getCredentialingRequestsView({
+      practiceId,
+      limit: 1000,
+      sortBy: "updatedAt",
+      sortOrder: "desc",
+    }).catch(() => empty),
+    name
+      ? getCredentialingRequestsView({
+          practice: name,
+          limit: 1000,
+          sortBy: "updatedAt",
+          sortOrder: "desc",
+        }).catch(() => empty)
+      : Promise.resolve(empty),
+  ]);
+
+  const unique = new Map<string, CredentialingRecord>();
+  [...byPracticeId.credentialingRequests, ...byPracticeName.credentialingRequests].forEach(
+    (record) => unique.set(record.id, record),
+  );
+
+  return Array.from(unique.values())
+    .filter((record) => credentialingBelongsToPractice(record, practiceId, name))
+    .sort((a, b) => {
+      const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+}
+
 function Card({
   title,
   description,
@@ -384,6 +461,11 @@ export default function PracticeProfilePage() {
     personName: string;
     email: SentEmail;
   } | null>(null);
+  const [credentialingRecords, setCredentialingRecords] = useState<
+    CredentialingRecord[]
+  >([]);
+  const [selectedCredentialing, setSelectedCredentialing] =
+    useState<CredentialingRecord | null>(null);
 
   const practiceId = id ?? "";
 
@@ -525,6 +607,16 @@ export default function PracticeProfilePage() {
     );
   }
 
+  async function openCredentialingModal(record: CredentialingRecord) {
+    setSelectedCredentialing(record);
+    try {
+      const fullRecord = await getCredentialingRequestById(record.id);
+      setSelectedCredentialing(fullRecord);
+    } catch {
+      // Keep the list record so the modal still opens if the detail fetch fails.
+    }
+  }
+
   async function loadProfile() {
     if (!practiceId) return;
     setIsLoading(true);
@@ -555,6 +647,11 @@ export default function PracticeProfilePage() {
       ]);
 
       setPractice(practiceData);
+      const credentialingData = await loadPracticeCredentialing(
+        practiceId,
+        practiceData.name || "",
+      ).catch(() => [] as CredentialingRecord[]);
+      setCredentialingRecords(credentialingData);
       setAgreements(agreementData);
       setDeals(dealData);
       setOnboarding(onboardingData);
@@ -723,7 +820,18 @@ export default function PracticeProfilePage() {
     );
   }
 
+  const credentialingModal = (
+    <CredentialingModal
+      isOpen={Boolean(selectedCredentialing)}
+      mode="view"
+      record={selectedCredentialing}
+      onClose={() => setSelectedCredentialing(null)}
+      onSave={async () => {}}
+    />
+  );
+
   return (
+    <>
     <AppLayout
       title="Practice Profile"
       activeModule="Practices"
@@ -810,6 +918,11 @@ export default function PracticeProfilePage() {
             label="Person Emails"
             value={totalPracticeEmails}
             icon={<Mail className="h-5 w-5" />}
+          />
+          <StatCard
+            label="Credentialing"
+            value={credentialingRecords.length}
+            icon={<ClipboardCheck className="h-5 w-5" />}
           />
           {canUsePricingAndBilling ? (
             <>
@@ -1878,7 +1991,92 @@ export default function PracticeProfilePage() {
           </Card>
         ) : null}
 
-<Card
+        <Card
+          title="Credentialing"
+          description="Credentialing requests for this practice."
+          scrollable
+          action={
+            <Link
+              to="/credentialing/list"
+              className="text-sm font-semibold text-slate-600 hover:text-slate-950"
+            >
+              Open credentialing
+            </Link>
+          }
+        >
+          {credentialingRecords.length ? (
+            <div className="space-y-3">
+              {credentialingRecords.map((record) => (
+                <button
+                  key={record.id}
+                  type="button"
+                  onClick={() => void openCredentialingModal(record)}
+                  className="w-full rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] p-4 text-left transition hover:border-slate-300 hover:bg-white"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900">
+                        {record.credentialingId || "Credentialing request"}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {formatPayerDisplayLabel(
+                          record.insuranceCompany,
+                          record.payerProviderId,
+                        ) || "No payer"}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${credentialingStatusClass(record.status)}`}
+                    >
+                      {record.status || "-"}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <InfoRow label="Provider" value={record.provider} />
+                    <InfoRow label="Type" value={record.credentialingType} />
+                    <InfoRow label="Contract" value={record.contractType} />
+                    <InfoRow
+                      label="Assigned"
+                      value={record.assignedUser || "-"}
+                    />
+                    <InfoRow
+                      label="Submitted"
+                      value={formatDateLabel(record.submissionDate)}
+                    />
+                    <InfoRow
+                      label="Effective"
+                      value={formatDateLabel(record.effectiveDate)}
+                    />
+                    <InfoRow
+                      label="Expires"
+                      value={formatDateLabel(record.expirationDate)}
+                    />
+                    <InfoRow
+                      label="Re-credentialing Due"
+                      value={formatDateLabel(record.reCredentialingDueDate)}
+                    />
+                  </div>
+                  {record.documents?.length ? (
+                    <p className="mt-3 text-xs font-semibold text-slate-500">
+                      {record.documents.length} document
+                      {record.documents.length === 1 ? "" : "s"} attached
+                    </p>
+                  ) : null}
+                  <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    View Credentialing
+                    <ArrowRight className="h-4 w-4" />
+                  </p>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-2xl bg-[#fbfaf8] p-4 text-sm text-slate-500">
+              No credentialing records found for this practice.
+            </p>
+          )}
+        </Card>
+
+        <Card
           title="Practice Communication"
           description="Email history sent to people associated with this practice."
           scrollable
@@ -2035,5 +2233,7 @@ export default function PracticeProfilePage() {
         </div>
       ) : null}
     </AppLayout>
+    {credentialingModal}
+    </>
   );
 }

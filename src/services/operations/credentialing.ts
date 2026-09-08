@@ -23,6 +23,7 @@ export type CredentialingQueryParams = {
   limit?: number;
   search?: string;
   practice?: string;
+  practiceId?: string;
   provider?: string;
   providerId?: string;
   insuranceCompany?: string;
@@ -84,6 +85,7 @@ function buildQueryString(params?: CredentialingQueryParams) {
   if (params?.limit) queryString.set("limit", String(params.limit));
   if (params?.search) queryString.set("search", params.search);
   if (params?.practice) queryString.set("practice", params.practice);
+  if (params?.practiceId) queryString.set("practiceId", params.practiceId);
   if (params?.provider) queryString.set("provider", params.provider);
   if (params?.providerId) queryString.set("providerId", params.providerId);
   if (params?.insuranceCompany) queryString.set("insuranceCompany", params.insuranceCompany);
