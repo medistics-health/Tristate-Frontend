@@ -21,7 +21,9 @@ import {
   Shield,
   Star,
   Trash2,
+  ChevronRight,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import type { PersonBody } from "../../components/contact/types";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
@@ -1579,6 +1581,13 @@ export default function PersonsPage() {
                 {String(selectedRow.values.firstName || "")}{" "}
                 {String(selectedRow.values.lastName || "")}
               </h2>
+              <Link
+                to={`/people/${selectedRow.id}/profile`}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#eadfcd] bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 transition hover:border-slate-200 hover:text-slate-950"
+              >
+                View Profile
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
             </div>
 
             <div className="flex-1 overflow-auto p-4">
