@@ -28,6 +28,15 @@ import {
   type OnboardingActionItem,
 } from "../../services/operations/onboardingActionItems";
 import { canBusinessWrite, readStoredUser } from "../../utils/auth";
+import {
+  type ActivityLogEntry,
+  getCurrentUserName,
+  detectFieldChanges,
+  appendActivityLog,
+  getEntityActivityLogs,
+  saveEntityActivityLogs,
+  ActivityLogSection,
+} from "../../utils/activityLogs";
 
 type PracticeOption = { id: string; name: string };
 type UserOption = { id: string; firstName: string; lastName: string; email: string };
@@ -67,6 +76,7 @@ export default function OnboardingActionItemsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<OnboardingActionItem | null>(null);
+  const [itemActivities, setItemActivities] = useState<ActivityLogEntry[]>([]);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -200,6 +210,17 @@ export default function OnboardingActionItemsPage() {
     try {
       const item = await getActionItem(rowId);
       setSelectedItem(item);
+      const initialLogs: ActivityLogEntry[] = [
+        {
+          id: `created_${item.id}`,
+          action: "Action Item Created",
+          details: `Action item created with status "${item.status || "PENDING"}"`,
+          actor: "System",
+          userName: "System",
+          createdAt: item.createdAt || new Date().toISOString(),
+        },
+      ];
+      setItemActivities(getEntityActivityLogs("actionItem", rowId, initialLogs));
       setEditForm({
         practiceId: item.practiceId,
         taskId: item.taskId || "",
@@ -225,13 +246,29 @@ export default function OnboardingActionItemsPage() {
 
     setIsSubmitting(true);
     try {
-      await createActionItemApi({
+      const created = await createActionItemApi({
         practiceId: createForm.practiceId,
         taskId: createForm.taskId || null,
         note: createForm.note,
         responsibleUserId: createForm.responsibleUserId || null,
         status: createForm.status,
       });
+
+      if (created?.id) {
+        const currentName = getCurrentUserName();
+        const initialLogs: ActivityLogEntry[] = [
+          {
+            id: `act_${Date.now()}`,
+            action: "Action Item Created",
+            details: `Action item created with status "${createForm.status}"`,
+            actor: currentName,
+            userName: currentName,
+            createdAt: new Date().toISOString(),
+          },
+        ];
+        saveEntityActivityLogs("actionItem", created.id, initialLogs);
+      }
+
       closeCreateForm();
       await refreshRows(1);
       setPagination((prev) => ({ ...prev, page: 1 }));
@@ -259,6 +296,43 @@ export default function OnboardingActionItemsPage() {
         responsibleUserId: editForm.responsibleUserId || null,
         status: editForm.status,
       });
+
+      const changes = detectFieldChanges(
+        {
+          note: selectedItem.note,
+          status: selectedItem.status,
+          taskId: selectedItem.taskId || "",
+          responsibleUserId: selectedItem.responsibleUserId || "",
+        },
+        {
+          note: editForm.note,
+          status: editForm.status,
+          taskId: editForm.taskId || "",
+          responsibleUserId: editForm.responsibleUserId || "",
+        },
+        {
+          note: "Note / Description",
+          status: "Status",
+          taskId: "Linked Task",
+          responsibleUserId: "Responsible User",
+        }
+      );
+
+      if (changes.length > 0) {
+        const currentLogs = getEntityActivityLogs("actionItem", selectedItem.id);
+        const currentName = getCurrentUserName();
+        const updatedLogs = appendActivityLog(currentLogs, {
+          id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          action: "Action Item Updated",
+          details: changes.join("; "),
+          actor: currentName,
+          userName: currentName,
+          createdAt: new Date().toISOString(),
+        });
+        saveEntityActivityLogs("actionItem", selectedItem.id, updatedLogs);
+        setItemActivities(updatedLogs);
+      }
+
       setSelectedItem(updated);
       await refreshRows();
       toast.success("Action item updated");
@@ -540,6 +614,8 @@ export default function OnboardingActionItemsPage() {
             </div>
 
             {renderFormFields(editForm, setEditForm, { includePractice: false })}
+
+            <ActivityLogSection logs={itemActivities} title="Action Item Activity History" />
           </div>
 
           {canWrite ? (

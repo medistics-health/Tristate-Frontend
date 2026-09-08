@@ -35,6 +35,15 @@ import {
 } from "../../services/operations/onboardingProjects";
 import { getPracticesView } from "../../services/operations/practices";
 import { getAllUsers } from "../../services/operations/users";
+import {
+  type ActivityLogEntry,
+  getCurrentUserName,
+  detectFieldChanges,
+  appendActivityLog,
+  getEntityActivityLogs,
+  saveEntityActivityLogs,
+  ActivityLogSection,
+} from "../../utils/activityLogs";
 
 // Types
 export type TaskStatus = "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETE";
@@ -81,6 +90,7 @@ export type TaskItem = {
   dependencies: {
     id: string;
     name: string;
+    phase?: TaskPhase;
     taskNumber: number;
     taskCode?: string;
     isComplete: boolean;
@@ -275,7 +285,28 @@ export default function OnboardingTasksPage() {
 
   // Drawer & Modal
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
+  const [taskActivities, setTaskActivities] = useState<ActivityLogEntry[]>([]);
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (selectedTask?.id) {
+      const createdIso = (selectedTask as any).createdAtRaw || new Date(0).toISOString();
+
+      const initialLogs: ActivityLogEntry[] = [
+        {
+          id: `created_${selectedTask.id}`,
+          action: "Task Created",
+          details: `Task "${selectedTask.name}" initialized`,
+          actor: "System",
+          userName: "System",
+          createdAt: createdIso,
+        },
+      ];
+      setTaskActivities(getEntityActivityLogs("task", selectedTask.id, initialLogs));
+    } else {
+      setTaskActivities([]);
+    }
+  }, [selectedTask?.id]);
 
   // New Task Form
   const [newTaskName, setNewTaskName] = useState("");
@@ -307,7 +338,7 @@ export default function OnboardingTasksPage() {
   const [editTaskDeliverable, setEditTaskDeliverable] = useState("");
   const [editTaskNotes, setEditTaskNotes] = useState("");
   const [editTaskDependencies, setEditTaskDependencies] = useState<any[]>([]);
-  const [isAddDependencyModalOpen, setIsAddDependencyModalOpen] = useState<"IN_PROGRESS" | "COMPLETE" | false>(false);
+  const [isAddDependencyModalOpen, setIsAddDependencyModalOpen] = useState<"BLOCKS_START" | "BLOCKS_FINISH" | false>(false);
 
   // Load Practices and Users from backend API
   useEffect(() => {
@@ -728,16 +759,28 @@ export default function OnboardingTasksPage() {
     const targetTask = tasks.find((t) => t.id === taskId);
     if (!targetTask) return;
 
-    if (newStatus === "IN_PROGRESS") {
-      const hasUnmetDeps = targetTask.dependencies.some(
-        (dep) => !dep.isComplete,
+    const startDeps = targetTask.dependencies.filter((d: any) => d.dependencyType === "BLOCKS_START");
+    const finishDeps = targetTask.dependencies.filter((d: any) => d.dependencyType === "BLOCKS_FINISH");
+
+    const hasUnmetStartDeps = startDeps.some(
+      (dep: any) => dep.requiredStatus === "COMPLETE" ? dep.status !== "COMPLETE" : (dep.status !== "IN_PROGRESS" && dep.status !== "COMPLETE")
+    );
+    const hasUnmetFinishDeps = finishDeps.some(
+      (dep: any) => dep.requiredStatus === "COMPLETE" ? dep.status !== "COMPLETE" : (dep.status !== "IN_PROGRESS" && dep.status !== "COMPLETE")
+    );
+
+    if (newStatus === "IN_PROGRESS" && hasUnmetStartDeps) {
+      toast.error(
+        `Cannot move ${targetTask.taskCode || `Task #${targetTask.taskNumber}`} to "In Progress". It has unmet predecessor dependencies blocking execution!`,
       );
-      if (hasUnmetDeps) {
-        toast.error(
-          `Cannot move ${targetTask.taskCode || `Task #${targetTask.taskNumber}`} to "In Progress". It has unmet predecessor dependencies blocking execution!`,
-        );
-        return;
-      }
+      return;
+    }
+
+    if (newStatus === "COMPLETE" && (hasUnmetStartDeps || hasUnmetFinishDeps)) {
+      toast.error(
+        `Cannot move ${targetTask.taskCode || `Task #${targetTask.taskNumber}`} to "Complete". Predecessor dependencies are not satisfied!`,
+      );
+      return;
     }
 
     setTasks((prev) =>
@@ -764,9 +807,28 @@ export default function OnboardingTasksPage() {
     try {
       await updateTaskApi(taskId, { status: newStatus });
       const statusLabel = STATUS_CONFIG[newStatus]?.label || newStatus;
+      const oldLabel = STATUS_CONFIG[targetTask.status]?.label || targetTask.status;
       toast.success(
         `${targetTask.taskCode || `Task #${targetTask.taskNumber}`} updated to ${statusLabel}`,
       );
+
+      if (targetTask.status !== newStatus) {
+        const currentLogs = getEntityActivityLogs("task", taskId);
+        const currentName = getCurrentUserName();
+        const updatedLogs = appendActivityLog(currentLogs, {
+          id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          action: "Status Changed",
+          details: `Status changed from "${oldLabel}" to "${statusLabel}"`,
+          actor: currentName,
+          userName: currentName,
+          createdAt: new Date().toISOString(),
+        });
+        saveEntityActivityLogs("task", taskId, updatedLogs);
+        if (selectedTask?.id === taskId) {
+          setTaskActivities(updatedLogs);
+        }
+      }
+
       // Immediately refresh top Statistics bar & view data across Table or Kanban columns
       void fetchGlobalMetrics();
       if (viewMode === "kanban") {
@@ -1049,6 +1111,19 @@ export default function OnboardingTasksPage() {
           formatToMMDDYYYY(new Date(Date.now() + 7 * 86400000)),
       };
 
+      const currentName = getCurrentUserName();
+      const initialLogs: ActivityLogEntry[] = [
+        {
+          id: `act_${Date.now()}`,
+          action: "Task Created",
+          details: `Task "${formattedTask.name}" was created`,
+          actor: currentName,
+          userName: currentName,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+      saveEntityActivityLogs("task", formattedTask.id, initialLogs);
+
       setTasks((prev) => [formattedTask, ...prev]);
       toast.success(`Task ${formattedTask.taskCode} created successfully!`);
       setIsNewTaskModalOpen(false);
@@ -1068,40 +1143,109 @@ export default function OnboardingTasksPage() {
     if (!selectedTask || !editTaskName.trim()) return;
 
     try {
-      const updated = await updateTaskApi(selectedTask.id, {
-        name: editTaskName,
-        phase: editTaskPhase,
-        status: editTaskStatus,
-        ownerUserId: editTaskOwnerUserId || undefined,
-        startDate: editTaskStartDate,
-        dueDate: editTaskDueDate,
-        deliverable: editTaskDeliverable,
-        notes: editTaskNotes,
-        dependencies: editTaskDependencies.map(d => ({ dependsOnTaskId: d.id, requiredStatus: d.requiredStatus || 'COMPLETE' })),
+      const startDeps = editTaskDependencies.filter((d: any) => d.dependencyType === "BLOCKS_START");
+      const hasUnmetStartDeps = startDeps.some((dep: any) =>
+        dep.requiredStatus === "COMPLETE" ? dep.status !== "COMPLETE" : (dep.status !== "IN_PROGRESS" && dep.status !== "COMPLETE")
+      );
 
-      });
+      const finalStatus = hasUnmetStartDeps ? "BLOCKED" : editTaskStatus;
+
+      const payload: any = {
+        name: editTaskName,
+        practiceId: editTaskPracticeId || undefined,
+        serviceLine: editTaskServiceLine,
+        phase: editTaskPhase,
+        status: finalStatus,
+        ownerUserId: editTaskOwnerUserId || null,
+        startDate: editTaskStartDate || undefined,
+        dueDate: editTaskDueDate || undefined,
+        deliverable: editTaskDeliverable || undefined,
+        notes: editTaskNotes || undefined,
+        dependencies: editTaskDependencies.map(d => ({ dependsOnTaskId: d.id, requiredStatus: d.requiredStatus || 'COMPLETE', dependencyType: d.dependencyType || 'BLOCKS_START' })),
+      };
+
+      const updated = await updateTaskApi(selectedTask.id, payload);
 
       const updatedTaskItem: TaskItem = {
         ...selectedTask,
-        ...updated,
-        name: editTaskName,
-        practiceName: editTaskPracticeName || selectedTask.practiceName,
-        serviceLine: editTaskServiceLine,
-        phase: editTaskPhase,
-        status: editTaskStatus,
-        ownerUserId: editTaskOwnerUserId,
-        ownerName: editTaskOwnerName || selectedTask.ownerName,
-        startDate: editTaskStartDate || selectedTask.startDate,
-        dueDate: editTaskDueDate || selectedTask.dueDate,
-        deliverable: editTaskDeliverable,
-        notes: editTaskNotes,
-        dependencies: editTaskDependencies,
+        name: updated.name || editTaskName,
+        practiceId: updated.practiceId || editTaskPracticeId,
+        practiceName:
+          updated.practiceName ||
+          editTaskPracticeName ||
+          selectedTask.practiceName,
+        serviceLine: updated.serviceLine || editTaskServiceLine,
+        phase: updated.phase || editTaskPhase,
+        status: updated.status || finalStatus || selectedTask.status,
+        ownerUserId: updated.ownerUserId || editTaskOwnerUserId || undefined,
+        ownerName:
+          updated.ownerName || editTaskOwnerName || selectedTask.ownerName,
+        startDate:
+          formatToMMDDYYYY(updated.startDate) || editTaskStartDate || selectedTask.startDate,
+        dueDate: formatToMMDDYYYY(updated.dueDate) || editTaskDueDate || selectedTask.dueDate,
+        deliverable: updated.deliverable ?? editTaskDeliverable,
+        notes: updated.notes ?? editTaskNotes,
+        dependencies: updated.dependencies || selectedTask.dependencies,
       };
+
+      const changes = detectFieldChanges(
+        {
+          name: selectedTask.name,
+          phase: selectedTask.phase,
+          status: selectedTask.status,
+          ownerName: selectedTask.ownerName,
+          startDate: selectedTask.startDate,
+          dueDate: selectedTask.dueDate,
+          deliverable: selectedTask.deliverable || "",
+          notes: selectedTask.notes || "",
+        },
+        {
+          name: updatedTaskItem.name,
+          phase: updatedTaskItem.phase,
+          status: updatedTaskItem.status,
+          ownerName: updatedTaskItem.ownerName,
+          startDate: updatedTaskItem.startDate,
+          dueDate: updatedTaskItem.dueDate,
+          deliverable: updatedTaskItem.deliverable || "",
+          notes: updatedTaskItem.notes || "",
+        },
+        {
+          name: "Task Name",
+          phase: "Phase",
+          status: "Status",
+          ownerName: "Owner",
+          startDate: "Start Date",
+          dueDate: "Due Date",
+          deliverable: "Deliverable",
+          notes: "Notes",
+        }
+      );
+
+      if (changes.length > 0) {
+        const currentLogs = getEntityActivityLogs("task", selectedTask.id);
+        const editUserName = getCurrentUserName();
+        const updatedLogs = appendActivityLog(currentLogs, {
+          id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          action: "Task Updated",
+          details: changes.join("; "),
+          actor: editUserName,
+          userName: editUserName,
+          createdAt: new Date().toISOString(),
+        });
+        saveEntityActivityLogs("task", selectedTask.id, updatedLogs);
+        setTaskActivities(updatedLogs);
+      }
 
       setTasks((prev) =>
         prev.map((t) => (t.id === selectedTask.id ? updatedTaskItem : t)),
       );
       setSelectedTask(updatedTaskItem);
+      void fetchGlobalMetrics();
+      if (viewMode === "kanban") {
+        initKanbanBoard();
+      } else {
+        fetchTasks();
+      }
       toast.success(
         `Task ${selectedTask.taskCode || `TASK${selectedTask.taskNumber}`} updated!`,
       );
@@ -1284,8 +1428,13 @@ export default function OnboardingTasksPage() {
                     filteredTasks.map((t) => {
                       const statusInfo = STATUS_CONFIG[t.status];
                       const phaseBadge = PHASE_SHORT_BADGES[t.phase];
-                      const hasUnmetDeps = t.dependencies.some(
-                        (dep) => !dep.isComplete,
+                      const startDeps = t.dependencies.filter((d: any) => d.dependencyType === "BLOCKS_START");
+                      const finishDeps = t.dependencies.filter((d: any) => d.dependencyType === "BLOCKS_FINISH");
+                      const hasUnmetStartDeps = startDeps.some(
+                        (dep: any) => dep.requiredStatus === "COMPLETE" ? dep.status !== "COMPLETE" : (dep.status !== "IN_PROGRESS" && dep.status !== "COMPLETE")
+                      );
+                      const hasUnmetFinishDeps = finishDeps.some(
+                        (dep: any) => dep.requiredStatus === "COMPLETE" ? dep.status !== "COMPLETE" : (dep.status !== "IN_PROGRESS" && dep.status !== "COMPLETE")
                       );
                       const displayCode =
                         t.taskCode ||
@@ -1351,25 +1500,23 @@ export default function OnboardingTasksPage() {
                             )}
                           </td>
                           <td
-                            className="px-4 py-3.5 min-w-[145px]"
+                            className="px-4 py-3.5 min-w-[155px]"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <select
+                            <Select
                               value={t.status}
-                              onChange={(e) => handleUpdateStatus(t.id, e.target.value as TaskStatus)}
-                              className={`rounded-lg border px-2.5 py-1 text-xs font-bold focus:outline-none transition-colors cursor-pointer ${statusInfo.bg} ${statusInfo.text} ${statusInfo.border}`}
-                            >
-                              <option value="NOT_STARTED" className="bg-white text-slate-800 font-normal">Not Started</option>
-                              <option
-                                value="IN_PROGRESS"
-                                disabled={hasUnmetDeps}
-                                className="bg-white text-slate-800 font-normal"
-                              >
-                                In Progress {hasUnmetDeps ? "(Blocked)" : ""}
-                              </option>
-                              <option value="BLOCKED" className="bg-white text-slate-800 font-normal">Blocked</option>
-                              <option value="COMPLETE" className="bg-white text-slate-800 font-normal">Complete</option>
-                            </select>
+                              onChange={(val) => handleUpdateStatus(t.id, val as TaskStatus)}
+                              className={`${statusInfo.bg} ${statusInfo.text} ${statusInfo.border} font-bold border`}
+                              options={STATUS_OPTIONS.filter((o) => o.value !== "").map((o) => {
+                                const isStartDisabled = o.value === "IN_PROGRESS" && hasUnmetStartDeps;
+                                const isFinishDisabled = o.value === "COMPLETE" && (hasUnmetStartDeps || hasUnmetFinishDeps);
+                                return {
+                                  ...o,
+                                  disabled: isStartDisabled || isFinishDisabled,
+                                };
+                              })}
+                              placeholder="Select Status"
+                            />
                           </td>
                           <td
                             className="px-4 py-3.5 text-right"
@@ -1600,7 +1747,7 @@ export default function OnboardingTasksPage() {
                   </div>
                   <div className="divide-y divide-slate-100">
                     {phaseTasks.map(t => {
-                      const isSelected = editTaskDependencies.some(d => d.id === t.id && d.requiredStatus === isAddDependencyModalOpen);
+                      const isSelected = editTaskDependencies.some(d => d.id === t.id);
                       return (
                         <label key={t.id} className={`flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer ${isSelected ? 'bg-indigo-50/30' : ''}`}>
                           <input
@@ -1612,11 +1759,12 @@ export default function OnboardingTasksPage() {
                                   id: t.id, 
                                   name: t.name, 
                                   taskNumber: t.taskNumber, 
-                                  requiredStatus: isAddDependencyModalOpen,
+                                  dependencyType: isAddDependencyModalOpen,
+                                  requiredStatus: "COMPLETE",
                                   status: t.status 
                                 }]);
                               } else {
-                                setEditTaskDependencies(editTaskDependencies.filter(d => !(d.id === t.id && d.requiredStatus === isAddDependencyModalOpen)));
+                                setEditTaskDependencies(editTaskDependencies.filter(d => d.id !== t.id));
                               }
                             }}
                             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
@@ -1660,7 +1808,7 @@ export default function OnboardingTasksPage() {
                 <div>
                   <span className="text-xs font-bold font-mono tracking-wider text-indigo-600">
                     {selectedTask.taskCode || `TASK${selectedTask.taskNumber}`}{" "}
-                    â€¢ {selectedTask.serviceLine}
+                    - {selectedTask.serviceLine}
                   </span>
                   <h3 className="text-xl font-bold text-slate-900 mt-1">
                     {selectedTask.name}
@@ -1818,35 +1966,66 @@ export default function OnboardingTasksPage() {
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {selectedTask.dependencies.map((dep) => (
-                        <div
-                          key={dep.id}
-                          className="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-xs bg-white"
-                        >
-                          <div className="flex items-center gap-2">
-                            {dep.isComplete ? (
-                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                            ) : (
-                              <Lock className="h-4 w-4 text-amber-500" />
-                            )}
-                            <span className="font-bold font-mono text-indigo-700">
-                              {dep.taskCode || `TASK${dep.taskNumber}`}:
-                            </span>
-                            <span className="text-slate-600">{dep.name}</span>
-                          </div>
-                          <span
-                            className={`font-semibold ${
-                              dep.isComplete
-                                ? "text-emerald-600"
-                                : "text-amber-600"
-                            }`}
+                      {selectedTask.dependencies.map((dep) => {
+                        const reqStatusLabel = dep.requiredStatus === "IN_PROGRESS" ? "In Progress / Complete" : "Complete";
+                        const isFinishBlock = dep.dependencyType === "BLOCKS_FINISH";
+                        const isMet = dep.requiredStatus === "COMPLETE" ? dep.status === "COMPLETE" : (dep.status === "IN_PROGRESS" || dep.status === "COMPLETE");
+                        const mergedLabel = `${isFinishBlock ? "Finish Prerequisite" : "Start Prerequisite"} (Requires: ${reqStatusLabel})`;
+
+                        return (
+                          <div
+                            key={dep.id}
+                            className="flex flex-col gap-2 rounded-xl border border-slate-200 p-3 text-xs bg-slate-50/40 hover:bg-slate-50 transition-colors"
                           >
-                            {dep.isComplete ? "Complete" : "Blocking"}
-                          </span>
-                        </div>
-                      ))}
+                            {/* Row 1: Icon, Phase Badge, Code, and Full Task Title */}
+                            <div className="flex items-start gap-2 w-full flex-wrap sm:flex-nowrap">
+                              {isMet ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                              ) : (
+                                <Lock className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                              )}
+                              {dep.phase && PHASE_SHORT_BADGES[dep.phase] && (
+                                <span
+                                  className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${PHASE_SHORT_BADGES[dep.phase].color}`}
+                                >
+                                  {PHASE_SHORT_BADGES[dep.phase].label}
+                                </span>
+                              )}
+                              <span className="font-bold font-mono text-indigo-700 shrink-0 mt-0.5">
+                                {dep.taskCode || `TASK${dep.taskNumber}`}:
+                              </span>
+                              <span className="text-slate-800 font-semibold text-xs leading-relaxed break-words flex-1">
+                                {dep.name}
+                              </span>
+                            </div>
+
+                            {/* Row 2: Merged Prerequisite Badge + Status Badge */}
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100/80 mt-0.5">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${
+                                isFinishBlock ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-blue-50 text-blue-700 border-blue-200"
+                              }`}>
+                                {mergedLabel}
+                              </span>
+                              <span
+                                className={`font-bold text-[10px] uppercase px-2 py-0.5 rounded border ${
+                                  isMet
+                                    ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                                    : "bg-amber-50 text-amber-600 border-amber-200"
+                                }`}
+                              >
+                                {isMet ? "MET" : dep.status ? dep.status.replace("_", " ") : "PENDING"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
+                </div>
+
+                {/* Activity Log Section */}
+                <div className="pt-2">
+                  <ActivityLogSection logs={taskActivities} />
                 </div>
               </div>
 
@@ -2114,7 +2293,25 @@ export default function OnboardingTasksPage() {
                     <Select
                       value={editTaskStatus}
                       onChange={(val) => setEditTaskStatus(val as TaskStatus)}
-                      options={STATUS_OPTIONS.filter((o) => o.value !== "")}
+                      options={(() => {
+                        const startDeps = editTaskDependencies.filter((d: any) => d.dependencyType === "BLOCKS_START");
+                        const finishDeps = editTaskDependencies.filter((d: any) => d.dependencyType === "BLOCKS_FINISH");
+                        const hasUnmetStartDeps = startDeps.some((dep: any) =>
+                          dep.requiredStatus === "COMPLETE" ? dep.status !== "COMPLETE" : (dep.status !== "IN_PROGRESS" && dep.status !== "COMPLETE")
+                        );
+                        const hasUnmetFinishDeps = finishDeps.some((dep: any) =>
+                          dep.requiredStatus === "COMPLETE" ? dep.status !== "COMPLETE" : (dep.status !== "IN_PROGRESS" && dep.status !== "COMPLETE")
+                        );
+
+                        return STATUS_OPTIONS.filter((o) => o.value !== "").map((o) => {
+                          const isStartDisabled = o.value === "IN_PROGRESS" && hasUnmetStartDeps;
+                          const isFinishDisabled = o.value === "COMPLETE" && (hasUnmetStartDeps || hasUnmetFinishDeps);
+                          return {
+                            ...o,
+                            disabled: isStartDisabled || isFinishDisabled,
+                          };
+                        });
+                      })()}
                       placeholder="Select Status"
                     />
                   </div>
@@ -2179,54 +2376,71 @@ export default function OnboardingTasksPage() {
                     <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
                       <div>
                         <label className="block text-sm font-bold text-slate-800">Prerequisites to Start</label>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Tasks that must be IN PROGRESS or COMPLETE to start this task</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Dependencies that must be satisfied before this task can start.</p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setIsAddDependencyModalOpen("IN_PROGRESS")}
+                        onClick={() => setIsAddDependencyModalOpen("BLOCKS_START")}
                         className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded transition-colors shadow-sm"
                       >
                         <Plus className="h-3.5 w-3.5" /> Add
                       </button>
                     </div>
                     <div className="flex-1">
-                      {editTaskDependencies.filter(d => d.requiredStatus === "IN_PROGRESS").length === 0 ? (
+                      {editTaskDependencies.filter(d => d.dependencyType === "BLOCKS_START").length === 0 ? (
                         <div className="text-xs text-slate-400 italic text-center py-6 bg-white rounded-lg border border-slate-100 border-dashed">
                           No start prerequisites
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {editTaskDependencies.filter(d => d.requiredStatus === "IN_PROGRESS").map((dep) => {
-                            const isMet = dep.status === "IN_PROGRESS" || dep.status === "COMPLETE";
+                          {editTaskDependencies.filter(d => d.dependencyType === "BLOCKS_START").map((dep) => {
+                            const isMet = dep.requiredStatus === "COMPLETE" ? dep.status === "COMPLETE" : (dep.status === "IN_PROGRESS" || dep.status === "COMPLETE");
                             return (
-                              <div key={dep.id} className="flex flex-col p-2 bg-white rounded-lg border border-slate-200 shadow-sm relative pr-8">
-                                <span className="font-medium text-slate-800 text-xs mb-1 line-clamp-2 pr-4">{dep.name}</span>
-                                <div className="flex items-center justify-between mt-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${isMet ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                              <div key={dep.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200 shadow-sm relative pr-10 hover:border-slate-300 transition-colors">
+                                <div className="flex-1 min-w-0 pr-2">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {dep.phase && PHASE_SHORT_BADGES[dep.phase] && (
+                                      <span
+                                        className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[9px] font-medium shrink-0 ${PHASE_SHORT_BADGES[dep.phase].color}`}
+                                      >
+                                        {PHASE_SHORT_BADGES[dep.phase].label}
+                                      </span>
+                                    )}
+                                    <span className="font-semibold text-slate-800 text-xs line-clamp-2 leading-relaxed">{dep.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Status:</span>
+                                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${isMet ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
                                       {isMet ? "MET" : dep.status.replace("_", " ")}
                                     </span>
                                   </div>
-                                  <select 
-                                    value={dep.requiredStatus}
-                                    onChange={(e) => {
-                                      const newDeps = editTaskDependencies.map(d => 
-                                        d.id === dep.id ? { ...d, requiredStatus: e.target.value } : d
-                                      );
-                                      setEditTaskDependencies(newDeps);
-                                    }}
-                                    className="text-[10px] border-slate-200 rounded py-0.5 pl-2 pr-6 text-slate-600 bg-slate-50 focus:ring-indigo-500 focus:border-indigo-500"
-                                  >
-                                    <option value="IN_PROGRESS">Requires: In Progress / Complete</option>
-                                    <option value="COMPLETE">Requires: Complete</option>
-                                  </select>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider hidden sm:inline">Requires:</span>
+                                  <div className="w-48">
+                                    <Select
+                                      value={dep.requiredStatus || "COMPLETE"}
+                                      onChange={(val) => {
+                                        const newDeps = editTaskDependencies.map(d => 
+                                          d.id === dep.id ? { ...d, requiredStatus: val } : d
+                                        );
+                                        setEditTaskDependencies(newDeps);
+                                      }}
+                                      options={[
+                                        { label: "In Progress / Complete", value: "IN_PROGRESS" },
+                                        { label: "Complete", value: "COMPLETE" },
+                                      ]}
+                                      placeholder="Select Requirement"
+                                    />
+                                  </div>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => setEditTaskDependencies(editTaskDependencies.filter(d => d.id !== dep.id))}
-                                  className="absolute top-2 right-2 text-slate-400 hover:text-red-500 transition-colors p-1"
+                                  className="absolute top-3 right-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-1 transition-colors"
+                                  title="Remove dependency"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <Trash2 className="h-4 w-4" />
                                 </button>
                               </div>
                             );
@@ -2241,54 +2455,71 @@ export default function OnboardingTasksPage() {
                     <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
                       <div>
                         <label className="block text-sm font-bold text-slate-800">Prerequisites to Finish</label>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Tasks that must be COMPLETE to finish this task</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Dependencies that must be satisfied before this task can be completed.</p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setIsAddDependencyModalOpen("COMPLETE")}
+                        onClick={() => setIsAddDependencyModalOpen("BLOCKS_FINISH")}
                         className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded transition-colors shadow-sm"
                       >
                         <Plus className="h-3.5 w-3.5" /> Add
                       </button>
                     </div>
                     <div className="flex-1">
-                      {editTaskDependencies.filter(d => d.requiredStatus === "COMPLETE").length === 0 ? (
+                      {editTaskDependencies.filter(d => d.dependencyType === "BLOCKS_FINISH").length === 0 ? (
                         <div className="text-xs text-slate-400 italic text-center py-6 bg-white rounded-lg border border-slate-100 border-dashed">
                           No finish prerequisites
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {editTaskDependencies.filter(d => d.requiredStatus === "COMPLETE").map((dep) => {
-                            const isMet = dep.status === "COMPLETE";
+                          {editTaskDependencies.filter(d => d.dependencyType === "BLOCKS_FINISH").map((dep) => {
+                            const isMet = dep.requiredStatus === "COMPLETE" ? dep.status === "COMPLETE" : (dep.status === "IN_PROGRESS" || dep.status === "COMPLETE");
                             return (
-                              <div key={dep.id} className="flex flex-col p-2 bg-white rounded-lg border border-slate-200 shadow-sm relative pr-8">
-                                <span className="font-medium text-slate-800 text-xs mb-1 line-clamp-2 pr-4">{dep.name}</span>
-                                <div className="flex items-center justify-between mt-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${isMet ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                              <div key={dep.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200 shadow-sm relative pr-10 hover:border-slate-300 transition-colors">
+                                <div className="flex-1 min-w-0 pr-2">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {dep.phase && PHASE_SHORT_BADGES[dep.phase] && (
+                                      <span
+                                        className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[9px] font-medium shrink-0 ${PHASE_SHORT_BADGES[dep.phase].color}`}
+                                      >
+                                        {PHASE_SHORT_BADGES[dep.phase].label}
+                                      </span>
+                                    )}
+                                    <span className="font-semibold text-slate-800 text-xs line-clamp-2 leading-relaxed">{dep.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Status:</span>
+                                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${isMet ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
                                       {isMet ? "MET" : dep.status.replace("_", " ")}
                                     </span>
                                   </div>
-                                  <select 
-                                    value={dep.requiredStatus}
-                                    onChange={(e) => {
-                                      const newDeps = editTaskDependencies.map(d => 
-                                        d.id === dep.id ? { ...d, requiredStatus: e.target.value } : d
-                                      );
-                                      setEditTaskDependencies(newDeps);
-                                    }}
-                                    className="text-[10px] border-slate-200 rounded py-0.5 pl-2 pr-6 text-slate-600 bg-slate-50 focus:ring-indigo-500 focus:border-indigo-500"
-                                  >
-                                    <option value="IN_PROGRESS">Requires: In Progress / Complete</option>
-                                    <option value="COMPLETE">Requires: Complete</option>
-                                  </select>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider hidden sm:inline">Requires:</span>
+                                  <div className="w-48">
+                                    <Select
+                                      value={dep.requiredStatus || "COMPLETE"}
+                                      onChange={(val) => {
+                                        const newDeps = editTaskDependencies.map(d => 
+                                          d.id === dep.id ? { ...d, requiredStatus: val } : d
+                                        );
+                                        setEditTaskDependencies(newDeps);
+                                      }}
+                                      options={[
+                                        { label: "In Progress / Complete", value: "IN_PROGRESS" },
+                                        { label: "Complete", value: "COMPLETE" },
+                                      ]}
+                                      placeholder="Select Requirement"
+                                    />
+                                  </div>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => setEditTaskDependencies(editTaskDependencies.filter(d => d.id !== dep.id))}
-                                  className="absolute top-2 right-2 text-slate-400 hover:text-red-500 transition-colors p-1"
+                                  className="absolute top-3 right-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-1 transition-colors"
+                                  title="Remove dependency"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <Trash2 className="h-4 w-4" />
                                 </button>
                               </div>
                             );
@@ -2300,7 +2531,7 @@ export default function OnboardingTasksPage() {
 
                   <div className="md:col-span-2 mt-2 text-[11px] text-slate-500 bg-indigo-50/50 p-2.5 rounded-lg flex items-start gap-2 border border-indigo-100">
                     <CheckCircle2 className="h-3.5 w-3.5 text-indigo-400 mt-0.5 shrink-0" />
-                    <span>Adding a prerequisite will automatically set this task to BLOCKED. The task will automatically transition to IN PROGRESS and COMPLETE as its prerequisites are met.</span>
+                    <span>Adding an unmet prerequisite will automatically set this task to BLOCKED. Status options can be manually updated once prerequisites are satisfied.</span>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-6">
