@@ -147,6 +147,18 @@ const roleOptions = [
 ];
 const influenceOptions = ["LOW", "MEDIUM", "HIGH", "DECISION_MAKER"];
 const statusOptions = ["ACTIVE", "INACTIVE"];
+const designationOptions = [
+  { label: "Owner", value: "Owner" },
+  { label: "Doctor (Dr.)", value: "Dr." },
+  { label: "Practice Manager", value: "Practice Manager" },
+  { label: "Office Manager", value: "Office Manager" },
+];
+
+function getDesignationLabel(value: string): string {
+  return (
+    designationOptions.find((option) => option.value === value)?.label || value
+  );
+}
 
 export default function PersonsPage() {
   const currentRole = readStoredUser()?.role as string | undefined;
@@ -521,6 +533,15 @@ export default function PersonsPage() {
                 >
                   {displayValue}
                 </span>
+              );
+            }
+            if (field.id === "designation") {
+              const designation = String(value || "");
+              if (!designation) {
+                return <span className="truncate">-</span>;
+              }
+              return (
+                <span className="truncate">{getDesignationLabel(designation)}</span>
               );
             }
             if (field.id === "email" && value) {
@@ -1112,13 +1133,26 @@ export default function PersonsPage() {
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
             Title
           </label>
-          <input
-            type="text"
+          <select
             value={formData.designation}
             onChange={(e) => handleFormChange("designation", e.target.value)}
-            placeholder="e.g. CEO, Manager, Director"
             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-          />
+          >
+            <option value="">Select title</option>
+            {designationOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            {formData.designation &&
+              !designationOptions.some(
+                (option) => option.value === formData.designation,
+              ) && (
+                <option value={formData.designation}>
+                  {formData.designation}
+                </option>
+              )}
+          </select>
         </div>
 
         <div>
@@ -1591,8 +1625,10 @@ export default function PersonsPage() {
                       ...(selectedRow.values.designation
                         ? [
                             {
-                              label: "Designation",
-                              value: String(selectedRow.values.designation),
+                              label: "Title",
+                              value: getDesignationLabel(
+                                String(selectedRow.values.designation),
+                              ),
                             },
                           ]
                         : []),
@@ -1756,15 +1792,20 @@ export default function PersonsPage() {
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
                     Title
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.designation}
                     onChange={(e) =>
                       handleFormChange("designation", e.target.value)
                     }
-                    placeholder="e.g. CEO, Manager, Director"
                     className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                  />
+                  >
+                    <option value="">Select title</option>
+                    {designationOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
