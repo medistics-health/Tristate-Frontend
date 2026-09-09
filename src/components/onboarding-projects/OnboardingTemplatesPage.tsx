@@ -101,18 +101,107 @@ const SERVICE_LINE_OPTIONS = [
   { label: "Compliance", value: "COMPLIANCE" },
   { label: "EMR", value: "EMR" },
   { label: "Back Office", value: "BACK_OFFICE" },
-  { label: "Syngate", value: "SYNGATE" },
   { label: "Sales", value: "SALES" },
   { label: "Credit Cards", value: "CREDIT_CARDS" },
 ];
 
-const PHASE_LABELS: Record<TaskPhase, string> = {
+const SERVICE_LINE_LABEL_MAP: Record<string, string> = {
+  RCM: "RCM",
+  CREDENTIALING: "Credentialing",
+  CCM: "CCM",
+  HR: "HR",
+  BENEFITS: "Benefits",
+  MSP_IT: "MSP / IT",
+  VBC: "VBC",
+  COMPLIANCE: "Compliance",
+  EMR: "EMR",
+  BACK_OFFICE: "Back Office",
+  SYNGATE: "Syngate",
+  SALES: "Sales",
+  CREDIT_CARDS: "Credit Cards",
+};
+
+export function getServiceLineLabel(line: string): string {
+  return SERVICE_LINE_LABEL_MAP[line] || line;
+}
+
+const DEFAULT_PHASE_LABELS: Record<string, string> = {
   ONBOARDING_ACCESS: "Phase 1: Onboarding & Access",
   ASSESSMENT_DISCOVERY: "Phase 2: Assessment & Discovery",
   PLANNING_CONFIGURATION: "Phase 3: Planning & Configuration",
   TESTING_VALIDATION: "Phase 4: Testing & Validation",
   GO_LIVE_STABILIZATION: "Phase 5: Go-Live & Stabilization",
+  HYPERCARE_OPTIMIZATION: "Phase 6: Hypercare & Optimization",
 };
+
+const SERVICE_LINE_PHASE_MAPS: Record<string, Record<string, string>> = {
+  RCM: {
+    ONBOARDING_ACCESS: "Phase 1: Onboarding & Access",
+    ASSESSMENT_DISCOVERY: "Phase 2: Assessment & Discovery",
+    PLANNING_CONFIGURATION: "Phase 3: Planning & Configuration",
+    TESTING_VALIDATION: "Phase 4: Testing & Validation",
+    GO_LIVE_STABILIZATION: "Phase 5: Go-Live & Stabilization",
+  },
+  CCM: {
+    ONBOARDING_ACCESS: "Phase 1: Onboarding & Access",
+    ASSESSMENT_DISCOVERY: "Phase 2: Assessment & Discovery",
+    PLANNING_CONFIGURATION: "Phase 3: Workflow Design & Configuration",
+    TESTING_VALIDATION: "Phase 4: Enrollment Readiness",
+    GO_LIVE_STABILIZATION: "Phase 5: Go-Live",
+    HYPERCARE_OPTIMIZATION: "Phase 6: Hypercare & Optimization",
+  },
+  CREDENTIALING: {
+    ONBOARDING_ACCESS: "Phase 1: Intake & Planning",
+    ASSESSMENT_DISCOVERY: "Phase 2: CAQH Management",
+    PLANNING_CONFIGURATION: "Phase 3: Application Submission",
+    TESTING_VALIDATION: "Phase 4: Follow-Up & Tracking",
+    GO_LIVE_STABILIZATION: "Phase 5: Go-Live Readiness",
+    HYPERCARE_OPTIMIZATION: "Phase 6: Go-Live",
+  },
+  HR: {
+    ONBOARDING_ACCESS: "Phase 1: Pre-Hire",
+    ASSESSMENT_DISCOVERY: "Phase 2: New Hire Setup",
+    PLANNING_CONFIGURATION: "Phase 3: Benefits",
+    TESTING_VALIDATION: "Phase 4: Compliance",
+    GO_LIVE_STABILIZATION: "Phase 5: Go-Live",
+    HYPERCARE_OPTIMIZATION: "Phase 6: Stabilization",
+  },
+  MSP_IT: {
+    ONBOARDING_ACCESS: "Phase 1: Discovery",
+    ASSESSMENT_DISCOVERY: "Phase 2: Design",
+    PLANNING_CONFIGURATION: "Phase 3: Deployment",
+    TESTING_VALIDATION: "Phase 4: Testing",
+    GO_LIVE_STABILIZATION: "Phase 5: Training",
+    HYPERCARE_OPTIMIZATION: "Phase 6: Go-Live / Hypercare",
+  },
+};
+
+const SERVICE_LINE_DISPLAY_NAMES: Record<string, string> = {
+  BENEFITS: "Benefits",
+  VBC: "VBC",
+  COMPLIANCE: "Compliance",
+  EMR: "EMR",
+  BACK_OFFICE: "Back Office",
+  SYNGATE: "Syngate",
+  SALES: "Sales",
+  CREDIT_CARDS: "Credit Cards",
+};
+
+export function getServiceLinePhaseLabel(serviceLine: string, phase: string): string | null {
+  const lineMap = SERVICE_LINE_PHASE_MAPS[serviceLine];
+  if (lineMap) {
+    if (lineMap[phase]) {
+      return lineMap[phase];
+    }
+    // If service line explicitly defines its phases (e.g. RCM has 5 phases), exclude unmapped phase 6
+    return null;
+  }
+  // For other service lines (BENEFITS, VBC, COMPLIANCE, EMR, etc.), return single Phase 1 with service line name
+  const displayName = SERVICE_LINE_DISPLAY_NAMES[serviceLine] || serviceLine;
+  return `Phase 1: ${displayName}`;
+}
+
+const PHASE_LABELS: Record<string, string> = DEFAULT_PHASE_LABELS;
 
 export default function OnboardingTemplatesPage() {
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
@@ -608,7 +697,7 @@ export default function OnboardingTemplatesPage() {
                 Service Line
               </p>
               <p className="mt-0.5 text-base font-bold text-indigo-700">
-                {selectedTemplate.serviceLine}
+                {getServiceLineLabel(selectedTemplate.serviceLine)}
               </p>
             </div>
             <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
@@ -644,15 +733,14 @@ export default function OnboardingTemplatesPage() {
               </p>
             </div>
           ) : (
-            (
-              [
-                "ONBOARDING_ACCESS",
-                "ASSESSMENT_DISCOVERY",
-                "PLANNING_CONFIGURATION",
-                "TESTING_VALIDATION",
-                "GO_LIVE_STABILIZATION",
-              ] as TaskPhase[]
-            ).map((phaseKey) => {
+            [
+              "ONBOARDING_ACCESS",
+              "ASSESSMENT_DISCOVERY",
+              "PLANNING_CONFIGURATION",
+              "TESTING_VALIDATION",
+              "GO_LIVE_STABILIZATION",
+              "HYPERCARE_OPTIMIZATION",
+            ].map((phaseKey) => {
               const phaseTasks = selectedTemplate.tasks.filter((t) => t.phase === phaseKey);
               if (phaseTasks.length === 0) return null;
 
@@ -660,23 +748,26 @@ export default function OnboardingTemplatesPage() {
                 <div key={phaseKey} className="mb-4 space-y-2">
                   <div className="flex items-center justify-between border-b border-[#f0ece6] pb-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                      {PHASE_LABELS[phaseKey]}
+                      {getServiceLinePhaseLabel(selectedTemplate.serviceLine, phaseKey)}
                     </span>
                     <span className="text-[11px] font-semibold text-slate-500">
-                      {phaseTasks.length} tasks
+                      {phaseTasks.length} {phaseTasks.length === 1 ? "task" : "tasks"}
                     </span>
                   </div>
 
                   <div className="space-y-1.5">
-                    {phaseTasks.map((item) => (
+                    {phaseTasks.map((item, relIdx) => (
                       <div
                         key={item.id || item.taskNumber}
                         className="group relative rounded-lg border border-[#f0ece6] bg-white p-3 text-[13px] hover:border-indigo-200 transition-colors"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-start gap-2 min-w-0 flex-1">
-                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 font-mono font-bold text-slate-700 text-[10px]">
-                              #{item.taskNumber}
+                            <span
+                              className="flex h-5 px-1.5 shrink-0 items-center justify-center rounded-full bg-slate-100 font-mono font-bold text-slate-700 text-[10px]"
+                              title={`${relIdx + 1}${relIdx === 0 ? "st" : relIdx === 1 ? "nd" : relIdx === 2 ? "rd" : "th"} of Phase ${phaseKey.split("_")[0]}`}
+                            >
+                              #{relIdx + 1}
                             </span>
                             <div className="min-w-0 flex-1">
                               <div className="font-semibold text-slate-800 break-words">{item.taskName}</div>
@@ -833,7 +924,7 @@ export default function OnboardingTemplatesPage() {
                         >
                           <td className="border-b border-r border-[#f4f1ec] px-4 py-3">
                             <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">
-                              {tpl.serviceLine}
+                              {getServiceLineLabel(tpl.serviceLine)}
                             </span>
                           </td>
                           <td className="border-b border-r border-[#f4f1ec] px-4 py-3 font-semibold text-slate-800">
@@ -1068,25 +1159,31 @@ export default function OnboardingTemplatesPage() {
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Standard Phase *</label>
-                  <select
+                  <Select
                     value={taskItemPhase}
-                    onChange={(e) => setTaskItemPhase(e.target.value as TaskPhase)}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none bg-white"
-                  >
-                    {(
-                      [
+                    onChange={(val) => setTaskItemPhase(val as TaskPhase)}
+                    options={(() => {
+                      const phases: TaskPhase[] = [
                         "ONBOARDING_ACCESS",
                         "ASSESSMENT_DISCOVERY",
                         "PLANNING_CONFIGURATION",
                         "TESTING_VALIDATION",
                         "GO_LIVE_STABILIZATION",
-                      ] as TaskPhase[]
-                    ).map((phase) => (
-                      <option key={phase} value={phase}>
-                        {PHASE_LABELS[phase]}
-                      </option>
-                    ))}
-                  </select>
+                        "HYPERCARE_OPTIMIZATION",
+                      ];
+                      const seen = new Set<string>();
+                      const list: { label: string; value: string }[] = [];
+                      phases.forEach((phase) => {
+                        const label = getServiceLinePhaseLabel(selectedTemplate.serviceLine, phase);
+                        if (label && !seen.has(label)) {
+                          seen.add(label);
+                          list.push({ value: phase, label });
+                        }
+                      });
+                      return list;
+                    })()}
+                    placeholder="Select Phase"
+                  />
                 </div>
               </div>
 

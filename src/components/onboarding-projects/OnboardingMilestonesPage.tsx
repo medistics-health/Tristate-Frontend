@@ -40,6 +40,7 @@ export type MilestoneItem = {
   serviceLine: string;
   targetWeek: string;
   targetDate: string;
+  status?: "NOT_STARTED" | "ON_TRACK" | "AT_RISK" | "COMPLETE";
   createdAt?: string;
   updatedAt?: string;
 };
@@ -47,11 +48,13 @@ export type MilestoneItem = {
 type MilestoneFilters = {
   serviceLine: string;
   practiceName: string;
+  status: string;
 };
 
 const defaultFilters: MilestoneFilters = {
   serviceLine: "",
   practiceName: "",
+  status: "",
 };
 
 const SERVICE_LINE_OPTIONS = [
@@ -60,10 +63,37 @@ const SERVICE_LINE_OPTIONS = [
   { label: "Credentialing", value: "CREDENTIALING" },
   { label: "CCM", value: "CCM" },
   { label: "HR", value: "HR" },
+  { label: "Benefits", value: "BENEFITS" },
   { label: "MSP / IT", value: "MSP_IT" },
   { label: "VBC", value: "VBC" },
   { label: "Compliance", value: "COMPLIANCE" },
+  { label: "EMR", value: "EMR" },
+  { label: "Back Office", value: "BACK_OFFICE" },
+  { label: "Syngate", value: "SYNGATE" },
+  { label: "Sales", value: "SALES" },
+  { label: "Credit Cards", value: "CREDIT_CARDS" },
 ];
+
+const SERVICE_LINE_LABEL_MAP: Record<string, string> = {
+  RCM: "RCM",
+  CREDENTIALING: "Credentialing",
+  CCM: "CCM",
+  HR: "HR",
+  BENEFITS: "Benefits",
+  MSP_IT: "MSP / IT",
+  VBC: "VBC",
+  COMPLIANCE: "Compliance",
+  EMR: "EMR",
+  BACK_OFFICE: "Back Office",
+  SYNGATE: "Syngate",
+  SALES: "Sales",
+  CREDIT_CARDS: "Credit Cards",
+};
+
+export function getServiceLineLabel(line?: string): string {
+  if (!line) return "";
+  return SERVICE_LINE_LABEL_MAP[line] || line;
+}
 
 export default function OnboardingMilestonesPage() {
   const [milestones, setMilestones] = useState<MilestoneItem[]>([]);
@@ -241,8 +271,9 @@ export default function OnboardingMilestonesPage() {
     if (!formDescription.trim()) return;
 
     try {
+      const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const created = await createMilestoneApi({
-        milestoneCode: formCode || `M${milestones.length + 1}`,
+        milestoneCode: formCode || `M${milestones.length + 1}${randomCode}`,
         description: formDescription,
         practiceName: formPracticeName,
         serviceLine: formServiceLine,
@@ -484,6 +515,7 @@ export default function OnboardingMilestonesPage() {
                     <th className="py-3.5 px-4">Milestone ID</th>
                     <th className="py-3.5 px-4">Practice & Service Line</th>
                     <th className="py-3.5 px-4">Description</th>
+                    <th className="py-3.5 px-4">Status</th>
                     <th className="py-3.5 px-4">Target Week</th>
                     <th className="py-3.5 px-4">Target Date</th>
                     <th className="py-3.5 px-4">Last Updated</th>
@@ -492,6 +524,15 @@ export default function OnboardingMilestonesPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {paginatedMilestones.map((m) => {
+                    const statusKey = m.status || "NOT_STARTED";
+                    const statusMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
+                      NOT_STARTED: { label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
+                      ON_TRACK: { label: "On Track", bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+                      AT_RISK: { label: "At Risk", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
+                      COMPLETE: { label: "Complete", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
+                    };
+                    const statusCfg = statusMap[statusKey] || statusMap.NOT_STARTED;
+
                     return (
                       <tr
                         key={m.id}
@@ -506,11 +547,16 @@ export default function OnboardingMilestonesPage() {
                             {m.practiceName}
                           </div>
                           <div className="text-[11px] font-medium text-slate-400">
-                            {m.serviceLine}
+                            {getServiceLineLabel(m.serviceLine)}
                           </div>
                         </td>
                         <td className="py-3.5 px-4 font-medium text-slate-800 max-w-md">
                           {m.description}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}>
+                            {statusCfg.label}
+                          </span>
                         </td>
                         <td className="py-3.5 px-4 font-semibold text-slate-700">
                           {m.targetWeek}
@@ -792,7 +838,7 @@ export default function OnboardingMilestonesPage() {
                       {viewingMilestone.description}
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200/80">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-slate-200/80">
                     <div>
                       <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
                         Practice
@@ -806,8 +852,28 @@ export default function OnboardingMilestonesPage() {
                         Service Line
                       </span>
                       <span className="text-xs font-semibold text-slate-700">
-                        {viewingMilestone.serviceLine}
+                        {getServiceLineLabel(viewingMilestone.serviceLine)}
                       </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+                        Status
+                      </span>
+                      {(() => {
+                        const statusKey = viewingMilestone.status || "NOT_STARTED";
+                        const statusMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
+                          NOT_STARTED: { label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
+                          ON_TRACK: { label: "On Track", bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+                          AT_RISK: { label: "At Risk", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
+                          COMPLETE: { label: "Complete", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
+                        };
+                        const statusCfg = statusMap[statusKey] || statusMap.NOT_STARTED;
+                        return (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}>
+                            {statusCfg.label}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div>
                       <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">

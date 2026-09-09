@@ -149,7 +149,7 @@ function getUserDisplayName(user: any) {
   );
 }
 
-const PHASE_LABELS: Record<TaskPhase, string> = {
+const DEFAULT_PHASE_LABELS: Record<TaskPhase, string> = {
   ONBOARDING_ACCESS: "Phase 1: Onboarding & Access",
   ASSESSMENT_DISCOVERY: "Phase 2: Assessment & Discovery",
   PLANNING_CONFIGURATION: "Phase 3: Planning & Configuration",
@@ -157,6 +157,89 @@ const PHASE_LABELS: Record<TaskPhase, string> = {
   GO_LIVE_STABILIZATION: "Phase 5: Go-Live & Stabilization",
   HYPERCARE_OPTIMIZATION: "Phase 6: Hypercare & Optimization",
 };
+
+const SERVICE_LINE_PHASE_MAPS: Record<string, Record<string, string>> = {
+  RCM: {
+    ONBOARDING_ACCESS: "Phase 1: Onboarding & Access",
+    ASSESSMENT_DISCOVERY: "Phase 2: Assessment & Discovery",
+    PLANNING_CONFIGURATION: "Phase 3: Planning & Configuration",
+    TESTING_VALIDATION: "Phase 4: Testing & Validation",
+    GO_LIVE_STABILIZATION: "Phase 5: Go-Live & Stabilization",
+  },
+  CCM: {
+    ONBOARDING_ACCESS: "Phase 1: Onboarding & Access",
+    ASSESSMENT_DISCOVERY: "Phase 2: Assessment & Discovery",
+    PLANNING_CONFIGURATION: "Phase 3: Workflow Design & Configuration",
+    TESTING_VALIDATION: "Phase 4: Enrollment Readiness",
+    GO_LIVE_STABILIZATION: "Phase 5: Go-Live",
+    HYPERCARE_OPTIMIZATION: "Phase 6: Hypercare & Optimization",
+  },
+  CREDENTIALING: {
+    ONBOARDING_ACCESS: "Phase 1: Intake & Planning",
+    ASSESSMENT_DISCOVERY: "Phase 2: CAQH Management",
+    PLANNING_CONFIGURATION: "Phase 3: Application Submission",
+    TESTING_VALIDATION: "Phase 4: Follow-Up & Tracking",
+    GO_LIVE_STABILIZATION: "Phase 5: Go-Live Readiness",
+    HYPERCARE_OPTIMIZATION: "Phase 6: Go-Live",
+  },
+  HR: {
+    ONBOARDING_ACCESS: "Phase 1: Pre-Hire",
+    ASSESSMENT_DISCOVERY: "Phase 2: New Hire Setup",
+    PLANNING_CONFIGURATION: "Phase 3: Benefits",
+    TESTING_VALIDATION: "Phase 4: Compliance",
+    GO_LIVE_STABILIZATION: "Phase 5: Go-Live",
+    HYPERCARE_OPTIMIZATION: "Phase 6: Stabilization",
+  },
+  MSP_IT: {
+    ONBOARDING_ACCESS: "Phase 1: Discovery",
+    ASSESSMENT_DISCOVERY: "Phase 2: Design",
+    PLANNING_CONFIGURATION: "Phase 3: Deployment",
+    TESTING_VALIDATION: "Phase 4: Testing",
+    GO_LIVE_STABILIZATION: "Phase 5: Training",
+    HYPERCARE_OPTIMIZATION: "Phase 6: Go-Live / Hypercare",
+  },
+};
+
+const SERVICE_LINE_LABEL_MAP: Record<string, string> = {
+  RCM: "RCM",
+  CREDENTIALING: "Credentialing",
+  CCM: "CCM",
+  HR: "HR",
+  BENEFITS: "Benefits",
+  MSP_IT: "MSP / IT",
+  VBC: "VBC",
+  COMPLIANCE: "Compliance",
+  EMR: "EMR",
+  BACK_OFFICE: "Back Office",
+  SYNGATE: "Syngate",
+  SALES: "Sales",
+  CREDIT_CARDS: "Credit Cards",
+};
+
+export function getServiceLineLabel(line?: string): string {
+  if (!line) return "";
+  return SERVICE_LINE_LABEL_MAP[line] || line;
+}
+
+export function getTaskPhaseLabel(serviceLine: string | undefined, phase: TaskPhase): string | null {
+  if (serviceLine && SERVICE_LINE_PHASE_MAPS[serviceLine]) {
+    if (SERVICE_LINE_PHASE_MAPS[serviceLine][phase]) {
+      return SERVICE_LINE_PHASE_MAPS[serviceLine][phase];
+    }
+    // If service line explicitly defines its phases (e.g. RCM has 5 phases), exclude unmapped phase 6
+    return null;
+  }
+  if (serviceLine) {
+    const displayName = getServiceLineLabel(serviceLine);
+    return `Phase 1: ${displayName}`;
+  }
+  if (DEFAULT_PHASE_LABELS[phase]) {
+    return DEFAULT_PHASE_LABELS[phase];
+  }
+  return `Phase 1: ${phase.replace(/_/g, " ")}`;
+}
+
+const PHASE_LABELS = DEFAULT_PHASE_LABELS;
 
 const PHASE_SHORT_BADGES: Record<TaskPhase, { label: string; color: string }> =
   {
@@ -232,9 +315,15 @@ const SERVICE_LINE_OPTIONS = [
   { label: "Credentialing", value: "CREDENTIALING" },
   { label: "CCM", value: "CCM" },
   { label: "HR", value: "HR" },
-  { label: "MSP/IT", value: "MSP_IT" },
+  { label: "Benefits", value: "BENEFITS" },
+  { label: "MSP / IT", value: "MSP_IT" },
   { label: "VBC", value: "VBC" },
   { label: "Compliance", value: "COMPLIANCE" },
+  { label: "EMR", value: "EMR" },
+  { label: "Back Office", value: "BACK_OFFICE" },
+  { label: "Syngate", value: "SYNGATE" },
+  { label: "Sales", value: "SALES" },
+  { label: "Credit Cards", value: "CREDIT_CARDS" },
 ];
 
 const PHASE_OPTIONS = [
@@ -247,6 +336,7 @@ const PHASE_OPTIONS = [
   },
   { label: "Phase 4: Testing & Validation", value: "TESTING_VALIDATION" },
   { label: "Phase 5: Go-Live & Stabilization", value: "GO_LIVE_STABILIZATION" },
+  { label: "Phase 6: Hypercare & Optimization", value: "HYPERCARE_OPTIMIZATION" },
 ];
 
 const STATUS_OPTIONS = [
@@ -744,9 +834,17 @@ export default function OnboardingTasksPage() {
     setCurrentPage(1);
   };
 
-  // Filtered Tasks Calculation (API handles backend search/filters, fallback locally if search string provided)
+  // Filtered Tasks with Phase-Relative Sequence Index (#1, #2, etc per Phase)
   const filteredTasks = useMemo(() => {
-    return tasks;
+    const counts: Record<string, number> = {};
+    return tasks.map((t) => {
+      const groupKey = `${t.practiceId || t.practiceName || "default"}_${t.phase}`;
+      counts[groupKey] = (counts[groupKey] || 0) + 1;
+      return {
+        ...t,
+        phaseRelativeIndex: counts[groupKey],
+      };
+    });
   }, [tasks]);
 
   // Metrics from Backend Filter-Wise Calculation
@@ -1037,7 +1135,20 @@ export default function OnboardingTasksPage() {
         <Select
           value={draftFilters.phase}
           onChange={(val) => updateDraftFilter("phase", val)}
-          options={PHASE_OPTIONS}
+          options={(() => {
+            const seen = new Set<string>();
+            const list: { label: string; value: string }[] = [];
+            PHASE_OPTIONS.forEach((opt) => {
+              const label = opt.value
+                ? getTaskPhaseLabel(draftFilters.serviceLine, opt.value as TaskPhase)
+                : opt.label;
+              if (!seen.has(label)) {
+                seen.add(label);
+                list.push({ value: opt.value, label });
+              }
+            });
+            return list;
+          })()}
           placeholder="Select Phase"
         />
       </label>
@@ -1459,15 +1570,23 @@ export default function OnboardingTasksPage() {
                           </td>
                           <td className="px-4 py-3.5">
                             <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-                              {t.serviceLine}
+                              {getServiceLineLabel(t.serviceLine)}
                             </span>
                           </td>
                           <td className="px-4 py-3.5">
-                            <span
-                              className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${phaseBadge.color}`}
-                            >
-                              {phaseBadge.label}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${phaseBadge.color}`}
+                              >
+                                {getTaskPhaseLabel(t.serviceLine, t.phase)}
+                              </span>
+                              <span
+                                className="inline-flex items-center justify-center rounded-md bg-indigo-50 px-1.5 py-0.5 font-mono font-bold text-indigo-700 text-[11px] border border-indigo-200/80 shadow-2xs"
+                                title={`Task #${t.phaseRelativeIndex} of this phase`}
+                              >
+                                #{t.phaseRelativeIndex}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2">
@@ -1808,7 +1927,7 @@ export default function OnboardingTasksPage() {
                 <div>
                   <span className="text-xs font-bold font-mono tracking-wider text-indigo-600">
                     {selectedTask.taskCode || `TASK${selectedTask.taskNumber}`}{" "}
-                    - {selectedTask.serviceLine}
+                    - {getServiceLineLabel(selectedTask.serviceLine)}
                   </span>
                   <h3 className="text-xl font-bold text-slate-900 mt-1">
                     {selectedTask.name}
@@ -1904,10 +2023,20 @@ export default function OnboardingTasksPage() {
                 {/* Metadata Grid with MM-DD-YYYY Dates */}
                 <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs">
                   <div>
-                    <span className="text-slate-400 block mb-0.5">Phase</span>
-                    <span className="font-semibold text-slate-800">
-                      {PHASE_LABELS[selectedTask.phase]}
-                    </span>
+                    <span className="text-slate-400 block mb-1">Phase</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-800 text-xs">
+                        {getTaskPhaseLabel(selectedTask.serviceLine, selectedTask.phase)}
+                      </span>
+                      {selectedTask.phaseRelativeIndex && (
+                        <span
+                          className="inline-flex items-center justify-center rounded-md bg-indigo-50 px-2 py-0.5 font-mono font-bold text-indigo-700 text-xs border border-indigo-200"
+                          title={`Task #${selectedTask.phaseRelativeIndex} of this phase`}
+                        >
+                          #{selectedTask.phaseRelativeIndex}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-slate-400 block mb-0.5">
@@ -1970,7 +2099,7 @@ export default function OnboardingTasksPage() {
                         const reqStatusLabel = dep.requiredStatus === "IN_PROGRESS" ? "In Progress / Complete" : "Complete";
                         const isFinishBlock = dep.dependencyType === "BLOCKS_FINISH";
                         const isMet = dep.requiredStatus === "COMPLETE" ? dep.status === "COMPLETE" : (dep.status === "IN_PROGRESS" || dep.status === "COMPLETE");
-                        const mergedLabel = `${isFinishBlock ? "Finish Prerequisite" : "Start Prerequisite"} (Requires: ${reqStatusLabel})`;
+                        const mergedLabel = `${isFinishBlock ? "Complete Prerequisite" : "In Progress Prerequisite"} (Requires: ${reqStatusLabel})`;
 
                         return (
                           <div
@@ -1984,11 +2113,13 @@ export default function OnboardingTasksPage() {
                               ) : (
                                 <Lock className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                               )}
-                              {dep.phase && PHASE_SHORT_BADGES[dep.phase] && (
+                              {dep.phase && (
                                 <span
-                                  className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${PHASE_SHORT_BADGES[dep.phase].color}`}
+                                  className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${
+                                    PHASE_SHORT_BADGES[dep.phase]?.color || "bg-purple-50 text-purple-700 border-purple-200"
+                                  }`}
                                 >
-                                  {PHASE_SHORT_BADGES[dep.phase].label}
+                                  {getTaskPhaseLabel(selectedTask.serviceLine, dep.phase)}
                                 </span>
                               )}
                               <span className="font-bold font-mono text-indigo-700 shrink-0 mt-0.5">
@@ -2137,7 +2268,18 @@ export default function OnboardingTasksPage() {
                     <Select
                       value={newTaskPhase}
                       onChange={(val) => setNewTaskPhase(val as TaskPhase)}
-                      options={PHASE_OPTIONS.filter((o) => o.value !== "")}
+                      options={(() => {
+                        const seen = new Set<string>();
+                        const list: { label: string; value: string }[] = [];
+                        PHASE_OPTIONS.filter((o) => o.value !== "").forEach((opt) => {
+                          const label = getTaskPhaseLabel(newTaskServiceLine, opt.value as TaskPhase);
+                          if (!seen.has(label)) {
+                            seen.add(label);
+                            list.push({ value: opt.value, label });
+                          }
+                        });
+                        return list;
+                      })()}
                       placeholder="Select Phase"
                     />
                   </div>
@@ -2282,7 +2424,18 @@ export default function OnboardingTasksPage() {
                     <Select
                       value={editTaskPhase}
                       onChange={(val) => setEditTaskPhase(val as TaskPhase)}
-                      options={PHASE_OPTIONS.filter((o) => o.value !== "")}
+                      options={(() => {
+                        const seen = new Set<string>();
+                        const list: { label: string; value: string }[] = [];
+                        PHASE_OPTIONS.filter((o) => o.value !== "").forEach((opt) => {
+                          const label = getTaskPhaseLabel(editTaskServiceLine, opt.value as TaskPhase);
+                          if (!seen.has(label)) {
+                            seen.add(label);
+                            list.push({ value: opt.value, label });
+                          }
+                        });
+                        return list;
+                      })()}
                       placeholder="Select Phase"
                     />
                   </div>
@@ -2375,7 +2528,7 @@ export default function OnboardingTasksPage() {
                   <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200 flex flex-col">
                     <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
                       <div>
-                        <label className="block text-sm font-bold text-slate-800">Prerequisites to Start</label>
+                        <label className="block text-sm font-bold text-slate-800">Prerequisites for Inprogress</label>
                         <p className="text-[10px] text-slate-500 mt-0.5">Dependencies that must be satisfied before this task can start.</p>
                       </div>
                       <button
@@ -2454,7 +2607,7 @@ export default function OnboardingTasksPage() {
                   <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200 flex flex-col">
                     <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
                       <div>
-                        <label className="block text-sm font-bold text-slate-800">Prerequisites to Finish</label>
+                        <label className="block text-sm font-bold text-slate-800">Prerequisites for complete</label>
                         <p className="text-[10px] text-slate-500 mt-0.5">Dependencies that must be satisfied before this task can be completed.</p>
                       </div>
                       <button
