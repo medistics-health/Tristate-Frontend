@@ -5,6 +5,7 @@ import { ChevronDown, Check } from "lucide-react";
 export type SelectOption = {
   label: string;
   value: string;
+  disabled?: boolean;
 };
 
 type SelectProps = {
@@ -101,16 +102,21 @@ export default function Select({
       ) : (
         options.map((opt) => {
           const isSelected = opt.value === value;
+          const isDisabled = !!opt.disabled;
           return (
             <button
               key={opt.value}
               type="button"
+              disabled={isDisabled}
               onClick={() => {
+                if (isDisabled) return;
                 onChange(opt.value);
                 setIsOpen(false);
               }}
               className={`w-full flex items-center justify-between px-3 py-2 text-left text-[13px] transition-colors ${
-                isSelected
+                isDisabled
+                  ? "text-slate-400 bg-slate-50 opacity-60 cursor-not-allowed"
+                  : isSelected
                   ? "bg-[#f0f2fe] text-[#4f63ea] font-medium"
                   : "text-slate-700 hover:bg-slate-50"
               }`}
@@ -128,14 +134,16 @@ export default function Select({
     <div className="relative w-full" ref={containerRef}>
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`flex items-center justify-between app-control rounded-md px-3 py-2 text-[13px] bg-white transition-colors select-none ${
-          disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
-        } ${isOpen ? "border-[#4f63ea] ring-1 ring-[#4f63ea]/20" : ""} ${className}`}
+        className={`flex items-center justify-between app-control rounded-md px-3 py-2 text-[13px] transition-colors select-none ${
+          className.includes("bg-") ? "" : "bg-white"
+        } ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"} ${
+          isOpen ? "border-[#4f63ea] ring-1 ring-[#4f63ea]/20" : ""
+        } ${className}`}
       >
-        <span className={`truncate ${selectedOption ? "text-slate-800 font-medium" : "text-slate-400"}`}>
+        <span className={`truncate ${selectedOption ? (className.includes("text-") ? "font-bold" : "text-slate-800 font-medium") : "text-slate-400"}`}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${className.includes("text-") ? "currentColor opacity-70" : "text-slate-400"} ${isOpen ? "rotate-180" : ""}`} />
       </div>
 
       {dropdownContent ? createPortal(dropdownContent, document.body) : null}
