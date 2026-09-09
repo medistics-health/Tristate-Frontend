@@ -287,6 +287,13 @@ const personRoleOptions: PersonRole[] = [
   "OTHER",
 ];
 
+const designationOptions = [
+  { label: "Owner", value: "Owner" },
+  { label: "Doctor (Dr.)", value: "Dr." },
+  { label: "Practice Manager", value: "Practice Manager" },
+  { label: "Office Manager", value: "Office Manager" },
+];
+
 function isClientNameField(field: DocusealField) {
   return /client\s*name/i.test(field.name || "");
 }
@@ -2519,8 +2526,7 @@ function CreateLeadPage() {
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
                         Title
                       </span>
-                      <input
-                        type="text"
+                      <select
                         value={form.primaryContactDesignation}
                         onChange={(e) =>
                           updateField(
@@ -2529,7 +2535,23 @@ function CreateLeadPage() {
                           )
                         }
                         className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      />
+                      >
+                        <option value="">Select title</option>
+                        {designationOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                        {form.primaryContactDesignation &&
+                          !designationOptions.some(
+                            (option) =>
+                              option.value === form.primaryContactDesignation,
+                          ) && (
+                            <option value={form.primaryContactDesignation}>
+                              {form.primaryContactDesignation}
+                            </option>
+                          )}
+                      </select>
                     </label>
                   </div>
                 )}
