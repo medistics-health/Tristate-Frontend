@@ -84,16 +84,13 @@ export function getSubmissionApprovalStatus(agreement: {
 function agreementToRow(agreement: Agreement): AgreementsRow {
   const submissions = agreement.docusealSubmissions || [];
   const completedSubmissions = submissions.filter(
-    (s) => s.status === "completed",
+    (s) => s.status === "completed" || s.status === "signed",
   ).length;
-  const latestSubmission = agreement.docusealSubmissions?.[0];
-  const submissionStatus = latestSubmission?.status;
+  const totalSubmissions = submissions.length;
 
   let signingStatus = "Not Sent";
-  if (submissionStatus === "completed") {
-    signingStatus = "Completed";
-  } else if (submissionStatus === "pending") {
-    signingStatus = "Pending Signature";
+  if (totalSubmissions > 0) {
+    signingStatus = `${completedSubmissions} of ${totalSubmissions} signed`;
   } else if (agreement.docusealId) {
     signingStatus = "Template Created";
   }
