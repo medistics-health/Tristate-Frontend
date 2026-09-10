@@ -246,9 +246,11 @@ const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
 
 const AUTO_INCLUDE_TEMPLATE_NAMES = [
   "Master Service Agreement",
+  "01_Master_Service_Agreement_CORRECTED",
   "BAA",
   "Credentialing Exhibit",
   "Mutual NDA",
+  "09_NDA_CORRECTED"
   // "Exhibit P",
 ];
 
@@ -830,7 +832,7 @@ function CreateLeadPage() {
         setServices(serviceList.filter((service) => service.isActive));
         setUsers(userList);
         setTemplates(
-          templateRes.templates.data.filter((t) => !isHiddenTemplate(t.name)),
+          templateRes.templates.data.filter((t) => !isHiddenTemplate(t.name) && t.folder_id === 314364),
         );
       } catch (error) {
         const message =
