@@ -18,10 +18,14 @@ export type PracticeServiceLine =
   (typeof PRACTICE_SERVICE_LINE_OPTIONS)[number]["value"];
 
 export function formatPracticeServiceLine(value: string) {
-  return (
-    PRACTICE_SERVICE_LINE_OPTIONS.find((option) => option.value === value)
-      ?.label ?? value
-  );
+  if (!value) return "";
+  const found = PRACTICE_SERVICE_LINE_OPTIONS.find((option) => option.value === value);
+  if (found) return found.label;
+
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export function parsePracticeServiceLines(value: unknown): PracticeServiceLine[] {

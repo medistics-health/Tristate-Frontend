@@ -841,7 +841,7 @@ export default function OnboardingWorkstreamsPage() {
                             {String(row.values.practiceName || "-")}
                           </td>
                           <td className="border-b border-r border-[#f4f1ec] px-4 py-3">
-                            {String(row.values.serviceLine || "-")}
+                            {formatPracticeServiceLine(String(row.values.serviceLine || ""))}
                           </td>
                           <td className="border-b border-r border-[#f4f1ec] px-4 py-3">
                             <span

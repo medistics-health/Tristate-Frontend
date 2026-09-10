@@ -9,6 +9,7 @@ import {
   Layers,
   List,
   Lock,
+  Unlock,
   Plus,
   ShieldAlert,
   Sparkles,
@@ -218,7 +219,11 @@ const SERVICE_LINE_LABEL_MAP: Record<string, string> = {
 
 export function getServiceLineLabel(line?: string): string {
   if (!line) return "";
-  return SERVICE_LINE_LABEL_MAP[line] || line;
+  if (SERVICE_LINE_LABEL_MAP[line]) return SERVICE_LINE_LABEL_MAP[line];
+  return line
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export function getTaskPhaseLabel(serviceLine: string | undefined, phase: TaskPhase): string | null {
@@ -310,7 +315,6 @@ const STATUS_CONFIG: Record<
 };
 
 const SERVICE_LINE_OPTIONS = [
-  { label: "All Service Lines", value: "" },
   { label: "RCM", value: "RCM" },
   { label: "Credentialing", value: "CREDENTIALING" },
   { label: "CCM", value: "CCM" },
@@ -408,6 +412,7 @@ export default function OnboardingTasksPage() {
     useState<TaskPhase>("ONBOARDING_ACCESS");
   const [newTaskOwnerUserId, setNewTaskOwnerUserId] = useState("");
   const [newTaskOwnerName, setNewTaskOwnerName] = useState("");
+  const [newTaskStartDate, setNewTaskStartDate] = useState("");
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
   const [newTaskDeliverable, setNewTaskDeliverable] = useState("");
 
@@ -836,15 +841,30 @@ export default function OnboardingTasksPage() {
 
   // Filtered Tasks with Phase-Relative Sequence Index (#1, #2, etc per Phase)
   const filteredTasks = useMemo(() => {
-    const counts: Record<string, number> = {};
-    return tasks.map((t) => {
+    // 1. Group tasks by practice & phase
+    const groups: Record<string, typeof tasks> = {};
+    tasks.forEach((t) => {
       const groupKey = `${t.practiceId || t.practiceName || "default"}_${t.phase}`;
-      counts[groupKey] = (counts[groupKey] || 0) + 1;
-      return {
-        ...t,
-        phaseRelativeIndex: counts[groupKey],
-      };
+      if (!groups[groupKey]) groups[groupKey] = [];
+      groups[groupKey].push(t);
     });
+
+    // 2. Map tasks to their phase-relative index based on taskNumber ascending order
+    const indexMap = new Map<string, number>();
+    Object.values(groups).forEach((groupTasks) => {
+      // Sort tasks in the phase by taskNumber (template blueprint tasks have lower taskNumbers)
+      const sorted = [...groupTasks].sort(
+        (a, b) => (a.taskNumber || 0) - (b.taskNumber || 0)
+      );
+      sorted.forEach((t, idx) => {
+        indexMap.set(t.id, idx + 1);
+      });
+    });
+
+    return tasks.map((t) => ({
+      ...t,
+      phaseRelativeIndex: indexMap.get(t.id) || 1,
+    }));
   }, [tasks]);
 
   // Metrics from Backend Filter-Wise Calculation
@@ -1121,19 +1141,24 @@ export default function OnboardingTasksPage() {
         </span>
         <Select
           value={draftFilters.serviceLine}
-          onChange={(val) => updateDraftFilter("serviceLine", val)}
+          onChange={(val) => {
+            updateDraftFilter("serviceLine", val);
+            // If service line is cleared, also clear phase filter
+            if (!val) updateDraftFilter("phase", "");
+          }}
           options={SERVICE_LINE_OPTIONS}
           placeholder="Select Service Line"
         />
       </label>
 
-      {/* Phase Select */}
+      {/* Phase Select (Disabled if Service Line is not selected) */}
       <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
           Onboarding Phase
         </span>
         <Select
           value={draftFilters.phase}
+          disabled={!draftFilters.serviceLine}
           onChange={(val) => updateDraftFilter("phase", val)}
           options={(() => {
             const seen = new Set<string>();
@@ -1142,14 +1167,14 @@ export default function OnboardingTasksPage() {
               const label = opt.value
                 ? getTaskPhaseLabel(draftFilters.serviceLine, opt.value as TaskPhase)
                 : opt.label;
-              if (!seen.has(label)) {
+              if (label && !seen.has(label)) {
                 seen.add(label);
                 list.push({ value: opt.value, label });
               }
             });
             return list;
           })()}
-          placeholder="Select Phase"
+          placeholder={draftFilters.serviceLine ? "Select Phase" : "Select Service Line first"}
         />
       </label>
 
@@ -1201,7 +1226,9 @@ export default function OnboardingTasksPage() {
         serviceLine: newTaskServiceLine,
         phase: newTaskPhase,
         ownerUserId: newTaskOwnerUserId,
-        startDate: formatToMMDDYYYY(new Date()),
+        startDate: formatToMMDDYYYY(
+          newTaskStartDate ? new Date(newTaskStartDate) : new Date(),
+        ),
         dueDate: formatToMMDDYYYY(
           newTaskDueDate
             ? new Date(newTaskDueDate)
@@ -1239,6 +1266,8 @@ export default function OnboardingTasksPage() {
       toast.success(`Task ${formattedTask.taskCode} created successfully!`);
       setIsNewTaskModalOpen(false);
       setNewTaskName("");
+      setNewTaskStartDate("");
+      setNewTaskDueDate("");
       setNewTaskDeliverable("");
       setNewTaskPracticeId("");
       setNewTaskPracticeName("");
@@ -1609,9 +1638,15 @@ export default function OnboardingTasksPage() {
                           </td>
                           <td className="px-4 py-3.5">
                             {t.dependencies.length > 0 ? (
-                              <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
-                                YES
-                              </span>
+                              !hasUnmetStartDeps && !hasUnmetFinishDeps ? (
+                                <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                                  YES
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-md bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-600/20">
+                                  YES
+                                </span>
+                              )
                             ) : (
                               <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">
                                 NO
@@ -1776,7 +1811,7 @@ export default function OnboardingTasksPage() {
                                 </span>
                               </div>
                               <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
-                                {t.serviceLine}
+                                {getServiceLineLabel(t.serviceLine)}
                               </span>
                             </div>
 
@@ -1798,17 +1833,39 @@ export default function OnboardingTasksPage() {
                               </div>
                             </div>
 
-                            {t.dependencies.length > 0 && (
-                              <div className="rounded bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800 flex items-center gap-1">
-                                <Lock className="h-3 w-3 text-amber-600" />
-                                Depends on{" "}
-                                {t.dependencies
-                                  .map(
-                                    (d) => d.taskCode || `TASK${d.taskNumber}`,
-                                  )
-                                  .join(", ")}
-                              </div>
-                            )}
+                            {t.dependencies.length > 0 && (() => {
+                              const startDeps = t.dependencies.filter((d: any) => d.dependencyType === "BLOCKS_START");
+                              const finishDeps = t.dependencies.filter((d: any) => d.dependencyType === "BLOCKS_FINISH");
+                              const hasUnmetStart = startDeps.some(
+                                (dep: any) => dep.requiredStatus === "COMPLETE" ? dep.status !== "COMPLETE" : (dep.status !== "IN_PROGRESS" && dep.status !== "COMPLETE")
+                              );
+                              const hasUnmetFinish = finishDeps.some(
+                                (dep: any) => dep.requiredStatus === "COMPLETE" ? dep.status !== "COMPLETE" : (dep.status !== "IN_PROGRESS" && dep.status !== "COMPLETE")
+                              );
+                              const isAllMet = !hasUnmetStart && !hasUnmetFinish;
+
+                              return isAllMet ? (
+                                <div className="rounded-md bg-emerald-50 border border-emerald-200/80 px-2 py-1 text-[11px] font-semibold text-emerald-800 flex items-center gap-1.5 shadow-2xs">
+                                  <Unlock className="h-3 w-3 text-emerald-600 shrink-0" />
+                                  <span>
+                                    Depends on{" "}
+                                    {t.dependencies
+                                      .map((d) => d.taskCode || `TASK${d.taskNumber}`)
+                                      .join(", ")}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="rounded-md bg-rose-50 border border-rose-200/80 px-2 py-1 text-[11px] font-semibold text-rose-800 flex items-center gap-1.5 shadow-2xs">
+                                  <Lock className="h-3 w-3 text-rose-600 shrink-0" />
+                                  <span>
+                                    Depends on{" "}
+                                    {t.dependencies
+                                      .map((d) => d.taskCode || `TASK${d.taskNumber}`)
+                                      .join(", ")}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })
@@ -2288,6 +2345,16 @@ export default function OnboardingTasksPage() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
+                      Start Date
+                    </label>
+                    <DatePicker
+                      value={newTaskStartDate}
+                      onChange={(val) => setNewTaskStartDate(val)}
+                      placeholder="MM-DD-YYYY"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
                       Due Date
                     </label>
                     <DatePicker
@@ -2296,18 +2363,19 @@ export default function OnboardingTasksPage() {
                       placeholder="MM-DD-YYYY"
                     />
                   </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Expected Deliverable
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Audit Approval Pack"
-                      value={newTaskDeliverable}
-                      onChange={(e) => setNewTaskDeliverable(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
-                    />
-                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Expected Deliverable
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Audit Approval Pack"
+                    value={newTaskDeliverable}
+                    onChange={(e) => setNewTaskDeliverable(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:border-indigo-500 focus:outline-none"
+                  />
                 </div>
 
                 <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-6">

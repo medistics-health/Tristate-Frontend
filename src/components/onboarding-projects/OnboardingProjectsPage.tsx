@@ -593,16 +593,6 @@ export default function OnboardingProjectsPage() {
                 />
                 Refresh
               </button>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search practices, tasks, risks..."
-                  className="app-control w-64 rounded-xl border border-[#ece8e1] bg-white py-2 pl-9 pr-3 text-[13px] text-slate-800 placeholder-slate-400 outline-none focus:border-[#4f63ea]"
-                />
-              </div>
             </div>
           </div>
         </div>
@@ -640,57 +630,71 @@ export default function OnboardingProjectsPage() {
               {filteredProjects.length === 0 ? (
                 <EmptyLine text="No onboarding projects yet. Workstreams for a practice will appear here as a project." />
               ) : (
-                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
                   {filteredProjects.slice(0, 6).map((project) => (
                     <Link
                       key={project.id}
                       to="/project-management/workstreams"
-                      className="rounded-xl border border-[#ece8e1] bg-[#fcfbf9] p-4 transition-colors hover:border-[#d7d2c8] hover:bg-white"
+                      className="group rounded-xl border border-slate-200/90 bg-[#fcfbf9] p-4.5 transition-all hover:border-indigo-300 hover:bg-white hover:shadow-md flex flex-col justify-between"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-[15px] font-semibold text-slate-800">
-                            {project.practiceName}
+                      <div>
+                        <div className="flex items-start justify-between gap-2.5 mb-2">
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">
+                              {project.practiceName}
+                            </h3>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Owner: <span className="font-semibold text-slate-700">{project.ownerName}</span>
+                              {project.targetDate ? ` · Go-live ${formatDisplayDate(project.targetDate)}` : ""}
+                            </div>
                           </div>
-                          <div className="mt-1 text-[12px] text-slate-500">
-                            Owner {project.ownerName}
-                            {project.targetDate
-                              ? ` · Go-live ${formatDisplayDate(project.targetDate)}`
-                              : ""}
-                          </div>
-                        </div>
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${projectStatusClass(project.status)}`}
-                        >
-                          {formatStatusLabel(project.status)}
-                        </span>
-                      </div>
-                      <div className="mt-3">
-                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
-                          <span>Completion</span>
-                          <span className="font-semibold text-slate-700">
-                            {project.percentComplete}%
+                          <span
+                            className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide shadow-2xs ${projectStatusClass(project.status)}`}
+                          >
+                            {formatStatusLabel(project.status)}
                           </span>
                         </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-[#4f63ea]"
-                            style={{
-                              width: `${Math.min(100, Math.max(0, project.percentComplete))}%`,
-                            }}
-                          />
+
+                        {/* Completion progress bar */}
+                        <div className="mt-3.5">
+                          <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
+                            <span>Project Completion</span>
+                            <span className="font-bold text-slate-800">{project.percentComplete}%</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-200/80 shadow-inner">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 transition-all duration-500"
+                              style={{
+                                width: `${Math.min(100, Math.max(0, project.percentComplete))}%`,
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-600">
-                        <span className="rounded-md bg-white px-2 py-1 ring-1 ring-[#ece8e1]">
+
+                      {/* Stat pills footer */}
+                      <div className="mt-4 pt-3 border-t border-slate-200/70 flex items-center gap-2 text-[11px] font-medium text-slate-600">
+                        <span className="inline-flex items-center rounded-md bg-white border border-slate-200 px-2 py-0.5 text-slate-700 shadow-2xs">
                           {project.workstreamCount} workstreams
                         </span>
-                        <span className="rounded-md bg-white px-2 py-1 ring-1 ring-[#ece8e1]">
-                          {project.blockedWorkstreams} blocked
-                        </span>
-                        <span className="rounded-md bg-white px-2 py-1 ring-1 ring-[#ece8e1]">
-                          {project.openRisks} open risks
-                        </span>
+                        {project.blockedWorkstreams > 0 ? (
+                          <span className="inline-flex items-center rounded-md bg-rose-50 border border-rose-200 px-2 py-0.5 text-rose-700 font-bold">
+                            {project.blockedWorkstreams} blocked
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-md bg-slate-50 border border-slate-200 px-2 py-0.5 text-slate-500">
+                            0 blocked
+                          </span>
+                        )}
+                        {project.openRisks > 0 ? (
+                          <span className="inline-flex items-center rounded-md bg-amber-50 border border-amber-200 px-2 py-0.5 text-amber-700 font-bold">
+                            {project.openRisks} risks
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-md bg-slate-50 border border-slate-200 px-2 py-0.5 text-slate-500">
+                            0 risks
+                          </span>
+                        )}
                       </div>
                     </Link>
                   ))}
@@ -698,46 +702,59 @@ export default function OnboardingProjectsPage() {
               )}
             </section>
 
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <DashboardPanel
-                title="Workstreams needing attention"
+                title="Workstreams Needing Attention"
                 to="/project-management/workstreams"
-                icon={<GitBranch className="h-4 w-4 text-orange-500" />}
+                icon={<GitBranch className="h-4 w-4 text-amber-500" />}
                 count={attentionWorkstreams.length}
               >
                 {attentionWorkstreams.length === 0 ? (
                   <EmptyLine text="No blocked or waiting workstreams." />
                 ) : (
-                  <ul className="divide-y divide-[#f0ece6]">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {attentionWorkstreams.map((workstream) => (
-                      <li key={workstream.id} className="py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-[13px] font-semibold text-slate-800">
-                              {workstream.practice?.name || "Practice"}
-                            </div>
-                            <div className="mt-0.5 text-[12px] text-slate-500">
+                      <Link
+                        key={workstream.id}
+                        to="/project-management/workstreams"
+                        className="group rounded-xl border border-slate-200/90 bg-slate-50/40 p-3.5 hover:border-indigo-300 hover:bg-white hover:shadow-sm transition-all flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">
                               {formatPracticeServiceLine(String(workstream.serviceLine))}
-                              {" · "}
-                              {workstream.percentComplete}% complete
-                              {" · "}
-                              {personName(workstream.owner)}
-                            </div>
+                            </span>
+                            <span
+                              className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold shadow-2xs ${workstreamStatusClass(String(workstream.status))}`}
+                            >
+                              {formatWorkstreamStatus(String(workstream.status))}
+                            </span>
                           </div>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${workstreamStatusClass(String(workstream.status))}`}
-                          >
-                            {formatWorkstreamStatus(String(workstream.status))}
-                          </span>
+                          <div className="font-bold text-xs text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">
+                            {workstream.practice?.name || "Practice"}
+                          </div>
                         </div>
-                      </li>
+
+                        <div className="mt-3 pt-2.5 border-t border-slate-200/60">
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                            <span>Progress</span>
+                            <span className="font-semibold text-slate-700">{workstream.percentComplete}%</span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-amber-500"
+                              style={{ width: `${workstream.percentComplete}%` }}
+                            />
+                          </div>
+                        </div>
+                      </Link>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </DashboardPanel>
 
               <DashboardPanel
-                title="Blocked & overdue tasks"
+                title="Blocked & Overdue Tasks"
                 to="/project-management/tasks"
                 icon={<Activity className="h-4 w-4 text-rose-500" />}
                 count={attentionTasks.length}
@@ -745,38 +762,46 @@ export default function OnboardingProjectsPage() {
                 {attentionTasks.length === 0 ? (
                   <EmptyLine text="No blocked or overdue tasks." />
                 ) : (
-                  <ul className="divide-y divide-[#f0ece6]">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {attentionTasks.map((task) => {
                       const status = TASK_STATUS_PILL[task.status] || TASK_STATUS_PILL.NOT_STARTED;
                       return (
-                        <li key={task.id} className="py-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate text-[13px] font-semibold text-slate-800">
-                                {task.taskCode || `T-${task.taskNumber}`} · {task.name}
-                              </div>
-                              <div className="mt-0.5 text-[12px] text-slate-500">
-                                {task.practiceName || "Practice"}
-                                {" · Due "}
-                                {formatDisplayDate(task.dueDate)}
-                                {isOverdue(task.dueDate) ? " · Overdue" : ""}
-                              </div>
+                        <Link
+                          key={task.id}
+                          to="/project-management/tasks"
+                          className="group rounded-xl border border-slate-200/90 bg-slate-50/40 p-3.5 hover:border-rose-300 hover:bg-white hover:shadow-sm transition-all flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="font-mono font-bold text-xs text-indigo-600">
+                                {task.taskCode || `T-${task.taskNumber}`}
+                              </span>
+                              <span
+                                className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold shadow-2xs ${status.className}`}
+                              >
+                                {status.label}
+                              </span>
                             </div>
-                            <span
-                              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${status.className}`}
-                            >
-                              {status.label}
+                            <div className="font-semibold text-xs text-slate-800 line-clamp-2 group-hover:text-rose-600 transition-colors">
+                              {task.name}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+                            <span className="truncate">{task.practiceName || "Practice"}</span>
+                            <span className={`font-semibold shrink-0 ${isOverdue(task.dueDate) ? "text-rose-600 font-bold" : "text-slate-600"}`}>
+                              {formatDisplayDate(task.dueDate)}
                             </span>
                           </div>
-                        </li>
+                        </Link>
                       );
                     })}
-                  </ul>
+                  </div>
                 )}
               </DashboardPanel>
 
               <DashboardPanel
-                title="Milestones at risk"
+                title="Milestones At Risk"
                 to="/project-management/milestones"
                 icon={<Flag className="h-4 w-4 text-amber-500" />}
                 count={attentionMilestones.length}
@@ -784,41 +809,45 @@ export default function OnboardingProjectsPage() {
                 {attentionMilestones.length === 0 ? (
                   <EmptyLine text="No at-risk or overdue milestones." />
                 ) : (
-                  <ul className="divide-y divide-[#f0ece6]">
+                  <div className="space-y-2.5">
                     {attentionMilestones.map((milestone) => {
                       const status =
                         MILESTONE_STATUS_PILL[milestone.status] ||
                         MILESTONE_STATUS_PILL.NOT_STARTED;
                       return (
-                        <li key={milestone.id} className="py-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate text-[13px] font-semibold text-slate-800">
-                                {milestone.milestoneCode} · {milestone.description}
-                              </div>
-                              <div className="mt-0.5 text-[12px] text-slate-500">
-                                {milestone.practiceName}
-                                {" · "}
-                                {formatPracticeServiceLine(milestone.serviceLine)}
-                                {" · "}
-                                {formatDisplayDate(milestone.targetDate)}
-                              </div>
+                        <Link
+                          key={milestone.id}
+                          to="/project-management/milestones"
+                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/90 bg-white p-3 hover:border-amber-300 hover:shadow-2xs transition-all"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="font-mono font-bold text-xs text-indigo-700">
+                                {milestone.milestoneCode}
+                              </span>
+                              <span className="text-[11px] text-slate-400">·</span>
+                              <span className="text-xs font-semibold text-slate-800 truncate">
+                                {milestone.description}
+                              </span>
                             </div>
-                            <span
-                              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${status.className}`}
-                            >
-                              {status.label}
-                            </span>
+                            <div className="text-[11px] text-slate-500">
+                              {milestone.practiceName} · {formatPracticeServiceLine(milestone.serviceLine)} · Target: {formatDisplayDate(milestone.targetDate)}
+                            </div>
                           </div>
-                        </li>
+                          <span
+                            className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-bold ${status.className}`}
+                          >
+                            {status.label}
+                          </span>
+                        </Link>
                       );
                     })}
-                  </ul>
+                  </div>
                 )}
               </DashboardPanel>
 
               <DashboardPanel
-                title="Upcoming go-lives"
+                title="Upcoming Go-Lives"
                 to="/project-management/milestones"
                 icon={<AlertTriangle className="h-4 w-4 text-indigo-500" />}
                 count={upcomingMilestones.length}
@@ -826,28 +855,32 @@ export default function OnboardingProjectsPage() {
                 {upcomingMilestones.length === 0 ? (
                   <EmptyLine text="No milestones due in the next 4 weeks." />
                 ) : (
-                  <ul className="divide-y divide-[#f0ece6]">
+                  <div className="space-y-2.5">
                     {upcomingMilestones.map((milestone) => (
-                      <li key={milestone.id} className="flex items-center justify-between gap-3 py-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-[13px] font-semibold text-slate-800">
+                      <Link
+                        key={milestone.id}
+                        to="/project-management/milestones"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/90 bg-white p-3 hover:border-indigo-300 hover:shadow-2xs transition-all"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-slate-800 truncate">
                             {milestone.description}
                           </div>
-                          <div className="text-[12px] text-slate-500">
+                          <div className="text-[11px] text-slate-500 mt-0.5">
                             {milestone.practiceName}
                           </div>
                         </div>
-                        <span className="shrink-0 text-[12px] font-medium text-slate-600">
+                        <span className="shrink-0 rounded-md bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 text-xs font-mono font-bold text-indigo-700">
                           {formatDisplayDate(milestone.targetDate)}
                         </span>
-                      </li>
+                      </Link>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </DashboardPanel>
 
               <DashboardPanel
-                title="Open risks"
+                title="Open Risks"
                 to="/project-management/risks"
                 icon={<ShieldAlert className="h-4 w-4 text-rose-500" />}
                 count={openRisks.length}
@@ -855,34 +888,41 @@ export default function OnboardingProjectsPage() {
                 {openRisks.length === 0 ? (
                   <EmptyLine text="No open risks in the register." />
                 ) : (
-                  <ul className="divide-y divide-[#f0ece6]">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {openRisks.map((risk) => (
-                      <li key={risk.id} className="py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-[13px] font-semibold text-slate-800">
-                              R-{risk.riskNumber} · {risk.description}
-                            </div>
-                            <div className="mt-0.5 text-[12px] text-slate-500">
-                              {risk.practice?.name || "Practice"}
-                              {" · "}
-                              {formatRiskStatus(String(risk.status))}
-                            </div>
+                      <Link
+                        key={risk.id}
+                        to="/project-management/risks"
+                        className="group rounded-xl border border-slate-200/90 bg-slate-50/40 p-3.5 hover:border-rose-300 hover:bg-white hover:shadow-sm transition-all flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <span className="font-mono font-bold text-xs text-rose-600">
+                              R-{risk.riskNumber}
+                            </span>
+                            <span
+                              className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold shadow-2xs ${riskRatingClass(String(risk.rating))}`}
+                            >
+                              {formatRiskRating(String(risk.rating))}
+                            </span>
                           </div>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${riskRatingClass(String(risk.rating))}`}
-                          >
-                            {formatRiskRating(String(risk.rating))}
-                          </span>
+                          <div className="font-semibold text-xs text-slate-800 line-clamp-2 group-hover:text-rose-600 transition-colors">
+                            {risk.description}
+                          </div>
                         </div>
-                      </li>
+
+                        <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+                          <span className="truncate">{risk.practice?.name || "Practice"}</span>
+                          <span className="font-medium text-slate-600">{formatRiskStatus(String(risk.status))}</span>
+                        </div>
+                      </Link>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </DashboardPanel>
 
               <DashboardPanel
-                title="Open action items"
+                title="Open Action Items"
                 to="/project-management/action-items"
                 icon={<CheckSquare className="h-4 w-4 text-sky-500" />}
                 count={openActionItems.length}
@@ -890,35 +930,42 @@ export default function OnboardingProjectsPage() {
                 {openActionItems.length === 0 ? (
                   <EmptyLine text="No open action items." />
                 ) : (
-                  <ul className="divide-y divide-[#f0ece6]">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {openActionItems.map((item) => (
-                      <li key={item.id} className="py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="line-clamp-2 text-[13px] font-semibold text-slate-800">
-                              {item.note}
-                            </div>
-                            <div className="mt-0.5 text-[12px] text-slate-500">
+                      <Link
+                        key={item.id}
+                        to="/project-management/action-items"
+                        className="group rounded-xl border border-slate-200/90 bg-slate-50/40 p-3.5 hover:border-sky-300 hover:bg-white hover:shadow-sm transition-all flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <span className="text-[11px] font-semibold text-slate-500 truncate">
                               {item.practice?.name || "Practice"}
-                              {" · "}
-                              {userName(item.responsibleUser) || "Unassigned"}
-                            </div>
+                            </span>
+                            <span
+                              className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold shadow-2xs ${actionItemStatusClass(String(item.status))}`}
+                            >
+                              {formatActionItemStatus(String(item.status))}
+                            </span>
                           </div>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${actionItemStatusClass(String(item.status))}`}
-                          >
-                            {formatActionItemStatus(String(item.status))}
-                          </span>
+                          <div className="font-semibold text-xs text-slate-800 line-clamp-2 group-hover:text-sky-600 transition-colors">
+                            {item.note}
+                          </div>
                         </div>
-                      </li>
+
+                        <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+                          <span>Responsible</span>
+                          <span className="font-semibold text-slate-700">{userName(item.responsibleUser) || "Unassigned"}</span>
+                        </div>
+                      </Link>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </DashboardPanel>
             </div>
 
             <DashboardPanel
-              title="Active task templates"
+              title="Active Task Templates Blueprint"
               to="/project-management/templates"
               icon={<Layers className="h-4 w-4 text-indigo-500" />}
               count={activeTemplates.length}
@@ -926,23 +973,29 @@ export default function OnboardingProjectsPage() {
               {activeTemplates.length === 0 ? (
                 <EmptyLine text="No active templates. Add service-line playbooks in Task Templates." />
               ) : (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
                   {activeTemplates.map((template) => (
                     <Link
                       key={template.id}
                       to="/project-management/templates"
-                      className="rounded-xl border border-[#ece8e1] bg-[#fcfbf9] p-4 hover:border-[#d7d2c8]"
+                      className="group rounded-xl border border-slate-200/90 bg-slate-50/50 p-4 transition-all hover:border-indigo-300 hover:bg-white hover:shadow-sm flex flex-col justify-between"
                     >
-                      <div className="text-[13px] font-semibold text-slate-800">
-                        {template.name}
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="inline-flex rounded-md bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                            {formatPracticeServiceLine(template.serviceLine)}
+                          </span>
+                          <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                            {template.taskCount} tasks
+                          </span>
+                        </div>
+                        <div className="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors line-clamp-1">
+                          {template.name}
+                        </div>
                       </div>
-                      <div className="mt-1 text-[12px] text-slate-500">
-                        {formatPracticeServiceLine(template.serviceLine)}
-                        {" · "}
-                        {template.taskCount} tasks
-                        {template.defaultOwnerName
-                          ? ` · ${template.defaultOwnerName}`
-                          : ""}
+                      <div className="mt-3 pt-2 border-t border-slate-200/60 text-[11px] text-slate-500 flex items-center justify-between">
+                        <span>Default Owner</span>
+                        <span className="font-semibold text-slate-700">{template.defaultOwnerName || "Unassigned"}</span>
                       </div>
                     </Link>
                   ))}
