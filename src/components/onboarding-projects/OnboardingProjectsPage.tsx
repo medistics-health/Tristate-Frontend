@@ -517,13 +517,6 @@ export default function OnboardingProjectsPage() {
 
   const kpis = [
     {
-      label: "Active projects",
-      value: projects.length,
-      hint: "Practice onboarding portfolio",
-      icon: FolderKanban,
-      iconClass: "text-indigo-500",
-    },
-    {
       label: "Workstreams at risk",
       value: workstreams.filter((workstream) =>
         ["BLOCKED", "INTERNAL_ACTION_REQUIRED", "WAITING_ON_CLIENT"].includes(
@@ -621,86 +614,6 @@ export default function OnboardingProjectsPage() {
               ))}
             </div>
 
-            <section className="rounded-2xl border border-[#ece8e1] bg-white p-5 shadow-xs">
-              <SectionHeader
-                title="Projects"
-                to="/project-management/workstreams"
-                count={filteredProjects.length}
-              />
-              {filteredProjects.length === 0 ? (
-                <EmptyLine text="No onboarding projects yet. Workstreams for a practice will appear here as a project." />
-              ) : (
-                <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-                  {filteredProjects.slice(0, 6).map((project) => (
-                    <Link
-                      key={project.id}
-                      to="/project-management/workstreams"
-                      className="group rounded-xl border border-slate-200/90 bg-[#fcfbf9] p-4.5 transition-all hover:border-indigo-300 hover:bg-white hover:shadow-md flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-2.5 mb-2">
-                          <div className="min-w-0">
-                            <h3 className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">
-                              {project.practiceName}
-                            </h3>
-                            <div className="text-[11px] text-slate-500 mt-0.5">
-                              Owner: <span className="font-semibold text-slate-700">{project.ownerName}</span>
-                              {project.targetDate ? ` · Go-live ${formatDisplayDate(project.targetDate)}` : ""}
-                            </div>
-                          </div>
-                          <span
-                            className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide shadow-2xs ${projectStatusClass(project.status)}`}
-                          >
-                            {formatStatusLabel(project.status)}
-                          </span>
-                        </div>
-
-                        {/* Completion progress bar */}
-                        <div className="mt-3.5">
-                          <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
-                            <span>Project Completion</span>
-                            <span className="font-bold text-slate-800">{project.percentComplete}%</span>
-                          </div>
-                          <div className="h-2 overflow-hidden rounded-full bg-slate-200/80 shadow-inner">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 transition-all duration-500"
-                              style={{
-                                width: `${Math.min(100, Math.max(0, project.percentComplete))}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Stat pills footer */}
-                      <div className="mt-4 pt-3 border-t border-slate-200/70 flex items-center gap-2 text-[11px] font-medium text-slate-600">
-                        <span className="inline-flex items-center rounded-md bg-white border border-slate-200 px-2 py-0.5 text-slate-700 shadow-2xs">
-                          {project.workstreamCount} workstreams
-                        </span>
-                        {project.blockedWorkstreams > 0 ? (
-                          <span className="inline-flex items-center rounded-md bg-rose-50 border border-rose-200 px-2 py-0.5 text-rose-700 font-bold">
-                            {project.blockedWorkstreams} blocked
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-md bg-slate-50 border border-slate-200 px-2 py-0.5 text-slate-500">
-                            0 blocked
-                          </span>
-                        )}
-                        {project.openRisks > 0 ? (
-                          <span className="inline-flex items-center rounded-md bg-amber-50 border border-amber-200 px-2 py-0.5 text-amber-700 font-bold">
-                            {project.openRisks} risks
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-md bg-slate-50 border border-slate-200 px-2 py-0.5 text-slate-500">
-                            0 risks
-                          </span>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </section>
 
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <DashboardPanel
