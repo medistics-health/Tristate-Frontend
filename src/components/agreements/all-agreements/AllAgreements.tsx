@@ -122,9 +122,11 @@ const approvalStatusOptions = [
 
 const AUTO_INCLUDE_TEMPLATE_NAMES = [
   "Master Service Agreement",
+  "01_Master_Service_Agreement_CORRECTED",
   "BAA",
   "Credentialing Exhibit",
   "Mutual NDA",
+  "09_NDA_CORRECTED"
   // "Exhibit P",
 ];
 
@@ -1107,7 +1109,7 @@ function AllAgreementsPage() {
       setTemplatesLoading(true);
       try {
         const response = await getDocusealTemplates();
-        const visible = response.templates.data.filter((t) => !isHiddenTemplate(t.name));
+        const visible = response.templates.data.filter((t) => !isHiddenTemplate(t.name) && t.folder_id === 314364);
         setDocusealTemplates(visible);
         applyAutoSelectTemplates(visible);
       } catch (err) {
