@@ -945,7 +945,8 @@ function AllAgreementsPage() {
     const selectedPractice = practices.find(
       (item) => item.id === createForm.practiceId,
     );
-    const willAutoSendToPractice = selectedPractice?.status === "ACTIVE";
+    const willAutoSendToPractice =
+      isAdmin && selectedPractice?.status === "ACTIVE";
 
     setIsSubmitting(true);
     try {
@@ -2037,7 +2038,7 @@ function AllAgreementsPage() {
     (item) => item.id === createForm.practiceId,
   );
   const willAutoSendCreatedAgreement =
-    selectedCreatePractice?.status === "ACTIVE";
+    isAdmin && selectedCreatePractice?.status === "ACTIVE";
 
   const createPanel = (
     <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">

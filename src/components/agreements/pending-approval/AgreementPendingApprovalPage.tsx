@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, Info, RefreshCw, XCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "../../layout/AppLayout";
 import {
@@ -12,6 +12,8 @@ import {
   type Agreement,
   type DocusealTemplate,
 } from "../../../services/operations/agreements";
+import { getPractice } from "../../../services/operations/practices";
+import { hasAdminAccess, readStoredUser } from "../../../utils/auth";
 import {
   getDocusealFieldInputType,
   getDocusealFieldLabel,
@@ -55,10 +57,14 @@ function toApprovalAgreementStatus(agreement: Agreement) {
 function AgreementPendingApprovalPage() {
   const [searchParams] = useSearchParams();
   const requestedAgreementId = searchParams.get("agreementId") || undefined;
+  const isAdmin = hasAdminAccess(readStoredUser()?.role);
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(
     null,
   );
+  const [selectedPracticeStatus, setSelectedPracticeStatus] = useState<
+    string | null
+  >(null);
   const [editableFieldValues, setEditableFieldValues] = useState<
     Record<string, Record<string, string>>
   >({});
@@ -76,6 +82,15 @@ function AgreementPendingApprovalPage() {
       setIsDetailLoading(true);
       const agreement = await getAgreement(id);
       setSelectedAgreement(agreement);
+      setSelectedPracticeStatus(null);
+      if (agreement.practiceId) {
+        try {
+          const practice = await getPractice(agreement.practiceId);
+          setSelectedPracticeStatus(practice.status);
+        } catch {
+          setSelectedPracticeStatus(null);
+        }
+      }
       setEditableFieldValues(
         (agreement.docusealSubmissions || []).reduce<
           Record<string, Record<string, string>>
@@ -135,6 +150,7 @@ function AgreementPendingApprovalPage() {
 
         if (!nextSelectedId) {
           setSelectedAgreement(null);
+          setSelectedPracticeStatus(null);
           return;
         }
 
@@ -208,9 +224,13 @@ function AgreementPendingApprovalPage() {
           approvalStatus: nextStatus,
         });
       }
+      const willAutoSendToPractice =
+        isAdmin && selectedPracticeStatus === "ACTIVE";
       toast.success(
         nextStatus === "APPROVED"
-          ? "Agreement request approved"
+          ? willAutoSendToPractice
+            ? "Agreement request approved and sent automatically to the practice contact."
+            : "Agreement request approved"
           : "Agreement request rejected",
       );
       await loadPendingApprovals(selectedAgreement.id);
@@ -536,7 +556,18 @@ function AgreementPendingApprovalPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#f0ece6] px-5 py-4">
+              <div className="space-y-3 border-t border-[#f0ece6] px-5 py-4">
+                {isAdmin && selectedPracticeStatus === "ACTIVE" && (
+                  <div className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-blue-800">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p className="text-[12px] leading-relaxed">
+                      This practice is already <strong>active</strong>.
+                      Approving this agreement will automatically send it to
+                      the practice contact for signature.
+                    </p>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => handleDecision("REJECTED")}
@@ -555,6 +586,7 @@ function AgreementPendingApprovalPage() {
                   <CheckCircle2 className="h-4 w-4" />
                   {isUpdating === "approve" ? "Approving..." : "Approve"}
                 </button>
+                </div>
               </div>
             </div>
           )}
