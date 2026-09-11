@@ -271,9 +271,12 @@ export default function OnboardingMilestonesPage() {
     if (!formDescription.trim()) return;
 
     try {
-      const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const now = new Date();
+      const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
+      const timeStamp = String(now.getTime()).slice(-4);
+      const timeCode = `${dateStamp}-${timeStamp}`;
       const created = await createMilestoneApi({
-        milestoneCode: formCode || `M${milestones.length + 1}${randomCode}`,
+        milestoneCode: formCode || `M${milestones.length + 1}-${timeCode}`,
         description: formDescription,
         practiceName: formPracticeName,
         serviceLine: formServiceLine,
