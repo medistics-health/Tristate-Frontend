@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronLeft,
   Circle,
+  Info,
   Pencil,
   Plus,
   Save,
@@ -941,6 +942,11 @@ function AllAgreementsPage() {
       }
     }
 
+    const selectedPractice = practices.find(
+      (item) => item.id === createForm.practiceId,
+    );
+    const willAutoSendToPractice = selectedPractice?.status === "ACTIVE";
+
     setIsSubmitting(true);
     try {
       await createAgreementApi(buildPayload(createForm));
@@ -951,7 +957,11 @@ function AllAgreementsPage() {
       setRows(data.rows);
       setPagination(data.pagination);
       closeCreateForm();
-      toast.success("Agreement created successfully");
+      toast.success(
+        willAutoSendToPractice
+          ? "Agreement created and sent automatically to the practice contact."
+          : "Agreement created successfully",
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to create agreement";
@@ -2023,6 +2033,12 @@ function AllAgreementsPage() {
     </aside>
   );
 
+  const selectedCreatePractice = practices.find(
+    (item) => item.id === createForm.practiceId,
+  );
+  const willAutoSendCreatedAgreement =
+    selectedCreatePractice?.status === "ACTIVE";
+
   const createPanel = (
     <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
@@ -2071,6 +2087,16 @@ function AllAgreementsPage() {
                   </option>
                 ))}
               </select>
+            )}
+            {willAutoSendCreatedAgreement && (
+              <div className="mt-2 flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-blue-800">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                <p className="text-[12px] leading-relaxed">
+                  This practice is already <strong>active</strong>. Creating
+                  this agreement will automatically send it to the practice
+                  contact for signature.
+                </p>
+              </div>
             )}
           </div>
 
@@ -2556,6 +2582,17 @@ function AllAgreementsPage() {
             )}
           </div>
 
+          {/* {willAutoSendCreatedAgreement && (
+            <div className="mt-6 flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-blue-800">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              <p className="text-[12px] leading-relaxed">
+                This practice is already <strong>active</strong>, so this
+                agreement will be sent automatically to the practice contact
+                after you create it.
+              </p>
+            </div>
+          )} */}
+
           <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">
             <button
               type="button"
@@ -2570,9 +2607,6 @@ function AllAgreementsPage() {
               className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#f7f5f1] cursor-pointer disabled:opacity-50"
             >
               {
-                // isSubmitting
-                // ? "Creating..."
-                //   :
                 isAdmin ? "Create Agreement" : "Sent Agreement For Approval"
               }
             </button>
