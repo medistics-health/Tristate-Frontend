@@ -253,9 +253,9 @@ function CredentialingDashboardPage() {
   const [assignedUserOptions, setAssignedUserOptions] = useState<
     SearchSelectOption[]
   >([]);
-  const [activeTab, setActiveTab] = useState<"distribution" | "tat" | "performance" | "deadlines" | "activity">("distribution");
+  const [activeTab, setActiveTab] = useState<"distribution" | "cycle_time" | "tat" | "performance" | "deadlines" | "activity">("distribution");
   const [tatTimeRange, setTatTimeRange] = useState<string>("30d");
-  const [tatViewMode, setTatViewMode] = useState<"actual" | "comparison">("actual");
+  const [cycleTimeFilter, setCycleTimeFilter] = useState<string>("all");
 
   const loadRecords = async () => {
     setIsLoading(true);
@@ -1114,6 +1114,19 @@ function CredentialingDashboardPage() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => setActiveTab("cycle_time")}
+                        className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-bold transition-all shrink-0 ${
+                          activeTab === "cycle_time"
+                            ? "border-[#4f63ea] text-[#4f63ea]"
+                            : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                        }`}
+                      >
+                        <Clock3 className="h-4 w-4" />
+                        Credentialing Cycle Time
+                        
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setActiveTab("tat")}
                         className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-bold transition-all shrink-0 ${
                           activeTab === "tat"
@@ -1121,11 +1134,8 @@ function CredentialingDashboardPage() {
                             : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
                         }`}
                       >
-                        <Clock3 className="h-4 w-4" />
+                        <Gauge className="h-4 w-4" />
                         Status-wise TAT
-                        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200">
-                          SLA
-                        </span>
                       </button>
                       <button
                         type="button"
@@ -1217,36 +1227,347 @@ function CredentialingDashboardPage() {
                     </section>
                   )}
 
-                  {/* Tab 2: Status-wise TAT Section */}
+                  {/* Tab 2: Credentialing Cycle Time Section */}
+                  {activeTab === "cycle_time" && (() => {
+                    const completedRequests = dashboardFilteredRecords.filter(
+                      (r) => isContracted(r.status) && r.submissionDate && r.effectiveDate
+                    );
+
+                    const requestsWithCycle = completedRequests.map((r) => {
+                      const start = new Date(r.submissionDate).getTime();
+                      const end = new Date(r.effectiveDate).getTime();
+                      const days = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+                      
+                      let category: "excellent" | "acceptable" | "high_risk" | "critical" = "excellent";
+                      if (days > 150) category = "critical";
+                      else if (days > 120) category = "high_risk";
+                      else if (days >= 60) category = "acceptable";
+
+                      return {
+                        ...r,
+                        cycleDays: days,
+                        category,
+                      };
+                    });
+
+                    const totalCompletedCount = requestsWithCycle.length;
+                    const avgCycleDays = totalCompletedCount > 0
+                      ? Math.round(requestsWithCycle.reduce((sum, r) => sum + r.cycleDays, 0) / totalCompletedCount)
+                      : 0;
+
+                    const excellentList = requestsWithCycle.filter((r) => r.category === "excellent");
+                    const acceptableList = requestsWithCycle.filter((r) => r.category === "acceptable");
+                    const highRiskList = requestsWithCycle.filter((r) => r.category === "high_risk");
+                    const criticalList = requestsWithCycle.filter((r) => r.category === "critical");
+
+                    const excellentPct = totalCompletedCount > 0 ? Math.round((excellentList.length / totalCompletedCount) * 100) : 0;
+                    const acceptablePct = totalCompletedCount > 0 ? Math.round((acceptableList.length / totalCompletedCount) * 100) : 0;
+                    const highRiskPct = totalCompletedCount > 0 ? Math.round((highRiskList.length / totalCompletedCount) * 100) : 0;
+                    const criticalPct = totalCompletedCount > 0 ? Math.round((criticalList.length / totalCompletedCount) * 100) : 0;
+
+                    const filteredCycleRequests = requestsWithCycle.filter((r) => {
+                      if (cycleTimeFilter === "excellent") return r.category === "excellent";
+                      if (cycleTimeFilter === "acceptable") return r.category === "acceptable";
+                      if (cycleTimeFilter === "high_risk") return r.category === "high_risk";
+                      if (cycleTimeFilter === "critical") return r.category === "critical";
+                      return true;
+                    });
+
+                    return (
+                      <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm p-5 space-y-6">
+                        {/* Header */}
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#f0ece6] pb-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-base font-bold text-slate-800">
+                                Credentialing Cycle Time
+                              </h3>
+                              
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Calculated as <span className="font-semibold font-mono text-slate-700">(Credentialing Approval Date − Application Submission Date)</span>
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-500">Filter Category:</span>
+                            <div className="w-48">
+                              <Select
+                                value={cycleTimeFilter}
+                                onChange={(val) => setCycleTimeFilter(val)}
+                                options={[
+                                  { label: "All Completed Requests", value: "all" },
+                                  { label: "Excellent (< 60 days)", value: "excellent" },
+                                  { label: "Acceptable (60 - 120 days)", value: "acceptable" },
+                                  { label: "High Risk (> 120 days)", value: "high_risk" },
+                                  { label: "Critical Escalation (> 150d)", value: "critical" },
+                                ]}
+                                placeholder="Filter Category"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Top KPI Cards */}
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-xl border border-slate-200/90 bg-[#fbfaf8] p-4 flex items-center justify-between shadow-2xs">
+                            <div>
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                Completed Requests
+                              </span>
+                              <div className="mt-1 text-2xl font-extrabold text-slate-800">
+                                {totalCompletedCount} <span className="text-xs font-semibold text-slate-500">requests</span>
+                              </div>
+                              <span className="text-[11px] text-slate-400">With valid submission & approval dates</span>
+                            </div>
+                            <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600 border border-indigo-100">
+                              <BadgeCheck className="h-5 w-5" />
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-200/90 bg-[#fbfaf8] p-4 flex items-center justify-between shadow-2xs">
+                            <div>
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                Avg Cycle Time
+                              </span>
+                              <div className="mt-1 text-2xl font-extrabold text-slate-800">
+                                {avgCycleDays} <span className="text-sm font-semibold text-slate-500">days</span>
+                              </div>
+                              <span className="text-[11px] text-slate-400">Average time to complete onboarding</span>
+                            </div>
+                            <div className="rounded-xl bg-blue-50 p-2.5 text-blue-600 border border-blue-100">
+                              <Clock3 className="h-5 w-5" />
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-200/90 bg-[#fbfaf8] p-4 flex items-center justify-between shadow-2xs">
+                            <div>
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                Excellent Rate (&lt;60d)
+                              </span>
+                              <div className="mt-1 text-2xl font-extrabold text-emerald-600">
+                                {excellentPct}% <span className="text-xs font-semibold text-emerald-500">({excellentList.length})</span>
+                              </div>
+                              <span className="text-[11px] text-slate-400">Completed within SLA target</span>
+                            </div>
+                            <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600 border border-emerald-100">
+                              <Percent className="h-5 w-5" />
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-200/90 bg-[#fbfaf8] p-4 flex items-center justify-between shadow-2xs">
+                            <div>
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                Critical Escalations (&gt;150d)
+                              </span>
+                              <div className="mt-1 text-2xl font-extrabold text-rose-600">
+                                {criticalList.length} <span className="text-xs font-semibold text-rose-500">requests</span>
+                              </div>
+                              <span className="text-[11px] text-slate-400">Immediate escalation required</span>
+                            </div>
+                            <div className="rounded-xl bg-rose-50 p-2.5 text-rose-600 border border-rose-100">
+                              <CircleAlert className="h-5 w-5" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Benchmark Category Distribution Cards */}
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                            Cycle Time Benchmark Categories
+                          </h4>
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            {/* Category 1: Excellent */}
+                            <div
+                              onClick={() => setCycleTimeFilter(cycleTimeFilter === "excellent" ? "all" : "excellent")}
+                              className={`cursor-pointer rounded-xl border p-4 transition-all shadow-2xs ${
+                                cycleTimeFilter === "excellent"
+                                  ? "border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20"
+                                  : "border-emerald-200/80 bg-emerald-50/30 hover:border-emerald-300"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+                                  &lt; 60 days
+                                </span>
+                                <span className="text-xs font-semibold text-emerald-700">Excellent</span>
+                              </div>
+                              <div className="mt-2 flex items-baseline justify-between">
+                                <span className="text-2xl font-extrabold text-slate-800">{excellentList.length}</span>
+                                <span className="text-xs font-bold text-emerald-600">{excellentPct}%</span>
+                              </div>
+                              <div className="mt-2 h-1.5 w-full rounded-full bg-emerald-100 overflow-hidden">
+                                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${excellentPct}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Category 2: Acceptable */}
+                            <div
+                              onClick={() => setCycleTimeFilter(cycleTimeFilter === "acceptable" ? "all" : "acceptable")}
+                              className={`cursor-pointer rounded-xl border p-4 transition-all shadow-2xs ${
+                                cycleTimeFilter === "acceptable"
+                                  ? "border-indigo-500 bg-indigo-50/60 ring-2 ring-indigo-500/20"
+                                  : "border-indigo-200/80 bg-indigo-50/30 hover:border-indigo-300"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="inline-flex rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-800">
+                                  60 to 120 days
+                                </span>
+                                <span className="text-xs font-semibold text-indigo-700">Acceptable</span>
+                              </div>
+                              <div className="mt-2 flex items-baseline justify-between">
+                                <span className="text-2xl font-extrabold text-slate-800">{acceptableList.length}</span>
+                                <span className="text-xs font-bold text-indigo-600">{acceptablePct}%</span>
+                              </div>
+                              <div className="mt-2 h-1.5 w-full rounded-full bg-indigo-100 overflow-hidden">
+                                <div className="h-full rounded-full bg-indigo-500" style={{ width: `${acceptablePct}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Category 3: High Risk */}
+                            <div
+                              onClick={() => setCycleTimeFilter(cycleTimeFilter === "high_risk" ? "all" : "high_risk")}
+                              className={`cursor-pointer rounded-xl border p-4 transition-all shadow-2xs ${
+                                cycleTimeFilter === "high_risk"
+                                  ? "border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/20"
+                                  : "border-amber-200/80 bg-amber-50/30 hover:border-amber-300"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                                  &gt; 120 days
+                                </span>
+                                <span className="text-xs font-semibold text-amber-700">High Risk</span>
+                              </div>
+                              <div className="mt-2 flex items-baseline justify-between">
+                                <span className="text-2xl font-extrabold text-slate-800">{highRiskList.length}</span>
+                                <span className="text-xs font-bold text-amber-600">{highRiskPct}%</span>
+                              </div>
+                              <div className="mt-2 h-1.5 w-full rounded-full bg-amber-100 overflow-hidden">
+                                <div className="h-full rounded-full bg-amber-500" style={{ width: `${highRiskPct}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Category 4: Critical Escalation */}
+                            <div
+                              onClick={() => setCycleTimeFilter(cycleTimeFilter === "critical" ? "all" : "critical")}
+                              className={`cursor-pointer rounded-xl border p-4 transition-all shadow-2xs ${
+                                cycleTimeFilter === "critical"
+                                  ? "border-rose-500 bg-rose-50/60 ring-2 ring-rose-500/20"
+                                  : "border-rose-200/80 bg-rose-50/30 hover:border-rose-300"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="inline-flex rounded-md bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-800">
+                                  &gt; 150 days
+                                </span>
+                                <span className="text-xs font-semibold text-rose-700">Critical Escalation</span>
+                              </div>
+                              <div className="mt-2 flex items-baseline justify-between">
+                                <span className="text-2xl font-extrabold text-slate-800">{criticalList.length}</span>
+                                <span className="text-xs font-bold text-rose-600">{criticalPct}%</span>
+                              </div>
+                              <div className="mt-2 h-1.5 w-full rounded-full bg-rose-100 overflow-hidden">
+                                <div className="h-full rounded-full bg-rose-500" style={{ width: `${criticalPct}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Requests Table */}
+                        <div className="space-y-3 pt-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                              Credentialing Requests ({filteredCycleRequests.length})
+                            </h4>
+                            {cycleTimeFilter !== "all" && (
+                              <button
+                                type="button"
+                                onClick={() => setCycleTimeFilter("all")}
+                                className="text-xs font-semibold text-indigo-600 hover:underline"
+                              >
+                                Reset Filter
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="overflow-x-auto rounded-xl border border-slate-200">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-slate-50 text-[11px] uppercase tracking-wider font-semibold text-slate-500 border-b border-slate-200">
+                                <tr>
+                                  <th className="px-4 py-3">Provider & Practice</th>
+                                  <th className="px-4 py-3">Payer</th>
+                                  <th className="px-4 py-3">Submission Date</th>
+                                  <th className="px-4 py-3">Approval Date</th>
+                                  <th className="px-4 py-3 text-right">Cycle Time</th>
+                                  <th className="px-4 py-3 text-center">Benchmark Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 font-medium text-slate-700 bg-white">
+                                {filteredCycleRequests.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic">
+                                      No credentialing requests match this cycle time benchmark filter.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  filteredCycleRequests.map((r) => {
+                                    let badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                    let badgeText = "< 60d (Excellent)";
+                                    if (r.category === "critical") {
+                                      badgeStyle = "bg-rose-50 text-rose-700 border-rose-200";
+                                      badgeText = "> 150d (Critical Escalation)";
+                                    } else if (r.category === "high_risk") {
+                                      badgeStyle = "bg-amber-50 text-amber-700 border-amber-200";
+                                      badgeText = "> 120d (High Risk)";
+                                    } else if (r.category === "acceptable") {
+                                      badgeStyle = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                                      badgeText = "60 - 120d (Acceptable)";
+                                    }
+
+                                    return (
+                                      <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                                        <td className="px-4 py-3">
+                                          <div className="font-bold text-slate-800">{r.provider}</div>
+                                          <div className="text-[11px] text-slate-500">{r.practice}</div>
+                                        </td>
+                                        <td className="px-4 py-3 font-semibold text-slate-700">
+                                          {r.insuranceCompany}
+                                        </td>
+                                        <td className="px-4 py-3 font-mono text-slate-600">
+                                          {formatDateLabel(r.submissionDate)}
+                                        </td>
+                                        <td className="px-4 py-3 font-mono text-slate-600">
+                                          {formatDateLabel(r.effectiveDate)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono font-extrabold text-sm text-slate-800">
+                                          {r.cycleDays} <span className="text-xs font-normal text-slate-500">days</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-[10px] font-bold border shadow-2xs ${badgeStyle}`}>
+                                            {badgeText}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </section>
+                    );
+                  })()}
+
+                  {/* Tab 3: Status-wise TAT Section */}
                   {activeTab === "tat" && (() => {
-                    // Default SLA Target limits (in days) per status
-                    const DEFAULT_SLA_TARGETS: Record<string, number> = {
-                      "Not Started": 2.0,
-                      "Application Submitted": 2.0,
-                      "In Process - Payer Review": 7.0,
-                      "Pending Additional Info": 3.0,
-                      "Contracted - Direct": 1.0,
-                      "Contracted - IPA/Delegated": 2.0,
-                      "Out-of-Network (OON)": 3.0,
-                      "Declined / Application Rejected": 2.0,
-                      "Re-credentialing Due": 5.0,
-                      "Terminated": 1.0,
-                    };
-
-                    // Scale multipliers for time ranges (7d, 30d, 90d, ytd)
-                    const rangeMultipliers: Record<string, number> = {
-                      "7d": 0.85,
-                      "30d": 1.0,
-                      "90d": 1.15,
-                      "ytd": 1.25,
-                    };
-                    const multiplier = rangeMultipliers[tatTimeRange] || 1.0;
-
                     const baseSampleAverages: Record<string, number> = {
-                      "Not Started": 2.4,
-                      "Application Submitted": 1.2,
+                      "Not Started": 1.2,
+                      "Application Submitted": 2.1,
                       "In Process - Payer Review": 8.6,
-                      "Pending Additional Info": 3.1,
+                      "Pending Additional Info": 4.2,
                       "Contracted - Direct": 0.8,
                       "Contracted - IPA/Delegated": 1.4,
                       "Out-of-Network (OON)": 2.8,
@@ -1256,15 +1577,18 @@ function CredentialingDashboardPage() {
                     };
 
                     const tatData = credentialingStatusOptions.map((status) => {
-                      const target = DEFAULT_SLA_TARGETS[status] || 5.0;
                       const baseActual = baseSampleAverages[status] !== undefined ? baseSampleAverages[status] : 2.5;
+                      const rangeMultipliers: Record<string, number> = {
+                        "7d": 0.85,
+                        "30d": 1.0,
+                        "90d": 1.15,
+                        "ytd": 1.25,
+                      };
+                      const multiplier = rangeMultipliers[tatTimeRange] || 1.0;
                       const actual = Number((baseActual * multiplier).toFixed(1));
-                      const isBreached = actual > target;
                       return {
                         status,
                         actual,
-                        target,
-                        isBreached,
                       };
                     });
 
@@ -1273,7 +1597,6 @@ function CredentialingDashboardPage() {
                     ).toFixed(1);
 
                     const longestTatItem = [...tatData].sort((a, b) => b.actual - a.actual)[0];
-                    const slaBreachesCount = tatData.filter((item) => item.isBreached).length;
 
                     return (
                       <section className="rounded-2xl border border-[#ece8e1] bg-white shadow-sm p-5 space-y-6">
@@ -1284,44 +1607,16 @@ function CredentialingDashboardPage() {
                               <h3 className="text-base font-bold text-slate-800">
                                 Status-wise TAT
                               </h3>
-                              <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 border border-indigo-200">
-                                Benchmark View
-                              </span>
+                              
                             </div>
                             <p className="text-xs text-slate-400 mt-0.5">
-                              Average time spent in each credentialing status.
+                              Average actual turnaround time (days) spent in each credentialing status.
                             </p>
                           </div>
 
                           <div className="flex items-center gap-3">
-                            {/* Actual vs Target Toggle */}
-                            <div className="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200">
-                              <button
-                                type="button"
-                                onClick={() => setTatViewMode("actual")}
-                                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                                  tatViewMode === "actual"
-                                    ? "bg-white text-slate-900 shadow-sm"
-                                    : "text-slate-500 hover:text-slate-800"
-                                }`}
-                              >
-                                Actual
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setTatViewMode("comparison")}
-                                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                                  tatViewMode === "comparison"
-                                    ? "bg-white text-indigo-700 shadow-sm"
-                                    : "text-slate-500 hover:text-slate-800"
-                                }`}
-                              >
-                                Actual vs Target
-                              </button>
-                            </div>
-
                             {/* Date Filter Dropdown */}
-                            <div className="w-36">
+                            <div className="w-40">
                               <Select
                                 value={tatTimeRange}
                                 onChange={(val) => setTatTimeRange(val)}
@@ -1337,17 +1632,17 @@ function CredentialingDashboardPage() {
                           </div>
                         </div>
 
-                        {/* Top 3 Summary KPI Cards */}
-                        <div className="grid gap-4 sm:grid-cols-3">
+                        {/* Top Summary KPI Cards */}
+                        <div className="grid gap-4 sm:grid-cols-2">
                           <div className="rounded-xl border border-[#ece8e1] bg-[#fbfaf8] p-4 flex items-center justify-between">
                             <div>
                               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                Avg TAT
+                                Avg Status TAT
                               </span>
                               <div className="mt-1 text-2xl font-extrabold text-slate-800">
                                 {overallAvgTat} <span className="text-sm font-semibold text-slate-500">days</span>
                               </div>
-                              <span className="text-[11px] text-slate-400">Overall average time per status</span>
+                              <span className="text-[11px] text-slate-400">Overall average actual time per status</span>
                             </div>
                             <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600 border border-indigo-100">
                               <Clock3 className="h-5 w-5" />
@@ -1362,28 +1657,12 @@ function CredentialingDashboardPage() {
                               <div className="mt-1 text-2xl font-extrabold text-slate-800">
                                 {longestTatItem?.actual}d
                               </div>
-                              <span className="text-[11px] font-semibold text-slate-600 truncate max-w-[170px] block">
+                              <span className="text-[11px] font-semibold text-slate-600 truncate max-w-[200px] block">
                                 {longestTatItem?.status}
                               </span>
                             </div>
                             <div className="rounded-xl bg-amber-50 p-2.5 text-amber-600 border border-amber-100">
                               <TrendingUp className="h-5 w-5" />
-                            </div>
-                          </div>
-
-                          <div className="rounded-xl border border-[#ece8e1] bg-[#fbfaf8] p-4 flex items-center justify-between">
-                            <div>
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                SLA Breaches
-                              </span>
-                              <div className="mt-1 text-2xl font-extrabold text-rose-600">
-                                {slaBreachesCount}{" "}
-                                <span className="text-xs font-semibold text-rose-500">statuses</span>
-                              </div>
-                              <span className="text-[11px] text-slate-400">Exceeding target SLA</span>
-                            </div>
-                            <div className="rounded-xl bg-rose-50 p-2.5 text-rose-600 border border-rose-100">
-                              <ShieldAlert className="h-5 w-5" />
                             </div>
                           </div>
                         </div>
@@ -1406,7 +1685,6 @@ function CredentialingDashboardPage() {
                             {tatData.map((item) => {
                               const maxScale = 12.0;
                               const actualPct = Math.min(100, (item.actual / maxScale) * 100);
-                              const targetPct = Math.min(100, (item.target / maxScale) * 100);
 
                               return (
                                 <div key={item.status} className="pt-3.5 first:pt-0 group">
@@ -1416,11 +1694,6 @@ function CredentialingDashboardPage() {
                                       <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold shadow-xs transition-colors ${statusTone(item.status)}`}>
                                         {item.status}
                                       </span>
-                                      {item.isBreached && (
-                                        <span className="inline-flex items-center rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-600 border border-rose-200/80 shrink-0">
-                                          +{(item.actual - item.target).toFixed(1)}d
-                                        </span>
-                                      )}
                                     </div>
 
                                     {/* Progress Bar Container with Background Scale Grid */}
@@ -1434,38 +1707,18 @@ function CredentialingDashboardPage() {
                                           <div />
                                         </div>
 
-                                        {/* Target SLA Line */}
-                                        {tatViewMode === "comparison" && (
-                                          <div
-                                            className="absolute top-0 bottom-0 z-20 w-0.5 bg-slate-700 shadow-md"
-                                            style={{ left: `${targetPct}%` }}
-                                            title={`Target SLA: ${item.target}d`}
-                                          >
-                                            <div className="absolute -top-0.5 -left-1 h-1.5 w-2 bg-slate-800 rounded-xs" />
-                                          </div>
-                                        )}
-
                                         {/* Actual TAT Bar Fill */}
                                         <div
-                                          className={`relative z-10 h-full rounded-r-md transition-all duration-500 ease-out ${
-                                            item.isBreached
-                                              ? "bg-gradient-to-r from-rose-500 via-rose-500 to-red-600 shadow-xs"
-                                              : "bg-gradient-to-r from-indigo-500 via-indigo-600 to-blue-600 shadow-xs"
-                                          }`}
+                                          className="relative z-10 h-full rounded-r-md transition-all duration-500 ease-out bg-gradient-to-r from-indigo-500 via-indigo-600 to-blue-600 shadow-xs"
                                           style={{ width: `${actualPct}%` }}
                                         />
                                       </div>
 
                                       {/* Numeric Readout */}
                                       <div className="w-24 shrink-0 text-right text-xs font-mono font-semibold">
-                                        <span className={item.isBreached ? "text-rose-600 font-bold" : "text-slate-800"}>
+                                        <span className="text-slate-800 font-bold">
                                           {item.actual.toFixed(1)}d
                                         </span>
-                                        {tatViewMode === "comparison" && (
-                                          <span className="block text-[10px] text-slate-400 font-normal leading-tight">
-                                            SLA: {item.target.toFixed(1)}d
-                                          </span>
-                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -1480,18 +1733,8 @@ function CredentialingDashboardPage() {
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1.5">
                               <span className="h-3 w-3 rounded bg-indigo-600 shadow-xs" />
-                              <span>Within Target TAT</span>
+                              <span>Average Actual TAT (Days)</span>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="h-3 w-3 rounded bg-rose-500 shadow-xs" />
-                              <span>Exceeding Target SLA</span>
-                            </div>
-                            {tatViewMode === "comparison" && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="h-3.5 w-0.5 bg-slate-700 rounded-full" />
-                                <span>Target SLA Threshold Line</span>
-                              </div>
-                            )}
                           </div>
                           <span className="text-slate-400 italic text-[11px]">
                             Scale adjusted dynamically for {tatTimeRange} time window
