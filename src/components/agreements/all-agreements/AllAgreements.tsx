@@ -176,6 +176,27 @@ function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
 
+const signerStatusStyles: Record<string, string> = {
+  completed: "bg-emerald-50 text-emerald-700",
+  signed: "bg-emerald-50 text-emerald-700",
+  awaiting: "bg-amber-50 text-amber-700",
+  sent: "bg-amber-50 text-amber-700",
+  opened: "bg-sky-50 text-sky-700",
+  declined: "bg-red-50 text-red-700",
+};
+
+function formatSignerStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    completed: "Signed",
+    signed: "Signed",
+    awaiting: "Awaiting",
+    sent: "Sent",
+    opened: "Opened",
+    declined: "Declined",
+  };
+  return labels[status.toLowerCase()] || formatStatusLabel(status);
+}
+
 function formatPricingModel(model: string) {
   return model
     .replace(/_/g, " ")
@@ -1659,6 +1680,52 @@ function AllAgreementsPage() {
                                   </a>
                                 ) : null}
                               </div>
+                              {submission.signers?.length ? (
+                                <div className="mt-2 space-y-1.5 border-t border-slate-200 pt-2">
+                                  {[...submission.signers]
+                                    .sort(
+                                      (left, right) =>
+                                        (left.order ?? 99) - (right.order ?? 99),
+                                    )
+                                    .map((signer) => {
+                                      const status = (
+                                        signer.status || ""
+                                      ).toLowerCase();
+                                      return (
+                                        <div
+                                          key={
+                                            signer.id ||
+                                            `${submission.id}-${signer.role}-${signer.email}`
+                                          }
+                                          className="flex items-center justify-between gap-3"
+                                        >
+                                          <div className="min-w-0">
+                                            <p className="truncate text-[12px] font-medium text-slate-700">
+                                              {signer.name ||
+                                                signer.email ||
+                                                signer.role ||
+                                                "Signer"}
+                                            </p>
+                                            <p className="truncate text-[11px] text-slate-400">
+                                              {signer.role}
+                                              {signer.email
+                                                ? ` · ${signer.email}`
+                                                : ""}
+                                            </p>
+                                          </div>
+                                          <span
+                                            className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                              signerStatusStyles[status] ||
+                                              "bg-slate-100 text-slate-600"
+                                            }`}
+                                          >
+                                            {formatSignerStatusLabel(status)}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              ) : null}
                             </div>
                           );
                         },

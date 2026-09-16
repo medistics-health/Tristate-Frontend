@@ -126,6 +126,15 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
   };
 }
 
+export type DocusealSigner = {
+  id?: string;
+  role?: string;
+  name?: string;
+  email?: string;
+  status?: string;
+  order?: number;
+};
+
 export type DocusealSubmission = {
   id: string;
   agreementId: string;
@@ -136,6 +145,7 @@ export type DocusealSubmission = {
   submissionApprovalStatus?: string | null;
   submissionApprovalNote?: string | null;
   url?: string | null;
+  name?: string;
   signedDocUrl?: string | null;
   signedDocUrls?: string | null;
   auditLogUrl?: string | null;
@@ -144,6 +154,7 @@ export type DocusealSubmission = {
   submitterUuid?: string | null;
   templateId: number;
   fieldValues?: Record<string, string> | null;
+  signers?: DocusealSigner[];
   createdAt: string;
   updatedAt: string;
 };
