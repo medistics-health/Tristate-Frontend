@@ -44,7 +44,9 @@ export type TaskPhase =
   | "ASSESSMENT_DISCOVERY"
   | "PLANNING_CONFIGURATION"
   | "TESTING_VALIDATION"
-  | "GO_LIVE_STABILIZATION";
+  | "GO_LIVE_STABILIZATION"
+  | "HYPERCARE_OPTIMIZATION"
+  | "PROVIDER_ACTIVATION";
 
 export type TemplateTaskItem = {
   id?: string;
@@ -151,12 +153,13 @@ const SERVICE_LINE_PHASE_MAPS: Record<string, Record<string, string>> = {
     HYPERCARE_OPTIMIZATION: "Phase 6: Hypercare & Optimization",
   },
   CREDENTIALING: {
-    ONBOARDING_ACCESS: "Phase 1: Intake & Planning",
-    ASSESSMENT_DISCOVERY: "Phase 2: CAQH Management",
-    PLANNING_CONFIGURATION: "Phase 3: Application Submission",
-    TESTING_VALIDATION: "Phase 4: Follow-Up & Tracking",
-    GO_LIVE_STABILIZATION: "Phase 5: Go-Live Readiness",
-    HYPERCARE_OPTIMIZATION: "Phase 6: Go-Live",
+    ONBOARDING_ACCESS: "Phase 1: Provider Intake",
+    ASSESSMENT_DISCOVERY: "Phase 2: Credentialing Setup",
+    PLANNING_CONFIGURATION: "Phase 3: Verification & Compliance",
+    TESTING_VALIDATION: "Phase 4: Payer Enrollment",
+    GO_LIVE_STABILIZATION: "Phase 5: TIN / NPI Validation",
+    HYPERCARE_OPTIMIZATION: "Phase 6: Revenue Cycle Readiness",
+    PROVIDER_ACTIVATION: "Phase 7: Provider Activation",
   },
   HR: {
     ONBOARDING_ACCESS: "Phase 1: Pre-Hire",
@@ -1170,6 +1173,7 @@ export default function OnboardingTemplatesPage() {
                         "TESTING_VALIDATION",
                         "GO_LIVE_STABILIZATION",
                         "HYPERCARE_OPTIMIZATION",
+                        "PROVIDER_ACTIVATION",
                       ];
                       const seen = new Set<string>();
                       const list: { label: string; value: string }[] = [];

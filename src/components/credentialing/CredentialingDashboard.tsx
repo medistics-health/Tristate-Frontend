@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import {
   ArrowDownUp,
   BadgeCheck,
@@ -92,7 +93,7 @@ function statusTone(status: string) {
   }
 }
 
-function isContracted(status: string) {
+function isContracted(status?: string | null) {
   return (
     status === "Contracted - Direct" || status === "Contracted - IPA/Delegated"
   );
@@ -1229,26 +1230,51 @@ function CredentialingDashboardPage() {
 
                   {/* Tab 2: Credentialing Cycle Time Section */}
                   {activeTab === "cycle_time" && (() => {
-                    const completedRequests = dashboardFilteredRecords.filter(
-                      (r) => isContracted(r.status) && r.submissionDate && r.effectiveDate
+                    const eligibleRequests = dashboardFilteredRecords.filter(
+                      (r) => r.startDate || r.submissionDate || r.createdAt
                     );
 
-                    const requestsWithCycle = completedRequests.map((r) => {
-                      const start = new Date(r.submissionDate).getTime();
-                      const end = new Date(r.effectiveDate).getTime();
-                      const days = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
-                      
-                      let category: "excellent" | "acceptable" | "high_risk" | "critical" = "excellent";
-                      if (days > 150) category = "critical";
-                      else if (days > 120) category = "high_risk";
-                      else if (days >= 60) category = "acceptable";
+                    const requestsWithCycle = eligibleRequests
+                      .map((r) => {
+                        const startStr = r.startDate || r.submissionDate || r.createdAt;
+                        const start = new Date(startStr!).getTime();
 
-                      return {
-                        ...r,
-                        cycleDays: days,
-                        category,
-                      };
-                    });
+                        let endStr = r.effectiveDate;
+                        if (r.activity && r.activity.length > 0) {
+                          const contractedLog = r.activity.find((a) => {
+                            const text = `${a.action || ""} ${a.details || ""}`.toLowerCase();
+                            return (
+                              text.includes("contracted - direct") ||
+                              text.includes("contracted - ipa/delegated") ||
+                              text.includes("contracted")
+                            );
+                          });
+                          if (contractedLog?.createdAt) {
+                            endStr = contractedLog.createdAt;
+                          }
+                        }
+
+                        const end = endStr
+                          ? new Date(endStr).getTime()
+                          : r.updatedAt
+                            ? new Date(r.updatedAt).getTime()
+                            : Date.now();
+                        const days = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+                        
+                        const contracted = isContracted(r.status);
+                        let category: "excellent" | "acceptable" | "high_risk" | "critical" | "none" = "none";
+                        if (days > 150) category = "critical";
+                        else if (days > 120) category = "high_risk";
+                        else if (days >= 60 && contracted) category = "acceptable";
+                        else if (days < 60 && contracted) category = "excellent";
+
+                        return {
+                          ...r,
+                          cycleDays: days,
+                          category,
+                        };
+                      })
+                      .filter((r) => r.category !== "none");
 
                     const totalCompletedCount = requestsWithCycle.length;
                     const avgCycleDays = totalCompletedCount > 0
@@ -1282,11 +1308,7 @@ function CredentialingDashboardPage() {
                               <h3 className="text-base font-bold text-slate-800">
                                 Credentialing Cycle Time
                               </h3>
-                              
                             </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              Calculated as <span className="font-semibold font-mono text-slate-700">(Credentialing Approval Date − Application Submission Date)</span>
-                            </p>
                           </div>
 
                           <div className="flex items-center gap-2">
@@ -1371,10 +1393,10 @@ function CredentialingDashboardPage() {
                           </div>
                         </div>
 
-                        {/* Benchmark Category Distribution Cards */}
+                        {/* Cycle Time Category Distribution Cards */}
                         <div className="space-y-3">
                           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                            Cycle Time Benchmark Categories
+                            Cycle Time Categories
                           </h4>
                           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                             {/* Category 1: Excellent */}
@@ -1481,15 +1503,23 @@ function CredentialingDashboardPage() {
                             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
                               Credentialing Requests ({filteredCycleRequests.length})
                             </h4>
-                            {cycleTimeFilter !== "all" && (
-                              <button
-                                type="button"
-                                onClick={() => setCycleTimeFilter("all")}
-                                className="text-xs font-semibold text-indigo-600 hover:underline"
+                            <div className="flex items-center gap-3">
+                              {cycleTimeFilter !== "all" && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCycleTimeFilter("all")}
+                                  className="text-xs font-semibold text-indigo-600 hover:underline cursor-pointer"
+                                >
+                                  Reset Filter
+                                </button>
+                              )}
+                              <Link
+                                to="/credentialing/list"
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#4f63ea] hover:underline"
                               >
-                                Reset Filter
-                              </button>
-                            )}
+                                View All ({filteredCycleRequests.length}) →
+                              </Link>
+                            </div>
                           </div>
 
                           <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -1501,18 +1531,18 @@ function CredentialingDashboardPage() {
                                   <th className="px-4 py-3">Submission Date</th>
                                   <th className="px-4 py-3">Approval Date</th>
                                   <th className="px-4 py-3 text-right">Cycle Time</th>
-                                  <th className="px-4 py-3 text-center">Benchmark Status</th>
+                                  <th className="px-4 py-3 text-center">Cycle Time Status</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100 font-medium text-slate-700 bg-white">
                                 {filteredCycleRequests.length === 0 ? (
                                   <tr>
                                     <td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic">
-                                      No credentialing requests match this cycle time benchmark filter.
+                                      No credentialing requests match this cycle time filter.
                                     </td>
                                   </tr>
                                 ) : (
-                                  filteredCycleRequests.map((r) => {
+                                  filteredCycleRequests.slice(0, 5).map((r) => {
                                     let badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
                                     let badgeText = "< 60d (Excellent)";
                                     if (r.category === "critical") {
@@ -1556,6 +1586,18 @@ function CredentialingDashboardPage() {
                               </tbody>
                             </table>
                           </div>
+
+                          {/* View More Button */}
+                          {filteredCycleRequests.length > 5 && (
+                            <div className="mt-3 flex justify-center border-t border-[#f0ece6] pt-3">
+                              <Link
+                                to="/credentialing/list"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-5 py-2 text-xs font-bold text-[#4f63ea] hover:bg-[#f0f2fe] hover:border-[#4f63ea]/40 transition-all shadow-2xs cursor-pointer"
+                              >
+                                View More Credentialing Requests ({filteredCycleRequests.length - 5} remaining) →
+                              </Link>
+                            </div>
+                          )}
                         </div>
                       </section>
                     );
@@ -2039,7 +2081,7 @@ function CredentialingDashboardPage() {
                                 No credentialing records found.
                               </div>
                             ) : (
-                              recentCredentialing.map((record) => (
+                              recentCredentialing.slice(0, 5).map((record) => (
                                 <div
                                   key={record.id}
                                   className="rounded-2xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-3"
@@ -2068,6 +2110,16 @@ function CredentialingDashboardPage() {
                                   </div>
                                 </div>
                               ))
+                            )}
+                            {recentCredentialing.length > 5 && (
+                              <div className="mt-3 flex justify-center border-t border-[#f0ece6] pt-2">
+                                <Link
+                                  to="/credentialing/list"
+                                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#ece8e1] bg-white px-4 py-1.5 text-xs font-bold text-[#4f63ea] hover:bg-[#f0f2fe] transition-colors cursor-pointer"
+                                >
+                                  View More All Records →
+                                </Link>
+                              </div>
                             )}
                           </div>
                         </div>

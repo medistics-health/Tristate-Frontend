@@ -54,7 +54,8 @@ export type TaskPhase =
   | "PLANNING_CONFIGURATION"
   | "TESTING_VALIDATION"
   | "GO_LIVE_STABILIZATION"
-  | "HYPERCARE_OPTIMIZATION";
+  | "HYPERCARE_OPTIMIZATION"
+  | "PROVIDER_ACTIVATION";
 
 export type ServiceLine =
   | "HR"
@@ -157,6 +158,7 @@ const DEFAULT_PHASE_LABELS: Record<TaskPhase, string> = {
   TESTING_VALIDATION: "Phase 4: Testing & Validation",
   GO_LIVE_STABILIZATION: "Phase 5: Go-Live & Stabilization",
   HYPERCARE_OPTIMIZATION: "Phase 6: Hypercare & Optimization",
+  PROVIDER_ACTIVATION: "Phase 7: Provider Activation",
 };
 
 const SERVICE_LINE_PHASE_MAPS: Record<string, Record<string, string>> = {
@@ -176,12 +178,13 @@ const SERVICE_LINE_PHASE_MAPS: Record<string, Record<string, string>> = {
     HYPERCARE_OPTIMIZATION: "Phase 6: Hypercare & Optimization",
   },
   CREDENTIALING: {
-    ONBOARDING_ACCESS: "Phase 1: Intake & Planning",
-    ASSESSMENT_DISCOVERY: "Phase 2: CAQH Management",
-    PLANNING_CONFIGURATION: "Phase 3: Application Submission",
-    TESTING_VALIDATION: "Phase 4: Follow-Up & Tracking",
-    GO_LIVE_STABILIZATION: "Phase 5: Go-Live Readiness",
-    HYPERCARE_OPTIMIZATION: "Phase 6: Go-Live",
+    ONBOARDING_ACCESS: "Phase 1: Provider Intake",
+    ASSESSMENT_DISCOVERY: "Phase 2: Credentialing Setup",
+    PLANNING_CONFIGURATION: "Phase 3: Verification & Compliance",
+    TESTING_VALIDATION: "Phase 4: Payer Enrollment",
+    GO_LIVE_STABILIZATION: "Phase 5: TIN / NPI Validation",
+    HYPERCARE_OPTIMIZATION: "Phase 6: Revenue Cycle Readiness",
+    PROVIDER_ACTIVATION: "Phase 7: Provider Activation",
   },
   HR: {
     ONBOARDING_ACCESS: "Phase 1: Pre-Hire",
@@ -272,6 +275,10 @@ const PHASE_SHORT_BADGES: Record<TaskPhase, { label: string; color: string }> =
       label: "P6: Hypercare",
       color: "bg-indigo-50 text-indigo-700 border-indigo-200",
     },
+    PROVIDER_ACTIVATION: {
+      label: "P7: Activation",
+      color: "bg-teal-50 text-teal-700 border-teal-200",
+    },
   };
 
 const STATUS_CONFIG: Record<
@@ -341,6 +348,7 @@ const PHASE_OPTIONS = [
   { label: "Phase 4: Testing & Validation", value: "TESTING_VALIDATION" },
   { label: "Phase 5: Go-Live & Stabilization", value: "GO_LIVE_STABILIZATION" },
   { label: "Phase 6: Hypercare & Optimization", value: "HYPERCARE_OPTIMIZATION" },
+  { label: "Phase 7: Provider Activation", value: "PROVIDER_ACTIVATION" },
 ];
 
 const STATUS_OPTIONS = [

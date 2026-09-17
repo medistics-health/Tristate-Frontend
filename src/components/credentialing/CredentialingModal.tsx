@@ -3,10 +3,13 @@ import {
   ArrowUpFromLine,
   CalendarDays,
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Circle,
   Clock3,
   Download,
   FileText,
+  ListCheck,
   Loader2,
   Plus,
   ExternalLink,
@@ -21,6 +24,7 @@ import {
   addDocumentsToForm,
   addFollowUpToForm,
   createCredentialingFormState,
+  formatDateInput,
   formatDateLabel,
   formatDateTimeLabel,
   removeFollowUpFromForm,
@@ -30,6 +34,7 @@ import {
   contractTypeOptions,
   canEditCredentialingStatus,
   credentialingStatusOptions,
+  isContractedStatus,
   followUpChannelOptions,
   followUpDirectionOptions,
   lineOfBusinessOptions,
@@ -148,6 +153,87 @@ function statusTone(status: string) {
   }
 }
 
+function getCycleTimeBadge(
+  submissionDate?: string | null,
+  effectiveDate?: string | null,
+  activity?: CredentialingActivity[] | null,
+  startDate?: string | null,
+  createdAt?: string | null,
+  updatedAt?: string | null,
+  status?: string | null,
+) {
+  const startStr = startDate || submissionDate || createdAt;
+  if (!startStr) return null;
+  const start = new Date(startStr).getTime();
+  if (isNaN(start)) return null;
+
+  let endStr: string | null | undefined = effectiveDate;
+  if (activity && activity.length > 0) {
+    const contractedLog = activity.find((a) => {
+      const text = `${a.action || ""} ${a.details || ""}`.toLowerCase();
+      return (
+        text.includes("contracted - direct") ||
+        text.includes("contracted - ipa/delegated") ||
+        text.includes("contracted")
+      );
+    });
+    if (contractedLog?.createdAt) {
+      endStr = contractedLog.createdAt;
+    }
+  }
+
+  const end = endStr
+    ? new Date(endStr).getTime()
+    : updatedAt
+      ? new Date(updatedAt).getTime()
+      : Date.now();
+  if (isNaN(end)) return null;
+
+  const days = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+  const contracted = isContractedStatus(status);
+
+  if (days > 150) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-[12px] font-semibold text-rose-700 border border-rose-200"
+        title={`${days} days turnaround time`}
+      >
+        Critical ({days}d)
+      </span>
+    );
+  }
+  if (days > 120) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-semibold text-amber-700 border border-amber-200"
+        title={`${days} days turnaround time`}
+      >
+        High Risk ({days}d)
+      </span>
+    );
+  }
+  if (days >= 60) {
+    if (!contracted) return null;
+    return (
+      <span
+        className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-[12px] font-semibold text-indigo-700 border border-indigo-200"
+        title={`${days} days turnaround time`}
+      >
+        Acceptable ({days}d)
+      </span>
+    );
+  }
+  if (!contracted) return null;
+  return (
+    <span
+      className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700 border border-emerald-200"
+      title={`${days} days turnaround time`}
+    >
+      Excellent ({days}d)
+    </span>
+  );
+}
+
 function createLocalSearchOptions(options: string[]) {
   return async (query: string): Promise<SearchSelectOption[]> => {
     const normalized = query.trim().toLowerCase();
@@ -178,6 +264,7 @@ export default function CredentialingModal({
   );
 
   const [documentExpiryDate, setDocumentExpiryDate] = useState("");
+  const [isChecklistOpen, setIsChecklistOpen] = useState(false);
   const [formMessage, setFormMessage] = useState("");
   const [followUpDraft, setFollowUpDraft] = useState<FollowUpDraft>({
     channel: followUpChannelOptions[0],
@@ -319,6 +406,7 @@ export default function CredentialingModal({
     setForm(createCredentialingFormState(record));
     setSelectedDocumentType(allowedDocumentTypes[0]);
     setDocumentExpiryDate("");
+    setIsChecklistOpen(false);
     setFormMessage("");
     setFollowUpDraft({
       channel: followUpChannelOptions[0],
@@ -371,6 +459,10 @@ export default function CredentialingModal({
   const canEditRecord = canEditCredentialingStatus(record?.status);
   const isReadOnly = mode === "view" || !canEditRecord;
   const isEditMode = mode === "edit" && canEditRecord;
+
+  const completedChecklistCount = useMemo(() => {
+    return (form.checklist || []).filter((item) => item.completed).length;
+  }, [form.checklist]);
 
   const title = useMemo(() => {
     if (mode === "create") return "Add Credentialing";
@@ -460,9 +552,48 @@ export default function CredentialingModal({
     setForm((current) => ({
       ...current,
       lineOfBusiness: current.lineOfBusiness.includes(line)
-        ? current.lineOfBusiness.filter((entry) => entry !== line)
+        ? current.lineOfBusiness.filter((item) => item !== line)
         : [...current.lineOfBusiness, line],
     }));
+  }
+
+  function toggleChecklistItem(index: number, completed: boolean) {
+    const today = completed ? formatDateInput(new Date().toISOString()) : "";
+    const taskName = form.checklist?.[index]?.task || `Task #${index + 1}`;
+    const currentUser = readStoredUser()?.name || "Current User";
+
+    const newActivity: CredentialingActivity = {
+      id: `chk-act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      action: completed ? "Checklist Completed" : "Checklist Unchecked",
+      details: `Checklist task "${taskName}" marked as ${completed ? "completed" : "unchecked"}`,
+      actor: currentUser,
+      createdAt: new Date().toISOString(),
+    };
+
+    setForm((current) => {
+      const updated = [...(current.checklist || [])];
+      updated[index] = {
+        ...updated[index],
+        completed,
+        completedDate: completed ? (updated[index].completedDate || today) : "",
+      };
+      return {
+        ...current,
+        checklist: updated,
+        activity: [newActivity, ...(current.activity || [])],
+      };
+    });
+  }
+
+  function updateChecklistDate(index: number, dateValue: string) {
+    setForm((current) => {
+      const updated = [...(current.checklist || [])];
+      updated[index] = {
+        ...updated[index],
+        completedDate: dateValue,
+      };
+      return { ...current, checklist: updated };
+    });
   }
 
   async function handleFileSelect(files: FileList | null) {
@@ -573,6 +704,15 @@ export default function CredentialingModal({
                   {title}
                 </div>
                 <Badge label={form.status} tone={statusTone(form.status)} />
+                {getCycleTimeBadge(
+                  form.submissionDate,
+                  form.effectiveDate,
+                  record?.activity,
+                  form.startDate,
+                  record?.createdAt,
+                  record?.updatedAt,
+                  form.status,
+                )}
               </div>
               <div className="mt-1 text-[13px] text-slate-400">
                 {record?.credentialingId || "Create credentialing record"}
@@ -936,6 +1076,86 @@ export default function CredentialingModal({
                   })}
                 </div>
               </div>
+            </section>
+
+            {/* Check List Section */}
+            <section className="rounded-2xl border border-[#ece8e1] bg-white p-5 space-y-4">
+              <button
+                type="button"
+                onClick={() => setIsChecklistOpen((prev) => !prev)}
+                className="w-full flex items-center justify-between gap-3  text-left focus:outline-none group cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <ListCheck className="h-4.5 w-4.5 text-[#4f63ea]" />
+                  <h3 className="text-[15px] font-semibold text-slate-800 group-hover:text-[#4f63ea] transition-colors">
+                    Credentialing Check List
+                  </h3>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-[#4f63ea] bg-[#f0f2fe] px-3 py-1 rounded-full border border-[#e0e4fd]">
+                    {completedChecklistCount} of {(form.checklist || []).length} Completed
+                  </span>
+                  {isChecklistOpen ? (
+                    <ChevronUp className="h-4.5 w-4.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                  ) : (
+                    <ChevronDown className="h-4.5 w-4.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                  )}
+                </div>
+              </button>
+
+              {isChecklistOpen && (
+                <div className="overflow-x-auto rounded-xl border border-[#ece8e1]">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#faf9f7] text-[11px] uppercase tracking-wider font-semibold text-slate-500 border-b border-[#ece8e1]">
+                      <tr>
+                        <th className="px-4 py-3">Task</th>
+                        <th className="px-4 py-3 text-left w-40">Status</th>
+                        <th className="px-4 py-3 w-56">Date Completed</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#f0ece6] bg-white font-medium text-slate-700">
+                      {(form.checklist || []).map((item, idx) => (
+                        <tr key={item.id || idx} className="hover:bg-[#fbfaf8] transition-colors">
+                          <td className="px-4 py-3.5 font-semibold text-slate-800">
+                            <span className={item.completed ? "line-through text-slate-400 font-normal" : ""}>
+                              {item.task}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-left">
+                            <label className={`inline-flex items-center gap-2 ${isReadOnly ? "cursor-not-allowed opacity-75" : "cursor-pointer"} select-none`}>
+                              <input
+                                type="checkbox"
+                                checked={item.completed}
+                                disabled={isReadOnly}
+                                onChange={(e) => toggleChecklistItem(idx, e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] cursor-pointer disabled:cursor-not-allowed"
+                              />
+                              <span
+                                className={`text-xs ${
+                                  item.completed
+                                    ? "font-bold text-emerald-700"
+                                    : "font-medium text-slate-500"
+                                }`}
+                              >
+                                {item.completed ? "Completed" : "Pending"}
+                              </span>
+                            </label>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <DatePicker
+                              value={item.completedDate || ""}
+                              onChange={(val) => updateChecklistDate(idx, val)}
+                              disabled={isReadOnly || !item.completed}
+                              placeholder="mm-dd-yyyy"
+                              className="rounded-xl text-xs"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </section>
 
             <section className="rounded-2xl border border-[#ece8e1] bg-white p-5">

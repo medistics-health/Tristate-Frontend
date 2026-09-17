@@ -20,6 +20,13 @@ export function isLockedCredentialingStatus(status?: string | null) {
   );
 }
 
+export function isContractedStatus(status?: string | null) {
+  return (
+    status === "Contracted - Direct" ||
+    status === "Contracted - IPA/Delegated"
+  );
+}
+
 export function canEditCredentialingStatus(status?: string | null) {
   return true;
 }
@@ -119,6 +126,26 @@ export type CredentialingFollowUp = {
   loggedBy: string;
 };
 
+export type CredentialingChecklistItem = {
+  id: string;
+  task: string;
+  completed: boolean;
+  completedDate?: string;
+};
+
+export const defaultCredentialingChecklistTasks = [
+  "Documents Collected",
+  "Application Submitted",
+  "Primary Source Verification",
+  "Background Check",
+  "Committee Review",
+  "Payer Enrollment",
+  "Hospital Privileges Granted",
+  "Credentialing Approved",
+  "Billing Activated",
+  "Recredentialing Scheduled",
+] as const;
+
 export type CredentialingRecord = {
   id: string;
   credentialingId: string;
@@ -148,6 +175,7 @@ export type CredentialingRecord = {
   lineOfBusiness: LineOfBusiness[];
   documents: CredentialingDocument[];
   followUpLogs: CredentialingFollowUp[];
+  checklist?: CredentialingChecklistItem[];
   activity: CredentialingActivity[];
   notes?: string;
   enrollmentId?: string;
@@ -184,4 +212,6 @@ export type CredentialingFormState = {
   enrollmentId?: string;
   documents: CredentialingDocument[];
   followUpLogs: CredentialingFollowUp[];
+  checklist: CredentialingChecklistItem[];
+  activity?: CredentialingActivity[];
 };
