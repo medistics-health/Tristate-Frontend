@@ -25,6 +25,7 @@ import {
   contractTypeOptions,
   requestTypeOptions,
   canEditCredentialingStatus,
+  isContractedStatus,
   type CredentialingFormState,
   type CredentialingRecord,
 } from "./types";
@@ -118,10 +119,91 @@ function statusTone(status: string) {
     case "Re-credentialing Due":
       return "bg-orange-50 text-orange-700 border border-orange-200/60";
     case "Terminated":
-      return "bg-slate-100 text-slate-600";
+      return "bg-slate-200 text-slate-700";
     default:
       return "bg-slate-100 text-slate-700";
   }
+}
+
+function getCycleTimeBadge(
+  submissionDate?: string | null,
+  effectiveDate?: string | null,
+  activity?: CredentialingActivity[] | null,
+  startDate?: string | null,
+  createdAt?: string | null,
+  updatedAt?: string | null,
+  status?: string | null,
+) {
+  const startStr = startDate || submissionDate || createdAt;
+  if (!startStr) return <span className="text-slate-400 font-medium">-</span>;
+  const start = new Date(startStr).getTime();
+  if (isNaN(start)) return <span className="text-slate-400 font-medium">-</span>;
+
+  let endStr: string | null | undefined = effectiveDate;
+  if (activity && activity.length > 0) {
+    const contractedLog = activity.find((a) => {
+      const text = `${a.action || ""} ${a.details || ""}`.toLowerCase();
+      return (
+        text.includes("contracted - direct") ||
+        text.includes("contracted - ipa/delegated") ||
+        text.includes("contracted")
+      );
+    });
+    if (contractedLog?.createdAt) {
+      endStr = contractedLog.createdAt;
+    }
+  }
+
+  const end = endStr
+    ? new Date(endStr).getTime()
+    : updatedAt
+      ? new Date(updatedAt).getTime()
+      : Date.now();
+  if (isNaN(end)) return <span className="text-slate-400 font-medium">-</span>;
+
+  const days = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+  const contracted = isContractedStatus(status);
+
+  if (days > 150) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 border border-rose-200"
+        title={`${days} days turnaround time`}
+      >
+        Critical ({days}d)
+      </span>
+    );
+  }
+  if (days > 120) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 border border-amber-200"
+        title={`${days} days turnaround time`}
+      >
+        High Risk ({days}d)
+      </span>
+    );
+  }
+  if (days >= 60) {
+    if (!contracted) return <span className="text-slate-400 font-medium">-</span>;
+    return (
+      <span
+        className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 border border-indigo-200"
+        title={`${days} days turnaround time`}
+      >
+        Acceptable ({days}d)
+      </span>
+    );
+  }
+  if (!contracted) return <span className="text-slate-400 font-medium">-</span>;
+  return (
+    <span
+      className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200"
+      title={`${days} days turnaround time`}
+    >
+      Excellent ({days}d)
+    </span>
+  );
 }
 
 function createLocalSearchOptions(options: string[]) {
@@ -897,129 +979,149 @@ function CredentialingListPage() {
               setUserSelectedPageSize(true);
             }}
           >
-            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-              <table className="min-w-full border-separate border-spacing-0 text-left">
-                <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
-                  <tr>
-                    {sortOptions.map((column) => (
-                      <th
-                        key={column.value}
-                        className="border-b border-[#f0ece6] px-4 py-3"
+            <div className="flex flex-col min-h-0 flex-1 bg-[#fbfaf8]/60">
+              {/* Top Bar with Sort & Record Count */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#f0ece6] bg-white text-[12px] text-slate-500 font-medium shrink-0">
+                <span className="font-bold text-slate-700">
+                  Credentialing Records <span className="ml-1 text-slate-400 font-normal">({totalRecords})</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400">Sort by:</span>
+                  <div className="w-48">
+                    <Select
+                      value={sortField}
+                      onChange={(val) => updateSort(val as SortField)}
+                      options={sortOptions}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+                    className="p-1.5 rounded-lg border border-[#ece8e1] bg-white text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                    title={`Sort ${sortDirection === "asc" ? "Descending" : "Ascending"}`}
+                  >
+                    {sortDirection === "asc" ? (
+                      <ArrowUp className="h-3.5 w-3.5 text-[#4f63ea]" />
+                    ) : (
+                      <ArrowDown className="h-3.5 w-3.5 text-[#4f63ea]" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Card List Area */}
+              <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
+                {isLoading ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div
+                        key={index}
+                        className="rounded-2xl border border-[#ece8e1] bg-white p-4 space-y-3 animate-pulse"
                       >
-                        <button
-                          type="button"
-                          onClick={() => updateSort(column.value)}
-                          className="inline-flex cursor-pointer items-center gap-1.5 hover:text-[#4f63ea] transition-colors"
-                        >
-                          <span>{column.label}</span>
-                          {sortField === column.value ? (
-                            sortDirection === "asc" ? (
-                              <ArrowUp className="h-3.5 w-3.5 text-[#4f63ea]" />
-                            ) : (
-                              <ArrowDown className="h-3.5 w-3.5 text-[#4f63ea]" />
-                            )
-                          ) : (
-                            <ArrowUpDown className="h-3.5 w-3.5 text-slate-300" />
-                          )}
-                        </button>
-                      </th>
+                        <div className="h-5 w-1/3 bg-slate-200 rounded" />
+                        <div className="h-4 w-full bg-slate-100 rounded" />
+                      </div>
                     ))}
-                    <th className="border-b border-[#f0ece6] px-4 py-3">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={12} className="px-4 py-8">
-                        <div className="space-y-3">
-                          {Array.from({ length: 6 }).map((_, index) => (
-                            <div
-                              key={index}
-                              className="grid grid-cols-[1.1fr_1.3fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_0.9fr] gap-3 rounded-2xl border border-[#ece8e1] bg-white px-4 py-4"
-                            >
-                              {Array.from({ length: 12 }).map(
-                                (__, colIndex) => (
-                                  <div
-                                    key={colIndex}
-                                    className="h-4 animate-pulse rounded bg-slate-200/80"
-                                  />
-                                ),
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  ) : records.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={12}
-                        className="px-4 py-14 text-center text-[13px] text-slate-400"
-                      >
-                        No credentialing records match the current filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    records.map((record) => (
-                      <tr
-                        key={record.id}
-                        className="text-[13px] text-slate-600 hover:bg-[#faf9f7]/60 transition-colors"
-                      >
-                        <td className="border-b border-[#f4f1ec] px-4 py-3 font-medium text-slate-700">
-                          <button
-                            type="button"
-                            onClick={() => openViewModal(record)}
-                            className="text-left font-semibold text-[#4f63ea] hover:underline cursor-pointer"
-                          >
-                            {record.credentialingId}
-                          </button>
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          {record.practice}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          {record.provider}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          {formatPayerDisplayLabel(
-                            record.insuranceCompany,
-                            record.payerProviderId,
-                          )}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          {record.credentialingType}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          <span
-                            className={`inline-flex rounded-lg px-2.5 py-1 text-[12px] font-medium ${statusTone(record.status)}`}
-                          >
-                            {record.status}
-                          </span>
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          {record.assignedUser}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          {formatDateLabel(record.submissionDate)}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          {formatDateLabel(record.effectiveDate)}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          {formatDateLabel(record.expirationDate)}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          {formatDateLabel(record.updatedAt)}
-                        </td>
-                        <td className="border-b border-[#f4f1ec] px-4 py-3">
-                          <div className="flex items-center gap-2">
+                  </div>
+                ) : records.length === 0 ? (
+                  <div className="rounded-2xl border border-[#ece8e1] bg-white px-4 py-14 text-center text-[13px] text-slate-400">
+                    No credentialing records match the current filters.
+                  </div>
+                ) : (
+                  records.map((record) => (
+                    <div
+                      key={record.id}
+                      className="rounded-2xl border border-[#ece8e1] bg-white p-4 shadow-2xs hover:border-[#4f63ea]/40 hover:shadow-xs transition-all space-y-3"
+                    >
+                      {/* Row 1: Primary Identifiers & Specs with Explicit Field Labels */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f0ece6] pb-3">
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                          {/* Credentialing ID */}
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#4f63ea] bg-[#f0f2fe] px-1.5 py-0.5 rounded border border-[#e0e4fd]">
+                              ID
+                            </span>
                             <button
                               type="button"
                               onClick={() => openViewModal(record)}
-                              className="cursor-pointer rounded-lg border border-[#ece8e1] p-2 text-slate-500 hover:bg-[#f7f5f1] transition-colors"
-                              title="View"
+                              className="font-bold text-[#4f63ea] hover:underline cursor-pointer text-[14px]"
+                            >
+                              {record.credentialingId}
+                            </button>
+                          </div>
+
+                          <span className="text-slate-300 font-light">|</span>
+
+                          {/* Practice */}
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-slate-400">Practice:</span>
+                            <span className="font-bold text-slate-800">{record.practice}</span>
+                          </div>
+
+                          <span className="text-slate-300 font-light">|</span>
+
+                          {/* Provider */}
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-slate-400">Provider:</span>
+                            <span className="font-semibold text-slate-700">{record.provider}</span>
+                          </div>
+
+                          <span className="text-slate-300 font-light">|</span>
+
+                          {/* Payer / Insurance Plan */}
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-slate-400">Payer:</span>
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-700 border border-slate-200/60">
+                              {formatPayerDisplayLabel(
+                                record.insuranceCompany,
+                                record.payerProviderId,
+                              )}
+                            </span>
+                          </div>
+
+                          <span className="text-slate-300 font-light">|</span>
+
+                          {/* Request Type */}
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-slate-400">Type:</span>
+                            <span className="rounded-md bg-blue-50 px-2 py-0.5 font-medium text-blue-700 border border-blue-100">
+                              {record.credentialingType}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 ml-auto sm:ml-0">
+                          {/* Status */}
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Status:</span>
+                            <span
+                              className={`inline-flex rounded-lg px-2.5 py-1 text-[12px] font-medium ${statusTone(record.status)}`}
+                            >
+                              {record.status}
+                            </span>
+                          </div>
+
+                          {/* Cycle Time */}
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cycle Time:</span>
+                            {getCycleTimeBadge(
+                              record.submissionDate,
+                              record.effectiveDate,
+                              record.activity,
+                              record.startDate,
+                              record.createdAt,
+                              record.updatedAt,
+                              record.status,
+                            )}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-1.5 border-l border-[#f0ece6] pl-2">
+                            <button
+                              type="button"
+                              onClick={() => openViewModal(record)}
+                              className="cursor-pointer rounded-lg border border-[#ece8e1] p-1.5 text-slate-500 hover:bg-[#f7f5f1] transition-colors"
+                              title="View Record"
                             >
                               <Eye className="h-4 w-4" />
                             </button>
@@ -1027,19 +1129,63 @@ function CredentialingListPage() {
                               <button
                                 type="button"
                                 onClick={() => openEditModal(record)}
-                                className="cursor-pointer rounded-lg border border-[#ece8e1] p-2 text-slate-500 hover:bg-[#f7f5f1] transition-colors"
-                                title="Edit"
+                                className="cursor-pointer rounded-lg border border-[#ece8e1] p-1.5 text-slate-500 hover:bg-[#f7f5f1] transition-colors"
+                                title="Edit Record"
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>
                             ) : null}
                           </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+
+                      {/* Row 2: Secondary Timeline Dates & Specialist */}
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs text-slate-500 pt-0.5">
+                        <div className="rounded-xl bg-[#fbfaf8] border border-[#f2eee9] p-2">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Assigned Specialist
+                          </span>
+                          <span className="font-semibold text-slate-700 mt-0.5 block truncate">
+                            {record.assignedUser || "-"}
+                          </span>
+                        </div>
+                        <div className="rounded-xl bg-[#fbfaf8] border border-[#f2eee9] p-2">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Submission Date
+                          </span>
+                          <span className="font-semibold text-slate-700 mt-0.5 block">
+                            {formatDateLabel(record.submissionDate)}
+                          </span>
+                        </div>
+                        <div className="rounded-xl bg-[#fbfaf8] border border-[#f2eee9] p-2">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Effective Date
+                          </span>
+                          <span className="font-semibold text-slate-700 mt-0.5 block">
+                            {formatDateLabel(record.effectiveDate)}
+                          </span>
+                        </div>
+                        <div className="rounded-xl bg-[#fbfaf8] border border-[#f2eee9] p-2">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Expiration Date
+                          </span>
+                          <span className="font-semibold text-slate-700 mt-0.5 block">
+                            {formatDateLabel(record.expirationDate)}
+                          </span>
+                        </div>
+                        <div className="rounded-xl bg-[#fbfaf8] border border-[#f2eee9] p-2">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Last Updated
+                          </span>
+                          <span className="font-semibold text-slate-700 mt-0.5 block">
+                            {formatDateLabel(record.updatedAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </DataTableToolbar>
         </section>

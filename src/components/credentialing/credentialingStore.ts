@@ -1,5 +1,6 @@
 import type {
   AllowedDocumentType,
+  CredentialingChecklistItem,
   CredentialingDocument,
   CredentialingFollowUp,
   CredentialingFormState,
@@ -8,6 +9,7 @@ import type {
 import {
   contractTypeOptions,
   credentialingStatusOptions,
+  defaultCredentialingChecklistTasks,
   followUpChannelOptions,
   followUpDirectionOptions,
   priorityOptions,
@@ -61,9 +63,32 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+export function getDefaultChecklist(): CredentialingChecklistItem[] {
+  return defaultCredentialingChecklistTasks.map((task, index) => ({
+    id: `chk-${index + 1}`,
+    task,
+    completed: false,
+    completedDate: "",
+  }));
+}
+
 export function createCredentialingFormState(
   record?: CredentialingRecord | null,
 ): CredentialingFormState {
+  const defaultList = getDefaultChecklist();
+  const existingMap = new Map((record?.checklist || []).map((item) => [item.task, item]));
+  const mergedChecklist = defaultList.map((defItem) => {
+    const existing = existingMap.get(defItem.task);
+    if (existing) {
+      return {
+        ...defItem,
+        completed: Boolean(existing.completed),
+        completedDate: formatDateInput(existing.completedDate),
+      };
+    }
+    return defItem;
+  });
+
   return {
     practiceId: record?.practiceId || "",
     practice: record?.practice || "",
@@ -91,6 +116,8 @@ export function createCredentialingFormState(
     enrollmentId: record?.enrollmentId || "",
     documents: record?.documents || [],
     followUpLogs: record?.followUpLogs || [],
+    checklist: mergedChecklist,
+    activity: record?.activity || [],
   };
 }
 
