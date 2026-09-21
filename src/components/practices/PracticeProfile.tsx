@@ -45,6 +45,7 @@ import {
   type Practice,
 } from "../../services/operations/practices";
 import { formatPracticeServiceLine } from "./serviceLines";
+import { HubDocumentList } from "../document-hub/HubDocumentList";
 import { getDealsByPractice, type Deal } from "../../services/operations/deals";
 import {
   extractClientRate,
@@ -1651,6 +1652,14 @@ export default function PracticeProfilePage() {
                 No generated onboarding PDF found for this onboarding record.
               </p>
             ) : null}
+          </Card>
+
+          <Card
+            title="Document Hub"
+            description="Organization documents linked to this practice."
+            scrollable
+          >
+            <HubDocumentList documents={practice?.hubDocuments || []} />
           </Card>
         </div>
 

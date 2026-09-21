@@ -1,5 +1,25 @@
 export type HubDocumentStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 
+export type HubLinkedDocument = {
+  id: string;
+  title: string;
+  description: string | null;
+  originalFilename: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  version: number;
+  status: HubDocumentStatus;
+  createdAt: string;
+  uploadedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  categories: { id: string; name: string }[];
+  tags: { id: string; name: string }[];
+};
+
 export type HubDocumentUser = {
   id: string;
   firstName: string;
@@ -15,6 +35,17 @@ export type HubCategory = {
   parentCategory?: { id: string; name: string } | null;
   _count?: { documentLinks: number; childCategories: number };
 };
+
+export function hubCategoryParentId(category: HubCategory): string | null {
+  return category.parentCategoryId || category.parentCategory?.id || null;
+}
+
+export function hubCategoryPathLabel(category: HubCategory, all: HubCategory[]): string {
+  const parentId = hubCategoryParentId(category);
+  const parentName =
+    category.parentCategory?.name || all.find((item) => item.id === parentId)?.name;
+  return parentName ? `${parentName} / ${category.name}` : category.name;
+}
 
 export type HubTag = {
   id: string;

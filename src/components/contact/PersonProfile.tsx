@@ -31,6 +31,7 @@ import CredentialingModal from "../credentialing/CredentialingModal";
 import { formatDateLabel } from "../credentialing/credentialingStore";
 import type { CredentialingRecord } from "../credentialing/types";
 import type { Person } from "./types";
+import { HubDocumentList } from "../document-hub/HubDocumentList";
 
 const designationOptions = [
   { label: "Owner", value: "Owner" },
@@ -830,6 +831,14 @@ export default function PersonProfilePage() {
                 </p>
               )}
             </div>
+          </Card>
+
+          <Card
+            title="Document Hub"
+            description="Organization documents linked to this person."
+            scrollable
+          >
+            <HubDocumentList documents={person?.hubDocuments || []} />
           </Card>
         </div>
 

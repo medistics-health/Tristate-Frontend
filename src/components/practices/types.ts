@@ -1,4 +1,5 @@
 import type { PracticeServiceLine } from "./serviceLines";
+import type { HubLinkedDocument } from "../document-hub/types";
 
 export type PracticeStatus = "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED";
 
@@ -67,6 +68,7 @@ export type Practice = {
   agreements?: Agreement[];
   groupNpis?: { id: string; groupNpiNumber: string; groupName: string }[];
   goLiveTarget?: string | null;
+  hubDocuments?: HubLinkedDocument[];
   _count?: { persons: number; deals: number; agreements: number };
 };
 

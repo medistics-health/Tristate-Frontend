@@ -1,3 +1,5 @@
+import type { HubLinkedDocument } from "../document-hub/types";
+
 export type PersonRole =
   | "OWNER"
   | "ADMIN"
@@ -56,6 +58,7 @@ export type Person = {
   practices?: PersonPractice[];
   companies?: PersonCompany[];
   docusealSubmissions?: DocusealSubmission[];
+  hubDocuments?: HubLinkedDocument[];
 };
 
 export type PersonFieldType = "text" | "select";

@@ -59,6 +59,7 @@ import type {
   HubDocumentVersion,
   HubPublicLink,
 } from "./types";
+import { hubCategoryPathLabel } from "./types";
 
 const emptyForm = {
   title: "",
@@ -511,7 +512,10 @@ function DocumentHubPage() {
           onChange={(val) => setDraftFilters((prev) => ({ ...prev, categoryId: val }))}
           options={[
             { label: "All categories", value: "" },
-            ...categories.map((item) => ({ label: item.name, value: item.id })),
+            ...categories.map((item) => ({
+              label: hubCategoryPathLabel(item, categories),
+              value: item.id,
+            })),
           ]}
         />
       </label>
@@ -583,7 +587,10 @@ function DocumentHubPage() {
           <MultiSelect
             value={source.categoryIds}
             onChange={(value) => setSource({ ...source, categoryIds: value })}
-            options={categories.map((item) => ({ label: item.name, value: item.id }))}
+            options={categories.map((item) => ({
+              label: hubCategoryPathLabel(item, categories),
+              value: item.id,
+            }))}
             disabled={disabled}
             placeholder="Select categories"
           />

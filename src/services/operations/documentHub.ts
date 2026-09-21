@@ -225,7 +225,12 @@ export async function listHubCategories(): Promise<HubCategory[]> {
     url: documentHubEndpoints.CATEGORIES,
     credentials: true,
   });
-  return (response.data as { categories: HubCategory[] }).categories;
+  const categories = (response.data as { categories?: HubCategory[] }).categories || [];
+  return categories.map((category) => ({
+    ...category,
+    parentCategoryId:
+      category.parentCategoryId || category.parentCategory?.id || null,
+  }));
 }
 
 export async function createHubCategory(name: string, parentCategoryId?: string) {
