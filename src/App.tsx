@@ -69,6 +69,9 @@ import OnboardingMilestonesPage from "./components/onboarding-projects/Onboardin
 import OnboardingRisksPage from "./components/onboarding-projects/OnboardingRisksPage";
 import OnboardingActionItemsPage from "./components/onboarding-projects/OnboardingActionItemsPage";
 import OnboardingTemplatesPage from "./components/onboarding-projects/OnboardingTemplatesPage";
+import DocumentHubPage from "./components/document-hub/DocumentHub";
+import DocumentHubCategoriesPage from "./components/document-hub/DocumentHubCategories";
+import PublicSharePage from "./components/document-hub/PublicSharePage";
 
 function App() {
   function ModuleRoute({
@@ -640,6 +643,23 @@ function App() {
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
             <CredentialingListPage />
+          </ModuleRoute>
+        }
+      />
+      <Route path="/share/:token" element={<PublicSharePage />} />
+      <Route
+        path="/document-hub"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <DocumentHubPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/document-hub/categories"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.ADMIN_ONLY}>
+            <DocumentHubCategoriesPage />
           </ModuleRoute>
         }
       />

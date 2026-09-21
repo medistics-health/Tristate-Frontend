@@ -99,6 +99,9 @@ const ALL_NAV_ROUTES: NavRouteItem[] = [
   { section: "Credentialing", subSection: "Dashboard", to: "/credentialing/dashboard", icon: <Stethoscope className="h-4 w-4" /> },
   { section: "Credentialing", subSection: "All Credentialing", to: "/credentialing/list", icon: <Stethoscope className="h-4 w-4" /> },
 
+  { section: "Document Hub", subSection: "Library", to: "/document-hub", icon: <FileText className="h-4 w-4" /> },
+  { section: "Document Hub", subSection: "Categories", to: "/document-hub/categories", icon: <FileText className="h-4 w-4" /> },
+
   { section: "Project Management", subSection: "Projects Overview", to: "/project-management/projects", icon: <ClipboardCheck className="h-4 w-4" /> },
   { section: "Project Management", subSection: "Workstreams", to: "/project-management/workstreams", icon: <ClipboardCheck className="h-4 w-4" /> },
   { section: "Project Management", subSection: "Tasks Tracker", to: "/project-management/tasks", icon: <ClipboardCheck className="h-4 w-4" /> },
