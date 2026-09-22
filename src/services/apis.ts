@@ -299,3 +299,28 @@ export const communicationEndpoints = {
     BACKEND_URL + `/api/v1/emails/history/${personId}`,
 };
 
+export const documentHubEndpoints = {
+  LIST: BACKEND_URL + "/api/v1/documents",
+  CREATE: BACKEND_URL + "/api/v1/documents",
+  GET: (id: string) => BACKEND_URL + `/api/v1/documents/${id}`,
+  UPDATE: (id: string) => BACKEND_URL + `/api/v1/documents/${id}`,
+  ARCHIVE: (id: string) => BACKEND_URL + `/api/v1/documents/${id}`,
+  HARD_DELETE: (id: string) => BACKEND_URL + `/api/v1/documents/${id}/hard`,
+  DOWNLOAD: (id: string) => BACKEND_URL + `/api/v1/documents/${id}/download`,
+  VERSIONS: (id: string) => BACKEND_URL + `/api/v1/documents/${id}/versions`,
+  PUBLIC_LINKS: (id: string) =>
+    BACKEND_URL + `/api/v1/documents/${id}/public-links`,
+  REVOKE_PUBLIC_LINK: (id: string) =>
+    BACKEND_URL + `/api/v1/public-links/${id}`,
+  CATEGORIES: BACKEND_URL + "/api/v1/categories",
+  CATEGORY: (id: string) => BACKEND_URL + `/api/v1/categories/${id}`,
+  CATEGORY_MERGE: (id: string) =>
+    BACKEND_URL + `/api/v1/categories/${id}/merge`,
+  TAGS: BACKEND_URL + "/api/v1/tags",
+  PUBLIC_SHARE: (token: string) =>
+    BACKEND_URL + `/api/v1/public/share/${token}`,
+  PUBLIC_DOWNLOAD: (token: string) =>
+    BACKEND_URL + `/api/v1/public/share/${token}/download`,
+};
+
+

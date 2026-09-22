@@ -118,3 +118,11 @@ export function canOperationsAndFinanceWrite(role?: string | null) {
 export function canFinanceWrite(role?: string | null) {
   return hasAnyRole(role, FINANCE_WRITE_ROLES);
 }
+
+export function canDocumentHubShare(role?: string | null) {
+  return hasAnyRole(role, ["ADMIN", "SALES", "ACCOUNTMANAGER"]);
+}
+
+export function canDocumentHubContent(role?: string | null) {
+  return hasAdminAccess(role);
+}

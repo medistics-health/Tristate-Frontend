@@ -5,6 +5,7 @@ import {
   Settings as SettingsIcon,
   Link as LinkIcon,
   Shield,
+  FolderOpen,
   LayoutDashboard,
   Target,
   Users,
@@ -255,6 +256,18 @@ const sidebarSteps: SidebarItem[] = [
     ],
   },
   {
+    label: "Document Hub",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+    items: [
+      { label: "Library", to: "/document-hub" },
+      {
+        label: "Categories",
+        to: "/document-hub/categories",
+        adminOnly: true,
+      },
+    ],
+  },
+  {
     label: "Project Management",
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
@@ -386,6 +399,7 @@ function getIconForLabel(label: string) {
   if (l.includes("company")) return <Building2 className="h-4 w-4" />;
   if (l.includes("communication")) return <Globe className="h-4 w-4" />;
   if (l.includes("practice")) return <Stethoscope className="h-4 w-4" />;
+  if (l.includes("document")) return <FolderOpen className="h-4 w-4" />;
   if (l.includes("credential")) return <ListChecks className="h-4 w-4" />;
   if (l.includes("onboarding")) return <FileText className="h-4 w-4" />;
   if (l.includes("service")) return <Briefcase className="h-4 w-4" />;
