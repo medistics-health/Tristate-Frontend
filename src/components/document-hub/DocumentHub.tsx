@@ -882,7 +882,7 @@ function DocumentHubPage() {
                           type="file"
                           accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg"
                           onChange={(event) => setVersionFile(event.target.files?.[0] || null)}
-                          className="text-[12px]"
+                          className="text-[12px] hover:cursor-pointer font-medium"
                         />
                         <button
                           type="button"
