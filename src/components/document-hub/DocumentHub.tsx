@@ -18,7 +18,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
@@ -56,10 +56,32 @@ import type {
   HubCategory,
   HubDocument,
   HubDocumentRow,
+  HubDocumentStatus,
   HubDocumentVersion,
   HubPublicLink,
 } from "./types";
 import { hubCategoryPathLabel } from "./types";
+
+function hubStatusLabel(status: string) {
+  if (status === "DRAFT") return "Draft";
+  if (status === "ARCHIVED") return "Archived";
+  if (status === "ACTIVE") return "Active";
+  if (status === "ALL") return "All";
+  return status;
+}
+
+function hubPersonName(user?: { firstName: string; lastName: string; email?: string } | null) {
+  if (!user) return null;
+  const name = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+  return name || user.email || null;
+}
+
+function hubDateTime(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString();
+}
 
 const emptyForm = {
   title: "",
@@ -70,7 +92,120 @@ const emptyForm = {
   practiceIds: [] as string[],
   dealIds: [] as string[],
   isPublicShareable: false,
+  status: "ACTIVE" as HubDocumentStatus,
 };
+
+const FILE_ACCEPT = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const OVERSIZE_FILE_MESSAGE =
+  "The selected file is greater than the 25MB upload limit and might not get uploaded.";
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function FilePickerField({
+  file,
+  onChange,
+  compact = false,
+}: {
+  file: File | null;
+  onChange: (file: File | null) => void;
+  compact?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const isOverLimit = Boolean(file && file.size > MAX_UPLOAD_BYTES);
+
+  function openPicker() {
+    const input = inputRef.current;
+    if (!input) return;
+    input.value = "";
+    input.click();
+  }
+
+  function applyFile(next: File | null) {
+    if (next && next.size > MAX_UPLOAD_BYTES) {
+      toast.error(OVERSIZE_FILE_MESSAGE);
+    }
+    onChange(next);
+  }
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={FILE_ACCEPT}
+        className="sr-only"
+        onChange={(event) => {
+          applyFile(event.target.files?.[0] || null);
+          event.target.value = "";
+        }}
+      />
+      {file ? (
+        <div className="space-y-2">
+          <div
+            className={`flex items-center gap-3 rounded-xl border bg-[#fbfaf8] ${
+              compact ? "px-3 py-2" : "px-4 py-3"
+            } ${isOverLimit ? "border-amber-300" : "border-[#eadfcd]"}`}
+          >
+            <Upload className="h-4 w-4 shrink-0 text-[#4f63ea]" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium text-slate-700">{file.name}</p>
+              <p className={`text-[11px] ${isOverLimit ? "text-amber-600" : "text-slate-400"}`}>
+                {formatFileSize(file.size)}
+                {isOverLimit ? " · over 25MB limit" : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={openPicker}
+              className="shrink-0 rounded-md border border-[#ece8e1] bg-white px-2.5 py-1.5 text-[12px] font-medium text-slate-600"
+            >
+              Change file
+            </button>
+            <button
+              type="button"
+              onClick={() => applyFile(null)}
+              className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-white hover:text-slate-600"
+              title="Remove file"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {isOverLimit ? (
+            <p className="text-[12px] text-amber-700">{OVERSIZE_FILE_MESSAGE}</p>
+          ) : null}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={openPicker}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDragging(false);
+            applyFile(event.dataTransfer.files?.[0] || null);
+          }}
+          className={`flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 text-center ${
+            compact ? "py-3" : "py-6"
+          } ${isDragging ? "border-[#4f63ea] bg-[#f0f2fe]" : "border-[#eadfcd] bg-[#fbfaf8]"}`}
+        >
+          <Upload className="mb-2 h-5 w-5 text-slate-400" />
+          <span className="text-[13px] text-slate-600">Drop or click to choose a file</span>
+          <span className="mt-1 text-[11px] text-slate-400">PDF, DOCX, XLSX, PPTX, PNG, JPG · 25MB</span>
+        </button>
+      )}
+    </div>
+  );
+}
 
 function DocumentHubPage() {
   const currentRole = readStoredUser()?.role as string | undefined;
@@ -118,6 +253,13 @@ function DocumentHubPage() {
           id: "fileType",
           accessorFn: (row: HubDocumentRow) => row.values.fileType,
           header: () => "Type",
+        },
+        {
+          id: "status",
+          accessorFn: (row: HubDocumentRow) => row.values.status,
+          header: () => "Status",
+          cell: ({ row }: { row: { original: HubDocumentRow } }) =>
+            hubStatusLabel(String(row.original.values.status || "ACTIVE")),
         },
         {
           id: "version",
@@ -271,6 +413,7 @@ function DocumentHubPage() {
         practiceIds: document.practices.map((item) => item.id),
         dealIds: document.deals.map((item) => item.id),
         isPublicShareable: document.isPublicShareable,
+        status: document.status === "ARCHIVED" ? "ARCHIVED" : document.status,
       });
       const links = await listPublicLinks(id);
       setPublicLinks(links);
@@ -315,6 +458,7 @@ function DocumentHubPage() {
     payload.append("practiceIds", JSON.stringify(source.practiceIds));
     payload.append("dealIds", JSON.stringify(source.dealIds));
     payload.append("isPublicShareable", String(source.isPublicShareable));
+    payload.append("status", source.status === "ARCHIVED" ? "ACTIVE" : source.status);
     return payload;
   }
 
@@ -365,6 +509,9 @@ function DocumentHubPage() {
         practiceIds: editForm.practiceIds,
         dealIds: editForm.dealIds,
         isPublicShareable: editForm.isPublicShareable,
+        ...(selectedDocument.status === "ARCHIVED"
+          ? {}
+          : { status: editForm.status }),
       });
       toast.success("Document updated.");
       await loadDetail(selectedDocument.id);
@@ -398,6 +545,21 @@ function DocumentHubPage() {
       setLinkExpiresAt("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create link");
+    }
+  }
+
+  async function handleRestore() {
+    if (!selectedDocument) return;
+    try {
+      setIsSaving(true);
+      await updateHubDocument(selectedDocument.id, { status: "ACTIVE" });
+      toast.success("Document restored to Active.");
+      await loadDetail(selectedDocument.id);
+      await refreshRecords();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Restore failed");
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -493,7 +655,7 @@ function DocumentHubPage() {
       chips.push({
         key: "status",
         label: "Status",
-        displayValue: filters.status,
+        displayValue: hubStatusLabel(filters.status),
         onClear: () => {
           setFilters((curr) => ({ ...curr, status: "ACTIVE" }));
           setPagination((prev) => ({ ...prev, page: 1 }));
@@ -542,6 +704,7 @@ function DocumentHubPage() {
           onChange={(val) => setDraftFilters((prev) => ({ ...prev, status: val }))}
           options={[
             { label: "Active", value: "ACTIVE" },
+            { label: "Draft", value: "DRAFT" },
             { label: "Archived", value: "ARCHIVED" },
             { label: "All", value: "ALL" },
           ]}
@@ -606,17 +769,42 @@ function DocumentHubPage() {
             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
           />
         </div>
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">Status</label>
+          {source.status === "ARCHIVED" ? (
+            <p className="rounded-md border border-[#ece8e1] bg-[#fbfaf8] px-3 py-2 text-[13px] text-slate-600">
+              Archived — restore it to make it Draft or Active again.
+            </p>
+          ) : (
+            <Select
+              value={source.status}
+              onChange={(value) =>
+                setSource({ ...source, status: value as HubDocumentStatus })
+              }
+              options={[
+                { label: "Active", value: "ACTIVE" },
+                { label: "Draft", value: "DRAFT" },
+              ]}
+              disabled={disabled}
+            />
+          )}
+        </div>
         <label className="flex items-center gap-2 text-[13px] text-slate-700">
           <input
             type="checkbox"
             checked={source.isPublicShareable}
-            disabled={disabled}
+            disabled={disabled || source.status !== "ACTIVE"}
             onChange={(event) =>
               setSource({ ...source, isPublicShareable: event.target.checked })
             }
           />
           Allow public sharing
         </label>
+        {source.status !== "ACTIVE" ? (
+          <p className="-mt-2 text-[12px] text-slate-400">
+            Public links are only available while the document is Active.
+          </p>
+        ) : null}
         <div>
           <label className="mb-1 block text-[13px] font-medium text-slate-700">People</label>
           <MultiSelect
@@ -798,6 +986,7 @@ function DocumentHubPage() {
                     }}
                     infoRows={[
                       { label: "File", value: selectedDocument.originalFilename },
+                      { label: "Status", value: hubStatusLabel(selectedDocument.status) },
                       { label: "Downloads", value: String(selectedDocument.downloadCount) },
                     ]}
                   />
@@ -811,55 +1000,105 @@ function DocumentHubPage() {
                   </button>
                   {metadataFields(editForm, setEditForm, !canManage)}
 
-                  {canShare && selectedDocument.isPublicShareable && (
+                  {canShare &&
+                    ((selectedDocument.isPublicShareable &&
+                      selectedDocument.status === "ACTIVE") ||
+                      publicLinks.length > 0) && (
                     <div className="rounded-xl border border-[#eadfcd] p-3 space-y-2">
                       <p className="text-[13px] font-semibold text-slate-700">Public link</p>
-                      <input
-                        type="datetime-local"
-                        value={linkExpiresAt}
-                        onChange={(event) => setLinkExpiresAt(event.target.value)}
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleCreateLink}
-                        className="app-control inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white"
-                      >
-                        <Link2 className="h-4 w-4" />
-                        Create & copy link
-                      </button>
-                      {publicLinks.map((link) => (
-                        <div
-                          key={link.id}
-                          className="flex items-center justify-between gap-2 rounded-lg bg-[#fbfaf8] px-2 py-1.5 text-[12px] text-slate-600"
-                        >
-                          <span className="truncate">
-                            {link.revokedAt ? "Revoked" : link.url} · {link.viewCount} views
-                          </span>
-                          <span className="flex shrink-0 gap-1">
-                            {!link.revokedAt && (
-                              <button
-                                type="button"
-                                onClick={() => navigator.clipboard.writeText(link.url).then(() => toast.success("Copied"))}
-                              >
-                                <Copy className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                            {canManage && !link.revokedAt && (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  await revokePublicLinkApi(link.id);
-                                  setPublicLinks(await listPublicLinks(selectedDocument.id));
-                                  toast.success("Link revoked");
-                                }}
-                              >
-                                <X className="h-3.5 w-3.5 text-red-500" />
-                              </button>
-                            )}
-                          </span>
-                        </div>
-                      ))}
+                      {canShare &&
+                        selectedDocument.isPublicShareable &&
+                        selectedDocument.status === "ACTIVE" && (
+                          <>
+                            <input
+                              type="datetime-local"
+                              value={linkExpiresAt}
+                              onChange={(event) => setLinkExpiresAt(event.target.value)}
+                              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleCreateLink}
+                              className="app-control inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white"
+                            >
+                              <Link2 className="h-4 w-4" />
+                              Create & copy link
+                            </button>
+                          </>
+                        )}
+                      {publicLinks.map((link) => {
+                        const expired =
+                          !link.revokedAt &&
+                          Boolean(link.expiresAt) &&
+                          new Date(link.expiresAt as string).getTime() < Date.now();
+                        const state = link.revokedAt
+                          ? "Revoked"
+                          : expired
+                            ? "Expired"
+                            : "Live";
+                        return (
+                          <div
+                            key={link.id}
+                            className="rounded-lg bg-[#fbfaf8] px-3 py-2 text-[12px] text-slate-600"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-slate-700">
+                                  {link.revokedAt || expired ? state : link.url}
+                                </p>
+                                <p className="mt-0.5 text-[11px] text-slate-400">
+                                  {state} · {link.viewCount} views
+                                </p>
+                              </div>
+                              <span className="flex shrink-0 gap-1">
+                                {!link.revokedAt && !expired && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      navigator.clipboard
+                                        .writeText(link.url)
+                                        .then(() => toast.success("Copied"))
+                                    }
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                {canManage && !link.revokedAt && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await revokePublicLinkApi(link.id);
+                                      setPublicLinks(await listPublicLinks(selectedDocument.id));
+                                      toast.success("Link revoked");
+                                    }}
+                                  >
+                                    <X className="h-3.5 w-3.5 text-red-500" />
+                                  </button>
+                                )}
+                              </span>
+                            </div>
+                            <dl className="mt-2 space-y-0.5 text-[11px] text-slate-500">
+                              <div>
+                                Created {hubDateTime(link.createdAt) || "—"}
+                                {hubPersonName(link.createdBy)
+                                  ? ` by ${hubPersonName(link.createdBy)}`
+                                  : ""}
+                              </div>
+                              <div>
+                                Expires {hubDateTime(link.expiresAt) || "No expiry"}
+                              </div>
+                              {link.revokedAt ? (
+                                <div>
+                                  Revoked {hubDateTime(link.revokedAt)}
+                                  {hubPersonName(link.revokedBy)
+                                    ? ` by ${hubPersonName(link.revokedBy)}`
+                                    : ""}
+                                </div>
+                              ) : null}
+                            </dl>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -877,19 +1116,18 @@ function DocumentHubPage() {
                       ))}
                     </div>
                     {canManage && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <input
-                          type="file"
-                          accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg"
-                          onChange={(event) => setVersionFile(event.target.files?.[0] || null)}
-                          className="text-[12px] hover:cursor-pointer font-medium"
+                      <div className="mt-2 space-y-2">
+                        <FilePickerField
+                          file={versionFile}
+                          onChange={setVersionFile}
+                          compact
                         />
                         <button
                           type="button"
                           onClick={handleVersionUpload}
-                          className="rounded-md border border-[#ece8e1] px-2 py-1 text-[12px]"
+                          className="inline-flex items-center gap-1 rounded-md border border-[#ece8e1] px-2 py-1 text-[12px]"
                         >
-                          <Upload className="inline h-3.5 w-3.5" /> New version
+                          <Upload className="h-3.5 w-3.5" /> New version
                         </button>
                       </div>
                     )}
@@ -898,14 +1136,25 @@ function DocumentHubPage() {
                 {canManage && (
                   <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
                     <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={handleArchive}
-                        disabled={isDeleting}
-                        className="flex items-center gap-1 text-[13px] text-amber-600"
-                      >
-                        Archive
-                      </button>
+                      {selectedDocument.status === "ARCHIVED" ? (
+                        <button
+                          type="button"
+                          onClick={handleRestore}
+                          disabled={isSaving || isDeleting}
+                          className="flex items-center gap-1 text-[13px] text-[#4f63ea]"
+                        >
+                          Restore
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleArchive}
+                          disabled={isDeleting}
+                          className="flex items-center gap-1 text-[13px] text-amber-600"
+                        >
+                          Archive
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={handleHardDelete}
@@ -940,19 +1189,9 @@ function DocumentHubPage() {
               </button>
             </div>
             <form onSubmit={handleCreate} className="flex-1 overflow-auto p-4">
-              <label className="mb-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#eadfcd] bg-[#fbfaf8] px-4 py-6 text-center">
-                <Upload className="mb-2 h-5 w-5 text-slate-400" />
-                <span className="text-[13px] text-slate-600">
-                  {uploadFile ? uploadFile.name : "Drop or click to choose a file"}
-                </span>
-                <span className="mt-1 text-[11px] text-slate-400">PDF, DOCX, XLSX, PPTX, PNG, JPG · 25MB</span>
-                <input
-                  type="file"
-                  accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg"
-                  className="hidden"
-                  onChange={(event) => setUploadFile(event.target.files?.[0] || null)}
-                />
-              </label>
+              <div className="mb-4">
+                <FilePickerField file={uploadFile} onChange={setUploadFile} />
+              </div>
               {metadataFields(formData, setFormData, false)}
               <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">
                 <button

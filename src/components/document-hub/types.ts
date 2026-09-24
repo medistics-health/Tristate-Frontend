@@ -94,13 +94,21 @@ export type HubDocumentVersion = {
   fileSizeBytes: number;
 };
 
+export type HubPublicLinkUser = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+};
+
 export type HubPublicLink = {
   id: string;
   documentId: string;
-  token: string;
   createdAt: string;
+  createdBy?: HubPublicLinkUser | null;
   expiresAt: string | null;
   revokedAt: string | null;
+  revokedBy?: HubPublicLinkUser | null;
   viewCount: number;
   lastAccessedAt: string | null;
   allowDownload: boolean;
