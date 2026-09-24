@@ -58,6 +58,9 @@ export type DocumentHubQueryParams = {
   tag?: string;
   fileType?: string;
   status?: string;
+  uploadedById?: string;
+  from?: string;
+  to?: string;
   sort?: string;
   personId?: string;
   practiceId?: string;
@@ -74,6 +77,9 @@ export async function getDocumentsView(params?: DocumentHubQueryParams) {
     if (params?.tag) query.set("tag", params.tag);
     if (params?.fileType) query.set("fileType", params.fileType);
     if (params?.status) query.set("status", params.status);
+    if (params?.uploadedById) query.set("uploadedById", params.uploadedById);
+    if (params?.from) query.set("from", params.from);
+    if (params?.to) query.set("to", params.to);
     if (params?.sort) query.set("sort", params.sort);
     if (params?.personId) query.set("personId", params.personId);
     if (params?.practiceId) query.set("practiceId", params.practiceId);
@@ -231,6 +237,18 @@ export async function listHubCategories(): Promise<HubCategory[]> {
     parentCategoryId:
       category.parentCategoryId || category.parentCategory?.id || null,
   }));
+}
+
+export async function listHubUploaders(): Promise<
+  { id: string; firstName: string; lastName: string; email: string }[]
+> {
+  const response = await apiConnector({
+    method: "GET",
+    url: documentHubEndpoints.UPLOADERS,
+    credentials: true,
+  });
+  return (response.data as { uploaders?: { id: string; firstName: string; lastName: string; email: string }[] })
+    .uploaders || [];
 }
 
 export async function createHubCategory(name: string, parentCategoryId?: string) {

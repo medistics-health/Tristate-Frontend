@@ -33,6 +33,13 @@ export type HubCategory = {
   name: string;
   parentCategoryId?: string | null;
   parentCategory?: { id: string; name: string } | null;
+  createdAt?: string;
+  createdBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
   _count?: { documentLinks: number; childCategories: number };
 };
 
