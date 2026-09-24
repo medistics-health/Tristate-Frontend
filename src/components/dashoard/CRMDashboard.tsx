@@ -479,6 +479,7 @@ export default function CRMDashboardPage() {
                 : inv.status === "OVERDUE"
                   ? ("overdue" as const)
                   : ("pending" as const),
+            createdAt: inv.createdAt || inv.dueDate || undefined,
           })),
         );
 
@@ -589,6 +590,29 @@ export default function CRMDashboardPage() {
     const netMargin = totalClientRevenue - totalVendorCost;
     const marginPercentage = totalClientRevenue > 0 ? (netMargin / totalClientRevenue) * 100 : 0;
 
+    const paidInvoices = invoices.filter((i) => i.status === "paid");
+    const dueInvoices = invoices.filter((i) => i.status === "pending");
+    const overdueInvoicesList = invoices.filter((i) => i.status === "overdue");
+
+    const paidInvoicesAmount = paidInvoices.reduce((sum, i) => sum + i.amount, 0);
+    const dueInvoicesAmount = dueInvoices.reduce((sum, i) => sum + i.amount, 0);
+    const overdueInvoicesAmount = overdueInvoicesList.reduce((sum, i) => sum + i.amount, 0);
+
+    const paidInvoicesCount = paidInvoices.length;
+    const dueInvoicesCount = dueInvoices.length;
+    const overdueInvoicesCount = overdueInvoicesList.length;
+
+    const totalOutstandingAR = dueInvoicesAmount + overdueInvoicesAmount;
+
+    const vendorPaidList = payables.filter((p) => p.status === "PAID");
+    const vendorUnpaidList = payables.filter((p) => p.status !== "PAID");
+
+    const vendorPaidAmount = vendorPaidList.reduce((sum, p) => sum + p.amount, 0);
+    const vendorUnpaidAmount = vendorUnpaidList.reduce((sum, p) => sum + p.amount, 0);
+
+    const vendorPaidCount = vendorPaidList.length;
+    const vendorUnpaidCount = vendorUnpaidList.length;
+
     return {
       totalPipeline,
       dealsClosingThisMonth,
@@ -611,8 +635,119 @@ export default function CRMDashboardPage() {
       totalVendorCost,
       netMargin,
       marginPercentage,
+      paidInvoicesAmount,
+      dueInvoicesAmount,
+      overdueInvoicesAmount,
+      paidInvoicesCount,
+      dueInvoicesCount,
+      overdueInvoicesCount,
+      totalOutstandingAR,
+      vendorPaidAmount,
+      vendorUnpaidAmount,
+      vendorPaidCount,
+      vendorUnpaidCount,
     };
   }, [deals, agreements, practices, services, invoices, audits, payables]);
+
+  const monthlyData = useMemo(() => {
+    type MonthRecord = {
+      monthKey: string;
+      label: string;
+      year: number;
+      monthNum: number;
+      clientBillings: number;
+      paidAmount: number;
+      dueAmount: number;
+      overdueAmount: number;
+      vendorCost: number;
+    };
+
+    const monthMap = new Map<string, MonthRecord>();
+
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const monthNum = d.getMonth() + 1;
+      const monthKey = `${year}-${String(monthNum).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-US", { month: "short" });
+
+      monthMap.set(monthKey, {
+        monthKey,
+        label,
+        year,
+        monthNum,
+        clientBillings: 0,
+        paidAmount: 0,
+        dueAmount: 0,
+        overdueAmount: 0,
+        vendorCost: 0,
+      });
+    }
+
+    const getOrCreateMonth = (rawDate: string | undefined | null): MonthRecord | null => {
+      if (!rawDate || rawDate === "N/A") return null;
+      const d = new Date(rawDate);
+      if (isNaN(d.getTime())) return null;
+
+      const year = d.getFullYear();
+      const monthNum = d.getMonth() + 1;
+      const monthKey = `${year}-${String(monthNum).padStart(2, "0")}`;
+
+      if (!monthMap.has(monthKey)) {
+        const label = d.toLocaleDateString("en-US", { month: "short" });
+        monthMap.set(monthKey, {
+          monthKey,
+          label,
+          year,
+          monthNum,
+          clientBillings: 0,
+          paidAmount: 0,
+          dueAmount: 0,
+          overdueAmount: 0,
+          vendorCost: 0,
+        });
+      }
+      return monthMap.get(monthKey)!;
+    };
+
+    invoices.forEach((inv) => {
+      let target = getOrCreateMonth((inv as any).createdAt) || getOrCreateMonth(inv.dueDate);
+
+      if (!target) {
+        const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        target = monthMap.get(currentKey) || null;
+      }
+
+      if (target) {
+        target.clientBillings += inv.amount;
+        if (inv.status === "paid") {
+          target.paidAmount += inv.amount;
+        } else if (inv.status === "overdue") {
+          target.overdueAmount += inv.amount;
+        } else {
+          target.dueAmount += inv.amount;
+        }
+      }
+    });
+
+    payables.forEach((pay) => {
+      let target = getOrCreateMonth(pay.createdAt);
+      if (!target) {
+        const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        target = monthMap.get(currentKey) || null;
+      }
+      if (target) {
+        target.vendorCost += pay.amount;
+      }
+    });
+
+    const sortedMonths = Array.from(monthMap.values()).sort((a, b) =>
+      a.monthKey.localeCompare(b.monthKey)
+    );
+
+    return sortedMonths.slice(-6);
+  }, [invoices, payables]);
 
   const renderTasksSection = () => (
     <div className="space-y-2">
@@ -1021,12 +1156,31 @@ export default function CRMDashboardPage() {
 
         {selectedRole === "finance" && (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Top Stat Cards - Status-wise Amounts & Margins */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
               <StatCard
                 label="Client Total (Billings)"
                 value={formatCurrency(stats.totalClientRevenue)}
                 icon={<DollarSign className="h-5 w-5 text-indigo-500" />}
                 iconBg="bg-indigo-50"
+              />
+              <StatCard
+                label="Paid Amount"
+                value={formatCurrency(stats.paidInvoicesAmount)}
+                icon={<CheckCircle className="h-5 w-5 text-emerald-500" />}
+                iconBg="bg-emerald-50"
+              />
+              <StatCard
+                label="Unpaid / Due Amount"
+                value={formatCurrency(stats.dueInvoicesAmount)}
+                icon={<Clock className="h-5 w-5 text-blue-500" />}
+                iconBg="bg-blue-50"
+              />
+              <StatCard
+                label="Overdue Amount"
+                value={formatCurrency(stats.overdueInvoicesAmount)}
+                icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
+                iconBg="bg-red-50"
               />
               <StatCard
                 label="Vendor Total (Costs)"
@@ -1037,20 +1191,15 @@ export default function CRMDashboardPage() {
               <StatCard
                 label="Net Margin"
                 value={formatCurrency(stats.netMargin)}
-                icon={<TrendingUp className="h-5 w-5 text-emerald-500" />}
-                iconBg="bg-emerald-50"
-              />
-              <StatCard
-                label="Margin Percentage"
-                value={`${stats.marginPercentage.toFixed(1)}%`}
-                icon={<Activity className="h-5 w-5 text-teal-500" />}
+                icon={<TrendingUp className="h-5 w-5 text-teal-500" />}
                 iconBg="bg-teal-50"
               />
             </div>
 
+            {/* Billing & Invoices Status Breakdown + QuickBooks Sync */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <SectionCard
-                title="Billing & Invoices"
+                title="Billing & Invoices (Status-Wise)"
                 icon={<DollarSign className="h-4 w-4" />}
                 action={
                   <button
@@ -1064,20 +1213,27 @@ export default function CRMDashboardPage() {
                 {showBillingList ? (
                   renderBillingSection()
                 ) : (
-                  <div className="flex flex-col justify-between h-full py-2">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="rounded-xl bg-slate-50/60 p-4 text-center border border-slate-100">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Due</p>
-                        <p className="text-[24px] font-black text-blue-600 mt-1">{stats.invoicesDue}</p>
+                  <div className="flex flex-col justify-between h-full py-2 space-y-4">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="rounded-xl bg-emerald-50/60 p-3 text-center border border-emerald-100">
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Paid Amount</p>
+                        <p className="text-[18px] font-black text-emerald-700 mt-1">{formatCurrency(stats.paidInvoicesAmount)}</p>
+                        <p className="text-[11px] font-bold text-emerald-600/80 mt-0.5">{stats.paidInvoicesCount} Invoices</p>
                       </div>
-                      <div className="rounded-xl bg-slate-50/60 p-4 text-center border border-slate-100">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Overdue</p>
-                        <p className="text-[24px] font-black text-red-600 mt-1">{stats.overdueInvoices}</p>
+                      <div className="rounded-xl bg-blue-50/60 p-3 text-center border border-blue-100">
+                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Due Amount</p>
+                        <p className="text-[18px] font-black text-blue-700 mt-1">{formatCurrency(stats.dueInvoicesAmount)}</p>
+                        <p className="text-[11px] font-bold text-blue-600/80 mt-0.5">{stats.dueInvoicesCount} Invoices</p>
+                      </div>
+                      <div className="rounded-xl bg-red-50/60 p-3 text-center border border-red-100">
+                        <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Overdue Amount</p>
+                        <p className="text-[18px] font-black text-red-700 mt-1">{formatCurrency(stats.overdueInvoicesAmount)}</p>
+                        <p className="text-[11px] font-bold text-red-600/80 mt-0.5">{stats.overdueInvoicesCount} Invoices</p>
                       </div>
                     </div>
-                    <div className="mt-5 text-center bg-slate-50/40 rounded-xl p-4 border border-slate-100">
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Outstanding A/R</p>
-                      <p className="text-[28px] font-black text-slate-700 mt-1">{formatCurrency(stats.totalInvoices)}</p>
+                    <div className="text-center bg-slate-50/60 rounded-xl p-3 border border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Outstanding A/R (Due + Overdue)</p>
+                      <p className="text-[24px] font-black text-slate-800 mt-1">{formatCurrency(stats.totalOutstandingAR)}</p>
                     </div>
                   </div>
                 )}
@@ -1091,6 +1247,95 @@ export default function CRMDashboardPage() {
               </SectionCard>
             </div>
 
+            {/* Month-Wise Finance & Billing Graph */}
+            <SectionCard
+              title="Month-Wise Billing & Financial Graph"
+              icon={<BarChart3 className="h-4 w-4" />}
+            >
+              <div className="flex flex-col space-y-4 py-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                  <span>Last 6 Months Billing & Costs Trend</span>
+                  <div className="flex items-center gap-4 text-[11px]">
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Paid</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Due</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Overdue</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Vendor Costs</span>
+                  </div>
+                </div>
+
+                {/* Monthly Bar Chart */}
+                <div className="grid grid-cols-6 gap-3 items-end h-48 pt-6 pb-2 px-2 border-b border-slate-100 bg-slate-50/40 rounded-xl">
+                  {monthlyData.map((m) => {
+                    const maxVal = Math.max(
+                      ...monthlyData.map((d) => Math.max(d.clientBillings, d.vendorCost)),
+                      1,
+                    );
+                    const paidPct = (m.paidAmount / maxVal) * 100;
+                    const duePct = (m.dueAmount / maxVal) * 100;
+                    const overduePct = (m.overdueAmount / maxVal) * 100;
+                    const vendorPct = (m.vendorCost / maxVal) * 100;
+
+                    return (
+                      <div key={m.monthKey} className="flex flex-col items-center h-full justify-end group relative">
+                        {/* Tooltip on hover */}
+                        <div className="absolute -top-12 hidden group-hover:flex flex-col items-center z-20 bg-slate-800 text-white text-[10px] py-1 px-2.5 rounded-lg shadow-lg pointer-events-none whitespace-nowrap">
+                          <span className="font-bold">{m.label} {m.year}</span>
+                          <span>Billings: {formatCurrency(m.clientBillings)}</span>
+                          <span>Paid: {formatCurrency(m.paidAmount)} | Overdue: {formatCurrency(m.overdueAmount)}</span>
+                          <span>Vendor Cost: {formatCurrency(m.vendorCost)}</span>
+                        </div>
+
+                        {/* Bars container */}
+                        <div className="flex items-end gap-1.5 w-full justify-center h-full">
+                          {/* Client Billings Stacked Bar */}
+                          <div className="w-4 rounded-t flex flex-col justify-end overflow-hidden bg-slate-200/50" style={{ height: `${Math.max(10, Math.min(100, ((m.paidAmount + m.dueAmount + m.overdueAmount) / maxVal) * 100))}%` }}>
+                            {overduePct > 0 && <div className="w-full bg-red-500" style={{ height: `${overduePct}%` }} title={`Overdue: ${formatCurrency(m.overdueAmount)}`} />}
+                            {duePct > 0 && <div className="w-full bg-blue-500" style={{ height: `${duePct}%` }} title={`Due: ${formatCurrency(m.dueAmount)}`} />}
+                            {paidPct > 0 && <div className="w-full bg-emerald-500" style={{ height: `${paidPct}%` }} title={`Paid: ${formatCurrency(m.paidAmount)}`} />}
+                            {m.clientBillings === 0 && <div className="w-full bg-slate-300 h-full" title="No billings" />}
+                          </div>
+
+                          {/* Vendor Cost Bar */}
+                          <div className="w-4 rounded-t bg-amber-500 hover:bg-amber-600 transition-colors" style={{ height: `${Math.max(8, vendorPct)}%` }} title={`Vendor Cost: ${formatCurrency(m.vendorCost)}`} />
+                        </div>
+
+                        <span className="text-[11px] font-bold text-slate-600 mt-2">{m.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Monthly Data Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100">
+                        <th className="py-2 px-3">Month</th>
+                        <th className="py-2 px-3 text-right">Client Billings</th>
+                        <th className="py-2 px-3 text-right text-emerald-600">Paid Amount</th>
+                        <th className="py-2 px-3 text-right text-blue-600">Due Amount</th>
+                        <th className="py-2 px-3 text-right text-red-600">Overdue Amount</th>
+                        <th className="py-2 px-3 text-right text-amber-600">Vendor Costs</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
+                      {monthlyData.map((m) => (
+                        <tr key={m.monthKey} className="hover:bg-slate-50/60">
+                          <td className="py-2 px-3 font-bold">{m.label}</td>
+                          <td className="py-2 px-3 text-right font-semibold">{formatCurrency(m.clientBillings)}</td>
+                          <td className="py-2 px-3 text-right font-bold text-emerald-600">{formatCurrency(m.paidAmount)}</td>
+                          <td className="py-2 px-3 text-right font-bold text-blue-600">{formatCurrency(m.dueAmount)}</td>
+                          <td className="py-2 px-3 text-right font-bold text-red-600">{formatCurrency(m.overdueAmount)}</td>
+                          <td className="py-2 px-3 text-right font-bold text-amber-600">{formatCurrency(m.vendorCost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </SectionCard>
+
+            {/* Margin Analysis & Financial Alerts */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <SectionCard
                 title="Margin Analysis & Splits"
@@ -1107,7 +1352,6 @@ export default function CRMDashboardPage() {
                     <div className="relative h-7 w-full overflow-hidden rounded-xl bg-slate-100 border border-slate-200/50 flex">
                       {stats.totalClientRevenue > 0 ? (
                         <>
-                          {/* Vendor Splits segment */}
                           <div
                             className="h-full bg-gradient-to-r from-amber-400 to-orange-500 hover:opacity-90 transition-opacity duration-300 relative group cursor-pointer"
                             style={{
@@ -1123,7 +1367,6 @@ export default function CRMDashboardPage() {
                             </span>
                           </div>
 
-                          {/* Net Margin segment */}
                           <div
                             className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:opacity-90 transition-opacity duration-300 relative group cursor-pointer"
                             style={{
@@ -1146,7 +1389,6 @@ export default function CRMDashboardPage() {
                       )}
                     </div>
 
-                    {/* Legend / Metrics list */}
                     <div className="grid grid-cols-2 gap-4 mt-6">
                       <div className="rounded-xl border border-indigo-100 bg-indigo-50/20 p-4 transition-all hover:bg-indigo-50/40">
                         <div className="flex items-center gap-2">
@@ -1178,10 +1420,10 @@ export default function CRMDashboardPage() {
                         <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest mt-0.5">{stats.marginPercentage.toFixed(1)}%</p>
                       </div>
                     </div>
-
                   </div>
                 </div>
               </SectionCard>
+
               <SectionCard
                 title="Financial Alerts"
                 icon={<AlertTriangle className="h-4 w-4" />}
@@ -1232,6 +1474,67 @@ export default function CRMDashboardPage() {
                 )}
               </SectionCard>
             </div>
+
+            {/* Vendor Payables & Costs Summary (Vendor Related - Placed Last) */}
+            <SectionCard
+              title="Vendor Payables & Costs Summary"
+              icon={<Briefcase className="h-4 w-4" />}
+            >
+              <div className="flex flex-col space-y-4 py-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl bg-emerald-50/60 p-4 text-center border border-emerald-100">
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Vendor Paid Amount</p>
+                    <p className="text-[22px] font-black text-emerald-700 mt-1">{formatCurrency(stats.vendorPaidAmount)}</p>
+                    <p className="text-[11px] font-bold text-emerald-600/80 mt-0.5">{stats.vendorPaidCount} Payables Paid</p>
+                  </div>
+
+                  <div className="rounded-xl bg-amber-50/60 p-4 text-center border border-amber-100">
+                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Vendor Unpaid / Due Amount</p>
+                    <p className="text-[22px] font-black text-amber-700 mt-1">{formatCurrency(stats.vendorUnpaidAmount)}</p>
+                    <p className="text-[11px] font-bold text-amber-600/80 mt-0.5">{stats.vendorUnpaidCount} Payables Unpaid</p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-50/60 p-4 text-center border border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Vendor Costs</p>
+                    <p className="text-[22px] font-black text-slate-800 mt-1">{formatCurrency(stats.totalVendorCost)}</p>
+                    <p className="text-[11px] font-bold text-slate-500 mt-0.5">{payables.length} Total Payables</p>
+                  </div>
+                </div>
+
+                {/* Vendor Payables List */}
+                <div className="mt-2 space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Recent Vendor Payables</p>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                    </div>
+                  ) : payables.length > 0 ? (
+                    payables.slice(0, 5).map((pay) => (
+                      <div key={pay.id} className="flex items-center justify-between rounded-lg border border-[#f1ede8] p-3 hover:bg-[#faf9f7]">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-bold text-slate-700 truncate">{pay.vendorName}</p>
+                          <p className="text-[11px] text-slate-400 font-mono">#{pay.id.slice(0, 8)}</p>
+                        </div>
+                        <div className="text-right flex items-center gap-3">
+                          <p className="text-[13px] font-extrabold text-slate-800">{formatCurrency(pay.amount)}</p>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            pay.status === "PAID"
+                              ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                              : pay.status === "RELEASED" || pay.status === "APPROVED"
+                                ? "bg-blue-50 text-blue-600 border border-blue-100"
+                                : "bg-amber-50 text-amber-600 border border-amber-100"
+                          }`}>
+                            {pay.status ? pay.status.replace(/_/g, " ") : "UNPAID"}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-[13px] text-slate-400 text-center py-4">No vendor payables available</p>
+                  )}
+                </div>
+              </div>
+            </SectionCard>
           </>
         )}
       </div>
