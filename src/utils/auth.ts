@@ -120,7 +120,7 @@ export function canFinanceWrite(role?: string | null) {
 }
 
 export function canDocumentHubShare(role?: string | null) {
-  return hasAnyRole(role, ["ADMIN", "SALES", "ACCOUNTMANAGER"]);
+  return hasAnyRole(role, ["ADMIN", "SALES"]);
 }
 
 export function canDocumentHubContent(role?: string | null) {
