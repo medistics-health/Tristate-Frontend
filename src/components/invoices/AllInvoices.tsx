@@ -419,7 +419,7 @@ function AllInvoicePage() {
             const isFailed = transfers.some((t: any) => t.status === "FAILED");
             if (isFailed) return <span className="text-red-600 font-medium text-xs">Failed</span>;
             
-            return <span className="text-amber-600 font-medium text-xs">In Progress</span>;
+            return <span className="text-amber-600 font-medium text-xs">Pending</span>;
           },
         },
         {

@@ -141,7 +141,7 @@ export default function StripeInvoiceFlow({ invoice, onUpdate, canResend }: Prop
                   ? "Completed"
                   : invoice.stripeTransfers.some((t: any) => t.status === "FAILED")
                   ? "Failed"
-                  : "In Progress"}
+                  : "Pending"}
               </span>
             </div>
           </div>
