@@ -301,6 +301,7 @@ export const communicationEndpoints = {
 
 export const documentHubEndpoints = {
   LIST: BACKEND_URL + "/api/v1/documents",
+  UPLOADERS: BACKEND_URL + "/api/v1/documents/uploaders",
   CREATE: BACKEND_URL + "/api/v1/documents",
   GET: (id: string) => BACKEND_URL + `/api/v1/documents/${id}`,
   UPDATE: (id: string) => BACKEND_URL + `/api/v1/documents/${id}`,

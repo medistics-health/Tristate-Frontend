@@ -18,7 +18,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
@@ -27,6 +27,7 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import DatePicker from "../shared/DatePicker";
 import MultiSelect from "../shared/MultiSelect";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import {
@@ -44,6 +45,7 @@ import {
   getHubDocument,
   hardDeleteHubDocument,
   listHubCategories,
+  listHubUploaders,
   listPersonOptions,
   listPublicLinks,
   revokePublicLinkApi,
@@ -56,10 +58,32 @@ import type {
   HubCategory,
   HubDocument,
   HubDocumentRow,
+  HubDocumentStatus,
   HubDocumentVersion,
   HubPublicLink,
 } from "./types";
 import { hubCategoryPathLabel } from "./types";
+
+function hubStatusLabel(status: string) {
+  if (status === "DRAFT") return "Draft";
+  if (status === "ARCHIVED") return "Archived";
+  if (status === "ACTIVE") return "Active";
+  if (status === "ALL") return "All";
+  return status;
+}
+
+function hubPersonName(user?: { firstName: string; lastName: string; email?: string } | null) {
+  if (!user) return null;
+  const name = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+  return name || user.email || null;
+}
+
+function hubDateTime(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString();
+}
 
 const emptyForm = {
   title: "",
@@ -70,7 +94,180 @@ const emptyForm = {
   practiceIds: [] as string[],
   dealIds: [] as string[],
   isPublicShareable: false,
+  status: "ACTIVE" as HubDocumentStatus,
 };
+
+const FILE_ACCEPT = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const OVERSIZE_FILE_MESSAGE =
+  "The selected file is greater than the 25MB upload limit and might not get uploaded.";
+
+type HubSort = "newest" | "oldest" | "alphabetical" | "mostDownloaded";
+
+const HUB_SORT_OPTIONS: { label: string; value: HubSort }[] = [
+  { label: "Newest", value: "newest" },
+  { label: "Oldest", value: "oldest" },
+  { label: "Alphabetical", value: "alphabetical" },
+  { label: "Most downloaded", value: "mostDownloaded" },
+];
+
+function sortingFromHubSort(sort: HubSort): SortingState {
+  if (sort === "oldest") return [{ id: "createdAt", desc: false }];
+  if (sort === "alphabetical") return [{ id: "title", desc: false }];
+  if (sort === "mostDownloaded") return [{ id: "downloads", desc: true }];
+  return [{ id: "createdAt", desc: true }];
+}
+
+function hubSortFromSorting(next: SortingState): HubSort {
+  const active = next[0];
+  if (active?.id === "title") return "alphabetical";
+  if (active?.id === "downloads") return "mostDownloaded";
+  if (active?.id === "createdAt" && !active.desc) return "oldest";
+  return "newest";
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const MAX_BATCH_FILES = 20;
+
+function titleFromFilename(fileName: string) {
+  return fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+}
+
+function FilePickerField({
+  file,
+  onChange,
+  compact = false,
+  multiple = false,
+  onAddFiles,
+}: {
+  file?: File | null;
+  onChange?: (file: File | null) => void;
+  compact?: boolean;
+  multiple?: boolean;
+  onAddFiles?: (files: File[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const isOverLimit = Boolean(file && file.size > MAX_UPLOAD_BYTES);
+
+  function openPicker() {
+    const input = inputRef.current;
+    if (!input) return;
+    input.value = "";
+    input.click();
+  }
+
+  function warnIfOversize(next: File) {
+    if (next.size > MAX_UPLOAD_BYTES) {
+      toast.error(`${next.name}: ${OVERSIZE_FILE_MESSAGE}`);
+    }
+  }
+
+  function applyFile(next: File | null) {
+    if (next) warnIfOversize(next);
+    onChange?.(next);
+  }
+
+  function applyFiles(list: File[]) {
+    if (!list.length) return;
+    list.forEach(warnIfOversize);
+    onAddFiles?.(list);
+  }
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={FILE_ACCEPT}
+        multiple={multiple}
+        className="sr-only"
+        onChange={(event) => {
+          const selected = Array.from(event.target.files || []);
+          if (multiple) {
+            applyFiles(selected);
+          } else {
+            applyFile(selected[0] || null);
+          }
+          event.target.value = "";
+        }}
+      />
+      {file && !multiple ? (
+        <div className="space-y-2">
+          <div
+            className={`flex items-center gap-3 rounded-xl border bg-[#fbfaf8] ${
+              compact ? "px-3 py-2" : "px-4 py-3"
+            } ${isOverLimit ? "border-amber-300" : "border-[#eadfcd]"}`}
+          >
+            <Upload className="h-4 w-4 shrink-0 text-[#4f63ea]" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium text-slate-700">{file.name}</p>
+              <p className={`text-[11px] ${isOverLimit ? "text-amber-600" : "text-slate-400"}`}>
+                {formatFileSize(file.size)}
+                {isOverLimit ? " · over 25MB limit" : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={openPicker}
+              className="shrink-0 rounded-md border border-[#ece8e1] bg-white px-2.5 py-1.5 text-[12px] font-medium text-slate-600"
+            >
+              Change file
+            </button>
+            <button
+              type="button"
+              onClick={() => applyFile(null)}
+              className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-white hover:text-slate-600"
+              title="Remove file"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {isOverLimit ? (
+            <p className="text-[12px] text-amber-700">{OVERSIZE_FILE_MESSAGE}</p>
+          ) : null}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={openPicker}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDragging(false);
+            const selected = Array.from(event.dataTransfer.files || []);
+            if (multiple) {
+              applyFiles(selected);
+            } else {
+              applyFile(selected[0] || null);
+            }
+          }}
+          className={`flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 text-center ${
+            compact ? "py-3" : "py-6"
+          } ${isDragging ? "border-[#4f63ea] bg-[#f0f2fe]" : "border-[#eadfcd] bg-[#fbfaf8]"}`}
+        >
+          <Upload className="mb-2 h-5 w-5 text-slate-400" />
+          <span className="text-[13px] text-slate-600">
+            {multiple ? "Drop or click to choose files" : "Drop or click to choose a file"}
+          </span>
+          <span className="mt-1 text-[11px] text-slate-400">
+            PDF, DOCX, XLSX, PPTX, PNG, JPG · 25MB each
+            {multiple ? ` · up to ${MAX_BATCH_FILES} files` : ""}
+          </span>
+        </button>
+      )}
+    </div>
+  );
+}
 
 function DocumentHubPage() {
   const currentRole = readStoredUser()?.role as string | undefined;
@@ -93,8 +290,10 @@ function DocumentHubPage() {
   const [personOptions, setPersonOptions] = useState<{ label: string; value: string }[]>([]);
   const [practiceOptions, setPracticeOptions] = useState<{ label: string; value: string }[]>([]);
   const [dealOptions, setDealOptions] = useState<{ label: string; value: string }[]>([]);
-  const [formData, setFormData] = useState(emptyForm);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploaderOptions, setUploaderOptions] = useState<{ label: string; value: string }[]>([]);
+  const [uploadDrafts, setUploadDrafts] = useState<
+    { id: string; file: File; form: typeof emptyForm }[]
+  >([]);
   const [versionFile, setVersionFile] = useState<File | null>(null);
   const [linkExpiresAt, setLinkExpiresAt] = useState("");
   const [editForm, setEditForm] = useState(emptyForm);
@@ -118,6 +317,13 @@ function DocumentHubPage() {
           id: "fileType",
           accessorFn: (row: HubDocumentRow) => row.values.fileType,
           header: () => "Type",
+        },
+        {
+          id: "status",
+          accessorFn: (row: HubDocumentRow) => row.values.status,
+          header: () => "Status",
+          cell: ({ row }: { row: { original: HubDocumentRow } }) =>
+            hubStatusLabel(String(row.original.values.status || "ACTIVE")),
         },
         {
           id: "version",
@@ -156,18 +362,24 @@ function DocumentHubPage() {
     categoryId: string;
     fileType: string;
     status: string;
+    uploadedById: string;
+    from: string;
+    to: string;
   };
   const defaultFilters: HubFilters = {
     search: "",
     categoryId: "",
     fileType: "",
     status: "ACTIVE",
+    uploadedById: "",
+    from: "",
+    to: "",
   };
   const [filters, setFilters] = useState<HubFilters>(defaultFilters);
   const [draftFilters, setDraftFilters] = useState<HubFilters>(defaultFilters);
   const [searchInput, setSearchInput] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
-  const activeSort = sorting[0];
+  const [hubSort, setHubSort] = useState<HubSort>("newest");
+  const sorting = sortingFromHubSort(hubSort);
 
   useEffect(() => {
     function handleResize() {
@@ -185,8 +397,9 @@ function DocumentHubPage() {
       listPersonOptions(),
       getAllPractices(),
       getAllDeals(),
+      listHubUploaders(),
     ])
-      .then(([nextCategories, persons, practices, deals]) => {
+      .then(([nextCategories, persons, practices, deals, uploaders]) => {
         setCategories(nextCategories);
         setPersonOptions(persons);
         setPracticeOptions(
@@ -198,6 +411,12 @@ function DocumentHubPage() {
             label: `${deal.practice?.name || "Deal"} · ${deal.stage}`,
           })),
         );
+        setUploaderOptions(
+          uploaders.map((user) => ({
+            value: user.id,
+            label: `${user.firstName} ${user.lastName}`.trim() || user.email,
+          })),
+        );
       })
       .catch(() => undefined);
   }, []);
@@ -206,17 +425,14 @@ function DocumentHubPage() {
     data: rows,
     columns,
     state: { sorting },
-    onSortingChange: setSorting,
+    onSortingChange: (updater) => {
+      const next = typeof updater === "function" ? updater(sorting) : updater;
+      setHubSort(hubSortFromSorting(next));
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    },
     manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
   });
-
-  function mapSort() {
-    if (activeSort?.id === "title") return "alphabetical";
-    if (activeSort?.id === "downloads") return "mostDownloaded";
-    if (activeSort?.id === "createdAt" && !activeSort.desc) return "oldest";
-    return "newest";
-  }
 
   const refreshRecords = async () => {
     try {
@@ -224,11 +440,14 @@ function DocumentHubPage() {
       const params: DocumentHubQueryParams = {
         page: pagination.page,
         limit: pagination.limit,
-        sort: mapSort(),
+        sort: hubSort,
         status: filters.status || "ACTIVE",
         ...(searchInput.trim() && { search: searchInput.trim() }),
         ...(filters.categoryId && { categoryId: filters.categoryId }),
         ...(filters.fileType && { fileType: filters.fileType }),
+        ...(filters.uploadedById && { uploadedById: filters.uploadedById }),
+        ...(filters.from && { from: filters.from }),
+        ...(filters.to && { to: filters.to }),
       };
       const data = await getDocumentsView(params);
       setRows(data.rows);
@@ -252,8 +471,10 @@ function DocumentHubPage() {
     filters.categoryId,
     filters.fileType,
     filters.status,
-    activeSort?.id,
-    activeSort?.desc,
+    filters.uploadedById,
+    filters.from,
+    filters.to,
+    hubSort,
   ]);
 
   async function loadDetail(id: string) {
@@ -271,6 +492,7 @@ function DocumentHubPage() {
         practiceIds: document.practices.map((item) => item.id),
         dealIds: document.deals.map((item) => item.id),
         isPublicShareable: document.isPublicShareable,
+        status: document.status === "ARCHIVED" ? "ARCHIVED" : document.status,
       });
       const links = await listPublicLinks(id);
       setPublicLinks(links);
@@ -292,8 +514,40 @@ function DocumentHubPage() {
     setShowCreateForm(true);
     setShowDetailPanel(false);
     setSelectedRowId(null);
-    setFormData(emptyForm);
-    setUploadFile(null);
+    setUploadDrafts([]);
+  }
+
+  function addUploadFiles(files: File[]) {
+    if (!files.length) return;
+    setUploadDrafts((prev) => {
+      const remaining = MAX_BATCH_FILES - prev.length;
+      if (remaining <= 0) {
+        toast.error(`You can upload up to ${MAX_BATCH_FILES} files at a time.`);
+        return prev;
+      }
+      const accepted = files.slice(0, remaining);
+      if (files.length > remaining) {
+        toast.error(`Only ${remaining} more file${remaining === 1 ? "" : "s"} can be added.`);
+      }
+      return [
+        ...prev,
+        ...accepted.map((file) => ({
+          id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
+          file,
+          form: {
+            title: titleFromFilename(file.name),
+            description: "",
+            categoryIds: [],
+            tags: "",
+            personIds: [],
+            practiceIds: [],
+            dealIds: [],
+            isPublicShareable: false,
+            status: "ACTIVE",
+          },
+        })),
+      ];
+    });
   }
 
   function buildFormPayload(source: typeof emptyForm, file: File) {
@@ -315,31 +569,60 @@ function DocumentHubPage() {
     payload.append("practiceIds", JSON.stringify(source.practiceIds));
     payload.append("dealIds", JSON.stringify(source.dealIds));
     payload.append("isPublicShareable", String(source.isPublicShareable));
+    payload.append("status", source.status === "ARCHIVED" ? "ACTIVE" : source.status);
     return payload;
   }
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
-    if (!uploadFile) {
-      toast.error("A file is required.");
+    if (!uploadDrafts.length) {
+      toast.error("At least one file is required.");
       return;
     }
-    if (!formData.title.trim() || formData.categoryIds.length === 0) {
-      toast.error("Title and at least one category are required.");
+    const invalid = uploadDrafts.find(
+      (draft) => !draft.form.title.trim() || draft.form.categoryIds.length === 0,
+    );
+    if (invalid) {
+      toast.error("Each file needs a title and at least one category.");
       return;
     }
     try {
       setIsSubmitting(true);
-      const result = await uploadHubDocument(buildFormPayload(formData, uploadFile));
-      if (result.duplicateOf?.length) {
-        toast(
-          `Uploaded. Similar file already exists: ${result.duplicateOf[0].title}`,
-          { icon: "⚠️" },
+      const failed: typeof uploadDrafts = [];
+      let uploadedCount = 0;
+      let duplicateCount = 0;
+      for (const draft of uploadDrafts) {
+        try {
+          const result = await uploadHubDocument(buildFormPayload(draft.form, draft.file));
+          uploadedCount += 1;
+          if (result.duplicateOf?.length) {
+            duplicateCount += 1;
+          }
+        } catch {
+          failed.push(draft);
+        }
+      }
+      if (uploadedCount && duplicateCount) {
+        toast(`${uploadedCount} uploaded. ${duplicateCount} similar file${duplicateCount === 1 ? "" : "s"} already exist.`, {
+          icon: "⚠️",
+        });
+      } else if (uploadedCount) {
+        toast.success(
+          uploadedCount === 1
+            ? "Document uploaded."
+            : `${uploadedCount} documents uploaded.`,
         );
-      } else {
-        toast.success("Document uploaded.");
+      }
+      if (failed.length) {
+        toast.error(
+          `${failed.length} file${failed.length === 1 ? "" : "s"} failed. Fix and retry.`,
+        );
+        setUploadDrafts(failed);
+        await refreshRecords();
+        return;
       }
       setShowCreateForm(false);
+      setUploadDrafts([]);
       await refreshRecords();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
@@ -365,6 +648,9 @@ function DocumentHubPage() {
         practiceIds: editForm.practiceIds,
         dealIds: editForm.dealIds,
         isPublicShareable: editForm.isPublicShareable,
+        ...(selectedDocument.status === "ARCHIVED"
+          ? {}
+          : { status: editForm.status }),
       });
       toast.success("Document updated.");
       await loadDetail(selectedDocument.id);
@@ -398,6 +684,21 @@ function DocumentHubPage() {
       setLinkExpiresAt("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create link");
+    }
+  }
+
+  async function handleRestore() {
+    if (!selectedDocument) return;
+    try {
+      setIsSaving(true);
+      await updateHubDocument(selectedDocument.id, { status: "ACTIVE" });
+      toast.success("Document restored to Active.");
+      await loadDetail(selectedDocument.id);
+      await refreshRecords();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Restore failed");
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -461,8 +762,14 @@ function DocumentHubPage() {
     }
   }
 
-  const activeFilterCount = [filters.categoryId, filters.fileType, filters.status !== "ACTIVE" ? filters.status : ""]
-    .filter(Boolean).length;
+  const activeFilterCount = [
+    filters.categoryId,
+    filters.fileType,
+    filters.status !== "ACTIVE" ? filters.status : "",
+    filters.uploadedById,
+    filters.from,
+    filters.to,
+  ].filter(Boolean).length;
 
   const activeFilterChips = useMemo(() => {
     const chips: ActiveFilterChip[] = [];
@@ -493,15 +800,39 @@ function DocumentHubPage() {
       chips.push({
         key: "status",
         label: "Status",
-        displayValue: filters.status,
+        displayValue: hubStatusLabel(filters.status),
         onClear: () => {
           setFilters((curr) => ({ ...curr, status: "ACTIVE" }));
           setPagination((prev) => ({ ...prev, page: 1 }));
         },
       });
     }
+    if (filters.uploadedById) {
+      chips.push({
+        key: "uploadedById",
+        label: "Uploader",
+        displayValue:
+          uploaderOptions.find((item) => item.value === filters.uploadedById)?.label ||
+          "Uploader",
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, uploadedById: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
+    if (filters.from || filters.to) {
+      chips.push({
+        key: "dateRange",
+        label: "Uploaded",
+        displayValue: [filters.from, filters.to].filter(Boolean).join(" – ") || "Date range",
+        onClear: () => {
+          setFilters((curr) => ({ ...curr, from: "", to: "" }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
+        },
+      });
+    }
     return chips;
-  }, [filters, categories]);
+  }, [filters, categories, uploaderOptions]);
 
   const filterFieldsModal = (
     <>
@@ -542,9 +873,42 @@ function DocumentHubPage() {
           onChange={(val) => setDraftFilters((prev) => ({ ...prev, status: val }))}
           options={[
             { label: "Active", value: "ACTIVE" },
+            { label: "Draft", value: "DRAFT" },
             { label: "Archived", value: "ARCHIVED" },
             { label: "All", value: "ALL" },
           ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Uploader</span>
+        <Select
+          value={draftFilters.uploadedById}
+          onChange={(val) => setDraftFilters((prev) => ({ ...prev, uploadedById: val }))}
+          options={[
+            { label: "All uploaders", value: "" },
+            ...uploaderOptions,
+          ]}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Uploaded from
+        </span>
+        <DatePicker
+          value={draftFilters.from}
+          onChange={(value) => setDraftFilters((prev) => ({ ...prev, from: value }))}
+          placeholder="MM-DD-YYYY"
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
+          Uploaded to
+        </span>
+        <DatePicker
+          value={draftFilters.to}
+          onChange={(value) => setDraftFilters((prev) => ({ ...prev, to: value }))}
+          placeholder="MM-DD-YYYY"
+          minDate={draftFilters.from || undefined}
         />
       </label>
     </>
@@ -606,17 +970,42 @@ function DocumentHubPage() {
             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
           />
         </div>
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-slate-700">Status</label>
+          {source.status === "ARCHIVED" ? (
+            <p className="rounded-md border border-[#ece8e1] bg-[#fbfaf8] px-3 py-2 text-[13px] text-slate-600">
+              Archived — restore it to make it Draft or Active again.
+            </p>
+          ) : (
+            <Select
+              value={source.status}
+              onChange={(value) =>
+                setSource({ ...source, status: value as HubDocumentStatus })
+              }
+              options={[
+                { label: "Active", value: "ACTIVE" },
+                { label: "Draft", value: "DRAFT" },
+              ]}
+              disabled={disabled}
+            />
+          )}
+        </div>
         <label className="flex items-center gap-2 text-[13px] text-slate-700">
           <input
             type="checkbox"
             checked={source.isPublicShareable}
-            disabled={disabled}
+            disabled={disabled || source.status !== "ACTIVE"}
             onChange={(event) =>
               setSource({ ...source, isPublicShareable: event.target.checked })
             }
           />
           Allow public sharing
         </label>
+        {source.status !== "ACTIVE" ? (
+          <p className="-mt-2 text-[12px] text-slate-400">
+            Public links are only available while the document is Active.
+          </p>
+        ) : null}
         <div>
           <label className="mb-1 block text-[13px] font-medium text-slate-700">People</label>
           <MultiSelect
@@ -702,7 +1091,27 @@ function DocumentHubPage() {
               setUserSelectedPageSize(true);
             }}
           >
-            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex shrink-0 items-center justify-between border-b border-[#f0ece6] bg-white px-4 py-2.5 text-[12px] font-medium text-slate-500">
+                <span className="font-bold text-slate-700">
+                  Documents{" "}
+                  <span className="ml-1 font-normal text-slate-400">({pagination.total})</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400">Sort by:</span>
+                  <div className="w-48">
+                    <Select
+                      value={hubSort}
+                      onChange={(value) => {
+                        setHubSort(value as HubSort);
+                        setPagination((prev) => ({ ...prev, page: 1 }));
+                      }}
+                      options={HUB_SORT_OPTIONS}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
               {rows.length === 0 ? (
                 <div className="relative flex min-h-[400px] items-center justify-center">
                   <div className="flex max-w-md flex-col items-center px-6 text-center">
@@ -765,6 +1174,7 @@ function DocumentHubPage() {
                 </table>
               )}
             </div>
+            </div>
           </DataTableToolbar>
         </section>
 
@@ -798,6 +1208,7 @@ function DocumentHubPage() {
                     }}
                     infoRows={[
                       { label: "File", value: selectedDocument.originalFilename },
+                      { label: "Status", value: hubStatusLabel(selectedDocument.status) },
                       { label: "Downloads", value: String(selectedDocument.downloadCount) },
                     ]}
                   />
@@ -811,85 +1222,155 @@ function DocumentHubPage() {
                   </button>
                   {metadataFields(editForm, setEditForm, !canManage)}
 
-                  {canShare && selectedDocument.isPublicShareable && (
+                  {canShare &&
+                    ((selectedDocument.isPublicShareable &&
+                      selectedDocument.status === "ACTIVE") ||
+                      publicLinks.length > 0) && (
                     <div className="rounded-xl border border-[#eadfcd] p-3 space-y-2">
                       <p className="text-[13px] font-semibold text-slate-700">Public link</p>
-                      <input
-                        type="datetime-local"
-                        value={linkExpiresAt}
-                        onChange={(event) => setLinkExpiresAt(event.target.value)}
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleCreateLink}
-                        className="app-control inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white"
-                      >
-                        <Link2 className="h-4 w-4" />
-                        Create & copy link
-                      </button>
-                      {publicLinks.map((link) => (
-                        <div
-                          key={link.id}
-                          className="flex items-center justify-between gap-2 rounded-lg bg-[#fbfaf8] px-2 py-1.5 text-[12px] text-slate-600"
-                        >
-                          <span className="truncate">
-                            {link.revokedAt ? "Revoked" : link.url} · {link.viewCount} views
-                          </span>
-                          <span className="flex shrink-0 gap-1">
-                            {!link.revokedAt && (
-                              <button
-                                type="button"
-                                onClick={() => navigator.clipboard.writeText(link.url).then(() => toast.success("Copied"))}
-                              >
-                                <Copy className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                            {canManage && !link.revokedAt && (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  await revokePublicLinkApi(link.id);
-                                  setPublicLinks(await listPublicLinks(selectedDocument.id));
-                                  toast.success("Link revoked");
-                                }}
-                              >
-                                <X className="h-3.5 w-3.5 text-red-500" />
-                              </button>
-                            )}
-                          </span>
-                        </div>
-                      ))}
+                      {canShare &&
+                        selectedDocument.isPublicShareable &&
+                        selectedDocument.status === "ACTIVE" && (
+                          <>
+                            <input
+                              type="datetime-local"
+                              value={linkExpiresAt}
+                              onChange={(event) => setLinkExpiresAt(event.target.value)}
+                              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleCreateLink}
+                              className="app-control inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#4f63ea] px-3 py-2 text-[13px] font-medium text-white"
+                            >
+                              <Link2 className="h-4 w-4" />
+                              Create & copy link
+                            </button>
+                          </>
+                        )}
+                      {publicLinks.map((link) => {
+                        const expired =
+                          !link.revokedAt &&
+                          Boolean(link.expiresAt) &&
+                          new Date(link.expiresAt as string).getTime() < Date.now();
+                        const state = link.revokedAt
+                          ? "Revoked"
+                          : expired
+                            ? "Expired"
+                            : "Live";
+                        return (
+                          <div
+                            key={link.id}
+                            className="rounded-lg bg-[#fbfaf8] px-3 py-2 text-[12px] text-slate-600"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-slate-700">
+                                  {link.revokedAt || expired ? state : link.url}
+                                </p>
+                                <p className="mt-0.5 text-[11px] text-slate-400">
+                                  {state} · {link.viewCount} views
+                                </p>
+                              </div>
+                              <span className="flex shrink-0 gap-1">
+                                {!link.revokedAt && !expired && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      navigator.clipboard
+                                        .writeText(link.url)
+                                        .then(() => toast.success("Copied"))
+                                    }
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                {canManage && !link.revokedAt && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await revokePublicLinkApi(link.id);
+                                      setPublicLinks(await listPublicLinks(selectedDocument.id));
+                                      toast.success("Link revoked");
+                                    }}
+                                  >
+                                    <X className="h-3.5 w-3.5 text-red-500" />
+                                  </button>
+                                )}
+                              </span>
+                            </div>
+                            <dl className="mt-2 space-y-0.5 text-[11px] text-slate-500">
+                              <div>
+                                Created {hubDateTime(link.createdAt) || "—"}
+                                {hubPersonName(link.createdBy)
+                                  ? ` by ${hubPersonName(link.createdBy)}`
+                                  : ""}
+                              </div>
+                              <div>
+                                Expires {hubDateTime(link.expiresAt) || "No expiry"}
+                              </div>
+                              {link.revokedAt ? (
+                                <div>
+                                  Revoked {hubDateTime(link.revokedAt)}
+                                  {hubPersonName(link.revokedBy)
+                                    ? ` by ${hubPersonName(link.revokedBy)}`
+                                    : ""}
+                                </div>
+                              ) : null}
+                            </dl>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
                   <div>
                     <p className="mb-2 text-[13px] font-semibold text-slate-700">Version history</p>
                     <div className="space-y-1.5">
-                      {versionHistory.map((version) => (
-                        <div
-                          key={version.id}
-                          className="rounded-lg border border-[#f0ece6] px-3 py-2 text-[12px] text-slate-600"
-                        >
-                          v{version.version} · {version.originalFilename} ·{" "}
-                          {new Date(version.createdAt).toLocaleString()}
-                        </div>
-                      ))}
+                      {versionHistory.length === 0 ? (
+                        <p className="text-[12px] text-slate-400">No versions yet.</p>
+                      ) : (
+                        versionHistory.map((version) => {
+                          const uploader = hubPersonName(version.uploadedBy);
+                          const isCurrent = version.id === selectedDocument.id;
+                          return (
+                            <div
+                              key={version.id}
+                              className="rounded-lg border border-[#f0ece6] px-3 py-2 text-[12px] text-slate-600"
+                            >
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-slate-700">v{version.version}</p>
+                                {isCurrent ? (
+                                  <span className="rounded-full bg-[#eef1fb] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4f63ea]">
+                                    Current
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="mt-0.5 truncate text-[12px] text-slate-500">
+                                {version.originalFilename}
+                              </p>
+                              <p className="mt-1 text-[11px] text-slate-400">
+                                Uploaded {hubDateTime(version.createdAt) || "—"}
+                                {uploader ? ` by ${uploader}` : ""}
+                              </p>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                     {canManage && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <input
-                          type="file"
-                          accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg"
-                          onChange={(event) => setVersionFile(event.target.files?.[0] || null)}
-                          className="text-[12px] hover:cursor-pointer font-medium"
+                      <div className="mt-2 space-y-2">
+                        <FilePickerField
+                          file={versionFile}
+                          onChange={setVersionFile}
+                          compact
                         />
                         <button
                           type="button"
                           onClick={handleVersionUpload}
-                          className="rounded-md border border-[#ece8e1] px-2 py-1 text-[12px]"
+                          className="inline-flex items-center gap-1 rounded-md border border-[#ece8e1] px-2 py-1 text-[12px]"
                         >
-                          <Upload className="inline h-3.5 w-3.5" /> New version
+                          <Upload className="h-3.5 w-3.5" /> New version
                         </button>
                       </div>
                     )}
@@ -898,14 +1379,25 @@ function DocumentHubPage() {
                 {canManage && (
                   <div className="flex items-center justify-between border-t border-[#f0ece6] px-4 py-3">
                     <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={handleArchive}
-                        disabled={isDeleting}
-                        className="flex items-center gap-1 text-[13px] text-amber-600"
-                      >
-                        Archive
-                      </button>
+                      {selectedDocument.status === "ARCHIVED" ? (
+                        <button
+                          type="button"
+                          onClick={handleRestore}
+                          disabled={isSaving || isDeleting}
+                          className="flex items-center gap-1 text-[13px] text-[#4f63ea]"
+                        >
+                          Restore
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleArchive}
+                          disabled={isDeleting}
+                          className="flex items-center gap-1 text-[13px] text-amber-600"
+                        >
+                          Archive
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={handleHardDelete}
@@ -932,28 +1424,70 @@ function DocumentHubPage() {
         )}
 
         {showCreateForm && canManage && (
-          <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[420px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
+          <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[460px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#f0ece6] px-4 py-3">
-              <h2 className="text-[15px] font-semibold text-slate-700">Upload document</h2>
+              <h2 className="text-[15px] font-semibold text-slate-700">
+                {uploadDrafts.length > 1 ? "Upload documents" : "Upload document"}
+              </h2>
               <button type="button" onClick={() => setShowCreateForm(false)} className="text-slate-400">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <form onSubmit={handleCreate} className="flex-1 overflow-auto p-4">
-              <label className="mb-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#eadfcd] bg-[#fbfaf8] px-4 py-6 text-center">
-                <Upload className="mb-2 h-5 w-5 text-slate-400" />
-                <span className="text-[13px] text-slate-600">
-                  {uploadFile ? uploadFile.name : "Drop or click to choose a file"}
-                </span>
-                <span className="mt-1 text-[11px] text-slate-400">PDF, DOCX, XLSX, PPTX, PNG, JPG · 25MB</span>
-                <input
-                  type="file"
-                  accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg"
-                  className="hidden"
-                  onChange={(event) => setUploadFile(event.target.files?.[0] || null)}
-                />
-              </label>
-              {metadataFields(formData, setFormData, false)}
+              <div className="mb-4">
+                <FilePickerField multiple onAddFiles={addUploadFiles} />
+              </div>
+              {uploadDrafts.length === 0 ? (
+                <p className="mb-4 text-[13px] text-slate-400">
+                  Select one or more files. Each file gets its own metadata.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {uploadDrafts.map((draft, index) => {
+                    const overLimit = draft.file.size > MAX_UPLOAD_BYTES;
+                    return (
+                      <div
+                        key={draft.id}
+                        className="rounded-xl border border-[#eadfcd] bg-[#fbfaf8] p-3"
+                      >
+                        <div className="mb-3 flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[12px] font-semibold text-slate-500">
+                              File {index + 1} of {uploadDrafts.length}
+                            </p>
+                            <p className="truncate text-[13px] font-medium text-slate-700">
+                              {draft.file.name}
+                            </p>
+                            <p
+                              className={`text-[11px] ${overLimit ? "text-amber-600" : "text-slate-400"}`}
+                            >
+                              {formatFileSize(draft.file.size)}
+                              {overLimit ? " · over 25MB limit" : ""}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setUploadDrafts((prev) => prev.filter((item) => item.id !== draft.id))
+                            }
+                            className="rounded-md p-1 text-slate-400 hover:bg-white hover:text-slate-600"
+                            title="Remove file"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                        {metadataFields(draft.form, (next) => {
+                          setUploadDrafts((prev) =>
+                            prev.map((item) =>
+                              item.id === draft.id ? { ...item, form: next } : item,
+                            ),
+                          );
+                        }, false)}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#f0ece6] pt-4">
                 <button
                   type="button"
@@ -964,10 +1498,14 @@ function DocumentHubPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || uploadDrafts.length === 0}
                   className="app-control rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white disabled:opacity-50"
                 >
-                  {isSubmitting ? "Uploading..." : "Upload"}
+                  {isSubmitting
+                    ? "Uploading..."
+                    : uploadDrafts.length > 1
+                      ? `Upload ${uploadDrafts.length} files`
+                      : "Upload"}
                 </button>
               </div>
             </form>

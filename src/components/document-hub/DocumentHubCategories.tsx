@@ -25,6 +25,20 @@ import {
 } from "../../services/operations/documentHub";
 import { hubCategoryParentId, type HubCategory } from "./types";
 
+function categoryCreatedLabel(category: HubCategory) {
+  const createdAt = category.createdAt
+    ? new Date(category.createdAt).toLocaleString()
+    : null;
+  const createdBy = category.createdBy
+    ? `${category.createdBy.firstName || ""} ${category.createdBy.lastName || ""}`.trim() ||
+      category.createdBy.email
+    : null;
+  if (createdAt && createdBy) return `Created ${createdAt} by ${createdBy}`;
+  if (createdAt) return `Created ${createdAt}`;
+  if (createdBy) return `Created by ${createdBy}`;
+  return null;
+}
+
 type CategoryNode = HubCategory & { children: CategoryNode[]; depth: number };
 
 function buildCategoryTree(categories: HubCategory[]): CategoryNode[] {
@@ -215,6 +229,7 @@ function DocumentHubCategoriesPage() {
                 {visibleRows.map((category) => {
                   const hasChildren = category.children.length > 0;
                   const isCollapsed = Boolean(collapsed[category.id]);
+                  const createdLabel = categoryCreatedLabel(category);
                   const path =
                     category.depth > 0
                       ? `${category.parentCategory?.name || "Parent"} / ${category.name}`
@@ -292,6 +307,11 @@ function DocumentHubCategoriesPage() {
                                     ? ` · ${category.children.length} nested`
                                     : ""}
                                 </p>
+                                {createdLabel ? (
+                                  <p className="mt-0.5 text-[11px] text-slate-400">
+                                    {createdLabel}
+                                  </p>
+                                ) : null}
                               </>
                             )}
                           </div>
