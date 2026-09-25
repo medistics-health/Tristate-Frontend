@@ -397,8 +397,8 @@ function AllInvoicePage() {
             const transfers = row.original.values.stripeTransfers;
             if (!transfers || transfers.length === 0) return <span className="text-slate-400">N/A</span>;
             
-            const isPending = transfers.some((t: any) => t.status === "PENDING");
-            if (isPending) return <span className="text-amber-600 font-medium text-xs">In Progress</span>;
+            const isFullySent = transfers.every((t: any) => t.status === "SENT");
+            if (!isFullySent) return <span className="text-amber-600 font-medium text-xs">In Progress</span>;
             return <span className="text-emerald-600 font-medium text-xs">Settled</span>;
           },
         },

@@ -120,11 +120,11 @@ export default function StripeInvoiceFlow({ invoice, onUpdate, canResend }: Prop
             <div className="flex flex-col gap-1">
               <span className="text-[12px] text-slate-500 font-medium">Stripe Settlement Amount</span>
               <span className={`text-[13px] font-bold ${
-                invoice.stripeTransfers.some((t: any) => t.status === "PENDING")
+                !invoice.stripeTransfers.every((t: any) => t.status === "SENT")
                   ? "text-amber-600"
                   : "text-emerald-600"
               }`}>
-                {invoice.stripeTransfers.some((t: any) => t.status === "PENDING") ? "In Progress (Pending)" : "Settled"}
+                {!invoice.stripeTransfers.every((t: any) => t.status === "SENT") ? "In Progress" : "Settled"}
               </span>
             </div>
 
