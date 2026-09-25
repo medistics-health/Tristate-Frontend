@@ -110,6 +110,65 @@ export default function StripeInvoiceFlow({ invoice, onUpdate, canResend }: Prop
         )}
       </div>
 
+      {invoice.status === "PAID" && invoice.stripeTransfers && invoice.stripeTransfers.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+          <h4 className="mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-indigo-900/60">
+            Settlement & Transfer Tracker
+          </h4>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-[12px] text-slate-500 font-medium">Stripe Settlement Amount</span>
+              <span className={`text-[13px] font-bold ${
+                !invoice.stripeTransfers.every((t: any) => t.status === "SENT")
+                  ? "text-amber-600"
+                  : "text-emerald-600"
+              }`}>
+                {!invoice.stripeTransfers.every((t: any) => t.status === "SENT") ? "In Progress" : "Settled"}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[12px] text-slate-500 font-medium">Connected Account Transfers</span>
+              <span className={`text-[13px] font-bold ${
+                invoice.stripeTransfers.every((t: any) => t.status === "SENT")
+                  ? "text-emerald-600"
+                  : invoice.stripeTransfers.some((t: any) => t.status === "FAILED")
+                  ? "text-red-600"
+                  : "text-amber-600"
+              }`}>
+                {invoice.stripeTransfers.every((t: any) => t.status === "SENT")
+                  ? "Completed"
+                  : invoice.stripeTransfers.some((t: any) => t.status === "FAILED")
+                  ? "Failed"
+                  : "In Progress"}
+              </span>
+            </div>
+          </div>
+
+          {/* Show error messages if any transfer failed */}
+          {invoice.stripeTransfers.some((t: any) => t.status === "FAILED" && t.failureMessage) && (
+            <div className="mt-4 rounded-xl bg-red-50 p-3 border border-red-100">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <span className="text-[12px] font-bold text-red-800 uppercase tracking-wide">Transfer Error</span>
+              </div>
+              <div className="flex flex-col gap-1.5 pl-6">
+                {invoice.stripeTransfers
+                  .filter((t: any) => t.status === "FAILED" && t.failureMessage)
+                  .map((t: any) => (
+                    <div key={t.id} className="text-[12px] text-red-700 leading-tight">
+                      <span className="font-semibold">{t.stripeConnectedAccountId}</span>
+                      {t.updatedAt && <span className="text-red-500/80 ml-1">({formatDateTime(t.updatedAt)})</span>}
+                      <span className="font-semibold">:</span> {t.failureMessage}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Stripe Event Timeline */}
       <div className="rounded-2xl border border-[#f1f5f9] bg-[#f8fafc] p-4">
         <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.1em] text-[#94a3b8]">

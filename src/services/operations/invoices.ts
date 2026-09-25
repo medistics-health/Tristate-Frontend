@@ -107,6 +107,14 @@ export type Invoice = {
       quickbooksPaymentId?: string | null;
     };
   }>;
+  stripeTransfers?: Array<{
+    id: string;
+    stripeConnectedAccountId: string;
+    amount: string | number;
+    status: string;
+    failureMessage?: string | null;
+    updatedAt?: string;
+  }>;
 };
 
 export type InvoiceRow = {
@@ -131,6 +139,14 @@ export type InvoiceRow = {
     invoiceNumber: string;
     quickbooksInvoiceId?: string | null;
     quickbooksPaymentId?: string | null;
+    stripeTransfers?: Array<{
+      id: string;
+      stripeConnectedAccountId: string;
+      amount: string | number;
+      status: string;
+      failureMessage?: string | null;
+      updatedAt?: string;
+    }>;
   };
 };
 
@@ -260,6 +276,7 @@ function invoiceToRow(invoice: Invoice): InvoiceRow {
       quickbooksInvoiceId: invoice.quickbooksInvoiceId,
       quickbooksPaymentId:
         invoice.paymentAllocations?.[0]?.payment?.quickbooksPaymentId || null,
+      stripeTransfers: invoice.stripeTransfers,
     },
   };
 }

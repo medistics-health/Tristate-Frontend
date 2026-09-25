@@ -390,6 +390,36 @@ function AllInvoicePage() {
           },
         },
         {
+          id: "stripeSettlement",
+          header: () => "Stripe Settlement",
+          cell: ({ row }: { row: { original: InvoiceRow } }) => {
+            if (row.original.values.status !== "PAID") return <span className="text-slate-400">-</span>;
+            const transfers = row.original.values.stripeTransfers;
+            if (!transfers || transfers.length === 0) return <span className="text-slate-400">N/A</span>;
+            
+            const isFullySent = transfers.every((t: any) => t.status === "SENT");
+            if (!isFullySent) return <span className="text-amber-600 font-medium text-xs">In Progress</span>;
+            return <span className="text-emerald-600 font-medium text-xs">Settled</span>;
+          },
+        },
+        {
+          id: "transferStatus",
+          header: () => "Transfer Status",
+          cell: ({ row }: { row: { original: InvoiceRow } }) => {
+            if (row.original.values.status !== "PAID") return <span className="text-slate-400">-</span>;
+            const transfers = row.original.values.stripeTransfers;
+            if (!transfers || transfers.length === 0) return <span className="text-slate-400">N/A</span>;
+            
+            const isSent = transfers.every((t: any) => t.status === "SENT");
+            if (isSent) return <span className="text-emerald-600 font-medium text-xs">Completed</span>;
+            
+            const isFailed = transfers.some((t: any) => t.status === "FAILED");
+            if (isFailed) return <span className="text-red-600 font-medium text-xs">Failed</span>;
+            
+            return <span className="text-amber-600 font-medium text-xs">In Progress</span>;
+          },
+        },
+        {
           id: "actions",
           header: () => "Actions",
           cell: ({ row }: { row: { original: InvoiceRow } }) => {
