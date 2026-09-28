@@ -381,7 +381,12 @@ export type AgreementBody = {
     fieldValues?: Record<string, string>;
     submissionApprovalNote?: string | null;
   }>;
+  signingOrder?: SigningOrder;
 };
+
+export type SigningOrder =
+  | ["First Party", "Second Party"]
+  | ["Second Party", "First Party"];
 
 export async function createAgreementApi(
   data: AgreementBody,
@@ -529,6 +534,7 @@ export async function createDocusealSubmissionApi(data: {
   templateId: number | number[];
   fieldValues?: Record<string, string>;
   fieldValuesByTemplateId?: Record<string, Record<string, string>>;
+  signingOrder?: SigningOrder;
 }): Promise<any> {
   try {
     const response = await apiConnector({
@@ -551,6 +557,7 @@ export async function resubmitDocusealSubmissionApi(data: {
   templateId: number;
   fieldValues: Record<string, string>;
   submissionApprovalStatus: string;
+  signingOrder?: SigningOrder;
 }): Promise<any> {
   try {
     const response = await apiConnector({
@@ -587,6 +594,7 @@ export type SendAgreementEmailBody = {
   personId: string;
   subject?: string;
   message?: string;
+  signingOrder?: SigningOrder;
 };
 
 export type SendOnboardingFormBody = {

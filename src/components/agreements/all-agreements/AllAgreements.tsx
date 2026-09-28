@@ -56,7 +56,12 @@ import {
   type AgreementBody,
   type DocusealTemplate,
   getAgreementDocusealId,
+  type SigningOrder,
 } from "../../../services/operations/agreements";
+import SigningOrderPrompt, {
+  CLIENT_FIRST_ORDER,
+  TRISTATE_FIRST_ORDER,
+} from "../SigningOrderPrompt";
 import {
   getAgreementVersions,
   getAgreementVersion,
@@ -156,6 +161,7 @@ type AgreementFormState = {
   docusealTemplates: string[];
   docusealFieldValues: Record<string, Record<string, string>>;
   serviceIds: string[];
+  signingOrder: SigningOrder;
 };
 
 const initialFormState: AgreementFormState = {
@@ -170,6 +176,7 @@ const initialFormState: AgreementFormState = {
   docusealTemplates: [],
   docusealFieldValues: {},
   serviceIds: [],
+  signingOrder: TRISTATE_FIRST_ORDER,
 };
 
 function formatStatusLabel(status: string) {
@@ -294,7 +301,21 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
       .map((templateId) => String(templateId)),
     docusealFieldValues,
     serviceIds: agreement.services?.map((s) => s.id) || [],
+    signingOrder: signingOrderFromAgreement(agreement),
   };
+}
+
+function signingOrderFromAgreement(agreement: Agreement): SigningOrder {
+  const signers = (agreement.docusealSubmissions || []).flatMap(
+    (submission) => submission.signers || [],
+  );
+  const firstRole = [...signers].sort(
+    (left, right) => (left.order ?? 99) - (right.order ?? 99),
+  )[0]?.role;
+
+  return firstRole === "Second Party"
+    ? CLIENT_FIRST_ORDER
+    : TRISTATE_FIRST_ORDER;
 }
 
 type AgreementRow = {
@@ -350,6 +371,7 @@ function AllAgreementsPage() {
   const [signers, setSigners] = useState<any[]>([]);
   const [selectedSignerId, setSelectedSignerId] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [signingOrderPromptOpen, setSigningOrderPromptOpen] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const [profileCreateHandled, setProfileCreateHandled] = useState(false);
@@ -927,6 +949,7 @@ function AllAgreementsPage() {
       ...(form.serviceIds?.length > 0
         ? { serviceIds: form.serviceIds }
         : {}),
+      ...(form.signingOrder ? { signingOrder: form.signingOrder } : {}),
     };
   }
 
@@ -963,15 +986,23 @@ function AllAgreementsPage() {
       }
     }
 
+    setSigningOrderPromptOpen(true);
+  }
+
+  async function submitCreatedAgreement(signingOrder?: SigningOrder) {
     const selectedPractice = practices.find(
       (item) => item.id === createForm.practiceId,
     );
     const willAutoSendToPractice =
       isAdmin && selectedPractice?.status === "ACTIVE";
 
+    setSigningOrderPromptOpen(false);
     setIsSubmitting(true);
     try {
-      await createAgreementApi(buildPayload(createForm));
+      await createAgreementApi({
+        ...buildPayload(createForm),
+        ...(signingOrder ? { signingOrder } : {}),
+      });
       const data = await getAgreementsView({
         page: pagination.page,
         limit: pagination.limit,
@@ -1587,6 +1618,32 @@ function AllAgreementsPage() {
                           {formatStatusLabel(status)}
                         </option>
                       ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Signing order
+                    </label>
+                    <select
+                      value={editForm.signingOrder[0]}
+                      onChange={(event) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          signingOrder:
+                            event.target.value === "Second Party"
+                              ? CLIENT_FIRST_ORDER
+                              : TRISTATE_FIRST_ORDER,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    >
+                      <option value="First Party">
+                        Tristate first, then the client
+                      </option>
+                      <option value="Second Party">
+                        Client first, then Tristate
+                      </option>
                     </select>
                   </div>
 
@@ -2821,6 +2878,17 @@ function AllAgreementsPage() {
         {showDetailPanel && detailPanel}
         {showCreateForm && createPanel}
       </div>
+      <SigningOrderPrompt
+        open={signingOrderPromptOpen}
+        confirmLabel={
+          willAutoSendCreatedAgreement ? "Create and send" : "Create agreement"
+        }
+        isSubmitting={isSubmitting}
+        onCancel={() => setSigningOrderPromptOpen(false)}
+        onConfirm={(signingOrder) => {
+          void submitCreatedAgreement(signingOrder);
+        }}
+      />
     </AppLayout>
   );
 }
