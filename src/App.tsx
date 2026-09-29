@@ -72,6 +72,10 @@ import OnboardingTemplatesPage from "./components/onboarding-projects/Onboarding
 import DocumentHubPage from "./components/document-hub/DocumentHub";
 import DocumentHubCategoriesPage from "./components/document-hub/DocumentHubCategories";
 import PublicSharePage from "./components/document-hub/PublicSharePage";
+import PrefundingDashboard from "./components/prefunding/PrefundingDashboard";
+import PrefundingRates from "./components/prefunding/PrefundingRates";
+import CalculatePrefunding from "./components/prefunding/CalculatePrefunding";
+import PrefundingInvoices from "./components/prefunding/PrefundingInvoices";
 
 function App() {
   function ModuleRoute({
@@ -766,6 +770,38 @@ function App() {
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.SETTINGS}>
             <SettingsPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/prefunding/dashboard"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <PrefundingDashboard />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/prefunding/rates"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <PrefundingRates />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/prefunding/calculate"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <CalculatePrefunding />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/prefunding/invoices"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <PrefundingInvoices />
           </ModuleRoute>
         }
       />

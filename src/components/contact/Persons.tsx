@@ -1,4 +1,4 @@
-import {
+﻿import {
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
@@ -34,6 +34,8 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import DatePicker from "../shared/DatePicker";
+import MultiSelect from "../shared/MultiSelect";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import type { PersonCellValue, PersonRow, PersonViewData } from "./types";
 import {
@@ -138,6 +140,14 @@ const initialFormData: PersonFormData = {
   status: "ACTIVE",
 };
 
+const usStates = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", 
+  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
+  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
+  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
+  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+];
+
 const roleOptions = [
   "OWNER",
   "ADMIN",
@@ -146,6 +156,8 @@ const roleOptions = [
   "CLINICAL",
   "PROCUREMENT",
   "OTHER",
+  "EMPLOYEE",
+  "MANAGER",
 ];
 const influenceOptions = ["LOW", "MEDIUM", "HIGH", "DECISION_MAKER"];
 const statusOptions = ["ACTIVE", "INACTIVE"];
@@ -763,7 +775,7 @@ export default function PersonsPage() {
       const personData: PersonBody = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        role: formData.role as PersonBody["role"],
+        roles: formData.roles,
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: trimmedPhone || undefined,
@@ -771,6 +783,16 @@ export default function PersonsPage() {
         companyIds: formData.companyIds,
         designation: formData.designation.trim() || undefined,
         status: formData.status,
+          ...((formData.roles || []).includes("EMPLOYEE") ? {
+            jobCategory: formData.jobCategory,
+            workLocation: formData.workLocation,
+            state: formData.state,
+            dateOfJoining: formData.dateOfJoining,
+            payType: formData.payType,
+            payRate: Number(formData.payRate) || undefined,
+            budgetedHours: Number(formData.budgetedHours) || undefined,
+            bufferPercentage: Number(formData.bufferPercentage) || undefined,
+          } : {}),
       };
 
       await createPersonApi(personData);
@@ -819,7 +841,7 @@ export default function PersonsPage() {
       const personData: Partial<PersonBody> = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        role: formData.role as PersonBody["role"],
+        roles: formData.roles,
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: trimmedPhone || "",
@@ -827,6 +849,16 @@ export default function PersonsPage() {
         practiceIds: formData.practiceIds,
         companyIds: formData.companyIds,
         status: formData.status,
+          ...((formData.roles || []).includes("EMPLOYEE") ? {
+            jobCategory: formData.jobCategory,
+            workLocation: formData.workLocation,
+            state: formData.state,
+            dateOfJoining: formData.dateOfJoining,
+            payType: formData.payType,
+            payRate: Number(formData.payRate) || undefined,
+            budgetedHours: Number(formData.budgetedHours) || undefined,
+            bufferPercentage: Number(formData.bufferPercentage) || undefined,
+          } : {}),
       };
 
       await updatePersonApi(selectedRow.id, personData);
@@ -1052,17 +1084,12 @@ export default function PersonsPage() {
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
               Role
             </label>
-            <select
-              value={formData.role}
-              onChange={(e) => handleFormChange("role", e.target.value)}
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            >
-              {roleOptions.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
+                                  <MultiSelect
+                        value={formData.roles || []}
+                        onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
+                        options={roleOptions.map(r => ({ label: r, value: r }))}
+                        className="w-full"
+                      />
           </div>
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
@@ -1157,10 +1184,56 @@ export default function PersonsPage() {
           </select>
         </div>
 
-        <div>
-          <label className="mb-1 block text-[12px] font-medium text-slate-600">
-            Practices
-          </label>
+                          {(formData.roles || []).includes("EMPLOYEE") && (
+                    <div className="border border-slate-200 rounded-md p-3 space-y-3 bg-slate-50 mt-4 mb-4">
+                      <h3 className="text-[13px] font-semibold text-slate-700">Employee Details</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Job Category</label>
+                          <Select value={formData.jobCategory || ""} onChange={(val) => handleFormChange("jobCategory", val)} options={[{label: "Clinical", value: "CLINICAL"}, {label: "Non-Clinical", value: "NON_CLINICAL"}]} placeholder="Select Category" className="w-full" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Work Location</label>
+                          <input type="text" value={formData.workLocation} onChange={(e) => handleFormChange("workLocation", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="Location" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
+                          <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStates.map(s => ({label: s, value: s}))} placeholder="Select State" className="w-full" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining</label>
+                          <DatePicker value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
+                          <Select value={formData.payType || ""} onChange={(val) => handleFormChange("payType", val)} options={[{label: "Hourly", value: "HOURLY"}, {label: "Monthly", value: "MONTHLY"}, {label: "Annually", value: "ANNUALLY"}]} placeholder="Select Pay Type" className="w-full" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
+                          <input type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Budgeted Hours</label>
+                          <input type="number" step="0.5" value={formData.budgetedHours} onChange={(e) => handleFormChange("budgetedHours", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
+                          <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Practices
+                    </label>
           {practicesLoading ? (
             <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
               Loading...
@@ -1218,8 +1291,8 @@ export default function PersonsPage() {
         </div>
 
         {selectedPersonData?.docusealSubmissions?.length > 0 &&
-          (selectedPersonData.role === "OWNER" ||
-            selectedPersonData.role === "ADMIN") && (
+          (selectedPersonData.roles?.includes("OWNER") ||
+            selectedPersonData.roles?.includes("ADMIN")) && (
             <div>
               <label className="mb-1 block text-[12px] font-medium text-slate-600">
                 Signed Agreements
@@ -1259,7 +1332,7 @@ export default function PersonsPage() {
                             {document.label}
                           </span>
                           <span className="text-[11px] text-slate-500">
-                            {document.status} •{" "}
+                            {document.status} â€¢{" "}
                             {new Date(document.updatedAt).toLocaleDateString()}
                           </span>
                         </div>
@@ -1709,17 +1782,12 @@ export default function PersonsPage() {
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
                       Role
                     </label>
-                    <select
-                      value={formData.role}
-                      onChange={(e) => handleFormChange("role", e.target.value)}
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    >
-                      {roleOptions.map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
+                                          <MultiSelect
+                        value={formData.roles || []}
+                        onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
+                        options={roleOptions.map(r => ({ label: r, value: r }))}
+                        className="w-full"
+                      />
                   </div>
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
@@ -1817,10 +1885,56 @@ export default function PersonsPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Practices
-                  </label>
+                                  {(formData.roles || []).includes("EMPLOYEE") && (
+                    <div className="border border-slate-200 rounded-md p-3 space-y-3 bg-slate-50 mt-4 mb-4">
+                      <h3 className="text-[13px] font-semibold text-slate-700">Employee Details</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Job Category</label>
+                          <Select value={formData.jobCategory || ""} onChange={(val) => handleFormChange("jobCategory", val)} options={[{label: "Clinical", value: "CLINICAL"}, {label: "Non-Clinical", value: "NON_CLINICAL"}]} placeholder="Select Category" className="w-full" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Work Location</label>
+                          <input type="text" value={formData.workLocation} onChange={(e) => handleFormChange("workLocation", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="Location" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
+                          <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStates.map(s => ({label: s, value: s}))} placeholder="Select State" className="w-full" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining</label>
+                          <DatePicker value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
+                          <Select value={formData.payType || ""} onChange={(val) => handleFormChange("payType", val)} options={[{label: "Hourly", value: "HOURLY"}, {label: "Monthly", value: "MONTHLY"}, {label: "Annually", value: "ANNUALLY"}]} placeholder="Select Pay Type" className="w-full" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
+                          <input type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Budgeted Hours</label>
+                          <input type="number" step="0.5" value={formData.budgetedHours} onChange={(e) => handleFormChange("budgetedHours", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
+                          <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Practices
+                    </label>
                   {practicesLoading ? (
                     <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
                       Loading practices...
@@ -1868,7 +1982,7 @@ export default function PersonsPage() {
                               onClick={() => handlePracticeToggle(id)}
                               className="ml-0.5 text-[#4f63ea] hover:text-[#3d4ed1]"
                             >
-                              ×
+                              Ã—
                             </button>
                           </span>
                         ) : null;
@@ -1926,7 +2040,7 @@ export default function PersonsPage() {
                               onClick={() => handleCompanyToggle(id)}
                               className="ml-0.5 text-[#2e7d32] hover:text-[#1b5e20]"
                             >
-                              ×
+                              Ã—
                             </button>
                           </span>
                         ) : null;

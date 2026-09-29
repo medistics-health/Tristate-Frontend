@@ -149,6 +149,16 @@ const sidebarSteps: SidebarItem[] = [
     ],
   },
   {
+    label: "Prefunding",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+    items: [
+      { label: "Dashboard", to: "/prefunding/dashboard" },
+      { label: "Prefunding Rates", to: "/prefunding/rates" },
+      { label: "Calculate Prefunding", to: "/prefunding/calculate" },
+      { label: "Prefunding Invoices", to: "/prefunding/invoices" },
+    ],
+  },
+  {
     label: "Billing",
     requiredRoles: [...MODULE_ACCESS.OPERATIONS_AND_FINANCE],
     items: [

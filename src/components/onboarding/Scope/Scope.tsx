@@ -140,7 +140,7 @@ export default function Scope() {
   const eligiblePracticePersons = useMemo(
     () =>
       (selectedPractice?.persons ?? []).filter((person) =>
-        ["ADMIN", "OWNER"].includes(person.role),
+        person.roles?.some((role: string) => ["ADMIN", "OWNER"].includes(role)),
       ),
     [selectedPractice?.persons],
   );

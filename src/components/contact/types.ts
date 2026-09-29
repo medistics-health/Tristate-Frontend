@@ -1,4 +1,4 @@
-import type { HubLinkedDocument } from "../document-hub/types";
+﻿import type { HubLinkedDocument } from "../document-hub/types";
 
 export type PersonRole =
   | "OWNER"
@@ -32,7 +32,15 @@ export type PersonBody = {
   companyIds: string[];
   firstName: string;
   lastName: string;
-  role: PersonRole;
+  roles?: PersonRole[];
+  jobCategory?: string;
+  workLocation?: string;
+  state?: string;
+  dateOfJoining?: string;
+  payType?: string;
+  payRate?: number | string;
+  budgetedHours?: number | string;
+  bufferPercentage?: number | string;
   influence: InfluenceLevel;
   email?: string;
   phone?: string;
@@ -47,7 +55,15 @@ export type Person = {
   id: string;
   firstName: string;
   lastName: string;
-  role: PersonRole;
+  roles?: PersonRole[];
+  jobCategory?: string;
+  workLocation?: string;
+  state?: string;
+  dateOfJoining?: string;
+  payType?: string;
+  payRate?: number | string;
+  budgetedHours?: number | string;
+  bufferPercentage?: number | string;
   influence: InfluenceLevel;
   email?: string;
   phone?: string;
@@ -75,7 +91,7 @@ export type PersonUserValue = {
   initials: string;
 };
 
-export type PersonCellValue = string | number | PersonUserValue | null;
+export type PersonCellValue = string | number | PersonUserValue | null | string[];
 
 export type PersonRow = {
   id: string;

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Building2,
   Globe,
   LayoutGrid,
@@ -287,6 +287,8 @@ const personRoleOptions: PersonRole[] = [
   "CLINICAL",
   "PROCUREMENT",
   "OTHER",
+  "EMPLOYEE",
+  "MANAGER",
 ];
 
 const designationOptions = [
@@ -614,7 +616,7 @@ function CreateLeadPage() {
         const personPayload: PersonBody = {
           firstName: form.primaryContactFirstName.trim(),
           lastName: form.primaryContactLastName.trim(),
-          role: form.primaryContactRole,
+          roles: [form.primaryContactRole],
           influence: "HIGH",
           email: form.primaryContactEmail.trim(),
           phone: stripPhone(form.primaryContactPhone.trim()) || undefined,
@@ -1266,7 +1268,7 @@ function CreateLeadPage() {
     return view.rows.map((row) => ({
       label: row.values.name as string,
       value: row.id,
-      subLabel: `${row.values.industry} • ${row.values.city}, ${row.values.state}`,
+      subLabel: `${row.values.industry} â€¢ ${row.values.city}, ${row.values.state}`,
     }));
   };
 
@@ -1296,7 +1298,7 @@ function CreateLeadPage() {
     return view.rows.map((row) => ({
       label: row.values.name as string,
       value: row.id,
-      subLabel: `NPI: ${row.values.npi} • ${row.values.region}`,
+      subLabel: `NPI: ${row.values.npi} â€¢ ${row.values.region}`,
     }));
   };
 
@@ -1310,7 +1312,7 @@ function CreateLeadPage() {
     return view.rows.map((row) => ({
       label: row.values.name as string,
       value: row.id,
-      subLabel: `NPI: ${row.values.npi} • ${row.values.status}`,
+      subLabel: `NPI: ${row.values.npi} â€¢ ${row.values.status}`,
     }));
   };
 
@@ -1349,7 +1351,7 @@ function CreateLeadPage() {
     return view.rows.map((row) => ({
       label: row.values.fullName as string,
       value: row.id,
-      subLabel: `${row.values.role} • ${row.values.email}`,
+      subLabel: `${row.values.role} â€¢ ${row.values.email}`,
     }));
   };
 

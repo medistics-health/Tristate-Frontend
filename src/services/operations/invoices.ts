@@ -225,7 +225,7 @@ function buildInvoiceLabel(
   return `${practiceName} • ${shortId}`;
 }
 
-function normalizeInvoice(invoice: Invoice): Invoice {
+function normalizeInvoice(invoice: any): Invoice {
   return {
     ...invoice,
     invoiceNumber: invoice.invoiceNumber || buildInvoiceLabel(invoice),

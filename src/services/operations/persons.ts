@@ -1,4 +1,4 @@
-import axios from "axios";
+﻿import axios from "axios";
 import { apiConnector } from "../apiConnector";
 import { personEndpoints } from "../apis";
 import type {
@@ -23,7 +23,7 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
-export type PersonWithPractices = Person & {
+export type PersonWithPractices = Omit<Person, "practices" | "companies"> & {
   practices?: { practice: { id: string; name: string } }[];
   companies?: { company: { id: string; name: string } }[];
   docusealSubmissions?: {
@@ -44,8 +44,8 @@ export type PersonWithPractices = Person & {
 };
 
 function personToRow(person: PersonWithPractices): PersonRow {
-  const practicesList = person.practices?.map((p) => p.practice) || [];
-  const companiesList = person.companies?.map((c) => c.company) || [];
+  const practicesList = person.practices?.map((p: any) => p.practice || p) || [];
+  const companiesList = person.companies?.map((c: any) => c.company || c) || [];
   const practiceNames = practicesList.map((p) => p.name).join(", ");
   const companyNames = companiesList.map((c) => c.name).join(", ");
   return {
@@ -55,12 +55,21 @@ function personToRow(person: PersonWithPractices): PersonRow {
       firstName: person.firstName,
       lastName: person.lastName,
       fullName: `${person.firstName} ${person.lastName}`,
-      role: person.role,
+      role: person.roles?.join(", ") || "",
       designation: person.designation || "",
       influence: person.influence,
       email: person.email || "",
       phone: person.phone || "",
       status: person.status || "",
+        rolesArray: person.roles || [],
+        jobCategory: person.jobCategory || "",
+        workLocation: person.workLocation || "",
+        state: person.state || "",
+        dateOfJoining: person.dateOfJoining ? new Date(person.dateOfJoining).toISOString().split('T')[0] : "",
+        payType: person.payType || "",
+        payRate: person.payRate || "",
+        budgetedHours: person.budgetedHours || "",
+        bufferPercentage: person.bufferPercentage || "",
       practiceIds: practicesList.map((p) => p.id),
       practiceNames: practiceNames,
       companyIds: companiesList.map((c) => c.id),

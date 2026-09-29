@@ -1028,7 +1028,7 @@ export default function PracticeProfilePage() {
                       {person.email || "No email"}
                     </p>
                     <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">
-                      {formatLabel(person.role)}
+                      {person.roles?.map(formatLabel).join(', ')}
                     </p>
                     {person.id ? (
                       <Link
