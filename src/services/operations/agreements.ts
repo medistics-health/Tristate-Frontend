@@ -81,6 +81,18 @@ export function getSubmissionApprovalStatus(agreement: {
   );
 }
 
+function formatCreatedByName(
+  user?: Agreement["createdByUser"] | null,
+) {
+  if (!user) return "-";
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+    user.userName ||
+    user.email ||
+    "-"
+  );
+}
+
 function agreementToRow(agreement: Agreement): AgreementsRow {
   const submissions = agreement.docusealSubmissions || [];
   const completedSubmissions = submissions.filter(
@@ -111,6 +123,7 @@ function agreementToRow(agreement: Agreement): AgreementsRow {
       renewalDate: formatUsDate(agreement.renewalDate),
       terminationDate: formatUsDate(agreement.terminationDate),
       value: agreement.value?.toString() || "",
+      createdBy: formatCreatedByName(agreement.createdByUser),
       creationDate: formatUsDateTime(agreement.createdAt),
       lastUpdate: formatUsDateTime(agreement.updatedAt),
       createdAt: agreement.createdAt,
@@ -174,6 +187,13 @@ export type Agreement = {
   docusealStatus?: string | null;
   createdAt: string;
   updatedAt: string;
+  createdByUser?: {
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    userName?: string | null;
+    email?: string | null;
+  } | null;
   practice?: { id: string; name: string };
   deal?: { id: string; name: string };
   docusealSubmissions?: DocusealSubmission[];
@@ -238,6 +258,12 @@ const fields = [
     visible: true,
   },
   {
+    id: "createdBy",
+    label: "Created by",
+    type: "text" as const,
+    visible: true,
+  },
+  {
     id: "lastUpdate",
     label: "Last Update",
     type: "date" as const,
@@ -250,6 +276,7 @@ export type AgreementQueryParams = {
   limit?: number;
   search?: string;
   status?: string;
+  excludeStatus?: string;
   type?: string;
   practiceId?: string;
   dealId?: string;
@@ -281,6 +308,7 @@ export async function getAgreementsView(
     if (params?.limit) queryString.set("limit", String(params.limit));
     if (params?.search) queryString.set("search", params.search);
     if (params?.status) queryString.set("status", params.status);
+    if (params?.excludeStatus) queryString.set("excludeStatus", params.excludeStatus);
     if (params?.type) queryString.set("type", params.type);
     if (params?.practiceId) queryString.set("practiceId", params.practiceId);
     if (params?.dealId) queryString.set("dealId", params.dealId);

@@ -489,13 +489,6 @@ function AllAgreementsPage() {
           String(row.original.values.services || "-"),
       },
       {
-        id: "value",
-        accessorFn: (row: AgreementRow) => row.values.value,
-        header: () => "Value",
-        cell: ({ row }: { row: { original: AgreementRow } }) =>
-          String(row.original.values.value || "-"),
-      },
-      {
         id: "effectiveDate",
         accessorFn: (row: AgreementRow) => row.values.effectiveDate,
         header: () => "Effective Date",
@@ -513,6 +506,13 @@ function AllAgreementsPage() {
         header: () => "Created",
         cell: ({ row }: { row: { original: AgreementRow } }) =>
           String(row.original.values.creationDate),
+      },
+      {
+        id: "createdBy",
+        accessorFn: (row: AgreementRow) => row.values.createdBy,
+        header: () => "Created by",
+        cell: ({ row }: { row: { original: AgreementRow } }) =>
+          String(row.original.values.createdBy || "-"),
       },
       {
         id: "signingStatus",
@@ -560,6 +560,7 @@ function AllAgreementsPage() {
         limit: pagination.limit,
         search: filters.search || undefined,
         status: filters.status || undefined,
+        excludeStatus: filters.status ? undefined : "INACTIVE",
         type: filters.type || undefined,
         approvalStatus: filters.approvalStatus || undefined,
         practiceId:
@@ -577,7 +578,13 @@ function AllAgreementsPage() {
       }
 
       const data = await getAgreementsView(params as any);
-      setRows(data.rows);
+      setRows(
+        filters.status
+          ? data.rows
+          : data.rows.filter(
+              (row) => String(row.values.status) !== "INACTIVE",
+            ),
+      );
       setPagination(data.pagination);
     } catch (err) {
       const message =
