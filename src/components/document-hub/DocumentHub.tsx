@@ -85,6 +85,19 @@ function hubDateTime(value?: string | null) {
   return date.toLocaleString();
 }
 
+function toDatetimeLocalMin(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function isPastExpiration(value: string) {
+  const selected = new Date(value);
+  if (Number.isNaN(selected.getTime())) return false;
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return selected.getTime() < now.getTime();
+}
+
 const emptyForm = {
   title: "",
   description: "",
@@ -673,6 +686,10 @@ function DocumentHubPage() {
 
   async function handleCreateLink() {
     if (!selectedDocument) return;
+    if (linkExpiresAt && isPastExpiration(linkExpiresAt)) {
+      toast.error("Expiration date must be in the future.");
+      return;
+    }
     try {
       const link = await createPublicLinkApi(selectedDocument.id, {
         expiresAt: linkExpiresAt || null,
@@ -1232,10 +1249,19 @@ function DocumentHubPage() {
                         selectedDocument.isPublicShareable &&
                         selectedDocument.status === "ACTIVE" && (
                           <>
+                            <p className="text-[12px] font-medium text-slate-600">Expiration date</p>
                             <input
                               type="datetime-local"
                               value={linkExpiresAt}
-                              onChange={(event) => setLinkExpiresAt(event.target.value)}
+                              min={toDatetimeLocalMin(new Date())}
+                              onChange={(event) => {
+                                const next = event.target.value;
+                                if (next && isPastExpiration(next)) {
+                                  toast.error("Expiration date must be in the future.");
+                                  return;
+                                }
+                                setLinkExpiresAt(next);
+                              }}
                               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                             />
                             <button
