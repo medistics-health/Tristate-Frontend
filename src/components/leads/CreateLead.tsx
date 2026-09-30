@@ -734,28 +734,32 @@ function CreateLeadPage() {
 
           if (isAdmin) {
             try {
-              await activatePracticeWithAgreementEmail(practiceId, {
-                status: "ACTIVE",
-              });
+              await activatePracticeWithAgreementEmail(
+                practiceId,
+                { status: "LEAD" },
+                { updateStatus: false },
+              );
             } catch (error) {
               agreementSendWarning =
                 error instanceof Error
                   ? error.message
-                  : "Agreement was created, but practice activation or company status update could not be completed.";
+                  : "Agreement was created, but the signature request could not be sent.";
             }
           }
         } else if (form.agreement.action === "link") {
           agreementId = form.agreement.existingAgreementId;
           if (isAdmin) {
             try {
-              await activatePracticeWithAgreementEmail(practiceId, {
-                status: "ACTIVE",
-              });
+              await activatePracticeWithAgreementEmail(
+                practiceId,
+                { status: "LEAD" },
+                { updateStatus: false },
+              );
             } catch (error) {
               agreementSendWarning =
                 error instanceof Error
                   ? error.message
-                  : "Lead was created, but practice activation or company status update could not be completed.";
+                  : "Lead was created, but the signature request could not be sent.";
             }
           }
         }
@@ -3412,7 +3416,7 @@ function CreateLeadPage() {
             ? "Create Lead"
             : form.agreement.action === "create"
               ? isAdmin
-                ? "Create & Send Now"
+                ? "Create Lead"
                 : "Create & Send for Approval"
               : form.agreement.action === "link"
                 ? "Create & Send"

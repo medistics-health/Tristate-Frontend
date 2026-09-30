@@ -58,6 +58,7 @@ export async function validatePracticeActivation(practiceId: string) {
 export async function activatePracticeWithAgreementEmail(
   practiceId: string,
   practiceData: Partial<PracticeBody> = { status: "ACTIVE" },
+  options: { updateStatus?: boolean } = {},
 ): Promise<void> {
   const { agreement, eligiblePerson, practice } =
     await validatePracticeActivation(practiceId);
@@ -93,10 +94,12 @@ export async function activatePracticeWithAgreementEmail(
     personId: eligiblePerson.id,
   });
 
-  await updatePracticeApi(practiceId, {
-    ...practiceData,
-    status: "ACTIVE",
-  });
+  if (options.updateStatus !== false) {
+    await updatePracticeApi(practiceId, {
+      ...practiceData,
+      status: "ACTIVE",
+    });
+  }
 
 
 }
