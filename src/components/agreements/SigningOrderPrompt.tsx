@@ -57,8 +57,7 @@ export default function SigningOrderPrompt({
           Who should sign first?
         </h2>
         <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
-          Choose the signing order before this agreement is sent. The next
-          signer is emailed after the first one finishes.
+        Choose who signs first. The second signer is emailed once the first has signed.
         </p>
 
         <div className="mt-4 space-y-2">
@@ -72,10 +71,10 @@ export default function SigningOrderPrompt({
             />
             <span>
               <span className="block text-[13px] font-medium text-slate-700">
-                Tristate first, then the client
+              Tristate signs first, then the client
               </span>
               <span className="block text-[12px] text-slate-500">
-                The authorized signer signs, then the practice contact.
+              Your authorized signer signs first, then the practice contact.
               </span>
             </span>
           </label>
@@ -90,10 +89,10 @@ export default function SigningOrderPrompt({
             />
             <span>
               <span className="block text-[13px] font-medium text-slate-700">
-                Client first, then Tristate
+              Client signs first, then Tristate
               </span>
               <span className="block text-[12px] text-slate-500">
-                The practice contact signs, then the authorized signer.
+              The practice contact signs first, then your authorized signer.
               </span>
             </span>
           </label>

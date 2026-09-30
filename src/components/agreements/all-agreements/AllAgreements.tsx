@@ -2225,8 +2225,7 @@ function AllAgreementsPage() {
                 <Info className="mt-0.5 h-4 w-4 shrink-0" />
                 <p className="text-[12px] leading-relaxed">
                   This practice is already <strong>active</strong>. Creating
-                  this agreement will automatically send it to the practice
-                  contact for signature.
+                  this agreement will trigger signing process.
                 </p>
               </div>
             )}
@@ -2683,14 +2682,40 @@ function AllAgreementsPage() {
                                             type={inputType}
                                             value={value}
                                             required={field.required}
-                                            onChange={(event) =>
+                                            min={
+                                              inputType === "number"
+                                                ? 0
+                                                : undefined
+                                            }
+                                            onKeyDown={(event) => {
+                                              if (
+                                                inputType === "number" &&
+                                                (event.key === "-" ||
+                                                  event.key === "+" ||
+                                                  event.key === "e" ||
+                                                  event.key === "E")
+                                              ) {
+                                                event.preventDefault();
+                                              }
+                                            }}
+                                            onChange={(event) => {
+                                              const nextValue =
+                                                event.target.value;
+                                              if (
+                                                inputType === "number" &&
+                                                nextValue !== "" &&
+                                                (nextValue.includes("-") ||
+                                                  Number(nextValue) < 0)
+                                              ) {
+                                                return;
+                                              }
                                               updateTemplateFieldValue(
                                                 templateId,
                                                 field.uuid,
-                                                event.target.value,
+                                                nextValue,
                                                 setCreateForm,
-                                              )
-                                            }
+                                              );
+                                            }}
                                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                                             placeholder={`Enter ${getDocusealFieldLabel(
                                               field,
