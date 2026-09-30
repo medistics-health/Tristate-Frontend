@@ -484,7 +484,10 @@ function CreateLeadPage() {
       })),
   ];
 
-  const performLeadCreation = async (withAgreement: boolean = false) => {
+  const performLeadCreation = async (
+    withAgreement: boolean = false,
+    activateAndSend: boolean = true,
+  ) => {
     setIsSaving(true);
     let createdCompanyId: string | undefined;
     let createdPracticeId: string | undefined;
@@ -732,7 +735,7 @@ function CreateLeadPage() {
           //   });
           // }
 
-          if (isAdmin) {
+          if (isAdmin && activateAndSend) {
             try {
               await activatePracticeWithAgreementEmail(practiceId, {
                 status: "ACTIVE",
@@ -746,7 +749,7 @@ function CreateLeadPage() {
           }
         } else if (form.agreement.action === "link") {
           agreementId = form.agreement.existingAgreementId;
-          if (isAdmin) {
+          if (isAdmin && activateAndSend) {
             try {
               await activatePracticeWithAgreementEmail(practiceId, {
                 status: "ACTIVE",
@@ -762,23 +765,16 @@ function CreateLeadPage() {
       }
 
       resetForm();
+      const successMessage = agreementId
+        ? !isAdmin
+          ? "Lead created and agreement sent for approval."
+          : activateAndSend
+            ? "Lead and agreement created successfully."
+            : "Lead created. The practice stays a lead and the agreement was not sent."
+        : "Lead created successfully.";
+      toast.success(successMessage);
       if (agreementSendWarning) {
-        toast.success(
-          agreementId
-            ? isAdmin
-              ? "Lead and agreement created successfully."
-              : "Lead created and agreement sent for approval."
-            : "Lead created successfully.",
-        );
         toast.error(agreementSendWarning);
-      } else {
-        toast.success(
-          agreementId
-            ? isAdmin
-              ? "Lead and agreement created successfully."
-              : "Lead created and agreement sent for approval."
-            : "Lead created successfully.",
-        );
       }
     } catch (error) {
       console.error(error);
@@ -1514,8 +1510,17 @@ function CreateLeadPage() {
   }
 
   const handleConfirmWithAgreements = () => {
-    performLeadCreation(form.interestedServiceIds.length > 0);
+    performLeadCreation(form.interestedServiceIds.length > 0, true);
   };
+
+  const handleCreateLeadWithoutSending = () => {
+    performLeadCreation(form.interestedServiceIds.length > 0, false);
+  };
+
+  const adminCanDeferAgreementSend =
+    isAdmin &&
+    form.interestedServiceIds.length > 0 &&
+    form.agreement.action !== "none";
 
   function renderProcessingFeeSetup() {
     const totals = buildGeneralSettingsTotals(systemSettings);
@@ -2821,7 +2826,7 @@ function CreateLeadPage() {
                           >
                             {existingAgreements.map((ag) => (
                               <option key={ag.id} value={ag.id}>
-                                {ag.practice.name} - {ag.type} - Created{" "}
+                                {ag?.practice?.name} - {ag.type} - Created{" "}
                                 {new Date(ag.createdAt).toLocaleDateString()}
                               </option>
                             ))}
@@ -3191,24 +3196,27 @@ function CreateLeadPage() {
                       <div className="flex items-start gap-3 rounded-xl bg-blue-50 p-3 text-blue-700 md:col-span-2">
                         <Clock className="mt-0.5 h-4 w-4 shrink-0" />
                         <p className="text-[12px] leading-relaxed">
-                          <strong>Signature Workflow:</strong> Saving this lead
-                          will automatically create the agreement and{" "}
-                          {isAdmin
-                            ? "send signature request emails"
-                            : "send it for admin approval"}{" "}
-                          for{" "}
-                          <strong>{form.agreement.templateIds.length}</strong>{" "}
-                          selected template(s)
-                          {isAdmin ? " to " : "."}
+                          <strong>Signature Workflow:</strong>{" "}
                           {isAdmin ? (
-                            <strong>
-                              {form.contactRelation === "new"
-                                ? getPrimaryContactName(form) ||
-                                  "the primary contact"
-                                : "the selected contact"}
-                            </strong>
-                          ) : null}
-                          {isAdmin ? "." : ""}
+                            <>
+                              Saving this lead creates the agreement for{" "}
+                              <strong>
+                                {form.agreement.templateIds.length}
+                              </strong>{" "}
+                              selected template(s). You can send it now, which
+                              sets the practice to active, or create the lead
+                              only and keep the practice as LEAD.
+                            </>
+                          ) : (
+                            <>
+                              Saving this lead will automatically create the
+                              agreement and send it for admin approval for{" "}
+                              <strong>
+                                {form.agreement.templateIds.length}
+                              </strong>{" "}
+                              selected template(s).
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -3381,6 +3389,14 @@ function CreateLeadPage() {
         isOpen={showAgreementModal}
         onClose={() => setShowAgreementModal(false)}
         onConfirm={handleConfirmWithAgreements}
+        onSecondaryConfirm={
+          adminCanDeferAgreementSend
+            ? handleCreateLeadWithoutSending
+            : undefined
+        }
+        secondaryLabel={
+          adminCanDeferAgreementSend ? "Create Lead Only" : undefined
+        }
         title={
           form.interestedServiceIds.length === 0
             ? "Create Lead?"
@@ -3399,11 +3415,11 @@ function CreateLeadPage() {
             ? "No interested services were selected. Would you like to create this lead without an agreement?"
             : form.agreement.action === "create"
               ? isAdmin
-                ? `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and trigger the signature request now?`
+                ? `You have configured a new ${form.agreement.type} agreement. Create & Send Now sets the practice to active and sends the signature request. Create Lead Only keeps the practice as LEAD and does not send the agreement.`
                 : `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and send the agreement for admin approval?`
               : form.agreement.action === "link"
                 ? isAdmin
-                  ? "You have selected an existing agreement. This will create the lead and send the agreement directly to the client."
+                  ? "You have selected an existing agreement. Create & Send sets the practice to active and sends the agreement. Create Lead Only keeps the practice as LEAD and does not send the agreement."
                   : "You have selected an existing agreement. This will create the lead and send the agreement for admin approval before it goes to the client."
                 : "Would you like to create the lead without creating or linking an agreement?"
         }
