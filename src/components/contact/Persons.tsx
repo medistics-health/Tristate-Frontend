@@ -148,6 +148,26 @@ const usStates = [
   "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
 ];
 
+const usStatesOptions = [
+  { label: "Alabama", value: "AL" }, { label: "Alaska", value: "AK" }, { label: "Arizona", value: "AZ" },
+  { label: "Arkansas", value: "AR" }, { label: "California", value: "CA" }, { label: "Colorado", value: "CO" },
+  { label: "Connecticut", value: "CT" }, { label: "Delaware", value: "DE" }, { label: "Florida", value: "FL" },
+  { label: "Georgia", value: "GA" }, { label: "Hawaii", value: "HI" }, { label: "Idaho", value: "ID" },
+  { label: "Illinois", value: "IL" }, { label: "Indiana", value: "IN" }, { label: "Iowa", value: "IA" },
+  { label: "Kansas", value: "KS" }, { label: "Kentucky", value: "KY" }, { label: "Louisiana", value: "LA" },
+  { label: "Maine", value: "ME" }, { label: "Maryland", value: "MD" }, { label: "Massachusetts", value: "MA" },
+  { label: "Michigan", value: "MI" }, { label: "Minnesota", value: "MN" }, { label: "Mississippi", value: "MS" },
+  { label: "Missouri", value: "MO" }, { label: "Montana", value: "MT" }, { label: "Nebraska", value: "NE" },
+  { label: "Nevada", value: "NV" }, { label: "New Hampshire", value: "NH" }, { label: "New Jersey", value: "NJ" },
+  { label: "New Mexico", value: "NM" }, { label: "New York", value: "NY" }, { label: "North Carolina", value: "NC" },
+  { label: "North Dakota", value: "ND" }, { label: "Ohio", value: "OH" }, { label: "Oklahoma", value: "OK" },
+  { label: "Oregon", value: "OR" }, { label: "Pennsylvania", value: "PA" }, { label: "Rhode Island", value: "RI" },
+  { label: "South Carolina", value: "SC" }, { label: "South Dakota", value: "SD" }, { label: "Tennessee", value: "TN" },
+  { label: "Texas", value: "TX" }, { label: "Utah", value: "UT" }, { label: "Vermont", value: "VT" },
+  { label: "Virginia", value: "VA" }, { label: "Washington", value: "WA" }, { label: "West Virginia", value: "WV" },
+  { label: "Wisconsin", value: "WI" }, { label: "Wyoming", value: "WY" }
+];
+
 const roleOptions = [
   "OWNER",
   "ADMIN",
@@ -437,17 +457,25 @@ export default function PersonsPage() {
             .split(",")
             .filter(Boolean);
       setFormData({
-        firstName: String(values.firstName || ""),
-        lastName: String(values.lastName || ""),
-        role: String(values.role || "ADMIN"),
-        influence: String(values.influence || "MEDIUM"),
-        email: String(values.email || ""),
-        phone: normalizePhoneInput(String(values.phone || "")),
-        practiceIds: practiceIdsArray,
-        companyIds: companyIdsArray,
-        designation: String(values.designation || ""),
-        status: String(values.status || "ACTIVE"),
-      });
+  firstName: String(values.firstName || ""),
+  lastName: String(values.lastName || ""),
+  roles: Array.isArray(values.rolesArray) ? (values.rolesArray as string[]) : ["ADMIN"],
+  influence: String(values.influence || "MEDIUM"),
+  email: String(values.email || ""),
+  phone: normalizePhoneInput(String(values.phone || "")),
+  practiceIds: practiceIdsArray,
+  companyIds: companyIdsArray,
+  designation: String(values.designation || ""),
+  status: String(values.status || "ACTIVE"),
+  jobCategory: String(values.jobCategory || ""),
+  workLocation: String(values.workLocation || ""),
+  state: String(values.state || ""),
+  dateOfJoining: String(values.dateOfJoining || ""),
+  payType: String(values.payType || ""),
+  payRate: values.payRate ? Number(values.payRate) : "",
+  budgetedHours: values.budgetedHours ? Number(values.budgetedHours) : "",
+  bufferPercentage: values.bufferPercentage ? Number(values.bufferPercentage) : "",
+});
       setIsEditing(false);
     }
   }, [selectedRow, showCreateForm]);
@@ -507,6 +535,8 @@ export default function PersonsPage() {
                 CLINICAL: "bg-cyan-100 text-cyan-700",
                 PROCUREMENT: "bg-yellow-100 text-yellow-700",
                 OTHER: "bg-gray-100 text-gray-700",
+                EMPLOYEE: "bg-indigo-100 text-indigo-700",
+                MANAGER: "bg-teal-100 text-teal-700",
               };
               return (
                 <span
@@ -792,7 +822,7 @@ export default function PersonsPage() {
             payRate: Number(formData.payRate) || undefined,
             budgetedHours: Number(formData.budgetedHours) || undefined,
             bufferPercentage: Number(formData.bufferPercentage) || undefined,
-          } : {}),
+          } : { jobCategory: null, workLocation: null, state: null, dateOfJoining: null, payType: null, payRate: null, budgetedHours: null, bufferPercentage: null } as any),
       };
 
       await createPersonApi(personData);
@@ -858,7 +888,7 @@ export default function PersonsPage() {
             payRate: Number(formData.payRate) || undefined,
             budgetedHours: Number(formData.budgetedHours) || undefined,
             bufferPercentage: Number(formData.bufferPercentage) || undefined,
-          } : {}),
+          } : { jobCategory: null, workLocation: null, state: null, dateOfJoining: null, payType: null, payRate: null, budgetedHours: null, bufferPercentage: null } as any),
       };
 
       await updatePersonApi(selectedRow.id, personData);
@@ -1200,7 +1230,7 @@ export default function PersonsPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
-                          <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStates.map(s => ({label: s, value: s}))} placeholder="Select State" className="w-full" />
+                          <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
                         </div>
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining</label>
@@ -1673,6 +1703,8 @@ export default function PersonsPage() {
                   CLINICAL: "bg-cyan-100 text-cyan-700",
                   PROCUREMENT: "bg-yellow-100 text-yellow-700",
                   OTHER: "bg-gray-100 text-gray-700",
+                  EMPLOYEE: "bg-indigo-100 text-indigo-700",
+                  MANAGER: "bg-teal-100 text-teal-700",
                 };
                 const role = String(selectedRow.values.role || "");
                 return (
@@ -1901,7 +1933,7 @@ export default function PersonsPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
-                          <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStates.map(s => ({label: s, value: s}))} placeholder="Select State" className="w-full" />
+                          <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
                         </div>
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining</label>

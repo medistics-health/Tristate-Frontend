@@ -1,4 +1,4 @@
-import {
+﻿import {
   Backpack,
   User,
   Building2,
@@ -45,6 +45,7 @@ type SidebarSectionItem = {
   label: string;
   to?: string;
   adminOnly?: boolean;
+  requiresPrefundingAccess?: boolean;
   requiredRoles?: UserRole[];
 };
 
@@ -53,6 +54,7 @@ type SidebarItem = {
   to?: string;
   items?: SidebarSectionItem[];
   adminOnly?: boolean;
+  requiresPrefundingAccess?: boolean;
   requiredRoles?: UserRole[];
 };
 
@@ -150,6 +152,7 @@ const sidebarSteps: SidebarItem[] = [
   },
   {
     label: "Prefunding",
+    requiresPrefundingAccess: true,
     requiredRoles: [...MODULE_ACCESS.CRM],
     items: [
       { label: "Dashboard", to: "/prefunding/dashboard" },
@@ -458,6 +461,8 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
 
   function canRenderItem(item: SidebarSectionItem | SidebarItem) {
     if (item.adminOnly && !isAdmin) return false;
+    const user = readStoredUser();
+    if (item.requiresPrefundingAccess && !user?.hasPrefundingAccess) return false;
     if (!item.requiredRoles || item.requiredRoles.length === 0) return true;
     return hasAnyRole(userRole, item.requiredRoles);
   }
