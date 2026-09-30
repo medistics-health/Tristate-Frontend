@@ -49,9 +49,7 @@ import {
   getAgreementsByPractice,
   type Agreement,
   type DocusealTemplate,
-  type SigningOrder,
 } from "../../services/operations/agreements";
-import SigningOrderPrompt from "../agreements/SigningOrderPrompt";
 import { activatePracticeWithAgreementEmail } from "../../services/operations/practiceActivation";
 import { getAllServices } from "../../services/operations/services";
 import {
@@ -421,7 +419,6 @@ function CreateLeadPage() {
 
   // Agreement Redirect State
   const [showAgreementModal, setShowAgreementModal] = useState(false);
-  const [signingOrderPromptOpen, setSigningOrderPromptOpen] = useState(false);
 
   const companyTaxIdOptions =
     form.companyRelation === "existing"
@@ -487,10 +484,7 @@ function CreateLeadPage() {
       })),
   ];
 
-  const performLeadCreation = async (
-    withAgreement: boolean = false,
-    signingOrder?: SigningOrder,
-  ) => {
+  const performLeadCreation = async (withAgreement: boolean = false) => {
     setIsSaving(true);
     let createdCompanyId: string | undefined;
     let createdPracticeId: string | undefined;
@@ -718,7 +712,6 @@ function CreateLeadPage() {
             docusealSubmissions:
               submissions.length > 0 ? submissions : undefined,
             serviceIds: form.interestedServiceIds,
-            ...(signingOrder ? { signingOrder } : {}),
           };
           const agreementRow = await createAgreementApi(
             agreementPayload as any,
@@ -741,32 +734,28 @@ function CreateLeadPage() {
 
           if (isAdmin) {
             try {
-              await activatePracticeWithAgreementEmail(
-                practiceId,
-                { status: "LEAD" },
-                { updateStatus: false },
-              );
+              await activatePracticeWithAgreementEmail(practiceId, {
+                status: "ACTIVE",
+              });
             } catch (error) {
               agreementSendWarning =
                 error instanceof Error
                   ? error.message
-                  : "Agreement was created, but the signature request could not be sent.";
+                  : "Agreement was created, but practice activation or company status update could not be completed.";
             }
           }
         } else if (form.agreement.action === "link") {
           agreementId = form.agreement.existingAgreementId;
           if (isAdmin) {
             try {
-              await activatePracticeWithAgreementEmail(
-                practiceId,
-                { status: "LEAD" },
-                { updateStatus: false },
-              );
+              await activatePracticeWithAgreementEmail(practiceId, {
+                status: "ACTIVE",
+              });
             } catch (error) {
               agreementSendWarning =
                 error instanceof Error
                   ? error.message
-                  : "Lead was created, but the signature request could not be sent.";
+                  : "Lead was created, but practice activation or company status update could not be completed.";
             }
           }
         }
@@ -1525,16 +1514,6 @@ function CreateLeadPage() {
   }
 
   const handleConfirmWithAgreements = () => {
-    const creatingAgreement =
-      form.interestedServiceIds.length > 0 &&
-      form.agreement.action === "create";
-
-    setShowAgreementModal(false);
-    if (creatingAgreement) {
-      setSigningOrderPromptOpen(true);
-      return;
-    }
-
     performLeadCreation(form.interestedServiceIds.length > 0);
   };
 
@@ -3433,7 +3412,7 @@ function CreateLeadPage() {
             ? "Create Lead"
             : form.agreement.action === "create"
               ? isAdmin
-                ? "Create Lead"
+                ? "Create & Send Now"
                 : "Create & Send for Approval"
               : form.agreement.action === "link"
                 ? "Create & Send"
@@ -3441,16 +3420,6 @@ function CreateLeadPage() {
         }
         cancelLabel="Cancel"
         type="primary"
-      />
-      <SigningOrderPrompt
-        open={signingOrderPromptOpen}
-        confirmLabel={isAdmin ? "Create and send" : "Create agreement"}
-        isSubmitting={isSaving}
-        onCancel={() => setSigningOrderPromptOpen(false)}
-        onConfirm={(signingOrder) => {
-          setSigningOrderPromptOpen(false);
-          void performLeadCreation(true, signingOrder);
-        }}
       />
     </AppLayout>
   );
