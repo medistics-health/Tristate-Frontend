@@ -548,11 +548,25 @@ export async function getDocusealTemplates(): Promise<DocusealTemplatesResponse>
   }
 }
 
-export async function getDocusealFormBySlug(slug: string): Promise<any> {
+export async function getDocusealFormBySlug(slug: string): Promise<{
+  status: "active" | "expired";
+  message?: string;
+}> {
   try {
     const response = await axios.get(GET_DOCUSEAL_FORM(slug));
     return response.data;
   } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 410) {
+      const data = error.response.data as
+        | { status?: "expired"; message?: string }
+        | undefined;
+      return {
+        status: "expired",
+        message:
+          data?.message ||
+          "This signing link has expired. The document was updated and a new link was sent.",
+      };
+    }
     throw new Error(getErrorMessage(error, "Unable to fetch DocuSeal form."));
   }
 }
