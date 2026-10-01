@@ -51,7 +51,6 @@ type AgreementFormState = {
   value: string;
   effectiveDate: string;
   renewalDate: string;
-  terminationDate: string;
 };
 
 const initialFormState: AgreementFormState = {
@@ -60,7 +59,6 @@ const initialFormState: AgreementFormState = {
   value: "",
   effectiveDate: "",
   renewalDate: "",
-  terminationDate: "",
 };
 
 function formatStatusLabel(status: string) {
@@ -100,7 +98,6 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
     value: String(agreement.value || ""),
     effectiveDate: formatDateForInput(agreement.effectiveDate),
     renewalDate: formatDateForInput(agreement.renewalDate),
-    terminationDate: formatDateForInput(agreement.terminationDate),
   };
 }
 
@@ -287,11 +284,45 @@ function AgreementPendingSignaturesPage() {
       renewalDate: form.renewalDate
         ? new Date(form.renewalDate).toISOString()
         : undefined,
-      terminationDate: form.terminationDate
-        ? new Date(form.terminationDate).toISOString()
-        : undefined,
     };
   }
+
+  function applyAgreementDatesToFieldValues(
+    template: DocusealTemplate | undefined,
+    fieldValues: Record<string, string>,
+    dates: { effectiveDate: string; renewalDate: string },
+  ) {
+    if (!template) return fieldValues;
+
+    const next = { ...fieldValues };
+
+    for (const field of template.fields || []) {
+      const name = (field.name || "").toLowerCase();
+      const value = name.includes("renewal")
+        ? dates.renewalDate
+        : name.includes("effective")
+          ? dates.effectiveDate
+          : "";
+
+      if (!value) continue;
+
+      if (field.uuid) next[field.uuid] = value;
+      if (field.name) next[field.name] = value;
+    }
+
+    return next;
+  }
+
+  const savedForm = buildFormState(selectedAgreement);
+  const agreementDetailsDirty = (
+    [
+      "type",
+      "status",
+      "value",
+      "effectiveDate",
+      "renewalDate",
+    ] as const
+  ).some((key) => editForm[key] !== savedForm[key]);
 
   function validateSubmissionRequiredFields(submissionId: string) {
     const submission = selectedAgreement?.docusealSubmissions?.find(
@@ -354,15 +385,24 @@ function AgreementPendingSignaturesPage() {
 
     setIsSubmittingForApproval(true);
     try {
+      const template = templates.find(
+        (item) => item.id === selectedSubmission.templateId,
+      );
+      const fieldValues = applyAgreementDatesToFieldValues(
+        template,
+        editableFieldValues[selectedSubmission.id] ||
+          selectedSubmission.fieldValues ||
+          {},
+        editForm,
+      );
+
       await updateAgreementApi(selectedRowId, {
+        ...buildPayload(editForm),
         docusealSubmissions: [
           {
             id: selectedSubmission.id,
             templateId: selectedSubmission.templateId,
-            fieldValues:
-              editableFieldValues[selectedSubmission.id] ||
-              selectedSubmission.fieldValues ||
-              {},
+            fieldValues,
             submissionApprovalNote: null,
           },
         ],
@@ -406,12 +446,19 @@ function AgreementPendingSignaturesPage() {
 
     setIsSubmittingForApproval(true);
     try {
-      const fieldValues =
+      const template = templates.find(
+        (item) => item.id === selectedSubmission.templateId,
+      );
+      const fieldValues = applyAgreementDatesToFieldValues(
+        template,
         editableFieldValues[selectedSubmission.id] ||
-        selectedSubmission.fieldValues ||
-        {};
+          selectedSubmission.fieldValues ||
+          {},
+        editForm,
+      );
 
       await updateAgreementApi(selectedRowId, {
+        ...buildPayload(editForm),
         docusealSubmissions: [
           {
             id: selectedSubmission.id,
@@ -769,23 +816,6 @@ function AgreementPendingSignaturesPage() {
                       className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                     />
                   </div>
-
-                  <div>
-                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Termination Date
-                    </label>
-                    <input
-                      type="date"
-                      value={editForm.terminationDate}
-                      onChange={(event) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          terminationDate: event.target.value,
-                        }))
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    />
-                  </div>
                 </div>
 
                 {(isTemplatesLoading ||
@@ -1002,7 +1032,7 @@ function AgreementPendingSignaturesPage() {
                       (!isAdmin && isSelectedSubmissionPendingApproval) ||
                       !selectedPersonId ||
                       !selectedSubmissionId ||
-                      !templateFieldsDirty
+                      (!templateFieldsDirty && !agreementDetailsDirty)
                     }
                     className="app-control inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#4f63ea] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d4ed1] hover:text-white disabled:opacity-50"
                   >

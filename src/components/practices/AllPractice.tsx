@@ -115,6 +115,18 @@ function normalizeGroupNpiStatus(value: unknown): string {
   return value === "INACTIVE" ? "INACTIVE" : "ACTIVE";
 }
 
+function clientSignsFirst(agreement: Agreement): boolean {
+  if (agreement.signingOrder?.[0] === "Second Party") return true;
+  if (agreement.signingOrder?.[0] === "First Party") return false;
+
+  const firstRole = (agreement.docusealSubmissions || [])
+    .flatMap((submission) => submission.signers || [])
+    .slice()
+    .sort((left, right) => (left.order ?? 99) - (right.order ?? 99))[0]?.role;
+
+  return firstRole === "Second Party";
+}
+
 function toDateInput(value?: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -287,6 +299,7 @@ export default function AllPracticePage() {
   const [showActivationModal, setShowActivationModal] = useState(false);
   const [activationPerson, setActivationPerson] = useState<Person | null>(null);
   const [activationAgreementType, setActivationAgreementType] = useState("");
+  const [activationClientFirst, setActivationClientFirst] = useState(false);
   const [pendingActivationData, setPendingActivationData] =
     useState<Partial<PracticeBody> | null>(null);
   const [selectedPracticeDetail, setSelectedPracticeDetail] =
@@ -1096,6 +1109,7 @@ export default function AllPracticePage() {
 
         setActivationPerson(eligiblePerson);
         setActivationAgreementType(agreements[0].type);
+        setActivationClientFirst(clientSignsFirst(agreements[0]));
         setPendingActivationData(practiceData);
         setShowActivationModal(true);
         return;
@@ -1225,6 +1239,7 @@ export default function AllPracticePage() {
       setIsSubmitting(false);
       setPendingActivationData(null);
       setActivationPerson(null);
+      setActivationClientFirst(false);
     }
   }
 
@@ -2626,6 +2641,7 @@ export default function AllPracticePage() {
         onClose={() => {
           setShowActivationModal(false);
           setActivationPerson(null);
+          setActivationClientFirst(false);
           setPendingActivationData(null);
         }}
         onConfirm={handleConfirmActivation}
@@ -2635,9 +2651,20 @@ export default function AllPracticePage() {
       >
         <div className="space-y-4">
           <p className="text-[14px] text-slate-500 leading-relaxed">
-            This practice will be set to <strong>ACTIVE</strong> and an
-            agreement will be sent to the following admin person after Internal
-            Signing Process is completed by Authorized Signer.
+            {activationClientFirst ? (
+              <>
+                This practice will be set to <strong>ACTIVE</strong> and an
+                agreement will be sent to the following admin person first. The
+                Authorized Signer will complete the Internal Signing Process
+                after the client signs.
+              </>
+            ) : (
+              <>
+                This practice will be set to <strong>ACTIVE</strong> and an
+                agreement will be sent to the following admin person after
+                Internal Signing Process is completed by Authorized Signer.
+              </>
+            )}
           </p>
           {activationPerson && (
             <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4 space-y-3">

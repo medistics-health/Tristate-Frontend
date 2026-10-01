@@ -2864,7 +2864,7 @@ function CreateLeadPage() {
                       <div className="space-y-6">
                         <label className="block">
                           <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                            Agreement Type *
+                            Agreement Type <span className="text-red-500">*</span>
                           </span>
                           <select
                             value={form.agreement.type}
@@ -2899,7 +2899,7 @@ function CreateLeadPage() {
 
                         <label className="block">
                           <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                            Effective Date *
+                            Effective Date <span className="text-red-500">*</span>
                           </span>
                           <input
                             type="date"
@@ -2916,7 +2916,7 @@ function CreateLeadPage() {
 
                         <label className="block">
                           <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                            Renewal Date *
+                            Renewal Date <span className="text-red-500">*</span>
                           </span>
                           <input
                             type="date"
@@ -2934,7 +2934,7 @@ function CreateLeadPage() {
 
                       <div className="flex flex-col h-full">
                         <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                          DocuSeal Templates *
+                          DocuSeal Templates <span className="text-red-500">*</span>
                         </span>
 
                         {form.agreement.templateIds.length > 0 && (

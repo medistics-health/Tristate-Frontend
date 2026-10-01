@@ -200,6 +200,7 @@ export type Agreement = {
   versions?: AgreementVersion[];
   serviceTerms?: AgreementServiceTerm[];
   services?: { id: string; name: string }[];
+  signingOrder?: SigningOrder;
 };
 
 export function getAgreementDocusealId(agreement: Agreement): number[] | null {
