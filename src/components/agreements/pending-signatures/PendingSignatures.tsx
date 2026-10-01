@@ -33,18 +33,6 @@ const statusStyles: Record<string, string> = {
   TERMINATED: "bg-zinc-100 text-zinc-600",
 };
 
-const agreementStatusOptions = [
-  "DRAFT",
-  "ACTIVE",
-  "PENDING_SIGNATURE",
-  "SIGNED",
-  "EXPIRED",
-  "TERMINATED",
-  "ARCHIVED",
-];
-
-const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
-
 type AgreementFormState = {
   type: string;
   status: string;
@@ -719,44 +707,24 @@ function AgreementPendingSignaturesPage() {
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
                       Type
                     </label>
-                    <select
+                    <input
+                      type="text"
                       value={editForm.type}
-                      onChange={(event) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          type: event.target.value,
-                        }))
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    >
-                      {agreementTypeOptions.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
+                      readOnly
+                      className="app-control w-full cursor-default rounded-md bg-slate-100 px-3 py-2 text-[13px] text-slate-500"
+                    />
                   </div>
 
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
                       Status
                     </label>
-                    <select
-                      value={editForm.status}
-                      onChange={(event) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          status: event.target.value,
-                        }))
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    >
-                      {agreementStatusOptions.map((status) => (
-                        <option key={status} value={status}>
-                          {formatStatusLabel(status)}
-                        </option>
-                      ))}
-                    </select>
+                    <input
+                      type="text"
+                      value={formatStatusLabel(editForm.status)}
+                      readOnly
+                      className="app-control w-full cursor-default rounded-md bg-slate-100 px-3 py-2 text-[13px] text-slate-500"
+                    />
                   </div>
 
                   <div>
@@ -766,13 +734,9 @@ function AgreementPendingSignaturesPage() {
                     <input
                       type="date"
                       value={editForm.effectiveDate}
-                      onChange={(event) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          effectiveDate: event.target.value,
-                        }))
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      readOnly
+                      tabIndex={-1}
+                      className="app-control pointer-events-none w-full cursor-default rounded-md bg-slate-100 px-3 py-2 text-[13px] text-slate-500"
                     />
                   </div>
 
@@ -783,13 +747,9 @@ function AgreementPendingSignaturesPage() {
                     <input
                       type="date"
                       value={editForm.renewalDate}
-                      onChange={(event) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          renewalDate: event.target.value,
-                        }))
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                      readOnly
+                      tabIndex={-1}
+                      className="app-control pointer-events-none w-full cursor-default rounded-md bg-slate-100 px-3 py-2 text-[13px] text-slate-500"
                     />
                   </div>
                 </div>
