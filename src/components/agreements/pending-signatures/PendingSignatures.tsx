@@ -48,7 +48,6 @@ const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
 type AgreementFormState = {
   type: string;
   status: string;
-  value: string;
   effectiveDate: string;
   renewalDate: string;
 };
@@ -56,7 +55,6 @@ type AgreementFormState = {
 const initialFormState: AgreementFormState = {
   type: "MSA",
   status: "PENDING_SIGNATURE",
-  value: "",
   effectiveDate: "",
   renewalDate: "",
 };
@@ -95,7 +93,6 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
   return {
     type: agreement.type,
     status: agreement.status,
-    value: String(agreement.value || ""),
     effectiveDate: formatDateForInput(agreement.effectiveDate),
     renewalDate: formatDateForInput(agreement.renewalDate),
   };
@@ -277,7 +274,6 @@ function AgreementPendingSignaturesPage() {
     return {
       type: form.type,
       status: form.status,
-      value: Number.parseFloat(form.value) || undefined,
       effectiveDate: form.effectiveDate
         ? new Date(form.effectiveDate).toISOString()
         : undefined,
@@ -318,7 +314,6 @@ function AgreementPendingSignaturesPage() {
     [
       "type",
       "status",
-      "value",
       "effectiveDate",
       "renewalDate",
     ] as const
@@ -762,25 +757,6 @@ function AgreementPendingSignaturesPage() {
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Value
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editForm.value}
-                      onChange={(event) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          value: event.target.value,
-                        }))
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      placeholder="0.00"
-                    />
                   </div>
 
                   <div>
