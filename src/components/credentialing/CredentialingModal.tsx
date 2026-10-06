@@ -42,6 +42,8 @@ import {
   requestTypeOptions,
   verificationStatusOptions,
   type CredentialingFormState,
+  type CredentialingPracticeDetails,
+  type CredentialingProviderDetails,
   type CredentialingRecord,
   type FollowUpChannel,
   type FollowUpDirection,
@@ -98,6 +100,118 @@ function downloadLocalDocument(
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function infoValue(value?: string | null) {
+  const text = String(value || "").trim();
+  return text || "—";
+}
+
+function joinInfo(values?: Array<string | null | undefined>) {
+  const text = (values || []).map((value) => String(value || "").trim()).filter(Boolean).join(", ");
+  return text || "—";
+}
+
+function ReadonlyInfoField({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
+  return (
+    <label className="block">
+      <FieldLabel>{label}</FieldLabel>
+      <input
+        type="text"
+        value={infoValue(value)}
+        readOnly
+        className="app-control w-full rounded-xl bg-slate-50 px-3 py-2 text-[13px] text-slate-600"
+      />
+    </label>
+  );
+}
+
+function formatAddress(practice?: CredentialingPracticeDetails | null) {
+  return [
+    practice?.addressLine1,
+    practice?.addressLine2,
+    [practice?.city, practice?.state, practice?.zipCode].filter(Boolean).join(", "),
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function practiceInfoFields(practice?: CredentialingPracticeDetails | null) {
+  const contactPersons = (practice?.contactPersons || [])
+    .map((person) => person.name)
+    .filter(Boolean)
+    .join(", ");
+  const contactNumbers = (practice?.contactNumbers || [])
+    .map((entry) => entry.phone)
+    .filter(Boolean)
+    .join(", ");
+  const locations = (practice?.locations || [])
+    .map((location) => formatLocation(location))
+    .filter(Boolean)
+    .join(" | ");
+
+  return [
+    ["Practice Name", practice?.name],
+    ["Practice Person Name", practice?.practicePersonNames],
+    ["Referred By", practice?.referredBy],
+    ["Address", formatAddress(practice)],
+    ["Group Tax ID", practice?.groupTaxId],
+    ["Group NPI", practice?.groupNpi],
+    ["Group Medicare PTAN", practice?.groupMedicarePtan],
+    ["Railroad Medicare PTAN", practice?.railroadMedicarePtan],
+    ["DME PTAN", practice?.dmePtan],
+    ["Group Medicaid PTAN", practice?.groupMedicaidPtan],
+    ["Contact Numbers", contactNumbers],
+    ["Contact Person", contactPersons],
+    ["Locations", locations],
+    ["County", practice?.country],
+    ["Faxes", joinInfo(practice?.faxes) === "—" ? "" : joinInfo(practice?.faxes)],
+    ["Phone", practice?.phone],
+    ["Emails", joinInfo(practice?.emails) === "—" ? "" : joinInfo(practice?.emails)],
+    ["Spark Group", practice?.sparkGroup],
+  ] as const;
+}
+
+function personInfoFields(person?: CredentialingProviderDetails | null) {
+  const login = [person?.caqhLoginId, person?.caqhPassword].filter(Boolean).join(" / ");
+  return [
+    ["Ind. NPI", person?.individualNpi],
+    ["Ind. PTAN", person?.individualPtan],
+    ["Ind. PTAN (RR Medicare)", person?.individualRailroadMedicarePtan],
+    ["CAQH ID", person?.caqhId],
+    ["CAQH Login ID & Password", login],
+    ["Group PECOS Access", person?.groupPecosAccess],
+    ["Indi. Medicaid Number", person?.individualMedicaidNumber],
+    ["State License", person?.stateLicense],
+    ["DEA", person?.dea],
+    ["EIN", person?.ein],
+    ["Specialty", person?.specialty],
+    ["Secondary Specialty", person?.secondarySpecialty],
+  ] as const;
+}
+
+function formatLocation(location: NonNullable<CredentialingPracticeDetails["locations"]>[number]) {
+  return [
+    location.isPrimary ? "Primary" : "",
+    location.locationName,
+    location.addressLine1,
+    location.addressLine2,
+    [location.city, location.state, location.zipCode].filter(Boolean).join(", "),
+    location.country,
+    location.phone ? `Phone: ${location.phone}` : "",
+    location.fax ? `Fax: ${location.fax}` : "",
+    location.email,
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function FieldLabel({
@@ -265,6 +379,7 @@ export default function CredentialingModal({
 
   const [documentExpiryDate, setDocumentExpiryDate] = useState("");
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [formMessage, setFormMessage] = useState("");
   const [followUpDraft, setFollowUpDraft] = useState<FollowUpDraft>({
     channel: followUpChannelOptions[0],
@@ -407,6 +522,7 @@ export default function CredentialingModal({
     setSelectedDocumentType(allowedDocumentTypes[0]);
     setDocumentExpiryDate("");
     setIsChecklistOpen(false);
+    setIsInfoOpen(false);
     setFormMessage("");
     setFollowUpDraft({
       channel: followUpChannelOptions[0],
@@ -1077,6 +1193,77 @@ export default function CredentialingModal({
                 </div>
               </div>
             </section>
+
+            {record ? (
+              <section className="rounded-2xl border border-[#ece8e1] bg-white p-5 space-y-4">
+                <button
+                  type="button"
+                  onClick={() => setIsInfoOpen((prev) => !prev)}
+                  className="w-full flex items-center justify-between gap-3 text-left focus:outline-none group cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4.5 w-4.5 text-[#4f63ea]" />
+                    <h3 className="text-[15px] font-semibold text-slate-800 group-hover:text-[#4f63ea] transition-colors">
+                      Credentialing Info
+                    </h3>
+                  </div>
+                  {isInfoOpen ? (
+                    <ChevronUp className="h-4.5 w-4.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                  ) : (
+                    <ChevronDown className="h-4.5 w-4.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                  )}
+                </button>
+
+                {isInfoOpen ? (
+                  <div className="space-y-5">
+                    <div>
+                      <div className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
+                        Practice
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-3">
+                        {practiceInfoFields(record.practiceDetails).map(([label, value]) => (
+                          <ReadonlyInfoField key={label} label={label} value={value} />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
+                        List of Providers
+                      </div>
+                      {!(
+                        record.providerDetails ||
+                        record.practiceDetails?.providers?.[0]
+                      ) ? (
+                        <ReadonlyInfoField label="Provider" value="" />
+                      ) : (
+                        [record.providerDetails || record.practiceDetails?.providers?.[0]]
+                          .filter(Boolean)
+                          .map((provider, index) => (
+                          <div
+                            key={provider.id || `provider-${index}`}
+                            className="mb-4 rounded-xl border border-[#ece8e1] p-4"
+                          >
+                            <div className="mb-3 text-[13px] font-semibold text-slate-700">
+                              {provider.name || `Provider ${index + 1}`}
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-3">
+                              {personInfoFields(provider).map(([label, value]) => (
+                                <ReadonlyInfoField
+                                  key={`${provider.id || index}-${label}`}
+                                  label={label}
+                                  value={value}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
 
             {/* Check List Section */}
             <section className="rounded-2xl border border-[#ece8e1] bg-white p-5 space-y-4">
