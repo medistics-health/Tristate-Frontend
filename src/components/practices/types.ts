@@ -29,6 +29,25 @@ export type PracticeBody = {
   processingFeeConfig?: Record<string, unknown> | null;
   groupNpis?: GroupNpiEntry[];
   goLiveTarget?: string | null;
+  referredBy?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  country?: string | null;
+  faxes?: string[];
+  phone?: string | null;
+  emails?: string[];
+  groupTaxId?: string | null;
+  groupMedicarePtan?: string | null;
+  railroadMedicarePtan?: string | null;
+  dmePtan?: string | null;
+  groupMedicaidPtan?: string | null;
+  sparkGroup?: string | null;
+  locations?: unknown[];
+  contactPersons?: unknown[];
+  contactNumbers?: unknown[];
 };
 
 export type Person = {

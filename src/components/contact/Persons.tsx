@@ -24,7 +24,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { PersonBody } from "../../components/contact/types";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { getStandardNavbarActions } from "../shared/PageComponents";
@@ -35,7 +34,10 @@ import DataTableToolbar, {
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
 import { getResponsivePageSize } from "../shared/TablePagination";
-import type { PersonCellValue, PersonRow, PersonViewData } from "./types";
+import type { PersonBody, PersonCellValue, PersonRow, PersonViewData } from "./types";
+import PersonCredentialFields, {
+  personCredentialKeys,
+} from "./PersonCredentialFields";
 import {
   createPersonApi,
   getPersonsView,
@@ -123,7 +125,48 @@ type PersonFormData = {
   companyIds: string[];
   designation: string;
   status: string;
+  individualNpi: string;
+  individualPtan: string;
+  individualRailroadMedicarePtan: string;
+  caqhId: string;
+  caqhLoginId: string;
+  caqhPassword: string;
+  groupPecosAccess: string;
+  individualMedicaidNumber: string;
+  stateLicense: string;
+  dea: string;
+  ein: string;
+  specialty: string;
+  secondarySpecialty: string;
 };
+
+const emptyCredentialFields = Object.fromEntries(
+  personCredentialKeys.map((key) => [key, ""]),
+) as Pick<
+  PersonFormData,
+  | "individualNpi"
+  | "individualPtan"
+  | "individualRailroadMedicarePtan"
+  | "caqhId"
+  | "caqhLoginId"
+  | "caqhPassword"
+  | "groupPecosAccess"
+  | "individualMedicaidNumber"
+  | "stateLicense"
+  | "dea"
+  | "ein"
+  | "specialty"
+  | "secondarySpecialty"
+>;
+
+function credentialPayload(form: PersonFormData): Partial<PersonBody> {
+  return Object.fromEntries(
+    personCredentialKeys.map((key) => [
+      key,
+      String(form[key as keyof PersonFormData] || "").trim() || null,
+    ]),
+  );
+}
 
 const initialFormData: PersonFormData = {
   firstName: "",
@@ -136,6 +179,7 @@ const initialFormData: PersonFormData = {
   companyIds: [],
   designation: "",
   status: "ACTIVE",
+  ...emptyCredentialFields,
 };
 
 const roleOptions = [
@@ -435,6 +479,9 @@ export default function PersonsPage() {
         companyIds: companyIdsArray,
         designation: String(values.designation || ""),
         status: String(values.status || "ACTIVE"),
+        ...(Object.fromEntries(
+          personCredentialKeys.map((key) => [key, String(values[key] || "")]),
+        ) as typeof emptyCredentialFields),
       });
       setIsEditing(false);
     }
@@ -771,6 +818,7 @@ export default function PersonsPage() {
         companyIds: formData.companyIds,
         designation: formData.designation.trim() || undefined,
         status: formData.status,
+        ...credentialPayload(formData),
       };
 
       await createPersonApi(personData);
@@ -827,6 +875,7 @@ export default function PersonsPage() {
         practiceIds: formData.practiceIds,
         companyIds: formData.companyIds,
         status: formData.status,
+        ...credentialPayload(formData),
       };
 
       await updatePersonApi(selectedRow.id, personData);
@@ -1156,6 +1205,13 @@ export default function PersonsPage() {
               )}
           </select>
         </div>
+
+        <PersonCredentialFields
+          values={formData}
+          onChange={(key, value) =>
+            handleFormChange(key as keyof PersonFormData, value)
+          }
+        />
 
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
@@ -1816,6 +1872,13 @@ export default function PersonsPage() {
                     ))}
                   </select>
                 </div>
+
+                <PersonCredentialFields
+                  values={formData}
+                  onChange={(key, value) =>
+                    handleFormChange(key as keyof PersonFormData, value)
+                  }
+                />
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
