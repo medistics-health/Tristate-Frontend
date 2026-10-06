@@ -31,6 +31,7 @@ import PracticeProfileFields, {
   practiceProfilePayload,
   type PracticeProfileForm,
 } from "./PracticeProfileFields";
+import { validatePracticeProfileFields } from "../../utils/profileFieldValidation";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
@@ -918,6 +919,12 @@ export default function AllPracticePage() {
       return;
     }
 
+    const profileError = validatePracticeProfileFields(profileForm);
+    if (profileError) {
+      toast.error(profileError);
+      return;
+    }
+
     if (processingFeeValidationError) {
       toast.error(processingFeeValidationError);
       return;
@@ -1056,6 +1063,12 @@ export default function AllPracticePage() {
     }
     if (!selectedRow || !formData.name.trim()) {
       toast.error("Practice name is required");
+      return;
+    }
+
+    const profileError = validatePracticeProfileFields(profileForm);
+    if (profileError) {
+      toast.error(profileError);
       return;
     }
 

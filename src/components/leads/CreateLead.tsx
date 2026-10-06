@@ -32,6 +32,10 @@ import PracticeProfileFields, {
   type PracticeProfileForm,
 } from "../practices/PracticeProfileFields";
 import {
+  validatePersonCredentialFields,
+  validatePracticeProfileFields,
+} from "../../utils/profileFieldValidation";
+import {
   createCompanyApi,
   deleteCompanyApi,
   getCompany,
@@ -1396,6 +1400,11 @@ function CreateLeadPage() {
         toast.error("Practice name is required.");
         return;
       }
+      const practiceProfileError = validatePracticeProfileFields(form.practiceProfile);
+      if (practiceProfileError) {
+        toast.error(practiceProfileError);
+        return;
+      }
       if (!form.billingPaymentMethod) {
         toast.error("Billing Payment Method is required.");
         return;
@@ -1426,6 +1435,11 @@ function CreateLeadPage() {
       }
       if (!form.primaryContactRole) {
         toast.error("Contact role is required.");
+        return;
+      }
+      const credentialError = validatePersonCredentialFields(form.contactCredentials);
+      if (credentialError) {
+        toast.error(credentialError);
         return;
       }
       if (

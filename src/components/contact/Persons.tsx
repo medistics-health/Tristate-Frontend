@@ -38,6 +38,7 @@ import type { PersonBody, PersonCellValue, PersonRow, PersonViewData } from "./t
 import PersonCredentialFields, {
   personCredentialKeys,
 } from "./PersonCredentialFields";
+import { validatePersonCredentialFields } from "../../utils/profileFieldValidation";
 import {
   createPersonApi,
   getPersonsView,
@@ -804,6 +805,11 @@ export default function PersonsPage() {
       toast.error("Person phone must be exactly 10 digits.");
       return;
     }
+    const credentialError = validatePersonCredentialFields(formData);
+    if (credentialError) {
+      toast.error(credentialError);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -859,6 +865,11 @@ export default function PersonsPage() {
     }
     if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
       toast.error("Person phone must be exactly 10 digits.");
+      return;
+    }
+    const credentialError = validatePersonCredentialFields(formData);
+    if (credentialError) {
+      toast.error(credentialError);
       return;
     }
 
