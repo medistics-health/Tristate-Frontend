@@ -355,6 +355,17 @@ export default function PracticeProfileFields({
     onChange({ ...value, [key]: rows });
   }
 
+  function changeContactMode(
+    key: "contactPersons" | "contactNumbers",
+    index: number,
+    mode: "select" | "create",
+  ) {
+    const rows = value[key].map((row, rowIndex) =>
+      rowIndex === index ? emptyContact(mode) : row,
+    );
+    onChange({ ...value, [key]: rows });
+  }
+
   function renderContactList(
     key: "contactPersons" | "contactNumbers",
     title: string,
@@ -385,9 +396,11 @@ export default function PracticeProfileFields({
               <select
                 value={row.mode}
                 onChange={(event) =>
-                  updateContact(key, index, {
-                    mode: event.target.value as "select" | "create",
-                  })
+                  changeContactMode(
+                    key,
+                    index,
+                    event.target.value as "select" | "create",
+                  )
                 }
                 className="app-control flex-1 rounded-md px-2 py-2 text-[13px]"
               >
