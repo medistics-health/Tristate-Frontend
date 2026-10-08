@@ -152,11 +152,14 @@ export function practiceProfileFromRecord(
     dmePtan: text(record?.dmePtan),
     groupMedicaidPtan: text(record?.groupMedicaidPtan),
     sparkGroup: text(record?.sparkGroup),
-    locations: locations.map((entry) => {
+    locations: locations.map((entry, index) => {
       const location = entry as Record<string, unknown>;
+      const firstPrimaryIndex = locations.findIndex(
+        (item) => Boolean((item as Record<string, unknown>).isPrimary),
+      );
       return {
         locationName: text(location.locationName),
-        isPrimary: Boolean(location.isPrimary),
+        isPrimary: firstPrimaryIndex === index,
         addressLine1: text(location.addressLine1),
         addressLine2: text(location.addressLine2),
         city: text(location.city),
@@ -242,35 +245,6 @@ export function practiceProfilePayload(
     });
   }
 
-  const contactNumbers: Record<string, unknown>[] = [];
-  for (const entry of form.contactNumbers) {
-    const phone = entry.phone.trim();
-    const label = entry.label.trim() || undefined;
-    if (entry.mode === "select") {
-      if (entry.personId) {
-        contactNumbers.push({
-          personId: entry.personId,
-          phone: phone || undefined,
-          label,
-        });
-      }
-      continue;
-    }
-    if (entry.firstName.trim() && entry.lastName.trim()) {
-      contactNumbers.push({
-        firstName: entry.firstName.trim(),
-        lastName: entry.lastName.trim(),
-        phone: phone || undefined,
-        email: entry.email.trim() || undefined,
-        role: "OTHER",
-        influence: "MEDIUM",
-        label,
-      });
-      continue;
-    }
-    if (phone) contactNumbers.push({ phone, label });
-  }
-
   return {
     referredBy: optional(form.referredBy),
     addressLine1: optional(form.addressLine1),
@@ -290,13 +264,12 @@ export function practiceProfilePayload(
     sparkGroup: optional(form.sparkGroup),
     locations,
     contactPersons,
-    contactNumbers,
   };
 }
 
 const textFields: { key: keyof PracticeProfileForm; label: string; placeholder?: string }[] = [
-  { key: "referredBy", label: "Referred By" },
   { key: "phone", label: "Phone" },
+  { key: "faxes", label: "Faxes", placeholder: "Comma-separated" },
   { key: "emails", label: "Emails", placeholder: "Comma-separated" },
   { key: "addressLine1", label: "Address Line 1" },
   { key: "addressLine2", label: "Address Line 2" },
@@ -304,7 +277,6 @@ const textFields: { key: keyof PracticeProfileForm; label: string; placeholder?:
   { key: "state", label: "State" },
   { key: "zipCode", label: "ZIP Code" },
   { key: "country", label: "Country" },
-  { key: "faxes", label: "Faxes", placeholder: "Comma-separated" },
   { key: "groupTaxId", label: "Group Tax ID" },
   { key: "groupMedicarePtan", label: "Group Medicare PTAN" },
   { key: "railroadMedicarePtan", label: "Railroad Medicare PTAN" },
@@ -480,15 +452,7 @@ export default function PracticeProfileFields({
                 updateContact(key, index, { phone: event.target.value })
               }
             />
-            {key === "contactNumbers" ? (
-              <TextInput
-                value={row.label}
-                placeholder="Label"
-                onChange={(event) =>
-                  updateContact(key, index, { label: event.target.value })
-                }
-              />
-            ) : row.mode === "create" ? (
+            {row.mode === "create" ? (
               <TextInput
                 value={row.email}
                 placeholder="Email"
@@ -520,7 +484,6 @@ export default function PracticeProfileFields({
       ))}
 
       {renderContactList("contactPersons", "Contact person")}
-      {renderContactList("contactNumbers", "Contact numbers")}
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -530,13 +493,54 @@ export default function PracticeProfileFields({
           <button
             type="button"
             onClick={() =>
-              onChange({ ...value, locations: [...value.locations, emptyLocation()] })
+              onChange({
+                ...value,
+                locations: [
+                  ...value.locations,
+                  {
+                    ...emptyLocation(),
+                    isPrimary: value.locations.length === 0,
+                  },
+                ],
+              })
             }
             className="flex items-center gap-1 text-[12px] text-[#4f63ea]"
           >
             <Plus className="h-3.5 w-3.5" /> Add
           </button>
         </div>
+        {value.locations.length > 0 ? (
+          <label className="block">
+            <span className="mb-1 block text-[12px] font-medium text-slate-600">
+              Primary location
+            </span>
+            <select
+              value={String(
+                Math.max(
+                  0,
+                  value.locations.findIndex((location) => location.isPrimary),
+                ),
+              )}
+              onChange={(event) => {
+                const selected = Number(event.target.value);
+                onChange({
+                  ...value,
+                  locations: value.locations.map((item, locationIndex) => ({
+                    ...item,
+                    isPrimary: locationIndex === selected,
+                  })),
+                });
+              }}
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            >
+              {value.locations.map((location, index) => (
+                <option key={`primary-location-${index}`} value={index}>
+                  {location.locationName.trim() || `Location ${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         {value.locations.map((location, index) => (
           <div
             key={`location-${index}`}
@@ -552,29 +556,24 @@ export default function PracticeProfileFields({
               />
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  const remaining = value.locations.filter(
+                    (_, locationIndex) => locationIndex !== index,
+                  );
+                  const hasPrimary = remaining.some((item) => item.isPrimary);
                   onChange({
                     ...value,
-                    locations: value.locations.filter(
-                      (_, locationIndex) => locationIndex !== index,
-                    ),
-                  })
-                }
+                    locations: remaining.map((item, locationIndex) => ({
+                      ...item,
+                      isPrimary: hasPrimary ? item.isPrimary : locationIndex === 0,
+                    })),
+                  });
+                }}
                 className="text-red-500"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <label className="flex items-center gap-2 text-[12px] text-slate-600">
-              <input
-                type="checkbox"
-                checked={location.isPrimary}
-                onChange={(event) =>
-                  updateLocation(index, { isPrimary: event.target.checked })
-                }
-              />
-              Primary location
-            </label>
             <TextInput
               value={location.addressLine1}
               placeholder="Address line 1"
@@ -642,6 +641,13 @@ export default function PracticeProfileFields({
             />
           </div>
         ))}
+      </div>
+      <div>
+        <FieldLabel>Referred By</FieldLabel>
+        <TextInput
+          value={value.referredBy}
+          onChange={(event) => setText("referredBy", event.target.value)}
+        />
       </div>
     </div>
   );

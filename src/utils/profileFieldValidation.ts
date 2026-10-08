@@ -64,6 +64,7 @@ type PracticeProfileLike = {
   zipCode?: string;
   groupTaxId?: string;
   locations?: Array<{
+    isPrimary?: boolean;
     zipCode?: string;
     phone?: string;
     fax?: string;
@@ -85,6 +86,10 @@ type PracticeProfileLike = {
 };
 
 export function validatePracticeProfileFields(profile: PracticeProfileLike) {
+  if ((profile.locations || []).filter((location) => location.isPrimary).length > 1) {
+    return "A practice can have only one primary location.";
+  }
+
   const checks = [
     validateOptionalPhone(profile.phone, "Practice phone"),
     validateOptionalEmailList(profile.emails, "Practice email"),
@@ -111,19 +116,6 @@ export function validatePracticeProfileFields(profile: PracticeProfileLike) {
       validateOptionalComEmail(contact.email, "Contact person email"),
       validateOptionalPhone(contact.phone, "Contact person phone"),
     );
-  }
-
-  for (const contact of profile.contactNumbers || []) {
-    if (contact.phone?.trim()) {
-      checks.push(validateOptionalPhone(contact.phone, "Contact number"));
-    } else if (contact.mode === "create" && (contact.firstName || contact.lastName)) {
-      return "Each new contact number needs a 10-digit phone.";
-    }
-    if (contact.mode === "create" && (contact.firstName || contact.lastName)) {
-      if (!contact.firstName?.trim() || !contact.lastName?.trim()) {
-        return "Contact number person needs both a first and last name.";
-      }
-    }
   }
 
   const faxes = String(profile.faxes || "")

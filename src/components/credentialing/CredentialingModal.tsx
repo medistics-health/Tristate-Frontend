@@ -145,11 +145,7 @@ function formatAddress(practice?: CredentialingPracticeDetails | null) {
 
 function practiceInfoFields(practice?: CredentialingPracticeDetails | null) {
   const contactPersons = (practice?.contactPersons || [])
-    .map((person) => person.name)
-    .filter(Boolean)
-    .join(", ");
-  const contactNumbers = (practice?.contactNumbers || [])
-    .map((entry) => entry.phone)
+    .map((person) => [person.name, person.phone].filter(Boolean).join(" · "))
     .filter(Boolean)
     .join(", ");
   const locations = (practice?.locations || [])
@@ -168,7 +164,6 @@ function practiceInfoFields(practice?: CredentialingPracticeDetails | null) {
     ["Railroad Medicare PTAN", practice?.railroadMedicarePtan],
     ["DME PTAN", practice?.dmePtan],
     ["Group Medicaid PTAN", practice?.groupMedicaidPtan],
-    ["Contact Numbers", contactNumbers],
     ["Contact Person", contactPersons],
     ["Locations", locations],
     ["County", practice?.country],
@@ -1229,7 +1224,7 @@ export default function CredentialingModal({
 
                     <div>
                       <div className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
-                        List of Providers
+                        Provider's Information
                       </div>
                       {!(
                         record.providerDetails ||
