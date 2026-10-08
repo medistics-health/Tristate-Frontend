@@ -155,7 +155,7 @@ function practiceInfoFields(practice?: CredentialingPracticeDetails | null) {
 
   return [
     ["Practice Name", practice?.name],
-    ["Practice Person Name", practice?.practicePersonNames],
+    ["Practice Owner Name", practice?.practicePersonNames],
     ["Referred By", practice?.referredBy],
     ["Address", formatAddress(practice)],
     ["Group Tax ID", practice?.groupTaxId],
