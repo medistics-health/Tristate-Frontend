@@ -1043,7 +1043,7 @@ function DocumentHubPage() {
             placeholder="Link practices"
           />
         </div>
-        <div>
+        {/* <div>
           <label className="mb-1 block text-[13px] font-medium text-slate-700">Deals</label>
           <MultiSelect
             value={source.dealIds}
@@ -1052,7 +1052,7 @@ function DocumentHubPage() {
             disabled={disabled}
             placeholder="Link deals"
           />
-        </div>
+        </div> */}
       </div>
     );
   }
