@@ -116,11 +116,15 @@ export type HubPublicLink = {
   expiresAt: string | null;
   revokedAt: string | null;
   revokedBy?: HubPublicLinkUser | null;
-  viewCount: number;
-  lastAccessedAt: string | null;
+  viewCount?: number;
+  lastAccessedAt?: string | null;
   allowDownload: boolean;
   path: string;
   url: string;
+  documentVersion?: number | null;
+  originalFilename?: string | null;
+  isCurrentVersion?: boolean;
+  hideActivity?: boolean;
 };
 
 export type HubDocumentRow = {

@@ -1284,6 +1284,9 @@ function DocumentHubPage() {
                           : expired
                             ? "Expired"
                             : "Live";
+                        const versionLabel = link.documentVersion
+                          ? `v${link.documentVersion}`
+                          : null;
                         return (
                           <div
                             key={link.id}
@@ -1295,10 +1298,27 @@ function DocumentHubPage() {
                                   {link.revokedAt || expired ? state : link.url}
                                 </p>
                                 <p className="mt-0.5 text-[11px] text-slate-400">
-                                  {state} · {link.viewCount} views
+                                  {state}
+                                  {versionLabel ? ` · ${versionLabel}` : ""}
+                                  {link.hideActivity
+                                    ? " · previous version"
+                                    : ` · ${link.viewCount ?? 0} views`}
                                 </p>
                               </div>
                               <span className="flex shrink-0 gap-1">
+                                {link.hideActivity && (
+                                  <button
+                                    type="button"
+                                    title={
+                                      versionLabel
+                                        ? `Download ${versionLabel}`
+                                        : "Download this version"
+                                    }
+                                    onClick={() => handleDownload(link.documentId)}
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
                                 {!link.revokedAt && !expired && (
                                   <button
                                     type="button"
@@ -1325,25 +1345,33 @@ function DocumentHubPage() {
                                 )}
                               </span>
                             </div>
-                            <dl className="mt-2 space-y-0.5 text-[11px] text-slate-500">
-                              <div>
-                                Created {hubDateTime(link.createdAt) || "—"}
-                                {hubPersonName(link.createdBy)
-                                  ? ` by ${hubPersonName(link.createdBy)}`
-                                  : ""}
-                              </div>
-                              <div>
-                                Expires {hubDateTime(link.expiresAt) || "No expiry"}
-                              </div>
-                              {link.revokedAt ? (
+                            {link.hideActivity ? (
+                              <p className="mt-2 text-[11px] text-slate-500">
+                                Still active
+                                {link.originalFilename ? ` · ${link.originalFilename}` : ""}. This
+                                link downloads that version.
+                              </p>
+                            ) : (
+                              <dl className="mt-2 space-y-0.5 text-[11px] text-slate-500">
                                 <div>
-                                  Revoked {hubDateTime(link.revokedAt)}
-                                  {hubPersonName(link.revokedBy)
-                                    ? ` by ${hubPersonName(link.revokedBy)}`
+                                  Created {hubDateTime(link.createdAt) || "—"}
+                                  {hubPersonName(link.createdBy)
+                                    ? ` by ${hubPersonName(link.createdBy)}`
                                     : ""}
                                 </div>
-                              ) : null}
-                            </dl>
+                                <div>
+                                  Expires {hubDateTime(link.expiresAt) || "No expiry"}
+                                </div>
+                                {link.revokedAt ? (
+                                  <div>
+                                    Revoked {hubDateTime(link.revokedAt)}
+                                    {hubPersonName(link.revokedBy)
+                                      ? ` by ${hubPersonName(link.revokedBy)}`
+                                      : ""}
+                                  </div>
+                                ) : null}
+                              </dl>
+                            )}
                           </div>
                         );
                       })}
@@ -1375,10 +1403,20 @@ function DocumentHubPage() {
                               <p className="mt-0.5 truncate text-[12px] text-slate-500">
                                 {version.originalFilename}
                               </p>
-                              <p className="mt-1 text-[11px] text-slate-400">
-                                Uploaded {hubDateTime(version.createdAt) || "—"}
-                                {uploader ? ` by ${uploader}` : ""}
-                              </p>
+                              <div className="mt-1 flex items-center justify-between gap-2">
+                                <p className="text-[11px] text-slate-400">
+                                  Uploaded {hubDateTime(version.createdAt) || "—"}
+                                  {uploader ? ` by ${uploader}` : ""}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownload(version.id)}
+                                  className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-[#4f63ea]"
+                                >
+                                  <Download className="h-3 w-3" />
+                                  Download
+                                </button>
+                              </div>
                             </div>
                           );
                         })
