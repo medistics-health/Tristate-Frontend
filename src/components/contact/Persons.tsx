@@ -1,4 +1,7 @@
-﻿import {
+import { AlertCircle } from "lucide-react";
+import type { PersonWithPractices } from "../../services/operations/persons";
+import { checkDuplicatePersonApi } from "../../services/operations/persons";
+import {
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
@@ -117,7 +120,8 @@ type Company = {
 type PersonFormData = {
   firstName: string;
   lastName: string;
-  role: string;
+  roles: string[];
+  role?: string;
   influence: string;
   email: string;
   phone: string;
@@ -125,11 +129,20 @@ type PersonFormData = {
   companyIds: string[];
   designation: string;
   status: string;
+  jobCategory?: string;
+  workLocation?: string;
+  state?: string;
+  dateOfJoining?: string;
+  payType?: string;
+  payRate?: number;
+  budgetedHours?: number;
+  bufferPercentage?: number;
 };
 
 const initialFormData: PersonFormData = {
   firstName: "",
   lastName: "",
+  roles: ["ADMIN"],
   role: "ADMIN",
   influence: "MEDIUM",
   email: "",
@@ -213,6 +226,8 @@ export default function PersonsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState<PersonFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [duplicateFound, setDuplicateFound] = useState<PersonWithPractices | null>(null);
+  const [isDuplicateConfirmed, setIsDuplicateConfirmed] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [practices, setPractices] = useState<Practice[]>([]);
@@ -472,9 +487,9 @@ export default function PersonsPage() {
   state: String(values.state || ""),
   dateOfJoining: String(values.dateOfJoining || ""),
   payType: String(values.payType || ""),
-  payRate: values.payRate ? Number(values.payRate) : "",
-  budgetedHours: values.budgetedHours ? Number(values.budgetedHours) : "",
-  bufferPercentage: values.bufferPercentage ? Number(values.bufferPercentage) : "",
+  payRate: values.payRate ? Number(values.payRate) : undefined,
+  budgetedHours: values.budgetedHours ? Number(values.budgetedHours) : undefined,
+  bufferPercentage: values.bufferPercentage ? Number(values.bufferPercentage) : undefined,
 });
       setIsEditing(false);
     }
@@ -779,8 +794,8 @@ export default function PersonsPage() {
     }
   }, [showDetailPanel, isEditing]);
 
-  async function handleCreatePerson(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCreatePerson(e: React.FormEvent, force: boolean = false) {
+    if (e) e.preventDefault();
     if (!canWritePersons) {
       toast.error("You do not have permission to create persons.");
       return;
@@ -791,16 +806,30 @@ export default function PersonsPage() {
       toast.error("First name and last name are required");
       return;
     }
-    // if (formData.practiceIds.length === 0) {
-    //   toast.error("Please select at least one practice");
-    //   return;
-    // }
     if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
       toast.error("Person phone must be exactly 10 digits.");
       return;
     }
 
     setIsSubmitting(true);
+
+    if (!force) {
+      try {
+        const { isDuplicate, duplicatePerson } = await checkDuplicatePersonApi(
+          formData.firstName.trim(),
+          formData.lastName.trim(),
+          formData.designation
+        );
+        if (isDuplicate && duplicatePerson) {
+          setDuplicateFound(duplicatePerson);
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Duplicate check failed:", err);
+      }
+    }
+
     try {
       const personData: PersonBody = {
         firstName: formData.firstName.trim(),
@@ -845,8 +874,8 @@ export default function PersonsPage() {
     }
   }
 
-  async function handleUpdatePerson(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleUpdatePerson(e: React.FormEvent, force: boolean = false) {
+    if (e) e.preventDefault();
     if (!canWritePersons) {
       toast.error("You do not have permission to update persons.");
       return;
@@ -867,6 +896,25 @@ export default function PersonsPage() {
     }
 
     setIsSubmitting(true);
+
+    if (!force) {
+      try {
+        const { isDuplicate, duplicatePerson } = await checkDuplicatePersonApi(
+          formData.firstName.trim(),
+          formData.lastName.trim(),
+          formData.designation,
+          String(selectedRow.values.id)
+        );
+        if (isDuplicate && duplicatePerson) {
+          setDuplicateFound(duplicatePerson);
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Duplicate check failed:", err);
+      }
+    }
+
     try {
       const personData: Partial<PersonBody> = {
         firstName: formData.firstName.trim(),
@@ -1080,8 +1128,39 @@ export default function PersonsPage() {
   const renderDetailEditForm = () => {
     if (!selectedRow) return null;
 
+    if (duplicateFound) {
+      return (
+        <div className="flex-1 overflow-auto p-4 flex flex-col justify-center text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 mb-4">
+            <AlertCircle className="h-6 w-6 text-amber-600" />
+          </div>
+          <h3 className="text-lg font-medium text-slate-900 mb-2">Duplicate Found</h3>
+          <p className="text-sm text-slate-500 mb-6">
+            A person named <strong>{duplicateFound.firstName} {duplicateFound.lastName}</strong> with the title <strong>{duplicateFound.designation || "None"}</strong> already exists.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={(e) => handleUpdatePerson(e, true)}
+              className="w-full rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 focus:outline-none"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Updating..." : "Update Anyway"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDuplicateFound(null)}
+              className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
+            >
+              Go Back & Edit
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <form onSubmit={handleUpdatePerson} className="space-y-4">
+      <form onSubmit={(e) => handleUpdatePerson(e, false)} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
@@ -1362,7 +1441,7 @@ export default function PersonsPage() {
                             {document.label}
                           </span>
                           <span className="text-[11px] text-slate-500">
-                            {document.status} â€¢{" "}
+                            {document.status} •{" "}
                             {new Date(document.updatedAt).toLocaleDateString()}
                           </span>
                         </div>
@@ -1771,8 +1850,36 @@ export default function PersonsPage() {
               </button>
             </div>
 
+            {duplicateFound ? (
+              <div className="flex-1 overflow-auto p-4 flex flex-col justify-center text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 mb-4">
+                  <AlertCircle className="h-6 w-6 text-amber-600" />
+                </div>
+                <h3 className="text-lg font-medium text-slate-900 mb-2">Duplicate Found</h3>
+                <p className="text-sm text-slate-500 mb-6">
+                  A person named <strong>{duplicateFound.firstName} {duplicateFound.lastName}</strong> with the title <strong>{duplicateFound.designation || "None"}</strong> already exists.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={(e) => handleCreatePerson(e, true)}
+                    className="w-full rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 focus:outline-none"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Creating..." : "Create Anyway"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDuplicateFound(null)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
+                  >
+                    Go Back & Edit
+                  </button>
+                </div>
+              </div>
+            ) : (
             <form
-              onSubmit={handleCreatePerson}
+              onSubmit={(e) => handleCreatePerson(e, false)}
               className="flex-1 overflow-auto p-4"
             >
               <div className="space-y-4">
@@ -2014,7 +2121,7 @@ export default function PersonsPage() {
                               onClick={() => handlePracticeToggle(id)}
                               className="ml-0.5 text-[#4f63ea] hover:text-[#3d4ed1]"
                             >
-                              Ã—
+                              ×
                             </button>
                           </span>
                         ) : null;
@@ -2072,7 +2179,7 @@ export default function PersonsPage() {
                               onClick={() => handleCompanyToggle(id)}
                               className="ml-0.5 text-[#2e7d32] hover:text-[#1b5e20]"
                             >
-                              Ã—
+                              ×
                             </button>
                           </span>
                         ) : null;
@@ -2099,6 +2206,7 @@ export default function PersonsPage() {
                 </button>
               </div>
             </form>
+            )}
           </aside>
         )}
       </div>

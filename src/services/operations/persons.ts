@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 import { apiConnector } from "../apiConnector";
 import { personEndpoints } from "../apis";
 import type {
@@ -290,5 +290,25 @@ export async function getAllPersonEmails(): Promise<string[]> {
     );
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch person emails."));
+  }
+}
+
+
+export async function checkDuplicatePersonApi(
+  firstName: string,
+  lastName: string,
+  designation?: string,
+  excludePersonId?: string
+): Promise<{ isDuplicate: boolean; duplicatePerson?: PersonWithPractices }> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: personEndpoints.BASE + "/check-duplicate",
+        body: { firstName, lastName, designation, excludePersonId },
+        credentials: true,
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error?.response?.data?.message || "Failed to check duplicate person.");
   }
 }

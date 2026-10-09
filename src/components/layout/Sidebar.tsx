@@ -30,7 +30,13 @@
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   BUSINESS_WRITE_ROLES,
@@ -136,9 +142,7 @@ const sidebarSteps: SidebarItem[] = [
   {
     label: "Services",
     requiredRoles: [...MODULE_ACCESS.CRM],
-    items: [
-      { label: "All Services", to: "/service/all-services" },
-    ],
+    items: [{ label: "All Services", to: "/service/all-services" }],
   },
   {
     label: "Pricing Engine",
@@ -148,17 +152,6 @@ const sidebarSteps: SidebarItem[] = [
         label: "Rate Finalization",
         to: "/pricing-engine/rate-finalization",
       },
-    ],
-  },
-  {
-    label: "Prefunding",
-    requiresPrefundingAccess: true,
-    requiredRoles: [...MODULE_ACCESS.CRM],
-    items: [
-      { label: "Dashboard", to: "/prefunding/dashboard" },
-      { label: "Prefunding Rates", to: "/prefunding/rates" },
-      { label: "Calculate Prefunding", to: "/prefunding/calculate" },
-      { label: "Prefunding Invoices", to: "/prefunding/invoices" },
     ],
   },
   {
@@ -190,6 +183,17 @@ const sidebarSteps: SidebarItem[] = [
         label: "Tristate Invoice Line Items",
         to: "/invoice/tristate-invoice-line-items",
       },
+    ],
+  },
+  {
+    label: "Prefunding",
+    requiresPrefundingAccess: true,
+    requiredRoles: [...MODULE_ACCESS.CRM],
+    items: [
+      { label: "Dashboard", to: "/prefunding/dashboard" },
+      { label: "Prefunding Rates", to: "/prefunding/rates" },
+      { label: "Calculate Prefunding", to: "/prefunding/calculate" },
+      { label: "Prefunding Invoices", to: "/prefunding/invoices" },
     ],
   },
   // {
@@ -419,9 +423,11 @@ function getIconForLabel(label: string) {
   if (l.includes("assessment")) return <BarChart3 className="h-4 w-4" />;
   if (l.includes("pricing")) return <Calculator className="h-4 w-4" />;
   if (l.includes("agreement")) return <FileSignature className="h-4 w-4" />;
-  if (l.includes("monthly") || l.includes("report")) return <BarChart3 className="h-4 w-4" />;
+  if (l.includes("monthly") || l.includes("report"))
+    return <BarChart3 className="h-4 w-4" />;
   if (l.includes("invoice line")) return <ListOrdered className="h-4 w-4" />;
-  if (l.includes("invoice") || l.includes("billing")) return <Receipt className="h-4 w-4" />;
+  if (l.includes("invoice") || l.includes("billing"))
+    return <Receipt className="h-4 w-4" />;
   if (l.includes("purchase")) return <ShoppingCart className="h-4 w-4" />;
   if (l.includes("partner")) return <Share2 className="h-4 w-4" />;
   if (l.includes("vendor")) return <Truck className="h-4 w-4" />;
@@ -462,7 +468,8 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
   function canRenderItem(item: SidebarSectionItem | SidebarItem) {
     if (item.adminOnly && !isAdmin) return false;
     const user = readStoredUser();
-    if (item.requiresPrefundingAccess && !user?.hasPrefundingAccess) return false;
+    if (item.requiresPrefundingAccess && !user?.hasPrefundingAccess)
+      return false;
     if (!item.requiredRoles || item.requiredRoles.length === 0) return true;
     return hasAnyRole(userRole, item.requiredRoles);
   }
@@ -504,7 +511,10 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
 
   function toggleMenu(menuLabel: string) {
     if (isCollapsed) setIsCollapsed(false);
-    setOpenMenus((current) => ({ ...current, [menuLabel]: !current[menuLabel] }));
+    setOpenMenus((current) => ({
+      ...current,
+      [menuLabel]: !current[menuLabel],
+    }));
   }
 
   return (
@@ -514,7 +524,9 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
       }`}
     >
       {/* Brand Header */}
-      <div className={`flex h-16 items-center border-b border-[#ece8e1] px-3.5 transition-all ${isCollapsed ? "justify-center" : "justify-between"}`}>
+      <div
+        className={`flex h-16 items-center border-b border-[#ece8e1] px-3.5 transition-all ${isCollapsed ? "justify-center" : "justify-between"}`}
+      >
         {isCollapsed ? (
           <button
             type="button"
@@ -522,13 +534,25 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
             className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 border border-[#e8e4dc] text-slate-700 hover:bg-slate-100 transition-all shadow-2xs cursor-pointer"
             title="Expand sidebar"
           >
-            <img src="/tristate-metadata-logo.png" className="h-5 w-5 object-contain cursor-pointer" alt="Logo" />
+            <img
+              src="/tristate-metadata-logo.png"
+              className="h-5 w-5 object-contain cursor-pointer"
+              alt="Logo"
+            />
           </button>
         ) : (
           <>
-            <div className="flex items-center gap-3 min-w-0 overflow-hidden cursor-pointer" onClick={toggleCollapse} title="Collapse sidebar">
+            <div
+              className="flex items-center gap-3 min-w-0 overflow-hidden cursor-pointer"
+              onClick={toggleCollapse}
+              title="Collapse sidebar"
+            >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 border border-[#e8e4dc] cursor-pointer">
-                <img src="/tristate-metadata-logo.png" className="h-5 w-5 object-contain cursor-pointer" alt="Logo" />
+                <img
+                  src="/tristate-metadata-logo.png"
+                  className="h-5 w-5 object-contain cursor-pointer"
+                  alt="Logo"
+                />
               </div>
               <div className="flex flex-col truncate cursor-pointer">
                 <span className="text-[14.5px] font-semibold text-slate-800 tracking-tight leading-none cursor-pointer">
@@ -586,7 +610,9 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
               >
                 <span
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                    isActiveMenu ? "text-[#4f63ea]" : "text-slate-400 group-hover:text-slate-700"
+                    isActiveMenu
+                      ? "text-[#4f63ea]"
+                      : "text-slate-400 group-hover:text-slate-700"
                   }`}
                 >
                   {getIconForLabel(step.label)}
@@ -610,14 +636,18 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
               >
                 <span
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                    isActiveMenu ? "text-[#4f63ea]" : "text-slate-400 group-hover:text-slate-700"
+                    isActiveMenu
+                      ? "text-[#4f63ea]"
+                      : "text-slate-400 group-hover:text-slate-700"
                   }`}
                 >
                   {getIconForLabel(step.label)}
                 </span>
                 {!isCollapsed && (
                   <>
-                    <span className="min-w-0 flex-1 truncate">{step.label}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {step.label}
+                    </span>
                     <ChevronDown
                       className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${
                         isOpen ? "rotate-180 text-slate-600" : ""
@@ -651,7 +681,9 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
                             isActive ? "bg-[#4f63ea]" : "bg-slate-300"
                           }`}
                         />
-                        <span className="whitespace-normal leading-tight">{item.label}</span>
+                        <span className="whitespace-normal leading-tight">
+                          {item.label}
+                        </span>
                       </NavLink>
                     );
                   })}

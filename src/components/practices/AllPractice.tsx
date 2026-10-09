@@ -184,7 +184,7 @@ type PracticeFormData = {
   credentialingChargeAmount: string;
   processingFeeConfig: ProcessingFeeSettings;
   groupNpis: GroupNpiFormEntry[];
-  goLiveTarget: string; isPrefundingEnabled?: boolean; prefundingCycle?: string; prefundingStartDate?: string; prefundingDueOn?: string; prefundingState?: string; prefundingReminderOn?: string; prefundingStripeAccountId?: string;
+  goLiveTarget: string; isPrefundingEnabled?: boolean; prefundingCycle?: string; prefundingStartDate?: string; prefundingDueOn?: string; prefundingState?: string; prefundingReminderOn?: string; prefundingStripeAccountId?: string; prefundingInvoiceRecipientId?: string; prefundingRateIds?: string[];
 };
 
 const initialFormData: PracticeFormData = {
@@ -638,6 +638,13 @@ export default function AllPracticePage() {
             const value = row.original.values[field.id];
             if (isUserValue(value)) {
               return <AvatarPill name={value.name} />;
+            }
+            if (field.id === "isPrefundingEnabled") {
+              return (
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${value === "Enabled" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-700"}`}>
+                  {String(value)}
+                </span>
+              );
             }
             if (field.id === "status") {
               const statusColors: Record<string, string> = {
@@ -1478,7 +1485,7 @@ export default function AllPracticePage() {
 
     return (
       <div className="mt-6 border-t border-[#f0ece6] pt-6">
-        <div className="flex items-center gap-2 mb-4 px-4">
+        <div className="flex items-center gap-2 mb-4 ">
           <input 
             type="checkbox" 
             id="isPrefundingEnabled" 
@@ -1507,7 +1514,7 @@ export default function AllPracticePage() {
         </div>
         
         {formData.isPrefundingEnabled && (
-          <div className="mx-4 bg-[#fbfaf8] p-4 rounded-lg border border-[#ece8e1] space-y-4">
+          <div className="bg-[#fbfaf8] p-2 rounded-lg border border-[#ece8e1] space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-slate-600">Prefunding Cycle</label>

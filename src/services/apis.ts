@@ -324,4 +324,7 @@ export const documentHubEndpoints = {
     BACKEND_URL + `/api/v1/public/share/${token}/download`,
 };
 
-
+export const prefundingEndpoints = {
+  RATES: BACKEND_URL + "/api/v1/prefunding/rates",
+  INVOICES: BACKEND_URL + "/api/v1/prefunding/invoices",
+};
