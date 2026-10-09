@@ -82,12 +82,39 @@ function hubDateTime(value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString();
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
 }
 
 function toDatetimeLocalMin(date: Date) {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function datetimeLocalToOffsetIso(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
+  if (!match) return value;
+  const [, year, month, day, hour, minute, second = "00"] = match;
+  const local = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+    0,
+  );
+  const offsetMinutes = -local.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetMinutes);
+  const offset = `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}${offset}`;
 }
 
 function isPastExpiration(value: string) {
@@ -692,7 +719,7 @@ function DocumentHubPage() {
     }
     try {
       const link = await createPublicLinkApi(selectedDocument.id, {
-        expiresAt: linkExpiresAt || null,
+        expiresAt: linkExpiresAt ? datetimeLocalToOffsetIso(linkExpiresAt) : null,
         allowDownload: true,
       });
       await navigator.clipboard.writeText(link.url);
