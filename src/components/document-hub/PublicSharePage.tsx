@@ -15,6 +15,7 @@ function PublicSharePage() {
     description: string | null;
     mimeType: string;
     originalFilename: string;
+    version?: number;
     allowDownload: boolean;
   } | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -69,7 +70,10 @@ function PublicSharePage() {
               {doc.description ? (
                 <p className="mt-2 text-[14px] text-slate-500">{doc.description}</p>
               ) : null}
-              <p className="mt-3 text-[12px] text-slate-400">{doc.originalFilename}</p>
+              <p className="mt-3 text-[12px] text-slate-400">
+                {doc.originalFilename}
+                {doc.version ? ` · v${doc.version}` : ""}
+              </p>
               {doc.allowDownload && (
                 <button
                   type="button"

@@ -349,19 +349,56 @@
 // }
 
 import { Loader2, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useState } from "react";
 import { DocusealForm } from "@docuseal/react";
-import { useEffect } from "react";
+import { getDocusealFormBySlug } from "../../services/operations/agreements";
 
 export default function DocumentSigningPage() {
   const { slug } = useParams<{ slug: string }>();
-  const [isLoading, setIsLoading] = useState(false);
-  const url = useParams();
+  const [linkStatus, setLinkStatus] = useState<
+    "loading" | "active" | "expired" | "error"
+  >("loading");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    localStorage.setItem("documentId", url.slug as string);
-  }, []);
+    if (!slug) return;
+
+    localStorage.setItem("documentId", slug);
+    let cancelled = false;
+
+    async function checkSigningLink() {
+      try {
+        const result = await getDocusealFormBySlug(slug as string);
+        if (cancelled) return;
+
+        if (result.status === "expired") {
+          setMessage(
+            result.message ||
+              "This signing link has expired. The document was updated and a new link was sent.",
+          );
+          setLinkStatus("expired");
+          return;
+        }
+
+        setLinkStatus("active");
+      } catch (error) {
+        if (cancelled) return;
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to open this signing link.",
+        );
+        setLinkStatus("error");
+      }
+    }
+
+    checkSigningLink();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
 
   if (!slug) {
     return (
@@ -374,29 +411,41 @@ export default function DocumentSigningPage() {
     );
   }
 
-  const signingUrl = `https://docuseal.com/s/${slug}`;
+  if (linkStatus === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#faf9f7]">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#4f63ea]" />
+          <p className="mt-3 text-sm text-slate-500">
+            Loading signing document...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (linkStatus === "expired" || linkStatus === "error") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#faf9f7] px-6">
+        <div className="max-w-md text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-amber-500" />
+          <h1 className="mt-4 text-[20px] font-semibold text-slate-700">
+            {linkStatus === "expired"
+              ? "Signing link expired"
+              : "Unable to open document"}
+          </h1>
+          <p className="mt-2 text-[14px] text-slate-500">{message}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="h-screen w-full bg-[#faf9f7] relative">
-      {/* Loader */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
-          <div className="text-center">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#4f63ea]" />
-            <p className="mt-3 text-sm text-slate-500">
-              Loading signing document...
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Signing iframe */}
-      {/*<iframe
-        src={signingUrl}
-        className="w-full h-full border-0"
-        onLoad={() => setIsLoading(false)}
-      />*/}
-      <DocusealForm src={`https://docuseal.com/s/${slug}`} allowToResubmit={false} />
+    <div className="h-screen w-full bg-[#faf9f7]">
+      <DocusealForm
+        src={`https://docuseal.com/s/${slug}`}
+        allowToResubmit={false}
+      />
     </div>
   );
 }

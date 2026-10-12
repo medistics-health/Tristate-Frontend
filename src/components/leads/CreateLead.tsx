@@ -23,6 +23,18 @@ import AppLayout from "../layout/AppLayout";
 import { LOGOUT_ACTION, type NavbarAction } from "../layout/Navbar";
 import type { CompanyBody, Company } from "../companies/types";
 import type { PersonBody, PersonRole } from "../contact/types";
+import PersonCredentialFields, {
+  personCredentialKeys,
+} from "../contact/PersonCredentialFields";
+import PracticeProfileFields, {
+  emptyPracticeProfileForm,
+  practiceProfilePayload,
+  type PracticeProfileForm,
+} from "../practices/PracticeProfileFields";
+import {
+  validatePersonCredentialFields,
+  validatePracticeProfileFields,
+} from "../../utils/profileFieldValidation";
 import {
   createCompanyApi,
   deleteCompanyApi,
@@ -49,7 +61,9 @@ import {
   getAgreementsByPractice,
   type Agreement,
   type DocusealTemplate,
+  type SigningOrder,
 } from "../../services/operations/agreements";
+import SigningOrderPrompt from "../agreements/SigningOrderPrompt";
 import { activatePracticeWithAgreementEmail } from "../../services/operations/practiceActivation";
 import { getAllServices } from "../../services/operations/services";
 import {
@@ -148,6 +162,7 @@ type LeadFormState = {
   billingPaymentMethod: "ACH" | "CREDIT_CARD" | "";
   credentialingChargeAmount: string;
   processingFeeConfig: ProcessingFeeSettings;
+  practiceProfile: PracticeProfileForm;
 
   // Contact
   contactRelation: RelationType;
@@ -158,6 +173,7 @@ type LeadFormState = {
   primaryContactPhone: string;
   primaryContactDesignation: string;
   primaryContactRole: PersonRole;
+  contactCredentials: Record<string, string>;
   contactPracticeIds: { id: string; name: string }[];
   contactCompanyIds: { id: string; name: string }[];
 
@@ -209,6 +225,7 @@ const initialFormState: LeadFormState = {
   billingPaymentMethod: "",
   credentialingChargeAmount: "",
   processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(),
+  practiceProfile: emptyPracticeProfileForm,
 
   contactRelation: "new",
   selectedContactId: "",
@@ -218,6 +235,9 @@ const initialFormState: LeadFormState = {
   primaryContactPhone: "",
   primaryContactDesignation: "",
   primaryContactRole: "ADMIN",
+  contactCredentials: Object.fromEntries(
+    personCredentialKeys.map((key) => [key, ""]),
+  ),
   contactPracticeIds: [],
   contactCompanyIds: [],
   practiceGroupNpis: [],
@@ -421,6 +441,8 @@ function CreateLeadPage() {
 
   // Agreement Redirect State
   const [showAgreementModal, setShowAgreementModal] = useState(false);
+  const [signingOrderPromptOpen, setSigningOrderPromptOpen] = useState(false);
+  const [pendingActivateAndSend, setPendingActivateAndSend] = useState(true);
 
   const companyTaxIdOptions =
     form.companyRelation === "existing"
@@ -486,7 +508,11 @@ function CreateLeadPage() {
       })),
   ];
 
-  const performLeadCreation = async (withAgreement: boolean = false) => {
+  const performLeadCreation = async (
+    withAgreement: boolean = false,
+    activateAndSend: boolean = true,
+    signingOrder?: SigningOrder,
+  ) => {
     setIsSaving(true);
     let createdCompanyId: string | undefined;
     let createdPracticeId: string | undefined;
@@ -590,6 +616,7 @@ function CreateLeadPage() {
               ? Number(form.credentialingChargeAmount)
               : undefined,
           processingFeeConfig: form.processingFeeConfig,
+          ...practiceProfilePayload(form.practiceProfile),
         };
         const practiceRow = await createPracticeApi(practicePayload);
         practiceId = practiceRow.id;
@@ -623,6 +650,12 @@ function CreateLeadPage() {
           designation: form.primaryContactDesignation.trim() || undefined,
           practiceIds: mergedPracticeIds,
           companyIds: mergedCompanyIds,
+          ...Object.fromEntries(
+            personCredentialKeys.map((key) => [
+              key,
+              form.contactCredentials[key]?.trim() || null,
+            ]),
+          ),
         };
         const personRow = await createPersonApi(personPayload);
         contactId = personRow.id;
@@ -714,6 +747,7 @@ function CreateLeadPage() {
             docusealSubmissions:
               submissions.length > 0 ? submissions : undefined,
             serviceIds: form.interestedServiceIds,
+            ...(signingOrder ? { signingOrder } : {}),
           };
           const agreementRow = await createAgreementApi(
             agreementPayload as any,
@@ -734,7 +768,7 @@ function CreateLeadPage() {
           //   });
           // }
 
-          if (isAdmin) {
+          if (isAdmin && activateAndSend) {
             try {
               await activatePracticeWithAgreementEmail(practiceId, {
                 status: "ACTIVE",
@@ -748,7 +782,7 @@ function CreateLeadPage() {
           }
         } else if (form.agreement.action === "link") {
           agreementId = form.agreement.existingAgreementId;
-          if (isAdmin) {
+          if (isAdmin && activateAndSend) {
             try {
               await activatePracticeWithAgreementEmail(practiceId, {
                 status: "ACTIVE",
@@ -764,23 +798,16 @@ function CreateLeadPage() {
       }
 
       resetForm();
+      const successMessage = agreementId
+        ? !isAdmin
+          ? "Lead created and agreement sent for approval."
+          : activateAndSend
+            ? "Lead and agreement created successfully."
+            : "Lead created. The practice stays a lead and the agreement was not sent."
+        : "Lead created successfully.";
+      toast.success(successMessage);
       if (agreementSendWarning) {
-        toast.success(
-          agreementId
-            ? isAdmin
-              ? "Lead and agreement created successfully."
-              : "Lead created and agreement sent for approval."
-            : "Lead created successfully.",
-        );
         toast.error(agreementSendWarning);
-      } else {
-        toast.success(
-          agreementId
-            ? isAdmin
-              ? "Lead and agreement created successfully."
-              : "Lead created and agreement sent for approval."
-            : "Lead created successfully.",
-        );
       }
     } catch (error) {
       console.error(error);
@@ -1375,6 +1402,11 @@ function CreateLeadPage() {
         toast.error("Practice name is required.");
         return;
       }
+      const practiceProfileError = validatePracticeProfileFields(form.practiceProfile);
+      if (practiceProfileError) {
+        toast.error(practiceProfileError);
+        return;
+      }
       if (!form.billingPaymentMethod) {
         toast.error("Billing Payment Method is required.");
         return;
@@ -1405,6 +1437,11 @@ function CreateLeadPage() {
       }
       if (!form.primaryContactRole) {
         toast.error("Contact role is required.");
+        return;
+      }
+      const credentialError = validatePersonCredentialFields(form.contactCredentials);
+      if (credentialError) {
+        toast.error(credentialError);
         return;
       }
       if (
@@ -1515,9 +1552,36 @@ function CreateLeadPage() {
     setShowAgreementModal(true);
   }
 
-  const handleConfirmWithAgreements = () => {
-    performLeadCreation(form.interestedServiceIds.length > 0);
+  const beginLeadCreation = (activateAndSend: boolean) => {
+    const creatingNewAgreement =
+      form.interestedServiceIds.length > 0 &&
+      form.agreement.action === "create";
+
+    if (creatingNewAgreement) {
+      setPendingActivateAndSend(activateAndSend);
+      setShowAgreementModal(false);
+      setSigningOrderPromptOpen(true);
+      return;
+    }
+
+    performLeadCreation(
+      form.interestedServiceIds.length > 0,
+      activateAndSend,
+    );
   };
+
+  const handleConfirmWithAgreements = () => {
+    beginLeadCreation(true);
+  };
+
+  const handleCreateLeadWithoutSending = () => {
+    beginLeadCreation(false);
+  };
+
+  const adminCanDeferAgreementSend =
+    isAdmin &&
+    form.interestedServiceIds.length > 0 &&
+    form.agreement.action !== "none";
 
   function renderProcessingFeeSetup() {
     const totals = buildGeneralSettingsTotals(systemSettings);
@@ -2382,6 +2446,12 @@ function CreateLeadPage() {
                         </div>
                       ))}
                     </div>
+                    <div className="md:col-span-2">
+                      <PracticeProfileFields
+                        value={form.practiceProfile}
+                        onChange={(next) => updateField("practiceProfile", next)}
+                      />
+                    </div>
                     {renderProcessingFeeSetup()}
                   </div>
                 )}
@@ -2557,6 +2627,17 @@ function CreateLeadPage() {
                           )}
                       </select>
                     </label>
+                    <div className="md:col-span-2">
+                      <PersonCredentialFields
+                        values={form.contactCredentials}
+                        onChange={(key, value) =>
+                          updateField("contactCredentials", {
+                            ...form.contactCredentials,
+                            [key]: value,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -2823,7 +2904,7 @@ function CreateLeadPage() {
                           >
                             {existingAgreements.map((ag) => (
                               <option key={ag.id} value={ag.id}>
-                                {ag.practice.name} - {ag.type} - Created{" "}
+                                {ag?.practice?.name} - {ag.type} - Created{" "}
                                 {new Date(ag.createdAt).toLocaleDateString()}
                               </option>
                             ))}
@@ -2837,7 +2918,7 @@ function CreateLeadPage() {
                       <div className="space-y-6">
                         <label className="block">
                           <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                            Agreement Type *
+                            Agreement Type <span className="text-red-500">*</span>
                           </span>
                           <select
                             value={form.agreement.type}
@@ -2872,7 +2953,7 @@ function CreateLeadPage() {
 
                         <label className="block">
                           <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                            Effective Date *
+                            Effective Date <span className="text-red-500">*</span>
                           </span>
                           <input
                             type="date"
@@ -2889,7 +2970,7 @@ function CreateLeadPage() {
 
                         <label className="block">
                           <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                            Renewal Date *
+                            Renewal Date <span className="text-red-500">*</span>
                           </span>
                           <input
                             type="date"
@@ -2907,7 +2988,7 @@ function CreateLeadPage() {
 
                       <div className="flex flex-col h-full">
                         <span className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                          DocuSeal Templates *
+                          DocuSeal Templates <span className="text-red-500">*</span>
                         </span>
 
                         {form.agreement.templateIds.length > 0 && (
@@ -3193,24 +3274,27 @@ function CreateLeadPage() {
                       <div className="flex items-start gap-3 rounded-xl bg-blue-50 p-3 text-blue-700 md:col-span-2">
                         <Clock className="mt-0.5 h-4 w-4 shrink-0" />
                         <p className="text-[12px] leading-relaxed">
-                          <strong>Signature Workflow:</strong> Saving this lead
-                          will automatically create the agreement and{" "}
-                          {isAdmin
-                            ? "send signature request emails"
-                            : "send it for admin approval"}{" "}
-                          for{" "}
-                          <strong>{form.agreement.templateIds.length}</strong>{" "}
-                          selected template(s)
-                          {isAdmin ? " to " : "."}
+                          <strong>Signature Workflow:</strong>{" "}
                           {isAdmin ? (
-                            <strong>
-                              {form.contactRelation === "new"
-                                ? getPrimaryContactName(form) ||
-                                  "the primary contact"
-                                : "the selected contact"}
-                            </strong>
-                          ) : null}
-                          {isAdmin ? "." : ""}
+                            <>
+                              Saving this lead creates the agreement for{" "}
+                              <strong>
+                                {form.agreement.templateIds.length}
+                              </strong>{" "}
+                              selected template(s). You can send it now, which
+                              sets the practice to active, or create the lead
+                              only and keep the practice as LEAD.
+                            </>
+                          ) : (
+                            <>
+                              Saving this lead will automatically create the
+                              agreement and send it for admin approval for{" "}
+                              <strong>
+                                {form.agreement.templateIds.length}
+                              </strong>{" "}
+                              selected template(s).
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -3383,6 +3467,14 @@ function CreateLeadPage() {
         isOpen={showAgreementModal}
         onClose={() => setShowAgreementModal(false)}
         onConfirm={handleConfirmWithAgreements}
+        onSecondaryConfirm={
+          adminCanDeferAgreementSend
+            ? handleCreateLeadWithoutSending
+            : undefined
+        }
+        secondaryLabel={
+          adminCanDeferAgreementSend ? "Create Lead Only" : undefined
+        }
         title={
           form.interestedServiceIds.length === 0
             ? "Create Lead?"
@@ -3401,11 +3493,11 @@ function CreateLeadPage() {
             ? "No interested services were selected. Would you like to create this lead without an agreement?"
             : form.agreement.action === "create"
               ? isAdmin
-                ? `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and trigger the signature request now?`
+                ? `You have configured a new ${form.agreement.type} agreement. Create & Send Now sets the practice to active and sends the signature request. Create Lead Only keeps the practice as LEAD and does not send the agreement.`
                 : `You have configured a new ${form.agreement.type} agreement. Would you like to create the lead and send the agreement for admin approval?`
               : form.agreement.action === "link"
                 ? isAdmin
-                  ? "You have selected an existing agreement. This will create the lead and send the agreement directly to the client."
+                  ? "You have selected an existing agreement. Create & Send sets the practice to active and sends the agreement. Create Lead Only keeps the practice as LEAD and does not send the agreement."
                   : "You have selected an existing agreement. This will create the lead and send the agreement for admin approval before it goes to the client."
                 : "Would you like to create the lead without creating or linking an agreement?"
         }
@@ -3422,6 +3514,22 @@ function CreateLeadPage() {
         }
         cancelLabel="Cancel"
         type="primary"
+      />
+      <SigningOrderPrompt
+        open={signingOrderPromptOpen}
+        confirmLabel={
+          isAdmin && pendingActivateAndSend ? "Create and send" : "Create lead"
+        }
+        isSubmitting={isSaving}
+        onCancel={() => setSigningOrderPromptOpen(false)}
+        onConfirm={(signingOrder) => {
+          setSigningOrderPromptOpen(false);
+          void performLeadCreation(
+            true,
+            pendingActivateAndSend,
+            signingOrder,
+          );
+        }}
       />
     </AppLayout>
   );

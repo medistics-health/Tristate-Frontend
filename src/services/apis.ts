@@ -159,7 +159,7 @@ export const agreementEndpoints = {
   DELETE: (id: string) => BACKEND_URL + `/api/v1/agreements/${id}`,
   GET_DOCUSEAL_TEMPLATES: BACKEND_URL + "/api/v1/agreements/docuseal/templates",
   GET_DOCUSEAL_FORM: (slug: string) =>
-    BACKEND_URL + `/api/v1/agreements/docuseal/forms/${slug}`,
+    BACKEND_URL + `/api/v1/agreements/docuseal/forms/${encodeURIComponent(slug)}`,
   SEND_AGREEMENT_EMAIL: BACKEND_URL + "/api/v1/agreements/send-email",
   SEND_ONBOARDING_FORM:
     BACKEND_URL + "/api/v1/agreements/send-onboarding-form",

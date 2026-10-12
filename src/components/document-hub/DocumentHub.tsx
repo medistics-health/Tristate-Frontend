@@ -82,7 +82,47 @@ function hubDateTime(value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString();
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
+function toDatetimeLocalMin(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function datetimeLocalToOffsetIso(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
+  if (!match) return value;
+  const [, year, month, day, hour, minute, second = "00"] = match;
+  const local = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+    0,
+  );
+  const offsetMinutes = -local.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetMinutes);
+  const offset = `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}${offset}`;
+}
+
+function isPastExpiration(value: string) {
+  const selected = new Date(value);
+  if (Number.isNaN(selected.getTime())) return false;
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return selected.getTime() < now.getTime();
 }
 
 const emptyForm = {
@@ -673,9 +713,13 @@ function DocumentHubPage() {
 
   async function handleCreateLink() {
     if (!selectedDocument) return;
+    if (linkExpiresAt && isPastExpiration(linkExpiresAt)) {
+      toast.error("Expiration date must be in the future.");
+      return;
+    }
     try {
       const link = await createPublicLinkApi(selectedDocument.id, {
-        expiresAt: linkExpiresAt || null,
+        expiresAt: linkExpiresAt ? datetimeLocalToOffsetIso(linkExpiresAt) : null,
         allowDownload: true,
       });
       await navigator.clipboard.writeText(link.url);
@@ -1026,7 +1070,7 @@ function DocumentHubPage() {
             placeholder="Link practices"
           />
         </div>
-        <div>
+        {/* <div>
           <label className="mb-1 block text-[13px] font-medium text-slate-700">Deals</label>
           <MultiSelect
             value={source.dealIds}
@@ -1035,7 +1079,7 @@ function DocumentHubPage() {
             disabled={disabled}
             placeholder="Link deals"
           />
-        </div>
+        </div> */}
       </div>
     );
   }
@@ -1232,10 +1276,19 @@ function DocumentHubPage() {
                         selectedDocument.isPublicShareable &&
                         selectedDocument.status === "ACTIVE" && (
                           <>
+                            <p className="text-[12px] font-medium text-slate-600">Expiration date</p>
                             <input
                               type="datetime-local"
                               value={linkExpiresAt}
-                              onChange={(event) => setLinkExpiresAt(event.target.value)}
+                              min={toDatetimeLocalMin(new Date())}
+                              onChange={(event) => {
+                                const next = event.target.value;
+                                if (next && isPastExpiration(next)) {
+                                  toast.error("Expiration date must be in the future.");
+                                  return;
+                                }
+                                setLinkExpiresAt(next);
+                              }}
                               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                             />
                             <button
@@ -1258,6 +1311,9 @@ function DocumentHubPage() {
                           : expired
                             ? "Expired"
                             : "Live";
+                        const versionLabel = link.documentVersion
+                          ? `v${link.documentVersion}`
+                          : null;
                         return (
                           <div
                             key={link.id}
@@ -1269,10 +1325,27 @@ function DocumentHubPage() {
                                   {link.revokedAt || expired ? state : link.url}
                                 </p>
                                 <p className="mt-0.5 text-[11px] text-slate-400">
-                                  {state} · {link.viewCount} views
+                                  {state}
+                                  {versionLabel ? ` · ${versionLabel}` : ""}
+                                  {link.hideActivity
+                                    ? " · previous version"
+                                    : ` · ${link.viewCount ?? 0} views`}
                                 </p>
                               </div>
                               <span className="flex shrink-0 gap-1">
+                                {link.hideActivity && (
+                                  <button
+                                    type="button"
+                                    title={
+                                      versionLabel
+                                        ? `Download ${versionLabel}`
+                                        : "Download this version"
+                                    }
+                                    onClick={() => handleDownload(link.documentId)}
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
                                 {!link.revokedAt && !expired && (
                                   <button
                                     type="button"
@@ -1299,25 +1372,33 @@ function DocumentHubPage() {
                                 )}
                               </span>
                             </div>
-                            <dl className="mt-2 space-y-0.5 text-[11px] text-slate-500">
-                              <div>
-                                Created {hubDateTime(link.createdAt) || "—"}
-                                {hubPersonName(link.createdBy)
-                                  ? ` by ${hubPersonName(link.createdBy)}`
-                                  : ""}
-                              </div>
-                              <div>
-                                Expires {hubDateTime(link.expiresAt) || "No expiry"}
-                              </div>
-                              {link.revokedAt ? (
+                            {link.hideActivity ? (
+                              <p className="mt-2 text-[11px] text-slate-500">
+                                Still active
+                                {link.originalFilename ? ` · ${link.originalFilename}` : ""}. This
+                                link downloads that version.
+                              </p>
+                            ) : (
+                              <dl className="mt-2 space-y-0.5 text-[11px] text-slate-500">
                                 <div>
-                                  Revoked {hubDateTime(link.revokedAt)}
-                                  {hubPersonName(link.revokedBy)
-                                    ? ` by ${hubPersonName(link.revokedBy)}`
+                                  Created {hubDateTime(link.createdAt) || "—"}
+                                  {hubPersonName(link.createdBy)
+                                    ? ` by ${hubPersonName(link.createdBy)}`
                                     : ""}
                                 </div>
-                              ) : null}
-                            </dl>
+                                <div>
+                                  Expires {hubDateTime(link.expiresAt) || "No expiry"}
+                                </div>
+                                {link.revokedAt ? (
+                                  <div>
+                                    Revoked {hubDateTime(link.revokedAt)}
+                                    {hubPersonName(link.revokedBy)
+                                      ? ` by ${hubPersonName(link.revokedBy)}`
+                                      : ""}
+                                  </div>
+                                ) : null}
+                              </dl>
+                            )}
                           </div>
                         );
                       })}
@@ -1349,10 +1430,20 @@ function DocumentHubPage() {
                               <p className="mt-0.5 truncate text-[12px] text-slate-500">
                                 {version.originalFilename}
                               </p>
-                              <p className="mt-1 text-[11px] text-slate-400">
-                                Uploaded {hubDateTime(version.createdAt) || "—"}
-                                {uploader ? ` by ${uploader}` : ""}
-                              </p>
+                              <div className="mt-1 flex items-center justify-between gap-2">
+                                <p className="text-[11px] text-slate-400">
+                                  Uploaded {hubDateTime(version.createdAt) || "—"}
+                                  {uploader ? ` by ${uploader}` : ""}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownload(version.id)}
+                                  className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-[#4f63ea]"
+                                >
+                                  <Download className="h-3 w-3" />
+                                  Download
+                                </button>
+                              </div>
                             </div>
                           );
                         })

@@ -56,7 +56,12 @@ import {
   type AgreementBody,
   type DocusealTemplate,
   getAgreementDocusealId,
+  type SigningOrder,
 } from "../../../services/operations/agreements";
+import SigningOrderPrompt, {
+  CLIENT_FIRST_ORDER,
+  TRISTATE_FIRST_ORDER,
+} from "../SigningOrderPrompt";
 import {
   getAgreementVersions,
   getAgreementVersion,
@@ -156,6 +161,7 @@ type AgreementFormState = {
   docusealTemplates: string[];
   docusealFieldValues: Record<string, Record<string, string>>;
   serviceIds: string[];
+  signingOrder: SigningOrder;
 };
 
 const initialFormState: AgreementFormState = {
@@ -170,6 +176,7 @@ const initialFormState: AgreementFormState = {
   docusealTemplates: [],
   docusealFieldValues: {},
   serviceIds: [],
+  signingOrder: TRISTATE_FIRST_ORDER,
 };
 
 function formatStatusLabel(status: string) {
@@ -294,7 +301,21 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
       .map((templateId) => String(templateId)),
     docusealFieldValues,
     serviceIds: agreement.services?.map((s) => s.id) || [],
+    signingOrder: signingOrderFromAgreement(agreement),
   };
+}
+
+function signingOrderFromAgreement(agreement: Agreement): SigningOrder {
+  const signers = (agreement.docusealSubmissions || []).flatMap(
+    (submission) => submission.signers || [],
+  );
+  const firstRole = [...signers].sort(
+    (left, right) => (left.order ?? 99) - (right.order ?? 99),
+  )[0]?.role;
+
+  return firstRole === "Second Party"
+    ? CLIENT_FIRST_ORDER
+    : TRISTATE_FIRST_ORDER;
 }
 
 type AgreementRow = {
@@ -350,6 +371,7 @@ function AllAgreementsPage() {
   const [signers, setSigners] = useState<any[]>([]);
   const [selectedSignerId, setSelectedSignerId] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [signingOrderPromptOpen, setSigningOrderPromptOpen] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const [profileCreateHandled, setProfileCreateHandled] = useState(false);
@@ -467,13 +489,6 @@ function AllAgreementsPage() {
           String(row.original.values.services || "-"),
       },
       {
-        id: "value",
-        accessorFn: (row: AgreementRow) => row.values.value,
-        header: () => "Value",
-        cell: ({ row }: { row: { original: AgreementRow } }) =>
-          String(row.original.values.value || "-"),
-      },
-      {
         id: "effectiveDate",
         accessorFn: (row: AgreementRow) => row.values.effectiveDate,
         header: () => "Effective Date",
@@ -491,6 +506,13 @@ function AllAgreementsPage() {
         header: () => "Created",
         cell: ({ row }: { row: { original: AgreementRow } }) =>
           String(row.original.values.creationDate),
+      },
+      {
+        id: "createdBy",
+        accessorFn: (row: AgreementRow) => row.values.createdBy,
+        header: () => "Created by",
+        cell: ({ row }: { row: { original: AgreementRow } }) =>
+          String(row.original.values.createdBy || "-"),
       },
       {
         id: "signingStatus",
@@ -538,6 +560,7 @@ function AllAgreementsPage() {
         limit: pagination.limit,
         search: filters.search || undefined,
         status: filters.status || undefined,
+        excludeStatus: filters.status ? undefined : "INACTIVE",
         type: filters.type || undefined,
         approvalStatus: filters.approvalStatus || undefined,
         practiceId:
@@ -555,7 +578,13 @@ function AllAgreementsPage() {
       }
 
       const data = await getAgreementsView(params as any);
-      setRows(data.rows);
+      setRows(
+        filters.status
+          ? data.rows
+          : data.rows.filter(
+              (row) => String(row.values.status) !== "INACTIVE",
+            ),
+      );
       setPagination(data.pagination);
     } catch (err) {
       const message =
@@ -927,6 +956,7 @@ function AllAgreementsPage() {
       ...(form.serviceIds?.length > 0
         ? { serviceIds: form.serviceIds }
         : {}),
+      ...(form.signingOrder ? { signingOrder: form.signingOrder } : {}),
     };
   }
 
@@ -963,15 +993,23 @@ function AllAgreementsPage() {
       }
     }
 
+    setSigningOrderPromptOpen(true);
+  }
+
+  async function submitCreatedAgreement(signingOrder?: SigningOrder) {
     const selectedPractice = practices.find(
       (item) => item.id === createForm.practiceId,
     );
     const willAutoSendToPractice =
       isAdmin && selectedPractice?.status === "ACTIVE";
 
+    setSigningOrderPromptOpen(false);
     setIsSubmitting(true);
     try {
-      await createAgreementApi(buildPayload(createForm));
+      await createAgreementApi({
+        ...buildPayload(createForm),
+        ...(signingOrder ? { signingOrder } : {}),
+      });
       const data = await getAgreementsView({
         page: pagination.page,
         limit: pagination.limit,
@@ -1592,6 +1630,32 @@ function AllAgreementsPage() {
 
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Signing order
+                    </label>
+                    <select
+                      value={editForm.signingOrder[0]}
+                      onChange={(event) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          signingOrder:
+                            event.target.value === "Second Party"
+                              ? CLIENT_FIRST_ORDER
+                              : TRISTATE_FIRST_ORDER,
+                        }))
+                      }
+                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                    >
+                      <option value="First Party">
+                        Tristate first, then the client
+                      </option>
+                      <option value="Second Party">
+                        Client first, then Tristate
+                      </option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
                       Effective Date <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -2161,8 +2225,7 @@ function AllAgreementsPage() {
                 <Info className="mt-0.5 h-4 w-4 shrink-0" />
                 <p className="text-[12px] leading-relaxed">
                   This practice is already <strong>active</strong>. Creating
-                  this agreement will automatically send it to the practice
-                  contact for signature.
+                  this agreement will trigger signing process.
                 </p>
               </div>
             )}
@@ -2619,14 +2682,40 @@ function AllAgreementsPage() {
                                             type={inputType}
                                             value={value}
                                             required={field.required}
-                                            onChange={(event) =>
+                                            min={
+                                              inputType === "number"
+                                                ? 0
+                                                : undefined
+                                            }
+                                            onKeyDown={(event) => {
+                                              if (
+                                                inputType === "number" &&
+                                                (event.key === "-" ||
+                                                  event.key === "+" ||
+                                                  event.key === "e" ||
+                                                  event.key === "E")
+                                              ) {
+                                                event.preventDefault();
+                                              }
+                                            }}
+                                            onChange={(event) => {
+                                              const nextValue =
+                                                event.target.value;
+                                              if (
+                                                inputType === "number" &&
+                                                nextValue !== "" &&
+                                                (nextValue.includes("-") ||
+                                                  Number(nextValue) < 0)
+                                              ) {
+                                                return;
+                                              }
                                               updateTemplateFieldValue(
                                                 templateId,
                                                 field.uuid,
-                                                event.target.value,
+                                                nextValue,
                                                 setCreateForm,
-                                              )
-                                            }
+                                              );
+                                            }}
                                             className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                                             placeholder={`Enter ${getDocusealFieldLabel(
                                               field,
@@ -2821,6 +2910,17 @@ function AllAgreementsPage() {
         {showDetailPanel && detailPanel}
         {showCreateForm && createPanel}
       </div>
+      <SigningOrderPrompt
+        open={signingOrderPromptOpen}
+        confirmLabel={
+          willAutoSendCreatedAgreement ? "Create and send" : "Create agreement"
+        }
+        isSubmitting={isSubmitting}
+        onCancel={() => setSigningOrderPromptOpen(false)}
+        onConfirm={(signingOrder) => {
+          void submitCreatedAgreement(signingOrder);
+        }}
+      />
     </AppLayout>
   );
 }

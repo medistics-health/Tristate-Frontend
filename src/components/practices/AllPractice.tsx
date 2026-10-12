@@ -25,6 +25,13 @@ import {
   Shield,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import PracticeProfileFields, {
+  emptyPracticeProfileForm,
+  practiceProfileFromRecord,
+  practiceProfilePayload,
+  type PracticeProfileForm,
+} from "./PracticeProfileFields";
+import { validatePracticeProfileFields } from "../../utils/profileFieldValidation";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
@@ -115,6 +122,18 @@ function normalizeNpiInput(value: string): string {
 
 function normalizeGroupNpiStatus(value: unknown): string {
   return value === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+}
+
+function clientSignsFirst(agreement: Agreement): boolean {
+  if (agreement.signingOrder?.[0] === "Second Party") return true;
+  if (agreement.signingOrder?.[0] === "First Party") return false;
+
+  const firstRole = (agreement.docusealSubmissions || [])
+    .flatMap((submission) => submission.signers || [])
+    .slice()
+    .sort((left, right) => (left.order ?? 99) - (right.order ?? 99))[0]?.role;
+
+  return firstRole === "Second Party";
 }
 
 function toDateInput(value?: string | null) {
@@ -234,6 +253,9 @@ export default function AllPracticePage() {
     {},
   );
   const [formData, setFormData] = useState<PracticeFormData>(initialFormData);
+  const [profileForm, setProfileForm] = useState<PracticeProfileForm>(
+    emptyPracticeProfileForm,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -291,6 +313,7 @@ export default function AllPracticePage() {
   const [showActivationModal, setShowActivationModal] = useState(false);
   const [activationPerson, setActivationPerson] = useState<Person | null>(null);
   const [activationAgreementType, setActivationAgreementType] = useState("");
+  const [activationClientFirst, setActivationClientFirst] = useState(false);
   const [pendingActivationData, setPendingActivationData] =
     useState<Partial<PracticeBody> | null>(null);
   const [selectedPracticeDetail, setSelectedPracticeDetail] =
@@ -494,20 +517,23 @@ export default function AllPracticePage() {
         processingFeeConfig: buildProcessingFeeSettings(
           values.processingFeeConfig || systemSettings,
         ),
-                  groupNpis: existingGroupNpis,
-          goLiveTarget: toDateInput(
-            String((values as Record<string, unknown>).goLiveTarget || ""),
-          ),
-          isPrefundingEnabled: Boolean((values as Record<string, unknown>).isPrefundingEnabled),
-          prefundingCycle: String((values as Record<string, unknown>).prefundingCycle || ""),
-          prefundingStartDate: String((values as Record<string, unknown>).prefundingStartDate || "").split('T')[0],
-          prefundingDueOn: (values as Record<string, unknown>).prefundingDueOn !== undefined && (values as Record<string, unknown>).prefundingDueOn !== null ? String((values as Record<string, unknown>).prefundingDueOn) : "",
-          prefundingReminderOn: (values as Record<string, unknown>).prefundingReminderOn !== undefined && (values as Record<string, unknown>).prefundingReminderOn !== null ? String((values as Record<string, unknown>).prefundingReminderOn) : "",
-          prefundingStripeAccountId: String((values as Record<string, unknown>).prefundingStripeAccountId || ""),
-          prefundingInvoiceRecipientId: String((values as Record<string, unknown>).prefundingInvoiceRecipientId || ""),
-          prefundingState: String((values as Record<string, unknown>).prefundingState || ""),
-          prefundingRateIds: Array.isArray((values as Record<string, unknown>).prefundingRates) ? (values as Record<string, unknown>).prefundingRates.map((r: any) => r.prefundingRateId) : [],
-        });
+        groupNpis: existingGroupNpis,
+        goLiveTarget: toDateInput(
+          String((values as Record<string, unknown>).goLiveTarget || ""),
+        ),
+        isPrefundingEnabled: Boolean((values as Record<string, unknown>).isPrefundingEnabled),
+        prefundingCycle: String((values as Record<string, unknown>).prefundingCycle || ""),
+        prefundingStartDate: String((values as Record<string, unknown>).prefundingStartDate || "").split('T')[0],
+        prefundingDueOn: (values as Record<string, unknown>).prefundingDueOn !== undefined && (values as Record<string, unknown>).prefundingDueOn !== null ? String((values as Record<string, unknown>).prefundingDueOn) : "",
+        prefundingReminderOn: (values as Record<string, unknown>).prefundingReminderOn !== undefined && (values as Record<string, unknown>).prefundingReminderOn !== null ? String((values as Record<string, unknown>).prefundingReminderOn) : "",
+        prefundingStripeAccountId: String((values as Record<string, unknown>).prefundingStripeAccountId || ""),
+        prefundingInvoiceRecipientId: String((values as Record<string, unknown>).prefundingInvoiceRecipientId || ""),
+        prefundingState: String((values as Record<string, unknown>).prefundingState || ""),
+        prefundingRateIds: Array.isArray((values as Record<string, unknown>).prefundingRates) ? (values as Record<string, unknown>).prefundingRates.map((r: any) => r.prefundingRateId) : [],
+      });
+      setProfileForm(
+        practiceProfileFromRecord(values as Record<string, unknown>),
+      );
 
       const companyId = String(values.companyId || "");
       if (companyId) {
@@ -754,6 +780,7 @@ export default function AllPracticePage() {
       ...initialFormData,
       processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(systemSettings),
     });
+    setProfileForm(emptyPracticeProfileForm);
     setGroupNpiEntries([]);
     setShowCreateForm(true);
     setShowDetailPanel(false);
@@ -777,6 +804,7 @@ export default function AllPracticePage() {
       ...initialFormData,
       processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(systemSettings),
     });
+    setProfileForm(emptyPracticeProfileForm);
     setGroupNpiEntries([]);
   }
 
@@ -809,6 +837,7 @@ export default function AllPracticePage() {
       ...initialFormData,
       processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(systemSettings),
     });
+    setProfileForm(emptyPracticeProfileForm);
     setGroupNpiEntries([]);
   }
 
@@ -920,6 +949,12 @@ export default function AllPracticePage() {
       return;
     }
 
+    const profileError = validatePracticeProfileFields(profileForm);
+    if (profileError) {
+      toast.error(profileError);
+      return;
+    }
+
     if (processingFeeValidationError) {
       toast.error(processingFeeValidationError);
       return;
@@ -954,16 +989,17 @@ export default function AllPracticePage() {
             ? Number(formData.credentialingChargeAmount)
             : undefined,
         processingFeeConfig: formData.processingFeeConfig,
-                  goLiveTarget: formData.goLiveTarget || undefined,
-          isPrefundingEnabled: formData.isPrefundingEnabled,
-          prefundingCycle: formData.prefundingCycle || undefined,
-          prefundingStartDate: formData.prefundingStartDate || undefined,
-          prefundingDueOn: formData.prefundingDueOn ? Number(formData.prefundingDueOn) : undefined,
-          prefundingReminderOn: formData.prefundingReminderOn ? Number(formData.prefundingReminderOn) : undefined,
-          prefundingStripeAccountId: formData.prefundingStripeAccountId || undefined,
-          prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
-          prefundingState: formData.prefundingState || undefined,
-          prefundingRateIds: formData.prefundingRateIds,
+        goLiveTarget: formData.goLiveTarget || undefined,
+        isPrefundingEnabled: formData.isPrefundingEnabled,
+        prefundingCycle: formData.prefundingCycle || undefined,
+        prefundingStartDate: formData.prefundingStartDate || undefined,
+        prefundingDueOn: formData.prefundingDueOn ? Number(formData.prefundingDueOn) : undefined,
+        prefundingReminderOn: formData.prefundingReminderOn ? Number(formData.prefundingReminderOn) : undefined,
+        prefundingStripeAccountId: formData.prefundingStripeAccountId || undefined,
+        prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
+        prefundingState: formData.prefundingState || undefined,
+        prefundingRateIds: formData.prefundingRateIds,
+        ...practiceProfilePayload(profileForm),
       };
 
       const result = await createPracticeApi(practiceData);
@@ -1069,6 +1105,12 @@ export default function AllPracticePage() {
       return;
     }
 
+    const profileError = validatePracticeProfileFields(profileForm);
+    if (profileError) {
+      toast.error(profileError);
+      return;
+    }
+
     if (processingFeeValidationError) {
       toast.error(processingFeeValidationError);
       return;
@@ -1130,7 +1172,7 @@ export default function AllPracticePage() {
               ? Number(formData.credentialingChargeAmount)
               : undefined,
           processingFeeConfig: formData.processingFeeConfig,
-                    goLiveTarget: formData.goLiveTarget || undefined,
+          goLiveTarget: formData.goLiveTarget || undefined,
           isPrefundingEnabled: formData.isPrefundingEnabled,
           prefundingCycle: formData.prefundingCycle || undefined,
           prefundingStartDate: formData.prefundingStartDate || undefined,
@@ -1140,10 +1182,14 @@ export default function AllPracticePage() {
           prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
           prefundingState: formData.prefundingState || undefined,
           prefundingRateIds: formData.prefundingRateIds,
+          ...(selectedPracticeDetail
+            ? practiceProfilePayload(profileForm)
+            : {}),
         };
 
         setActivationPerson(eligiblePerson);
         setActivationAgreementType(agreements[0].type);
+        setActivationClientFirst(clientSignsFirst(agreements[0]));
         setPendingActivationData(practiceData);
         setShowActivationModal(true);
         return;
@@ -1183,16 +1229,19 @@ export default function AllPracticePage() {
             ? Number(formData.credentialingChargeAmount)
             : undefined,
         processingFeeConfig: formData.processingFeeConfig,
-                  goLiveTarget: formData.goLiveTarget || undefined,
-          isPrefundingEnabled: formData.isPrefundingEnabled,
-          prefundingCycle: formData.prefundingCycle || undefined,
-          prefundingStartDate: formData.prefundingStartDate || undefined,
-          prefundingDueOn: formData.prefundingDueOn ? Number(formData.prefundingDueOn) : undefined,
-          prefundingReminderOn: formData.prefundingReminderOn ? Number(formData.prefundingReminderOn) : undefined,
-          prefundingStripeAccountId: formData.prefundingStripeAccountId || undefined,
-          prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
-          prefundingState: formData.prefundingState || undefined,
-          prefundingRateIds: formData.prefundingRateIds,
+        goLiveTarget: formData.goLiveTarget || undefined,
+        isPrefundingEnabled: formData.isPrefundingEnabled,
+        prefundingCycle: formData.prefundingCycle || undefined,
+        prefundingStartDate: formData.prefundingStartDate || undefined,
+        prefundingDueOn: formData.prefundingDueOn ? Number(formData.prefundingDueOn) : undefined,
+        prefundingReminderOn: formData.prefundingReminderOn ? Number(formData.prefundingReminderOn) : undefined,
+        prefundingStripeAccountId: formData.prefundingStripeAccountId || undefined,
+        prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
+        prefundingState: formData.prefundingState || undefined,
+        prefundingRateIds: formData.prefundingRateIds,
+        ...(selectedPracticeDetail
+          ? practiceProfilePayload(profileForm)
+          : {}),
       };
 
       await updatePracticeApi(selectedRow.id, practiceData);
@@ -1282,6 +1331,7 @@ export default function AllPracticePage() {
       setIsSubmitting(false);
       setPendingActivationData(null);
       setActivationPerson(null);
+      setActivationClientFirst(false);
     }
   }
 
@@ -2117,6 +2167,8 @@ export default function AllPracticePage() {
           </div>
         </div>
 
+        <PracticeProfileFields value={profileForm} onChange={setProfileForm} />
+
         {renderProcessingFeeSetup(!canWritePractices)}
         {renderPrefundingSetup(!canWritePractices)}
 
@@ -2793,6 +2845,11 @@ export default function AllPracticePage() {
                   </div>
                 </div>
 
+                <PracticeProfileFields
+                  value={profileForm}
+                  onChange={setProfileForm}
+                />
+
                 {renderProcessingFeeSetup(false)}
                 {renderPrefundingSetup(false)}
               </div>
@@ -2823,6 +2880,7 @@ export default function AllPracticePage() {
         onClose={() => {
           setShowActivationModal(false);
           setActivationPerson(null);
+          setActivationClientFirst(false);
           setPendingActivationData(null);
         }}
         onConfirm={handleConfirmActivation}
@@ -2832,9 +2890,20 @@ export default function AllPracticePage() {
       >
         <div className="space-y-4">
           <p className="text-[14px] text-slate-500 leading-relaxed">
-            This practice will be set to <strong>ACTIVE</strong> and an
-            agreement will be sent to the following admin person after Internal
-            Signing Process is completed by Authorized Signer.
+            {activationClientFirst ? (
+              <>
+                This practice will be set to <strong>ACTIVE</strong> and an
+                agreement will be sent to the following admin person first. The
+                Authorized Signer will complete the Internal Signing Process
+                after the client signs.
+              </>
+            ) : (
+              <>
+                This practice will be set to <strong>ACTIVE</strong> and an
+                agreement will be sent to the following admin person after
+                Internal Signing Process is completed by Authorized Signer.
+              </>
+            )}
           </p>
           {activationPerson && (
             <div className="rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-4 space-y-3">

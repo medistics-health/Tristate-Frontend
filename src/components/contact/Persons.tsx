@@ -27,7 +27,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { PersonBody } from "../../components/contact/types";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { getStandardNavbarActions } from "../shared/PageComponents";
@@ -40,7 +39,11 @@ import Select from "../shared/Select";
 import DatePicker from "../shared/DatePicker";
 import MultiSelect from "../shared/MultiSelect";
 import { getResponsivePageSize } from "../shared/TablePagination";
-import type { PersonCellValue, PersonRow, PersonViewData } from "./types";
+import type { PersonBody, PersonCellValue, PersonRow, PersonViewData } from "./types";
+import PersonCredentialFields, {
+  personCredentialKeys,
+} from "./PersonCredentialFields";
+import { validatePersonCredentialFields } from "../../utils/profileFieldValidation";
 import {
   createPersonApi,
   getPersonsView,
@@ -137,7 +140,48 @@ type PersonFormData = {
   payRate?: number;
   budgetedHours?: number;
   bufferPercentage?: number;
+  individualNpi: string;
+  individualPtan: string;
+  individualRailroadMedicarePtan: string;
+  caqhId: string;
+  caqhLoginId: string;
+  caqhPassword: string;
+  groupPecosAccess: string;
+  individualMedicaidNumber: string;
+  stateLicense: string;
+  dea: string;
+  ein: string;
+  specialty: string;
+  secondarySpecialty: string;
 };
+
+const emptyCredentialFields = Object.fromEntries(
+  personCredentialKeys.map((key) => [key, ""]),
+) as Pick<
+  PersonFormData,
+  | "individualNpi"
+  | "individualPtan"
+  | "individualRailroadMedicarePtan"
+  | "caqhId"
+  | "caqhLoginId"
+  | "caqhPassword"
+  | "groupPecosAccess"
+  | "individualMedicaidNumber"
+  | "stateLicense"
+  | "dea"
+  | "ein"
+  | "specialty"
+  | "secondarySpecialty"
+>;
+
+function credentialPayload(form: PersonFormData): Partial<PersonBody> {
+  return Object.fromEntries(
+    personCredentialKeys.map((key) => [
+      key,
+      String(form[key as keyof PersonFormData] || "").trim() || null,
+    ]),
+  );
+}
 
 const initialFormData: PersonFormData = {
   firstName: "",
@@ -151,6 +195,7 @@ const initialFormData: PersonFormData = {
   companyIds: [],
   designation: "",
   status: "ACTIVE",
+  ...emptyCredentialFields,
 };
 
 const usStates = [
@@ -471,26 +516,28 @@ export default function PersonsPage() {
         : String(values.companyIds || "")
             .split(",")
             .filter(Boolean);
-      setFormData({
-  firstName: String(values.firstName || ""),
-  lastName: String(values.lastName || ""),
-  roles: Array.isArray(values.rolesArray) ? (values.rolesArray as string[]) : ["ADMIN"],
-  influence: String(values.influence || "MEDIUM"),
-  email: String(values.email || ""),
-  phone: normalizePhoneInput(String(values.phone || "")),
-  practiceIds: practiceIdsArray,
-  companyIds: companyIdsArray,
-  designation: String(values.designation || ""),
-  status: String(values.status || "ACTIVE"),
-  jobCategory: String(values.jobCategory || ""),
-  workLocation: String(values.workLocation || ""),
-  state: String(values.state || ""),
-  dateOfJoining: String(values.dateOfJoining || ""),
-  payType: String(values.payType || ""),
-  payRate: values.payRate ? Number(values.payRate) : undefined,
-  budgetedHours: values.budgetedHours ? Number(values.budgetedHours) : undefined,
-  bufferPercentage: values.bufferPercentage ? Number(values.bufferPercentage) : undefined,
-});
+        firstName: String(values.firstName || ""),
+        lastName: String(values.lastName || ""),
+        roles: Array.isArray(values.rolesArray) ? (values.rolesArray as string[]) : ["ADMIN"],
+        influence: String(values.influence || "MEDIUM"),
+        email: String(values.email || ""),
+        phone: normalizePhoneInput(String(values.phone || "")),
+        practiceIds: practiceIdsArray,
+        companyIds: companyIdsArray,
+        designation: String(values.designation || ""),
+        status: String(values.status || "ACTIVE"),
+        jobCategory: String(values.jobCategory || ""),
+        workLocation: String(values.workLocation || ""),
+        state: String(values.state || ""),
+        dateOfJoining: String(values.dateOfJoining || ""),
+        payType: String(values.payType || ""),
+        payRate: values.payRate ? Number(values.payRate) : undefined,
+        budgetedHours: values.budgetedHours ? Number(values.budgetedHours) : undefined,
+        bufferPercentage: values.bufferPercentage ? Number(values.bufferPercentage) : undefined,
+        ...(Object.fromEntries(
+          personCredentialKeys.map((key) => [key, String(values[key] || "")]),
+        ) as typeof emptyCredentialFields),
+      });
       setIsEditing(false);
     }
   }, [selectedRow, showCreateForm]);
@@ -810,6 +857,11 @@ export default function PersonsPage() {
       toast.error("Person phone must be exactly 10 digits.");
       return;
     }
+    const credentialError = validatePersonCredentialFields(formData);
+    if (credentialError) {
+      toast.error(credentialError);
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -842,16 +894,17 @@ export default function PersonsPage() {
         companyIds: formData.companyIds,
         designation: formData.designation.trim() || undefined,
         status: formData.status,
-          ...((formData.roles || []).includes("EMPLOYEE") ? {
-            jobCategory: formData.jobCategory,
-            workLocation: formData.workLocation,
-            state: formData.state,
-            dateOfJoining: formData.dateOfJoining,
-            payType: formData.payType,
-            payRate: Number(formData.payRate) || undefined,
-            budgetedHours: Number(formData.budgetedHours) || undefined,
-            bufferPercentage: Number(formData.bufferPercentage) || undefined,
-          } : { jobCategory: null, workLocation: null, state: null, dateOfJoining: null, payType: null, payRate: null, budgetedHours: null, bufferPercentage: null } as any),
+        ...((formData.roles || []).includes("EMPLOYEE") ? {
+          jobCategory: formData.jobCategory,
+          workLocation: formData.workLocation,
+          state: formData.state,
+          dateOfJoining: formData.dateOfJoining,
+          payType: formData.payType,
+          payRate: Number(formData.payRate) || undefined,
+          budgetedHours: Number(formData.budgetedHours) || undefined,
+          bufferPercentage: Number(formData.bufferPercentage) || undefined,
+        } : { jobCategory: null, workLocation: null, state: null, dateOfJoining: null, payType: null, payRate: null, budgetedHours: null, bufferPercentage: null } as any),
+        ...credentialPayload(formData),
       };
 
       await createPersonApi(personData);
@@ -894,6 +947,11 @@ export default function PersonsPage() {
       toast.error("Person phone must be exactly 10 digits.");
       return;
     }
+    const credentialError = validatePersonCredentialFields(formData);
+    if (credentialError) {
+      toast.error(credentialError);
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -927,16 +985,17 @@ export default function PersonsPage() {
         practiceIds: formData.practiceIds,
         companyIds: formData.companyIds,
         status: formData.status,
-          ...((formData.roles || []).includes("EMPLOYEE") ? {
-            jobCategory: formData.jobCategory,
-            workLocation: formData.workLocation,
-            state: formData.state,
-            dateOfJoining: formData.dateOfJoining,
-            payType: formData.payType,
-            payRate: Number(formData.payRate) || undefined,
-            budgetedHours: Number(formData.budgetedHours) || undefined,
-            bufferPercentage: Number(formData.bufferPercentage) || undefined,
-          } : { jobCategory: null, workLocation: null, state: null, dateOfJoining: null, payType: null, payRate: null, budgetedHours: null, bufferPercentage: null } as any),
+        ...((formData.roles || []).includes("EMPLOYEE") ? {
+          jobCategory: formData.jobCategory,
+          workLocation: formData.workLocation,
+          state: formData.state,
+          dateOfJoining: formData.dateOfJoining,
+          payType: formData.payType,
+          payRate: Number(formData.payRate) || undefined,
+          budgetedHours: Number(formData.budgetedHours) || undefined,
+          bufferPercentage: Number(formData.bufferPercentage) || undefined,
+        } : { jobCategory: null, workLocation: null, state: null, dateOfJoining: null, payType: null, payRate: null, budgetedHours: null, bufferPercentage: null } as any),
+        ...credentialPayload(formData),
       };
 
       await updatePersonApi(selectedRow.id, personData);
@@ -1293,56 +1352,63 @@ export default function PersonsPage() {
           </select>
         </div>
 
-                          {(formData.roles || []).includes("EMPLOYEE") && (
-                    <div className="border border-slate-200 rounded-md p-3 space-y-3 bg-slate-50 mt-4 mb-4">
-                      <h3 className="text-[13px] font-semibold text-slate-700">Employee Details</h3>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Job Category</label>
-                          <Select value={formData.jobCategory || ""} onChange={(val) => handleFormChange("jobCategory", val)} options={[{label: "Clinical", value: "CLINICAL"}, {label: "Non-Clinical", value: "NON_CLINICAL"}]} placeholder="Select Category" className="w-full" />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Work Location</label>
-                          <input type="text" value={formData.workLocation} onChange={(e) => handleFormChange("workLocation", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="Location" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
-                          <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining</label>
-                          <DatePicker value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
-                          <Select value={formData.payType || ""} onChange={(val) => handleFormChange("payType", val)} options={[{label: "Hourly", value: "HOURLY"}, {label: "Monthly", value: "MONTHLY"}, {label: "Annually", value: "ANNUALLY"}]} placeholder="Select Pay Type" className="w-full" />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
-                          <input type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Budgeted Hours</label>
-                          <input type="number" step="0.5" value={formData.budgetedHours} onChange={(e) => handleFormChange("budgetedHours", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0" />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
-                          <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+        {(formData.roles || []).includes("EMPLOYEE") && (
+          <div className="border border-slate-200 rounded-md p-3 space-y-3 bg-slate-50 mt-4 mb-4">
+            <h3 className="text-[13px] font-semibold text-slate-700">Employee Details</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Job Category</label>
+                <Select value={formData.jobCategory || ""} onChange={(val) => handleFormChange("jobCategory", val)} options={[{label: "Clinical", value: "CLINICAL"}, {label: "Non-Clinical", value: "NON_CLINICAL"}]} placeholder="Select Category" className="w-full" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Work Location</label>
+                <input type="text" value={formData.workLocation} onChange={(e) => handleFormChange("workLocation", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="Location" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
+                <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining</label>
+                <DatePicker value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
+                <Select value={formData.payType || ""} onChange={(val) => handleFormChange("payType", val)} options={[{label: "Hourly", value: "HOURLY"}, {label: "Monthly", value: "MONTHLY"}, {label: "Annually", value: "ANNUALLY"}]} placeholder="Select Pay Type" className="w-full" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
+                <input type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Budgeted Hours</label>
+                <input type="number" step="0.5" value={formData.budgetedHours} onChange={(e) => handleFormChange("budgetedHours", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
+                <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
+              </div>
+            </div>
+          </div>
+        )}
 
-                  <div>
-                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Practices
-                    </label>
+        <PersonCredentialFields
+          values={formData}
+          onChange={(key, value) =>
+            handleFormChange(key as keyof PersonFormData, value)
+          }
+        />
+
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            Practices
+          </label>
           {practicesLoading ? (
             <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
               Loading...
@@ -2024,7 +2090,7 @@ export default function PersonsPage() {
                   </select>
                 </div>
 
-                                  {(formData.roles || []).includes("EMPLOYEE") && (
+                  {(formData.roles || []).includes("EMPLOYEE") && (
                     <div className="border border-slate-200 rounded-md p-3 space-y-3 bg-slate-50 mt-4 mb-4">
                       <h3 className="text-[13px] font-semibold text-slate-700">Employee Details</h3>
                       <div className="grid grid-cols-2 gap-3">
@@ -2069,6 +2135,13 @@ export default function PersonsPage() {
                       </div>
                     </div>
                   )}
+
+                  <PersonCredentialFields
+                    values={formData}
+                    onChange={(key, value) =>
+                      handleFormChange(key as keyof PersonFormData, value)
+                    }
+                  />
 
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
