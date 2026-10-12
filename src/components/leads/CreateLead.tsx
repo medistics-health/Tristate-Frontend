@@ -23,6 +23,18 @@ import AppLayout from "../layout/AppLayout";
 import { LOGOUT_ACTION, type NavbarAction } from "../layout/Navbar";
 import type { CompanyBody, Company } from "../companies/types";
 import type { PersonBody, PersonRole } from "../contact/types";
+import PersonCredentialFields, {
+  personCredentialKeys,
+} from "../contact/PersonCredentialFields";
+import PracticeProfileFields, {
+  emptyPracticeProfileForm,
+  practiceProfilePayload,
+  type PracticeProfileForm,
+} from "../practices/PracticeProfileFields";
+import {
+  validatePersonCredentialFields,
+  validatePracticeProfileFields,
+} from "../../utils/profileFieldValidation";
 import {
   createCompanyApi,
   deleteCompanyApi,
@@ -150,6 +162,7 @@ type LeadFormState = {
   billingPaymentMethod: "ACH" | "CREDIT_CARD" | "";
   credentialingChargeAmount: string;
   processingFeeConfig: ProcessingFeeSettings;
+  practiceProfile: PracticeProfileForm;
 
   // Contact
   contactRelation: RelationType;
@@ -160,6 +173,7 @@ type LeadFormState = {
   primaryContactPhone: string;
   primaryContactDesignation: string;
   primaryContactRole: PersonRole;
+  contactCredentials: Record<string, string>;
   contactPracticeIds: { id: string; name: string }[];
   contactCompanyIds: { id: string; name: string }[];
 
@@ -211,6 +225,7 @@ const initialFormState: LeadFormState = {
   billingPaymentMethod: "",
   credentialingChargeAmount: "",
   processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(),
+  practiceProfile: emptyPracticeProfileForm,
 
   contactRelation: "new",
   selectedContactId: "",
@@ -220,6 +235,9 @@ const initialFormState: LeadFormState = {
   primaryContactPhone: "",
   primaryContactDesignation: "",
   primaryContactRole: "ADMIN",
+  contactCredentials: Object.fromEntries(
+    personCredentialKeys.map((key) => [key, ""]),
+  ),
   contactPracticeIds: [],
   contactCompanyIds: [],
   practiceGroupNpis: [],
@@ -596,6 +614,7 @@ function CreateLeadPage() {
               ? Number(form.credentialingChargeAmount)
               : undefined,
           processingFeeConfig: form.processingFeeConfig,
+          ...practiceProfilePayload(form.practiceProfile),
         };
         const practiceRow = await createPracticeApi(practicePayload);
         practiceId = practiceRow.id;
@@ -629,6 +648,12 @@ function CreateLeadPage() {
           designation: form.primaryContactDesignation.trim() || undefined,
           practiceIds: mergedPracticeIds,
           companyIds: mergedCompanyIds,
+          ...Object.fromEntries(
+            personCredentialKeys.map((key) => [
+              key,
+              form.contactCredentials[key]?.trim() || null,
+            ]),
+          ),
         };
         const personRow = await createPersonApi(personPayload);
         contactId = personRow.id;
@@ -1375,6 +1400,11 @@ function CreateLeadPage() {
         toast.error("Practice name is required.");
         return;
       }
+      const practiceProfileError = validatePracticeProfileFields(form.practiceProfile);
+      if (practiceProfileError) {
+        toast.error(practiceProfileError);
+        return;
+      }
       if (!form.billingPaymentMethod) {
         toast.error("Billing Payment Method is required.");
         return;
@@ -1405,6 +1435,11 @@ function CreateLeadPage() {
       }
       if (!form.primaryContactRole) {
         toast.error("Contact role is required.");
+        return;
+      }
+      const credentialError = validatePersonCredentialFields(form.contactCredentials);
+      if (credentialError) {
+        toast.error(credentialError);
         return;
       }
       if (
@@ -2409,6 +2444,12 @@ function CreateLeadPage() {
                         </div>
                       ))}
                     </div>
+                    <div className="md:col-span-2">
+                      <PracticeProfileFields
+                        value={form.practiceProfile}
+                        onChange={(next) => updateField("practiceProfile", next)}
+                      />
+                    </div>
                     {renderProcessingFeeSetup()}
                   </div>
                 )}
@@ -2584,6 +2625,17 @@ function CreateLeadPage() {
                           )}
                       </select>
                     </label>
+                    <div className="md:col-span-2">
+                      <PersonCredentialFields
+                        values={form.contactCredentials}
+                        onChange={(key, value) =>
+                          updateField("contactCredentials", {
+                            ...form.contactCredentials,
+                            [key]: value,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
                 )}
               </div>

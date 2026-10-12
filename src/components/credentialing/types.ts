@@ -146,13 +146,80 @@ export const defaultCredentialingChecklistTasks = [
   "Recredentialing Scheduled",
 ] as const;
 
+export type CredentialingPracticeDetails = {
+  name?: string | null;
+  npi?: string | null;
+  referredBy?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  country?: string | null;
+  faxes?: string[];
+  phone?: string | null;
+  emails?: string[];
+  groupTaxId?: string | null;
+  groupNpi?: string | null;
+  practicePersonNames?: string | null;
+  providers?: CredentialingProviderDetails[];
+  groupMedicarePtan?: string | null;
+  railroadMedicarePtan?: string | null;
+  dmePtan?: string | null;
+  groupMedicaidPtan?: string | null;
+  sparkGroup?: string | null;
+  locations?: Array<{
+    locationName?: string | null;
+    isPrimary?: boolean;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zipCode?: string | null;
+    country?: string | null;
+    phone?: string | null;
+    fax?: string | null;
+    email?: string | null;
+  }>;
+  contactPersons?: Array<{
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }>;
+  contactNumbers?: Array<{
+    phone?: string | null;
+    label?: string | null;
+    name?: string | null;
+  }>;
+};
+
+export type CredentialingProviderDetails = {
+  id?: string | null;
+  name?: string | null;
+  individualNpi?: string | null;
+  individualPtan?: string | null;
+  individualRailroadMedicarePtan?: string | null;
+  caqhId?: string | null;
+  caqhLoginId?: string | null;
+  caqhPassword?: string | null;
+  groupPecosAccess?: string | null;
+  individualMedicaidNumber?: string | null;
+  stateLicense?: string | null;
+  dea?: string | null;
+  ein?: string | null;
+  specialty?: string | null;
+  secondarySpecialty?: string | null;
+};
+
 export type CredentialingRecord = {
   id: string;
   credentialingId: string;
   practiceId?: string;
   practice: string;
+  practiceDetails?: CredentialingPracticeDetails | null;
   providerId?: string;
   provider: string;
+  providerDetails?: CredentialingProviderDetails | null;
   insuranceCompany: string;
   credentialingType: RequestType;
   contractType: ContractType;

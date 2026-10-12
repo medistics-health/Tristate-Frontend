@@ -25,6 +25,13 @@ import {
   Shield,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import PracticeProfileFields, {
+  emptyPracticeProfileForm,
+  practiceProfileFromRecord,
+  practiceProfilePayload,
+  type PracticeProfileForm,
+} from "./PracticeProfileFields";
+import { validatePracticeProfileFields } from "../../utils/profileFieldValidation";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import { AvatarPill, getStandardNavbarActions } from "../shared/PageComponents";
@@ -244,6 +251,9 @@ export default function AllPracticePage() {
     {},
   );
   const [formData, setFormData] = useState<PracticeFormData>(initialFormData);
+  const [profileForm, setProfileForm] = useState<PracticeProfileForm>(
+    emptyPracticeProfileForm,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -508,6 +518,9 @@ export default function AllPracticePage() {
           String((values as Record<string, unknown>).goLiveTarget || ""),
         ),
       });
+      setProfileForm(
+        practiceProfileFromRecord(values as Record<string, unknown>),
+      );
 
       const companyId = String(values.companyId || "");
       if (companyId) {
@@ -747,6 +760,7 @@ export default function AllPracticePage() {
       ...initialFormData,
       processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(systemSettings),
     });
+    setProfileForm(emptyPracticeProfileForm);
     setGroupNpiEntries([]);
     setShowCreateForm(true);
     setShowDetailPanel(false);
@@ -770,6 +784,7 @@ export default function AllPracticePage() {
       ...initialFormData,
       processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(systemSettings),
     });
+    setProfileForm(emptyPracticeProfileForm);
     setGroupNpiEntries([]);
   }
 
@@ -802,6 +817,7 @@ export default function AllPracticePage() {
       ...initialFormData,
       processingFeeConfig: buildPracticeDefaultProcessingFeeSettings(systemSettings),
     });
+    setProfileForm(emptyPracticeProfileForm);
     setGroupNpiEntries([]);
   }
 
@@ -903,6 +919,12 @@ export default function AllPracticePage() {
       return;
     }
 
+    const profileError = validatePracticeProfileFields(profileForm);
+    if (profileError) {
+      toast.error(profileError);
+      return;
+    }
+
     if (processingFeeValidationError) {
       toast.error(processingFeeValidationError);
       return;
@@ -938,6 +960,7 @@ export default function AllPracticePage() {
             : undefined,
         processingFeeConfig: formData.processingFeeConfig,
         goLiveTarget: formData.goLiveTarget || undefined,
+        ...practiceProfilePayload(profileForm),
       };
 
       const result = await createPracticeApi(practiceData);
@@ -1043,6 +1066,12 @@ export default function AllPracticePage() {
       return;
     }
 
+    const profileError = validatePracticeProfileFields(profileForm);
+    if (profileError) {
+      toast.error(profileError);
+      return;
+    }
+
     if (processingFeeValidationError) {
       toast.error(processingFeeValidationError);
       return;
@@ -1105,6 +1134,9 @@ export default function AllPracticePage() {
               : undefined,
           processingFeeConfig: formData.processingFeeConfig,
           goLiveTarget: formData.goLiveTarget || undefined,
+          ...(selectedPracticeDetail
+            ? practiceProfilePayload(profileForm)
+            : {}),
         };
 
         setActivationPerson(eligiblePerson);
@@ -1150,6 +1182,9 @@ export default function AllPracticePage() {
             : undefined,
         processingFeeConfig: formData.processingFeeConfig,
         goLiveTarget: formData.goLiveTarget || undefined,
+        ...(selectedPracticeDetail
+          ? practiceProfilePayload(profileForm)
+          : {}),
       };
 
       await updatePracticeApi(selectedRow.id, practiceData);
@@ -1937,6 +1972,8 @@ export default function AllPracticePage() {
           </div>
         </div>
 
+        <PracticeProfileFields value={profileForm} onChange={setProfileForm} />
+
         {renderProcessingFeeSetup(!canWritePractices)}
 
         {canWritePractices && (
@@ -2611,6 +2648,11 @@ export default function AllPracticePage() {
                     </button>
                   </div>
                 </div>
+
+                <PracticeProfileFields
+                  value={profileForm}
+                  onChange={setProfileForm}
+                />
 
                 {renderProcessingFeeSetup(false)}
               </div>

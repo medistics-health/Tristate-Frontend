@@ -357,6 +357,7 @@ export async function getPublicShare(token: string) {
       description: string | null;
       mimeType: string;
       originalFilename: string;
+      version?: number;
       allowDownload: boolean;
       expiresAt: string | null;
     };
