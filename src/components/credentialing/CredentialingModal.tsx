@@ -16,7 +16,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import DatePicker from "../shared/DatePicker";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
@@ -119,14 +119,43 @@ function ReadonlyInfoField({
   label: string;
   value?: string | null;
 }) {
+  const text = infoValue(value);
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const parent = el?.parentElement;
+    if (!el || !parent) return;
+
+    const resize = () => {
+      el.style.height = "0px";
+      const border = el.offsetHeight - el.clientHeight;
+      el.style.height = `${el.scrollHeight + border}px`;
+    };
+
+    resize();
+    if (typeof ResizeObserver === "undefined") return;
+
+    let lastWidth = parent.clientWidth;
+    const observer = new ResizeObserver(() => {
+      const width = parent.clientWidth;
+      if (width === lastWidth) return;
+      lastWidth = width;
+      resize();
+    });
+    observer.observe(parent);
+    return () => observer.disconnect();
+  }, [text]);
+
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <FieldLabel>{label}</FieldLabel>
-      <input
-        type="text"
-        value={infoValue(value)}
+      <textarea
+        ref={ref}
+        value={text}
         readOnly
-        className="app-control w-full rounded-xl bg-slate-50 px-3 py-2 text-[13px] text-slate-600"
+        rows={1}
+        className="app-control w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-xl bg-slate-50 px-3 py-2 text-[13px] leading-5 text-slate-600"
       />
     </label>
   );
@@ -164,7 +193,7 @@ function practiceInfoFields(practice?: CredentialingPracticeDetails | null) {
     ["Railroad Medicare PTAN", practice?.railroadMedicarePtan],
     ["DME PTAN", practice?.dmePtan],
     ["Group Medicaid PTAN", practice?.groupMedicaidPtan],
-    ["Contact Person", contactPersons],
+    ["Contact Person-Contact no.", contactPersons],
     ["Locations", locations],
     ["County", practice?.country],
     ["Faxes", joinInfo(practice?.faxes) === "—" ? "" : joinInfo(practice?.faxes)],
@@ -1199,7 +1228,7 @@ export default function CredentialingModal({
                   <div className="flex items-center gap-2">
                     <FileText className="h-4.5 w-4.5 text-[#4f63ea]" />
                     <h3 className="text-[15px] font-semibold text-slate-800 group-hover:text-[#4f63ea] transition-colors">
-                      Credentialing Info
+                      Credentialing Information
                     </h3>
                   </div>
                   {isInfoOpen ? (
@@ -1213,9 +1242,9 @@ export default function CredentialingModal({
                   <div className="space-y-5">
                     <div>
                       <div className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
-                        Practice
+                        Practice's Information
                       </div>
-                      <div className="grid gap-4 md:grid-cols-3">
+                      <div className="grid items-start gap-4 md:grid-cols-3">
                         {practiceInfoFields(record.practiceDetails).map(([label, value]) => (
                           <ReadonlyInfoField key={label} label={label} value={value} />
                         ))}
@@ -1242,7 +1271,7 @@ export default function CredentialingModal({
                             <div className="mb-3 text-[13px] font-semibold text-slate-700">
                               {provider.name || `Provider ${index + 1}`}
                             </div>
-                            <div className="grid gap-4 md:grid-cols-3">
+                            <div className="grid items-start gap-4 md:grid-cols-3">
                               {personInfoFields(provider).map(([label, value]) => (
                                 <ReadonlyInfoField
                                   key={`${provider.id || index}-${label}`}
