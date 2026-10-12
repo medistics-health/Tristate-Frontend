@@ -1,18 +1,77 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Calculator, Calendar, Users, DollarSign, FileText, ChevronRight, CheckCircle2, FileDown, Loader2 } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
 import { getStandardNavbarActions } from "../shared/PageComponents";
 import Select from "../shared/Select";
+import toast from "react-hot-toast";
 import { apiConnector } from "../../services/apiConnector";
 import { practiceEndpoints, prefundingEndpoints } from "../../services/apis";
 
-const CYCLES = Array.from({ length: 12 }).map((_, i) => {
-  const date = new Date();
-  date.setMonth(date.getMonth() + i);
-  const month = date.toLocaleString('default', { month: 'short' });
-  const year = date.getFullYear();
-  return { label: `${month} ${year}`, value: `${month}-${year}` };
-});
+function generatePracticeCycles(startDateStr?: string | null, cycleType?: string | null) {
+  let baseDate: Date;
+  if (startDateStr) {
+    const parts = startDateStr.split("T")[0].split("-").map(Number);
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      baseDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    } else {
+      baseDate = new Date(startDateStr);
+    }
+  } else {
+    baseDate = new Date();
+  }
+
+  const cycle = (cycleType || "MONTHLY").toUpperCase();
+  const cycles = [];
+  let currentStart = new Date(baseDate);
+
+  for (let i = 0; i < 12; i++) {
+    let nextStart: Date;
+    if (cycle === "WEEKLY") {
+      nextStart = new Date(currentStart);
+      nextStart.setDate(nextStart.getDate() + 7);
+    } else if (cycle === "BI_WEEKLY" || cycle === "BIWEEKLY") {
+      nextStart = new Date(currentStart);
+      nextStart.setDate(nextStart.getDate() + 14);
+    } else if (cycle === "QUARTERLY") {
+      nextStart = new Date(currentStart);
+      nextStart.setMonth(nextStart.getMonth() + 3);
+    } else if (cycle === "SEMI_ANNUALLY" || cycle === "SEMIANNUALLY") {
+      nextStart = new Date(currentStart);
+      nextStart.setMonth(nextStart.getMonth() + 6);
+    } else if (cycle === "YEARLY") {
+      nextStart = new Date(currentStart);
+      nextStart.setFullYear(nextStart.getFullYear() + 1);
+    } else {
+      // Default: MONTHLY (add 1 month from exact start day)
+      nextStart = new Date(currentStart);
+      nextStart.setMonth(nextStart.getMonth() + 1);
+    }
+
+    const currentEnd = new Date(nextStart);
+    currentEnd.setDate(currentEnd.getDate() - 1);
+
+    const startFormatted = currentStart.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+    const endFormatted = currentEnd.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+
+    const startISO = `${currentStart.getFullYear()}-${String(currentStart.getMonth() + 1).padStart(2, "0")}-${String(currentStart.getDate()).padStart(2, "0")}`;
+    const endISO = `${currentEnd.getFullYear()}-${String(currentEnd.getMonth() + 1).padStart(2, "0")}-${String(currentEnd.getDate()).padStart(2, "0")}`;
+
+    const label = `${startFormatted} - ${endFormatted}`;
+
+    cycles.push({
+      label,
+      value: label,
+      startDate: startISO,
+      endDate: endISO,
+      formattedStart: startFormatted,
+      formattedEnd: endFormatted,
+    });
+
+    currentStart = nextStart;
+  }
+
+  return cycles;
+}
 
 const getPricingModelColorClass = (val: string) => {
   const colors: Record<string, string> = {
@@ -33,6 +92,8 @@ export default function CalculatePrefunding() {
   const [step, setStep] = useState(1);
   const [selectedPractice, setSelectedPractice] = useState("");
   const [selectedCycle, setSelectedCycle] = useState("");
+  const [cycleStartDate, setCycleStartDate] = useState("");
+  const [cycleEndDate, setCycleEndDate] = useState("");
   
   const [practices, setPractices] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -49,7 +110,15 @@ export default function CalculatePrefunding() {
         if (response?.data) {
           const dataList = response.data.practices || (Array.isArray(response.data) ? response.data : []);
           const prefundingPractices = dataList.filter((p: any) => p.isPrefundingEnabled);
-          setPractices(prefundingPractices.map((p: any) => ({ label: p.name, value: p.id })));
+          setPractices(
+            prefundingPractices.map((p: any) => ({
+              label: p.name,
+              value: p.id,
+              prefundingCycle: p.prefundingCycle,
+              prefundingStartDate: p.prefundingStartDate,
+              prefundingDueOn: p.prefundingDueOn,
+            }))
+          );
         }
       } catch (err) {
         console.error("Failed to load practices", err);
@@ -69,17 +138,23 @@ export default function CalculatePrefunding() {
       const mappedEmployees = practicePersons.map((p: any) => {
         const payRate = p.payRate ? Number(p.payRate) : 0;
         const budgetedHours = p.budgetedHours ? Number(p.budgetedHours) : 160;
-        const bufferPercent = p.bufferPercentage ? Number(p.bufferPercentage) : 0;
+        // Default to 10% buffer
+        const bufferPercent = (p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) > 0)
+          ? Number(p.bufferPercentage)
+          : 10;
         
         // Initial working period hours
         const workingPeriodHours = budgetedHours;
         
-        let grossWages = 0;
+        let baseWages = 0;
         if (p.payType?.toLowerCase() === 'hourly') {
-          grossWages = workingPeriodHours * payRate;
+          baseWages = workingPeriodHours * payRate;
         } else {
-          grossWages = payRate; // Assuming salary is for the period
+          baseWages = payRate; // Salary
         }
+
+        const bufferAmount = baseWages * (bufferPercent / 100);
+        const grossWages = Math.round((baseWages + bufferAmount) * 100) / 100;
 
         return {
           id: p.id,
@@ -93,6 +168,7 @@ export default function CalculatePrefunding() {
           budgetedHours: budgetedHours,
           bufferPercent: bufferPercent,
           workingPeriodHours: workingPeriodHours,
+          baseWages: Math.round(baseWages * 100) / 100,
           grossWages: grossWages,
         };
       });
@@ -115,6 +191,20 @@ export default function CalculatePrefunding() {
     }
   };
 
+  const selectedPracticeObj = useMemo(() => {
+    return practices.find((p) => p.value === selectedPractice) || null;
+  }, [practices, selectedPractice]);
+
+  const availableCycles = useMemo(() => {
+    if (!selectedPracticeObj) {
+      return generatePracticeCycles(null, "MONTHLY");
+    }
+    return generatePracticeCycles(
+      selectedPracticeObj.prefundingStartDate,
+      selectedPracticeObj.prefundingCycle
+    );
+  }, [selectedPracticeObj]);
+
   const handleNextStep = () => {
     if (step === 1) {
       loadEmployeesAndRates();
@@ -123,13 +213,49 @@ export default function CalculatePrefunding() {
     }
   };
 
+  const handlePracticeChange = (practiceId: string) => {
+    setSelectedPractice(practiceId);
+    const p = practices.find((item) => item.value === practiceId);
+    if (p) {
+      const generated = generatePracticeCycles(p.prefundingStartDate, p.prefundingCycle);
+      if (generated.length > 0) {
+        setSelectedCycle(generated[0].value);
+        setCycleStartDate(generated[0].startDate);
+        setCycleEndDate(generated[0].endDate);
+      } else {
+        setSelectedCycle("");
+        setCycleStartDate("");
+        setCycleEndDate("");
+      }
+    } else {
+      setSelectedCycle("");
+      setCycleStartDate("");
+      setCycleEndDate("");
+    }
+  };
+
+  const handleCycleChange = (val: string) => {
+    setSelectedCycle(val);
+    const found = availableCycles.find((c) => c.value === val);
+    if (found) {
+      setCycleStartDate(found.startDate);
+      setCycleEndDate(found.endDate);
+    }
+  };
+
   const handleEmployeeChange = (id: string, field: string, value: string) => {
     setEmployees(prev => prev.map(emp => {
       if (emp.id !== id) return emp;
-      const updatedEmp = { ...emp, [field]: Number(value) || 0 };
+      const numVal = Number(value) || 0;
+      const updatedEmp = { ...emp, [field]: numVal };
       
-      if (field === 'workingPeriodHours' && updatedEmp.payType?.toLowerCase() === 'hourly') {
-        updatedEmp.grossWages = updatedEmp.workingPeriodHours * updatedEmp.payRate;
+      if (field === 'workingPeriodHours' || field === 'bufferPercent' || field === 'payRate') {
+        const base = updatedEmp.payType?.toLowerCase() === 'hourly'
+          ? updatedEmp.workingPeriodHours * updatedEmp.payRate
+          : updatedEmp.payRate;
+        const buffer = base * (updatedEmp.bufferPercent / 100);
+        updatedEmp.baseWages = Math.round(base * 100) / 100;
+        updatedEmp.grossWages = Math.round((base + buffer) * 100) / 100;
       }
       return updatedEmp;
     }));
@@ -141,8 +267,8 @@ export default function CalculatePrefunding() {
       const payload = {
         practiceId: selectedPractice,
         cycle: selectedCycle,
-        invoiceDate: new Date().toISOString(),
-        dueDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
+        invoiceDate: cycleStartDate ? new Date(cycleStartDate).toISOString() : new Date().toISOString(),
+        dueDate: cycleEndDate ? new Date(cycleEndDate).toISOString() : new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
         totalAmount: grandTotal,
         lineItems: calculatedRates.map(r => ({
           name: r.name,
@@ -155,32 +281,127 @@ export default function CalculatePrefunding() {
       };
 
       await apiConnector({ url: prefundingEndpoints.INVOICES, method: "POST", body: payload, credentials: true });
-      alert("Prefunding Invoice Generated Successfully!");
+      toast.success("Prefunding Invoice Generated Successfully!");
       setStep(1);
       setSelectedPractice("");
       setSelectedCycle("");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to generate invoice", err);
-      alert("Failed to generate invoice");
+      toast.error(err?.response?.data?.message || err?.message || "Failed to generate invoice");
     } finally {
       setSubmitting(false);
     }
   };
 
   const totalGrossWages = employees.reduce((acc, emp) => acc + emp.grossWages, 0);
-  
-  const calculatedRates = rates.map(rate => {
+  const totalEmployees = employees.length;
+
+  const rateIdAmountMap: Record<string, number> = {};
+  const rateNameAmountMap: Record<string, number> = {};
+
+  const computeSingleRate = (rate: any) => {
     let amount = 0;
     const rateVal = Number(rate.rate) || 0;
-    if (rate.basis === "Gross Wages" && rate.pricingModel === "Percentage") {
-      amount = totalGrossWages * (rateVal / 100);
-    } else if (rate.basis === "Headcount" && rate.pricingModel === "Flat Fee") {
-      amount = employees.length * rateVal;
+    const basisList = (rate.basis || "")
+      .split(",")
+      .map((s: string) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    let baseAmount = 0;
+    let includesGrossWages = false;
+    let includesEmployees = false;
+    let includesFlatFee = false;
+    let hasLineItemDependency = false;
+
+    basisList.forEach((b: string) => {
+      if (b === "gross wages" || b === "gross wage") {
+        baseAmount += totalGrossWages;
+        includesGrossWages = true;
+      } else if (b === "total employees" || b === "total employee" || b === "headcount") {
+        includesEmployees = true;
+      } else if (b === "flat fee" || b === "flat") {
+        includesFlatFee = true;
+      } else {
+        // Line item dependency (e.g. "Medicare Tax")
+        hasLineItemDependency = true;
+        // Search by ID or Name among other rates
+        const match = rates.find(
+          (r) => r.id === b || r.name.toLowerCase() === b
+        );
+        if (match) {
+          const val = rateIdAmountMap[match.id] ?? rateNameAmountMap[match.name.toLowerCase()];
+          if (val !== undefined) {
+            baseAmount += val;
+          }
+        } else {
+          // Fallback to name map directly
+          const directMatchKey = Object.keys(rateNameAmountMap).find(
+            (k) => k === b || k.includes(b) || b.includes(k)
+          );
+          if (directMatchKey && rateNameAmountMap[directMatchKey] !== undefined) {
+            baseAmount += rateNameAmountMap[directMatchKey];
+          }
+        }
+      }
+    });
+
+    const model = (rate.pricingModel || "").toLowerCase();
+
+    if (includesFlatFee && model === "flat fee") {
+      amount = rateVal;
+    } else if (model === "percentage") {
+      // If a line item dependency or gross wages was explicitly specified, use baseAmount.
+      // Do NOT fall back to gross wages if it depends on another line item!
+      const base = (hasLineItemDependency || includesGrossWages)
+        ? baseAmount
+        : (baseAmount > 0 ? baseAmount : totalGrossWages);
+      amount = base * (rateVal / 100);
+    } else if (model === "flat fee") {
+      if (includesEmployees) {
+        amount = totalEmployees * rateVal;
+      } else {
+        amount = rateVal;
+      }
+    } else if (model === "multiplication") {
+      if (includesEmployees) {
+        amount = totalEmployees * rateVal;
+      } else if (baseAmount > 0) {
+        amount = baseAmount * rateVal;
+      } else {
+        amount = rateVal;
+      }
+    } else if (model === "division") {
+      if (rateVal !== 0) {
+        const base = (hasLineItemDependency || includesGrossWages) ? baseAmount : totalGrossWages;
+        amount = base / rateVal;
+      } else {
+        amount = 0;
+      }
+    } else if (model === "subtraction") {
+      amount = -Math.abs(rateVal);
+    } else if (model === "addition") {
+      amount = rateVal;
     } else {
-      amount = rateVal; // fallback
+      amount = rateVal;
     }
-    return { ...rate, amount };
-  });
+
+    return Math.round(amount * 100) / 100;
+  };
+
+  // Perform multiple passes (up to rates.length) to resolve dependencies in any order
+  const passes = Math.max(1, rates.length);
+  for (let pass = 0; pass < passes; pass++) {
+    for (const rate of rates) {
+      const computed = computeSingleRate(rate);
+      rateIdAmountMap[rate.id] = computed;
+      rateNameAmountMap[rate.name.toLowerCase()] = computed;
+    }
+  }
+
+  const calculatedRates = rates.map((rate) => ({
+    ...rate,
+    amount: rateIdAmountMap[rate.id] ?? computeSingleRate(rate),
+  }));
 
   const totalRatesAmount = calculatedRates.reduce((acc, rate) => acc + rate.amount, 0);
   const grandTotal = totalGrossWages + totalRatesAmount;
@@ -239,19 +460,54 @@ export default function CalculatePrefunding() {
                   <Select 
                     options={practices}
                     value={selectedPractice}
-                    onChange={setSelectedPractice}
+                    onChange={handlePracticeChange}
                     placeholder="Choose a practice..."
                   />
+                  {selectedPracticeObj && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                      <span>Cycle: <strong className="text-slate-700 font-semibold">{selectedPracticeObj.prefundingCycle || "MONTHLY"}</strong></span>
+                      {selectedPracticeObj.prefundingStartDate && (
+                        <>
+                          <span>•</span>
+                          <span>Start Date: <strong className="text-slate-700 font-semibold">{selectedPracticeObj.prefundingStartDate.split('T')[0]}</strong></span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Prefunding Cycle</label>
                   <Select 
-                    options={CYCLES}
+                    options={availableCycles}
                     value={selectedCycle}
-                    onChange={setSelectedCycle}
-                    placeholder="Choose next cycle..."
+                    onChange={handleCycleChange}
+                    placeholder="Choose cycle..."
                   />
                 </div>
+                {selectedCycle && (
+                  <>
+                    <div>
+                      <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Cycle Start Date</label>
+                      <input 
+                        type="date"
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={cycleStartDate}
+                        onChange={(e) => setCycleStartDate(e.target.value)}
+                        disabled={step > 1}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Cycle End Date</label>
+                      <input 
+                        type="date"
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={cycleEndDate}
+                        onChange={(e) => setCycleEndDate(e.target.value)}
+                        disabled={step > 1}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
               {step === 1 && (
                 <div className="px-6 py-4 bg-slate-50 border-t border-[#e8e4dc] flex justify-end">
@@ -281,58 +537,80 @@ export default function CalculatePrefunding() {
                     <table className="w-full text-[13px] text-left">
                       <thead className="bg-slate-50 text-slate-500 font-medium">
                         <tr>
-                          <th className="px-6 py-3">Employee</th>
-                          <th className="px-6 py-3">Job & Location</th>
-                          <th className="px-6 py-3">Pay Info</th>
-                          <th className="px-6 py-3">Budget / Buffer</th>
-                          <th className="px-6 py-3">Working Period (Hrs)</th>
-                          <th className="px-6 py-3">Gross Wages ($)</th>
+                          <th className="px-5 py-3">Employee</th>
+                          <th className="px-5 py-3">Job & Location</th>
+                          <th className="px-5 py-3">Pay Info</th>
+                          <th className="px-5 py-3">Working Period (Hrs)</th>
+                          <th className="px-5 py-3">Buffer %</th>
+                          <th className="px-5 py-3">Base Wages ($)</th>
+                          <th className="px-5 py-3">Gross Wages ($)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#e8e4dc]">
-                        {employees.map(emp => (
-                          <tr key={emp.id} className="hover:bg-slate-50/50">
-                            <td className="px-6 py-4">
-                              <div className="font-medium text-slate-800">{emp.name}</div>
-                              <div className="text-slate-500 text-xs mt-0.5">Joined: {emp.joinDate}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-slate-700">{emp.jobCategory}</div>
-                              <div className="text-slate-500 text-xs mt-0.5">{emp.location} ({emp.state})</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-slate-700">{emp.payType}</div>
-                              <div className="text-slate-500 text-xs mt-0.5">${emp.payRate} {emp.payType?.toLowerCase() === 'hourly' ? '/hr' : ''}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-slate-700">{emp.budgetedHours} hrs</div>
-                              <div className="text-slate-500 text-xs mt-0.5">{emp.bufferPercent}% Buffer</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <input
-                                type="number"
-                                className="w-24 app-control rounded-md px-2 py-1 text-[13px]"
-                                value={emp.workingPeriodHours}
-                                onChange={(e) => handleEmployeeChange(emp.id, 'workingPeriodHours', e.target.value)}
-                                disabled={step > 2}
-                              />
-                            </td>
-                            <td className="px-6 py-4">
-                              <input
-                                type="number"
-                                className="w-28 app-control rounded-md px-2 py-1 text-[13px] font-medium text-slate-800"
-                                value={emp.grossWages}
-                                onChange={(e) => handleEmployeeChange(emp.id, 'grossWages', e.target.value)}
-                                disabled={step > 2}
-                              />
-                            </td>
-                          </tr>
-                        ))}
+                        {employees.map(emp => {
+                          const base = emp.baseWages !== undefined
+                            ? emp.baseWages
+                            : (emp.payType?.toLowerCase() === 'hourly' ? emp.workingPeriodHours * emp.payRate : emp.payRate);
+                          const bufferAmt = Math.round((base * ((Number(emp.bufferPercent) || 0) / 100)) * 100) / 100;
+
+                          return (
+                            <tr key={emp.id} className="hover:bg-slate-50/50">
+                              <td className="px-5 py-4">
+                                <div className="font-medium text-slate-800">{emp.name}</div>
+                                <div className="text-slate-500 text-xs mt-0.5">Joined: {emp.joinDate}</div>
+                              </td>
+                              <td className="px-5 py-4">
+                                <div className="text-slate-700">{emp.jobCategory}</div>
+                                <div className="text-slate-500 text-xs mt-0.5">{emp.location} ({emp.state})</div>
+                              </td>
+                              <td className="px-5 py-4">
+                                <div className="text-slate-700">{emp.payType}</div>
+                                <div className="text-slate-500 text-xs mt-0.5">${emp.payRate} {emp.payType?.toLowerCase() === 'hourly' ? '/hr' : ''}</div>
+                              </td>
+                              <td className="px-5 py-4">
+                                <input
+                                  type="number"
+                                  className="w-20 rounded-md border border-slate-300 px-2 py-1 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  value={emp.workingPeriodHours}
+                                  onChange={(e) => handleEmployeeChange(emp.id, 'workingPeriodHours', e.target.value)}
+                                  disabled={step > 2}
+                                />
+                              </td>
+                              <td className="px-5 py-4">
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    className="w-16 rounded-md border border-slate-300 px-2 py-1 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    value={emp.bufferPercent}
+                                    onChange={(e) => handleEmployeeChange(emp.id, 'bufferPercent', e.target.value)}
+                                    disabled={step > 2}
+                                  />
+                                  <span className="text-xs text-slate-500">%</span>
+                                </div>
+                                <div className="text-[11px] text-emerald-600 mt-0.5">
+                                  +${bufferAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} buffer
+                                </div>
+                              </td>
+                              <td className="px-5 py-4 text-slate-700 font-medium">
+                                ${base.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-5 py-4">
+                                <input
+                                  type="number"
+                                  className="w-28 rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-[13px] font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  value={emp.grossWages}
+                                  onChange={(e) => handleEmployeeChange(emp.id, 'grossWages', e.target.value)}
+                                  disabled={step > 2}
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                       <tfoot className="bg-slate-50 font-medium text-slate-800 border-t border-[#e8e4dc]">
                         <tr>
-                          <td colSpan={5} className="px-6 py-4 text-right">Total Gross Wages:</td>
-                          <td className="px-6 py-4 text-emerald-600">${totalGrossWages.toLocaleString()}</td>
+                          <td colSpan={6} className="px-5 py-4 text-right">Total Gross Wages (incl. 10% Buffer):</td>
+                          <td className="px-5 py-4 text-emerald-600 font-bold">${totalGrossWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         </tr>
                       </tfoot>
                     </table>
@@ -436,7 +714,19 @@ export default function CalculatePrefunding() {
                 <div className="p-8">
                   <div className="max-w-md mx-auto space-y-4">
                     <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-200">
-                      <span className="text-slate-600">Total Gross Wages</span>
+                      <span className="text-slate-600">Prefunding Cycle</span>
+                      <span className="font-medium text-slate-800">{selectedCycle}</span>
+                    </div>
+                    {cycleStartDate && cycleEndDate && (
+                      <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-200">
+                        <span className="text-slate-600">Cycle Period</span>
+                        <span className="font-medium text-slate-800 text-xs bg-slate-100 px-2 py-1 rounded">
+                          {cycleStartDate} → {cycleEndDate}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-200">
+                      <span className="text-slate-600">Total Gross Wages (incl. 10% Buffer)</span>
                       <span className="font-medium text-slate-800">${totalGrossWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-200">

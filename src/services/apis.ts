@@ -327,4 +327,7 @@ export const documentHubEndpoints = {
 export const prefundingEndpoints = {
   RATES: BACKEND_URL + "/api/v1/prefunding/rates",
   INVOICES: BACKEND_URL + "/api/v1/prefunding/invoices",
+  INVOICE: (id: string) => BACKEND_URL + `/api/v1/prefunding/invoices/${id}`,
+  UPDATE_INVOICE_STATUS: (id: string) => BACKEND_URL + `/api/v1/prefunding/invoices/${id}/status`,
+  INVOICE_PDF: (id: string) => BACKEND_URL + `/api/v1/prefunding/invoices/${id}/pdf`,
 };

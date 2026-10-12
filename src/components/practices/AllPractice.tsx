@@ -998,7 +998,7 @@ export default function AllPracticePage() {
         prefundingStripeAccountId: formData.prefundingStripeAccountId || undefined,
         prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
         prefundingState: formData.prefundingState || undefined,
-        prefundingRateIds: formData.prefundingRateIds,
+        ...(formData.prefundingRateIds && formData.prefundingRateIds.length > 0 ? { prefundingRateIds: formData.prefundingRateIds } : {}),
         ...practiceProfilePayload(profileForm),
       };
 
@@ -1181,7 +1181,7 @@ export default function AllPracticePage() {
           prefundingStripeAccountId: formData.prefundingStripeAccountId || undefined,
           prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
           prefundingState: formData.prefundingState || undefined,
-          prefundingRateIds: formData.prefundingRateIds,
+          ...(formData.prefundingRateIds && formData.prefundingRateIds.length > 0 ? { prefundingRateIds: formData.prefundingRateIds } : {}),
           ...(selectedPracticeDetail
             ? practiceProfilePayload(profileForm)
             : {}),
@@ -1238,7 +1238,7 @@ export default function AllPracticePage() {
         prefundingStripeAccountId: formData.prefundingStripeAccountId || undefined,
         prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
         prefundingState: formData.prefundingState || undefined,
-        prefundingRateIds: formData.prefundingRateIds,
+        ...(formData.prefundingRateIds && formData.prefundingRateIds.length > 0 ? { prefundingRateIds: formData.prefundingRateIds } : {}),
         ...(selectedPracticeDetail
           ? practiceProfilePayload(profileForm)
           : {}),

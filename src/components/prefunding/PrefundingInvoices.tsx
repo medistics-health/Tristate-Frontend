@@ -1,135 +1,220 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import AppLayout from "../layout/AppLayout";
-import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type SortingState } from "@tanstack/react-table";
-import { FileText, Building2, CalendarDays, DollarSign, Circle, X, ChevronLeft } from "lucide-react";
-import DataTableToolbar, { SortableHeaderCell, type ActiveFilterChip } from "../shared/DataTableToolbar";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
+import {
+  FileText,
+  Building2,
+  CalendarDays,
+  DollarSign,
+  Circle,
+  ChevronLeft,
+  CheckCircle,
+  Clock,
+  Send,
+  Printer,
+  Trash2,
+  List,
+} from "lucide-react";
+import DataTableToolbar, {
+  SortableHeaderCell,
+  type ActiveFilterChip,
+} from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
+import ConfirmModal from "../shared/ConfirmModal";
+import toast from "react-hot-toast";
+import {
+  getPrefundingInvoices,
+  updatePrefundingInvoiceStatus,
+  deletePrefundingInvoice,
+  openPrefundingInvoicePdf,
+} from "../../services/operations/prefundingInvoices";
+import { getAllPractices, type Practice } from "../../services/operations/practices";
 
 type InvoiceStatus = "Draft" | "Pending Approval" | "Approved" | "Posted";
+
+type InvoiceLineItem = {
+  id: string;
+  name: string;
+  basis: string | null;
+  pricingModel: string | null;
+  rate: number | null;
+  amount: number;
+  isOneTime: boolean;
+};
 
 type Invoice = {
   id: string;
   invoiceNumber: string;
   practice: string;
+  practiceId: string;
   prefundingCycle: string;
   totalAmount: number;
-  status: InvoiceStatus;
+  status: string;
   dueDate: string;
   invoiceDate: string;
   recipient: string;
+  recipientName?: string;
+  recipientEmail?: string;
   createdBy: string;
   createdDate: string;
   postedDate: string | null;
+  lineItems?: InvoiceLineItem[];
 };
 
-const dummyInvoices: Invoice[] = [
-  {
-    id: "1",
-    invoiceNumber: "INV-2026-045",
-    practice: "Metro Health",
-    prefundingCycle: "Weekly",
-    totalAmount: 14500.0,
-    status: "Pending Approval",
-    dueDate: "2026-10-02",
-    invoiceDate: "2026-09-30",
-    recipient: "finance@metrohealth.com",
-    createdBy: "Admin User",
-    createdDate: "2026-09-30",
-    postedDate: null,
-  },
-  {
-    id: "2",
-    invoiceNumber: "INV-2026-044",
-    practice: "City Care Clinic",
-    prefundingCycle: "Monthly",
-    totalAmount: 8200.0,
-    status: "Approved",
-    dueDate: "2026-09-28",
-    invoiceDate: "2026-09-25",
-    recipient: "billing@citycare.com",
-    createdBy: "Admin User",
-    createdDate: "2026-09-25",
-    postedDate: null,
-  },
-  {
-    id: "3",
-    invoiceNumber: "INV-2026-043",
-    practice: "Downtown Dental",
-    prefundingCycle: "Weekly",
-    totalAmount: 21000.0,
-    status: "Posted",
-    dueDate: "2026-09-25",
-    invoiceDate: "2026-09-20",
-    recipient: "accounts@downtowndental.com",
-    createdBy: "Admin User",
-    createdDate: "2026-09-20",
-    postedDate: "2026-09-24",
-  },
-  // Add some more to show pagination
-  {
-    id: "4",
-    invoiceNumber: "INV-2026-042",
-    practice: "CareCenter",
-    prefundingCycle: "Weekly",
-    totalAmount: 12000.0,
-    status: "Draft",
-    dueDate: "2026-09-20",
-    invoiceDate: "2026-09-15",
-    recipient: "billing@carecenter.com",
-    createdBy: "Admin User",
-    createdDate: "2026-09-15",
-    postedDate: null,
-  },
-  {
-    id: "5",
-    invoiceNumber: "INV-2026-041",
-    practice: "Metro Health",
-    prefundingCycle: "Weekly",
-    totalAmount: 13500.0,
-    status: "Posted",
-    dueDate: "2026-09-18",
-    invoiceDate: "2026-09-13",
-    recipient: "finance@metrohealth.com",
-    createdBy: "Admin User",
-    createdDate: "2026-09-13",
-    postedDate: "2026-09-14",
-  },
+const INVOICE_STATUS_OPTIONS = [
+  { value: "Draft", label: "Draft" },
+  { value: "Pending Approval", label: "Pending Approval" },
+  { value: "Approved", label: "Approved" },
+  { value: "Posted", label: "Posted" },
 ];
 
 export default function PrefundingInvoices() {
-  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
-  const [searchInput, setSearchInput] = useState("");
+  const [data, setData] = useState<Invoice[]>([]);
+  const [practices, setPractices] = useState<Practice[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isPreviewingPdf, setIsPreviewingPdf] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Server-side State
   const [sorting, setSorting] = useState<SortingState>([]);
-  
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
+    totalRecords: 0,
+    totalPages: 1,
   });
+  const [searchInput, setSearchInput] = useState("");
+
+  type Filters = { status: string; practiceId: string };
+  const defaultFilters: Filters = { status: "", practiceId: "" };
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
+  const [draftFilters, setDraftFilters] = useState<Filters>(defaultFilters);
+
+  // Detail Panel State
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
   const selectedInvoice = useMemo(() => {
-    return dummyInvoices.find(inv => inv.id === selectedRowId);
-  }, [selectedRowId]);
+    return data.find((inv) => inv.id === selectedRowId) || null;
+  }, [data, selectedRowId]);
 
-  // Client-side filtering & search
-  const filteredData = useMemo(() => {
-    let result = dummyInvoices;
-    if (searchInput) {
-      const lower = searchInput.toLowerCase();
-      result = result.filter(inv => 
-        inv.invoiceNumber.toLowerCase().includes(lower) || 
-        inv.practice.toLowerCase().includes(lower) ||
-        inv.status.toLowerCase().includes(lower)
-      );
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const sortBy = sorting.length > 0 ? sorting[0].id : undefined;
+      const sortOrder = sorting.length > 0 ? (sorting[0].desc ? "desc" : "asc") : undefined;
+
+      const [invoicesRes, practicesRes] = await Promise.all([
+        getPrefundingInvoices({
+          page: pagination.page,
+          limit: pagination.limit,
+          search: searchInput,
+          status: filters.status,
+          practiceId: filters.practiceId,
+          sortBy,
+          sortOrder,
+        }),
+        practices.length === 0 ? getAllPractices() : Promise.resolve(practices),
+      ]);
+
+      const list = invoicesRes?.invoices || [];
+      setData(list);
+
+      if (invoicesRes?.pagination) {
+        setPagination((prev) => ({
+          ...prev,
+          totalRecords: invoicesRes.pagination.totalRecords,
+          totalPages: invoicesRes.pagination.totalPages,
+        }));
+      }
+
+      if (practicesRes && Array.isArray(practicesRes)) {
+        setPractices(practicesRes);
+      }
+    } catch (error) {
+      console.error("Failed to load prefunding invoices:", error);
+      toast.error("Failed to load prefunding invoices");
+    } finally {
+      setIsLoading(false);
     }
-    return result;
-  }, [searchInput]);
+  }, [pagination.page, pagination.limit, searchInput, filters, sorting]);
 
-  // Client-side pagination
-  const paginatedData = useMemo(() => {
-    const start = (pagination.page - 1) * pagination.limit;
-    return filteredData.slice(start, start + pagination.limit);
-  }, [filteredData, pagination]);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  const totalPages = Math.ceil(filteredData.length / pagination.limit);
+  const handleStatusChange = async (newStatus: string) => {
+    if (!selectedInvoice) return;
+    setIsUpdatingStatus(true);
+    try {
+      await updatePrefundingInvoiceStatus(selectedInvoice.id, newStatus);
+      toast.success(`Invoice status updated to ${newStatus}`);
+      await loadData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update status");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handlePreviewPdf = async () => {
+    if (!selectedInvoice) return;
+    setIsPreviewingPdf(true);
+    const toastId = toast.loading("Generating A4 Prefunding Invoice PDF...");
+    try {
+      await openPrefundingInvoicePdf(selectedInvoice.id);
+      toast.success("PDF opened in new tab", { id: toastId });
+    } catch (err: any) {
+      console.error("Failed to generate PDF:", err);
+      toast.error(err.message || "Failed to preview PDF", { id: toastId });
+    } finally {
+      setIsPreviewingPdf(false);
+    }
+  };
+
+  const handleDelete = () => {
+    if (selectedInvoice) {
+      setShowDeleteModal(true);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedInvoice) return;
+    setIsDeleting(true);
+    try {
+      await deletePrefundingInvoice(selectedInvoice.id);
+      toast.success("Invoice deleted successfully");
+      setSelectedRowId(null);
+      setShowDeleteModal(false);
+      await loadData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete invoice");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const s = status.toLowerCase();
+    let badgeClass = "bg-slate-100 text-slate-700";
+    if (s.includes("pending")) badgeClass = "bg-amber-100 text-amber-800";
+    else if (s.includes("approved")) badgeClass = "bg-blue-100 text-blue-800";
+    else if (s.includes("posted")) badgeClass = "bg-emerald-100 text-emerald-800";
+    else if (s.includes("draft")) badgeClass = "bg-slate-100 text-slate-700";
+
+    return (
+      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClass}`}>
+        {status}
+      </span>
+    );
+  };
 
   const columns = useMemo<ColumnDef<Invoice>[]>(
     () => [
@@ -141,6 +226,7 @@ export default function PrefundingInvoices() {
             <span>Invoice Number</span>
           </div>
         ),
+        cell: (info) => <span className="font-medium text-slate-900">{info.getValue() as string}</span>,
       },
       {
         accessorKey: "practice",
@@ -150,6 +236,7 @@ export default function PrefundingInvoices() {
             <span>Practice</span>
           </div>
         ),
+        cell: (info) => <span>{info.getValue() as string}</span>,
       },
       {
         accessorKey: "prefundingCycle",
@@ -159,6 +246,7 @@ export default function PrefundingInvoices() {
             <span>Cycle</span>
           </div>
         ),
+        cell: (info) => <span>{info.getValue() as string}</span>,
       },
       {
         accessorKey: "totalAmount",
@@ -169,8 +257,12 @@ export default function PrefundingInvoices() {
           </div>
         ),
         cell: ({ getValue }) => {
-          const val = getValue() as number;
-          return <span>${val.toLocaleString()}</span>;
+          const val = Number(getValue()) || 0;
+          return (
+            <span className="font-semibold text-slate-800">
+              {val.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+            </span>
+          );
         },
       },
       {
@@ -181,18 +273,7 @@ export default function PrefundingInvoices() {
             <span>Status</span>
           </div>
         ),
-        cell: ({ getValue }) => {
-          const status = getValue() as InvoiceStatus;
-          let badgeClass = "bg-slate-100 text-slate-700";
-          if (status === "Pending Approval") badgeClass = "bg-yellow-100 text-yellow-700";
-          if (status === "Approved") badgeClass = "bg-blue-100 text-blue-700";
-          if (status === "Posted") badgeClass = "bg-emerald-100 text-emerald-700";
-          return (
-            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass}`}>
-              {status}
-            </span>
-          );
-        },
+        cell: ({ getValue }) => getStatusBadge(getValue() as string),
       },
       {
         accessorKey: "dueDate",
@@ -202,182 +283,341 @@ export default function PrefundingInvoices() {
             <span>Due Date</span>
           </div>
         ),
+        cell: (info) => <span>{info.getValue() as string}</span>,
       },
     ],
     []
   );
 
   const table = useReactTable({
-    data: paginatedData,
+    data,
     columns,
-    state: {
-      sorting,
-    },
+    state: { sorting },
     onSortingChange: setSorting,
+    manualSorting: true,
+    manualPagination: true,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
-  const navbarActions: any[] = [];
-  const activeChips: ActiveFilterChip[] = [];
+  const activeFilterChips: ActiveFilterChip[] = [];
+  if (filters.status) {
+    activeFilterChips.push({
+      key: "status",
+      label: "Status",
+      displayValue: filters.status,
+      onClear: () => {
+        setFilters((prev) => ({ ...prev, status: "" }));
+        setDraftFilters((prev) => ({ ...prev, status: "" }));
+      },
+    });
+  }
+  if (filters.practiceId) {
+    const practiceName = practices.find((p) => p.id === filters.practiceId)?.name || filters.practiceId;
+    activeFilterChips.push({
+      key: "practiceId",
+      label: "Practice",
+      displayValue: practiceName,
+      onClear: () => {
+        setFilters((prev) => ({ ...prev, practiceId: "" }));
+        setDraftFilters((prev) => ({ ...prev, practiceId: "" }));
+      },
+    });
+  }
+
+  const handleApplyFilters = () => {
+    setFilters(draftFilters);
+    setPagination((p) => ({ ...p, page: 1 }));
+  };
+
+  const handleResetFilters = () => {
+    setFilters(defaultFilters);
+    setDraftFilters(defaultFilters);
+    setSearchInput("");
+    setPagination((p) => ({ ...p, page: 1 }));
+  };
+
+  const filterFieldsModal = (
+    <>
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Status</span>
+        <Select
+          value={draftFilters.status}
+          onChange={(val) => setDraftFilters((prev) => ({ ...prev, status: val }))}
+          options={[{ value: "", label: "All Statuses" }, ...INVOICE_STATUS_OPTIONS]}
+        />
+      </label>
+      <label className="block mt-4">
+        <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Practice</span>
+        <Select
+          value={draftFilters.practiceId}
+          onChange={(val) => setDraftFilters((prev) => ({ ...prev, practiceId: val }))}
+          options={[
+            { value: "", label: "All Practices" },
+            ...practices.map((p) => ({ value: p.id, label: p.name })),
+          ]}
+        />
+      </label>
+    </>
+  );
 
   return (
-    <AppLayout title="Prefunding Invoices" activeModule="Prefunding" navbarActions={navbarActions}>
-      <div className="app-split font-app-sans">
-        {/* Main Content */}
-        <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
-          <div className="h-full flex flex-col max-w-full">
-            <DataTableToolbar
-              title="Prefunding Invoices"
-              subtitle="Manage and post prefunding invoices"
-              searchPlaceholder="Search invoices..."
-              searchValue={searchInput}
-              onSearchChange={(val) => {
-                setSearchInput(val);
-                setPagination(prev => ({ ...prev, page: 1 }));
-              }}
-              activeFilterCount={0}
-              activeChips={activeChips}
-              onResetFilters={() => setSearchInput("")}
-              page={pagination.page}
-              pageSize={pagination.limit}
-              totalRecords={filteredData.length}
-              totalPages={totalPages}
-              onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
-              onPageSizeChange={(newSize) => {
-                setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
-              }}
-            >
-              <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-                {paginatedData.length === 0 ? (
-                  <div className="flex h-[400px] flex-col items-center justify-center p-8 text-center bg-white rounded-b-xl border border-[#e8e4dc] border-t-0">
-                    <p className="text-slate-500">No invoices found matching your criteria</p>
-                  </div>
-                ) : (
-                  <table className="min-w-full border-separate border-spacing-0">
-                    <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
-                      {table.getHeaderGroups().map((headerGroup) => (
-                        <tr key={headerGroup.id}>
-                          {headerGroup.headers.map((header) => (
-                            <th
-                              key={header.id}
-                              className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
-                            >
-                              <SortableHeaderCell header={header} />
-                            </th>
-                          ))}
-                        </tr>
-                      ))}
-                    </thead>
-                    <tbody className="bg-white">
-                      {table.getRowModel().rows.map((row) => (
-                        <tr
-                          key={row.id}
-                          onClick={() => setSelectedRowId(row.original.id)}
-                          className={`cursor-pointer transition-colors ${selectedRowId === row.original.id ? 'bg-[#f0f4f8]' : 'hover:bg-[#fcfaf8]'}`}
-                        >
-                          {row.getVisibleCells().map((cell) => (
-                            <td 
-                              key={cell.id} 
-                              className="border-b border-[#f0ece6] border-r border-[#fcfaf8] px-4 py-3 text-[13px] text-slate-700 last:border-r-0"
-                            >
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </DataTableToolbar>
-          </div>
-        </section>
-
-        {/* Sidebar */}
-        {selectedRowId && selectedInvoice && (
-          <div className="flex w-[480px] flex-shrink-0 flex-col border-l border-[#f0ece6] bg-white transition-all duration-300">
-            <div className="flex h-[45px] flex-shrink-0 items-center gap-2 border-b border-[#f0ece6] bg-[#fcfaf8] px-3">
-              <button
-                type="button"
-                onClick={() => setSelectedRowId(null)}
-                className="text-slate-400 hover:text-slate-600"
+    <AppLayout title="Prefunding Invoices" activeModule="Prefunding">
+      <div className="h-full bg-[#f4f1ec] p-6">
+        <div className="app-split font-app-sans">
+          {/* Main Content */}
+          <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+            <div className="h-full flex flex-col max-w-full">
+              <DataTableToolbar
+                title="Prefunding Invoices"
+                subtitle="Manage and post prefunding invoices"
+                searchPlaceholder="Search invoices by cycle, practice..."
+                searchValue={searchInput}
+                onSearchChange={setSearchInput}
+                activeFilterCount={activeFilterChips.length}
+                activeChips={activeFilterChips}
+                onResetFilters={handleResetFilters}
+                onApplyFilters={handleApplyFilters}
+                filterModalTitle="Filter Invoices"
+                filterFields={filterFieldsModal}
+                onRefresh={loadData}
+                isLoading={isLoading}
+                page={pagination.page}
+                pageSize={pagination.limit}
+                totalRecords={pagination.totalRecords}
+                totalPages={pagination.totalPages}
+                onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+                onPageSizeChange={(newSize) => {
+                  setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
+                }}
               >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <Circle className="h-4 w-4 text-slate-300" />
-              <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
-                Invoice Details
-              </span>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              <div>
-                <h3 className="text-xl font-semibold text-slate-800">{selectedInvoice.invoiceNumber}</h3>
-                <p className="text-sm text-slate-500 mt-1">{selectedInvoice.practice}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs font-medium text-slate-500">Invoice Date</p>
-                  <p className="text-sm text-slate-800 mt-1">{selectedInvoice.invoiceDate}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500">Due Date</p>
-                  <p className="text-sm text-slate-800 mt-1">{selectedInvoice.dueDate}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500">Recipient</p>
-                  <p className="text-sm text-slate-800 mt-1 truncate" title={selectedInvoice.recipient}>{selectedInvoice.recipient}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500">Total Amount</p>
-                  <p className="text-sm font-semibold text-slate-800 mt-1">${selectedInvoice.totalAmount.toLocaleString()}</p>
-                </div>
-              </div>
-
-              <div className="border-t border-[#e8e4dc] pt-6">
-                <h4 className="text-sm font-medium text-slate-800 mb-4">System Information</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-xs text-slate-500">Status</span>
-                    <span className="text-xs font-medium text-slate-800">{selectedInvoice.status}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-xs text-slate-500">Created By</span>
-                    <span className="text-xs font-medium text-slate-800">{selectedInvoice.createdBy}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-xs text-slate-500">Created Date</span>
-                    <span className="text-xs font-medium text-slate-800">{selectedInvoice.createdDate}</span>
-                  </div>
-                  {selectedInvoice.postedDate && (
-                    <div className="flex justify-between">
-                      <span className="text-xs text-slate-500">Posted Date</span>
-                      <span className="text-xs font-medium text-slate-800">{selectedInvoice.postedDate}</span>
+                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+                  {data.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center p-8 text-center bg-white rounded-b-xl border border-[#e8e4dc] border-t-0">
+                      <FileText className="h-10 w-10 text-slate-300 mb-2" />
+                      <p className="text-sm font-medium text-slate-700">No invoices found</p>
+                      <p className="text-xs text-slate-400 mt-1">Generate a prefunding invoice from the Calculate Prefunding page.</p>
                     </div>
+                  ) : (
+                    <table className="min-w-full border-separate border-spacing-0">
+                      <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
+                        {table.getHeaderGroups().map((headerGroup) => (
+                          <tr key={headerGroup.id}>
+                            {headerGroup.headers.map((header) => (
+                              <th
+                                key={header.id}
+                                className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
+                              >
+                                {header.isPlaceholder ? null : <SortableHeaderCell header={header} />}
+                              </th>
+                            ))}
+                          </tr>
+                        ))}
+                      </thead>
+                      <tbody className="bg-white">
+                        {table.getRowModel().rows.map((row) => (
+                          <tr
+                            key={row.id}
+                            onClick={() => setSelectedRowId(row.original.id)}
+                            className={`cursor-pointer transition-colors ${
+                              selectedRowId === row.original.id ? "bg-[#f0f4f8]" : "hover:bg-[#fcfaf8]"
+                            }`}
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <td
+                                key={cell.id}
+                                className="border-b border-[#f0ece6] border-r border-[#fcfaf8] px-4 py-3 text-[13px] text-slate-700 last:border-r-0"
+                              >
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   )}
                 </div>
-              </div>
+              </DataTableToolbar>
+            </div>
+          </section>
 
-              <div className="border-t border-[#e8e4dc] pt-6 space-y-3">
-                <button className="w-full py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition-colors">
-                  Preview PDF
+          {/* Sidebar */}
+          {selectedRowId && selectedInvoice && (
+            <div className="flex w-[480px] flex-shrink-0 flex-col border-l border-[#f0ece6] bg-white transition-all duration-300">
+              <div className="flex h-[45px] flex-shrink-0 items-center gap-2 border-b border-[#f0ece6] bg-[#fcfaf8] px-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRowId(null)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <ChevronLeft className="h-4 w-4" />
                 </button>
-                {selectedInvoice.status === "Pending Approval" && (
-                  <button className="w-full py-2 bg-slate-900 text-white hover:bg-slate-800 rounded-lg text-sm font-medium transition-colors">
-                    Approve Invoice
-                  </button>
+                <Circle className="h-4 w-4 text-slate-300" />
+                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-slate-700">
+                  {selectedInvoice.invoiceNumber}
+                </span>
+                <span className="mr-1">{getStatusBadge(selectedInvoice.status)}</span>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">{selectedInvoice.practice}</h3>
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+                    <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+                    Prefunding Cycle: <span className="font-medium text-slate-700">{selectedInvoice.prefundingCycle}</span>
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200/80 bg-slate-50/50 p-4">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Invoice Date</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5">{selectedInvoice.invoiceDate}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Due Date</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5">{selectedInvoice.dueDate}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Recipient (Primary Contact)</p>
+                    {selectedInvoice.recipientName ? (
+                      <div className="mt-0.5">
+                        <p className="text-sm font-semibold text-slate-800">{selectedInvoice.recipientName}</p>
+                        {selectedInvoice.recipientEmail && (
+                          <p className="text-xs text-slate-500 mt-0.5">{selectedInvoice.recipientEmail}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm font-medium text-slate-800 mt-0.5 truncate" title={selectedInvoice.recipient}>
+                        {selectedInvoice.recipient || "N/A"}
+                      </p>
+                    )}
+                  </div>
+                  <div className="col-span-2 pt-2 border-t border-slate-200/60">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total Invoice Amount</p>
+                    <p className="text-lg font-bold text-[#4f63ea] mt-0.5">
+                      {selectedInvoice.totalAmount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Line Items Breakdown */}
+                {selectedInvoice.lineItems && selectedInvoice.lineItems.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-[13px] font-semibold text-slate-800 flex items-center gap-2">
+                      <List className="h-4 w-4 text-slate-400" />
+                      Invoice Line Items
+                    </h4>
+                    <div className="rounded-xl border border-[#e8e4dc] overflow-hidden">
+                      <table className="w-full text-[12px] text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-[#e8e4dc]">
+                          <tr>
+                            <th className="px-3 py-2">Item</th>
+                            <th className="px-3 py-2">Model</th>
+                            <th className="px-3 py-2 text-right">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#e8e4dc] bg-white">
+                          {selectedInvoice.lineItems.map((item) => (
+                            <tr key={item.id}>
+                              <td className="px-3 py-2 font-medium text-slate-800">{item.name}</td>
+                              <td className="px-3 py-2 text-slate-600">{item.pricingModel || item.basis || "-"}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-slate-800">
+                                ${item.amount.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 )}
-                {selectedInvoice.status === "Approved" && (
-                  <button className="w-full py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors">
-                    Post Invoice
+
+                <div className="border-t border-[#e8e4dc] pt-5">
+                  <h4 className="text-[13px] font-semibold text-slate-800 mb-3">Audit Information</h4>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Created By</span>
+                      <span className="font-medium text-slate-800">{selectedInvoice.createdBy}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Created Date</span>
+                      <span className="font-medium text-slate-800">{selectedInvoice.createdDate}</span>
+                    </div>
+                    {selectedInvoice.postedDate && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Posted Date</span>
+                        <span className="font-medium text-slate-800">{selectedInvoice.postedDate}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-[#e8e4dc] pt-5 space-y-2.5">
+                  {selectedInvoice.status.toLowerCase() === "draft" && (
+                    <button
+                      onClick={() => handleStatusChange("Pending Approval")}
+                      disabled={isUpdatingStatus}
+                      className="w-full flex items-center justify-center gap-2 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      <Clock className="h-4 w-4" />
+                      Submit for Approval
+                    </button>
+                  )}
+
+                  {selectedInvoice.status.toLowerCase().includes("pending") && (
+                    <button
+                      onClick={() => handleStatusChange("Approved")}
+                      disabled={isUpdatingStatus}
+                      className="w-full flex items-center justify-center gap-2 py-2 bg-[#4f63ea] hover:bg-[#4f63ea]/90 text-white rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Approve Invoice
+                    </button>
+                  )}
+
+                  {selectedInvoice.status.toLowerCase() === "approved" && (
+                    <button
+                      onClick={() => handleStatusChange("Posted")}
+                      disabled={isUpdatingStatus}
+                      className="w-full flex items-center justify-center gap-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      <Send className="h-4 w-4" />
+                      Post Invoice
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handlePreviewPdf}
+                    disabled={isPreviewingPdf}
+                    className="w-full flex items-center justify-center gap-2 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    <Printer className="h-4 w-4" />
+                    {isPreviewingPdf ? "Generating PDF..." : "Preview & Print PDF (A4)"}
                   </button>
-                )}
+
+                  <button
+                    onClick={handleDelete}
+                    className="w-full flex items-center justify-center gap-2 py-2 border border-red-200 bg-white hover:bg-red-50 text-red-600 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Invoice
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Prefunding Invoice?"
+        message={`Are you sure you want to delete invoice "${selectedInvoice?.invoiceNumber || ""}"? This action cannot be undone.`}
+        confirmLabel="Delete Invoice"
+        cancelLabel="Cancel"
+        type="danger"
+        isConfirming={isDeleting}
+      />
     </AppLayout>
   );
 }

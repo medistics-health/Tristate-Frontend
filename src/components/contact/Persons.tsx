@@ -516,6 +516,7 @@ export default function PersonsPage() {
         : String(values.companyIds || "")
             .split(",")
             .filter(Boolean);
+      setFormData({
         firstName: String(values.firstName || ""),
         lastName: String(values.lastName || ""),
         roles: Array.isArray(values.rolesArray) ? (values.rolesArray as string[]) : ["ADMIN"],

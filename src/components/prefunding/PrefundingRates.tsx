@@ -22,6 +22,7 @@ import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import DataTableToolbar, { SortableHeaderCell, type ActiveFilterChip } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
 import MultiSelect from "../shared/MultiSelect";
+import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
 import {
   getPrefundingRates,
@@ -40,6 +41,14 @@ type PrefundingRate = {
   practiceIds: string[];
 };
 
+type RateFormData = {
+  name: string;
+  basis: string[];
+  pricingModel: string;
+  rate: number;
+  practiceIds: string[];
+};
+
 const PRICING_MODELS = [
   { value: "Addition", label: "Addition" },
   { value: "Subtraction", label: "Subtraction" },
@@ -49,12 +58,20 @@ const PRICING_MODELS = [
   { value: "Flat Fee", label: "Flat Fee" },
 ];
 
-const BASIS_OPTIONS = [
-  { value: "Per Claim", label: "Per Claim" },
-  { value: "Per Provider", label: "Per Provider" },
-  { value: "Monthly", label: "Monthly" },
-  { value: "Transaction", label: "Transaction" },
+const BASE_BASIS_OPTIONS = [
+  { value: "Gross Wages", label: "Gross Wages" },
+  { value: "Total Employees", label: "Total Employees" },
+  { value: "Flat Fee", label: "Flat Fee" },
 ];
+
+function parseBasisToArray(basisVal: any): string[] {
+  if (!basisVal) return [];
+  if (Array.isArray(basisVal)) return basisVal;
+  return String(basisVal)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 export default function PrefundingRates() {
   const [data, setData] = useState<PrefundingRate[]>([]);
@@ -76,11 +93,13 @@ export default function PrefundingRates() {
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const [formData, setFormData] = useState<Omit<PrefundingRate, "id">>({
+  const [formData, setFormData] = useState<RateFormData>({
     name: "",
-    basis: "Monthly",
-    pricingModel: "Flat Fee",
+    basis: ["Gross Wages"],
+    pricingModel: "Percentage",
     rate: 0,
     practiceIds: [],
   });
@@ -155,7 +174,23 @@ export default function PrefundingRates() {
           <span>Basis</span>
         </div>
       ),
-      cell: (info) => info.getValue(),
+      cell: (info) => {
+        const val = info.getValue() as string;
+        const items = parseBasisToArray(val);
+        if (items.length === 0) return <span className="text-slate-400">-</span>;
+        return (
+          <div className="flex flex-wrap gap-1 max-w-[240px]">
+            {items.map((item, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 border border-slate-200"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "pricingModel",
@@ -244,7 +279,13 @@ export default function PrefundingRates() {
   });
 
   const handleOpenCreateForm = () => {
-    setFormData({ name: "", basis: "Monthly", pricingModel: "Flat Fee", rate: 0, practiceIds: [] });
+    setFormData({
+      name: "",
+      basis: ["Gross Wages"],
+      pricingModel: "Percentage",
+      rate: 0,
+      practiceIds: [],
+    });
     setShowCreateForm(true);
     setShowDetailPanel(false);
     setSelectedRowId(null);
@@ -254,7 +295,13 @@ export default function PrefundingRates() {
   const handleRowClick = (id: string) => {
     const item = data.find((d) => d.id === id);
     if (item) {
-      setFormData(item);
+      setFormData({
+        name: item.name,
+        basis: parseBasisToArray(item.basis),
+        pricingModel: item.pricingModel,
+        rate: item.rate,
+        practiceIds: item.practiceIds,
+      });
       setSelectedRowId(id);
       setShowDetailPanel(true);
       setShowCreateForm(false);
@@ -267,12 +314,20 @@ export default function PrefundingRates() {
       toast.error("Name is required");
       return;
     }
+    if (!formData.basis || formData.basis.length === 0) {
+      toast.error("Please select at least one Basis option");
+      return;
+    }
     try {
+      const payload = {
+        ...formData,
+        basis: formData.basis.join(", "),
+      };
       if (showCreateForm) {
-        await createPrefundingRate(formData);
+        await createPrefundingRate(payload);
         toast.success("Prefunding rate created successfully");
       } else if (isEditing && selectedRowId) {
-        await updatePrefundingRate(selectedRowId, formData);
+        await updatePrefundingRate(selectedRowId, payload);
         toast.success("Prefunding rate updated successfully");
       }
       await loadData();
@@ -286,20 +341,51 @@ export default function PrefundingRates() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (selectedRowId) {
-      if (!window.confirm("Are you sure you want to delete this rate?")) return;
-      try {
-        await deletePrefundingRate(selectedRowId);
-        toast.success("Prefunding rate deleted successfully");
-        await loadData();
-        setShowDetailPanel(false);
-        setSelectedRowId(null);
-      } catch (error: any) {
-        toast.error(error.message || "Failed to delete prefunding rate");
-      }
+      setShowDeleteModal(true);
     }
   };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedRowId) return;
+    setIsDeleting(true);
+    try {
+      await deletePrefundingRate(selectedRowId);
+      toast.success("Prefunding rate deleted successfully");
+      await loadData();
+      setShowDetailPanel(false);
+      setSelectedRowId(null);
+      setShowDeleteModal(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete prefunding rate");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const basisOptions = useMemo(() => {
+    const baseOptions = [...BASE_BASIS_OPTIONS];
+
+    // Other rate line items currently existing (excluding the current one being edited)
+    const otherRateOptions = data
+      .filter((r) => r.id !== selectedRowId && r.name && r.name.trim() !== formData.name.trim())
+      .map((r) => ({
+        value: r.name,
+        label: `${r.name} (Line Item)`,
+      }));
+
+    const existingKeys = new Set([
+      ...baseOptions.map((o) => o.value.toLowerCase()),
+      ...otherRateOptions.map((o) => o.value.toLowerCase()),
+    ]);
+
+    const extraOptions = (formData.basis || [])
+      .filter((b) => b && !existingKeys.has(b.toLowerCase()))
+      .map((b) => ({ value: b, label: b }));
+
+    return [...baseOptions, ...otherRateOptions, ...extraOptions];
+  }, [data, selectedRowId, formData.name, formData.basis]);
 
   const renderFormContent = () => (
     <div className="space-y-4 py-4">
@@ -315,14 +401,19 @@ export default function PrefundingRates() {
         />
       </div>
       <div>
-        <label className="mb-1 block text-[13px] font-medium text-slate-700">Basis</label>
-        <Select
-          placeholder="Select basis"
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">
+          Basis <span className="text-red-500">*</span> <span className="text-xs text-slate-400 font-normal">(Multiple Selection)</span>
+        </label>
+        <MultiSelect
+          placeholder="Select calculation basis"
           value={formData.basis}
           onChange={(val) => setFormData((prev) => ({ ...prev, basis: val }))}
-          options={BASIS_OPTIONS}
+          options={basisOptions}
           disabled={!showCreateForm && !isEditing}
         />
+        <p className="mt-1 text-[11px] text-slate-400">
+          Select Gross Wages, Total Employees, or other line items on which calculation depends.
+        </p>
       </div>
       <div>
         <label className="mb-1 block text-[13px] font-medium text-slate-700">Pricing Model</label>
@@ -590,6 +681,18 @@ export default function PrefundingRates() {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Prefunding Rate?"
+        message={`Are you sure you want to delete "${selectedItem?.name || "this rate"}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        type="danger"
+        isConfirming={isDeleting}
+      />
     </AppLayout>
   );
 }
