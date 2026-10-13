@@ -1,11 +1,84 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Calculator, Calendar, Users, DollarSign, FileText, ChevronRight, CheckCircle2, FileDown, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import {
+  Calculator,
+  Calendar,
+  Users,
+  DollarSign,
+  FileText,
+  ChevronRight,
+  ChevronLeft,
+  CheckCircle2,
+  FileDown,
+  Loader2,
+  Plus,
+  Trash2,
+  Edit3,
+  RotateCcw,
+  Sparkles,
+  Layers,
+  Check,
+  X,
+  AlertCircle,
+  Eye,
+  Info,
+} from "lucide-react";
 import AppLayout from "../layout/AppLayout";
 import { getStandardNavbarActions } from "../shared/PageComponents";
 import Select from "../shared/Select";
+import MultiSelect from "../shared/MultiSelect";
+import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
 import { apiConnector } from "../../services/apiConnector";
 import { practiceEndpoints, prefundingEndpoints } from "../../services/apis";
+import { createPrefundingRate } from "../../services/operations/prefundingRates";
+import { openPrefundingInvoicePdf } from "../../services/operations/prefundingInvoices";
+
+// Types
+export type EmployeeCalculationItem = {
+  id: string;
+  name: string;
+  jobCategory: string;
+  location: string;
+  state: string;
+  joinDate: string;
+  payType: "Hourly" | "Salary";
+  payRate: number;
+  budgetedHours: number;
+  bufferPercent: number;
+  workingPeriodHours: number;
+  baseWages: number;
+  grossWages: number;
+  isCustomGrossWages?: boolean;
+  isExcluded?: boolean;
+};
+
+export type PrefundingRateCalculationItem = {
+  id: string;
+  name: string;
+  basis: string;
+  pricingModel: string;
+  rate: number;
+  amount: number;
+  customAmount?: number | null;
+  isOneTime: boolean;
+  isExcluded?: boolean;
+};
+
+const PRICING_MODELS = [
+  { value: "Percentage", label: "Percentage (%)" },
+  { value: "Flat Fee", label: "Flat Fee ($)" },
+  { value: "Addition", label: "Addition (+)" },
+  { value: "Subtraction", label: "Subtraction (-)" },
+  { value: "Multiplication", label: "Multiplication (x)" },
+  { value: "Division", label: "Division (/)" },
+];
+
+const BASE_BASIS_OPTIONS = [
+  { value: "Gross Wages", label: "Gross Wages" },
+  { value: "Total Employees", label: "Total Employees" },
+  { value: "Flat Fee", label: "Flat Fee" },
+];
 
 function generatePracticeCycles(startDateStr?: string | null, cycleType?: string | null) {
   let baseDate: Date;
@@ -75,32 +148,74 @@ function generatePracticeCycles(startDateStr?: string | null, cycleType?: string
 
 const getPricingModelColorClass = (val: string) => {
   const colors: Record<string, string> = {
-    "Percentage": "bg-purple-100 text-purple-700",
-    "Flat Fee": "bg-emerald-100 text-emerald-700",
-    "Addition": "bg-blue-100 text-blue-700",
-    "Subtraction": "bg-red-100 text-red-700",
-    "Multiplication": "bg-amber-100 text-amber-700",
-    "Division": "bg-cyan-100 text-cyan-700",
+    "Percentage": "bg-purple-100 text-purple-700 border-purple-200",
+    "Flat Fee": "bg-emerald-100 text-emerald-700 border-emerald-200",
+    "Addition": "bg-blue-100 text-blue-700 border-blue-200",
+    "Subtraction": "bg-red-100 text-red-700 border-red-200",
+    "Multiplication": "bg-amber-100 text-amber-700 border-amber-200",
+    "Division": "bg-cyan-100 text-cyan-700 border-cyan-200",
   };
-  return colors[val] || "bg-slate-100 text-slate-700";
+  return colors[val] || "bg-slate-100 text-slate-700 border-slate-200";
 };
 
 export default function CalculatePrefunding() {
+  const navigate = useNavigate();
   const navbarActions = getStandardNavbarActions(() => {});
 
-  // State
+  // Wizard state
   const [step, setStep] = useState(1);
   const [selectedPractice, setSelectedPractice] = useState("");
   const [selectedCycle, setSelectedCycle] = useState("");
   const [cycleStartDate, setCycleStartDate] = useState("");
   const [cycleEndDate, setCycleEndDate] = useState("");
-  
+
   const [practices, setPractices] = useState<any[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [rates, setRates] = useState<any[]>([]);
-  
+  const [employees, setEmployees] = useState<EmployeeCalculationItem[]>([]);
+  const [rates, setRates] = useState<PrefundingRateCalculationItem[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Modals state
+  const [showAddLineItemModal, setShowAddLineItemModal] = useState(false);
+  const [showEditLineItemModal, setShowEditLineItemModal] = useState(false);
+  const [editingLineItem, setEditingLineItem] = useState<PrefundingRateCalculationItem | null>(null);
+
+  // New line item form state
+  const [newLineItemName, setNewLineItemName] = useState("");
+  const [newLineItemBasis, setNewLineItemBasis] = useState<string[]>(["Gross Wages"]);
+  const [newLineItemPricingModel, setNewLineItemPricingModel] = useState("Percentage");
+  const [newLineItemRate, setNewLineItemRate] = useState<number | string>(10);
+  const [newLineItemStorageOption, setNewLineItemStorageOption] = useState<"template" | "onetime">("onetime");
+  const [isSavingLineItem, setIsSavingLineItem] = useState(false);
+
+  // Edit line item form state
+  const [editLineItemName, setEditLineItemName] = useState("");
+  const [editLineItemBasis, setEditLineItemBasis] = useState<string[]>([]);
+  const [editLineItemPricingModel, setEditLineItemPricingModel] = useState("");
+  const [editLineItemRate, setEditLineItemRate] = useState<number | string>(0);
+  const [editLineItemAmount, setEditLineItemAmount] = useState<number | string>("");
+
+  // Add ad-hoc employee modal
+  const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false);
+  const [newEmployeeName, setNewEmployeeName] = useState("");
+  const [newEmployeeJobCategory, setNewEmployeeJobCategory] = useState("Medical Assistant");
+  const [newEmployeeLocation, setNewEmployeeLocation] = useState("Main Clinic");
+  const [newEmployeeState, setNewEmployeeState] = useState("NY");
+  const [newEmployeePayType, setNewEmployeePayType] = useState<"Hourly" | "Salary">("Hourly");
+  const [newEmployeePayRate, setNewEmployeePayRate] = useState<number>(25);
+  const [newEmployeeBudgetedHours, setNewEmployeeBudgetedHours] = useState<number>(160);
+  const [newEmployeeBufferPercent, setNewEmployeeBufferPercent] = useState<number>(10);
+
+  // Generated Invoice Result
+  const [generatedInvoice, setGeneratedInvoice] = useState<{
+    id: string;
+    invoiceNumber: string;
+    totalAmount: number;
+    cycle: string;
+    dueDate: string;
+  } | null>(null);
+  const [showGeneratedModal, setShowGeneratedModal] = useState(false);
 
   // Fetch Practices on mount
   useEffect(() => {
@@ -127,6 +242,32 @@ export default function CalculatePrefunding() {
     fetchPractices();
   }, []);
 
+  // Determine working period hours considering employee dates & cycle period
+  const calculateDefaultWorkingHours = (empJoinDateStr: string | null | undefined, budgetedHours: number) => {
+    if (!cycleStartDate || !cycleEndDate) return budgetedHours;
+    const start = new Date(cycleStartDate);
+    const end = new Date(cycleEndDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return budgetedHours;
+
+    const totalCycleDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+    if (empJoinDateStr) {
+      const join = new Date(empJoinDateStr);
+      if (!isNaN(join.getTime())) {
+        if (join > end) {
+          return 0; // Hasn't joined yet
+        }
+        if (join > start) {
+          // Joined mid-cycle: prorate working hours
+          const activeDays = Math.max(1, Math.round((end.getTime() - join.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+          const proration = Math.min(1, activeDays / totalCycleDays);
+          return Math.round(budgetedHours * proration * 10) / 10;
+        }
+      }
+    }
+    return budgetedHours;
+  };
+
   const loadEmployeesAndRates = async () => {
     if (!selectedPractice) return;
     setLoading(true);
@@ -134,23 +275,26 @@ export default function CalculatePrefunding() {
       // 1. Fetch practice details to get its persons
       const practiceRes = await apiConnector({ url: practiceEndpoints.GET(selectedPractice), method: "GET", credentials: true });
       const practicePersons = practiceRes?.data?.practice?.persons?.map((pp: any) => pp.person) || [];
-      
-      const mappedEmployees = practicePersons.map((p: any) => {
+
+      const mappedEmployees: EmployeeCalculationItem[] = practicePersons.map((p: any) => {
         const payRate = p.payRate ? Number(p.payRate) : 0;
         const budgetedHours = p.budgetedHours ? Number(p.budgetedHours) : 160;
-        // Default to 10% buffer
         const bufferPercent = (p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) > 0)
           ? Number(p.bufferPercentage)
           : 10;
-        
-        // Initial working period hours
-        const workingPeriodHours = budgetedHours;
-        
+        const payType: "Hourly" | "Salary" = p.payType?.toLowerCase() === "hourly" ? "Hourly" : "Salary";
+
+        // Step 4: Calculate applicable Working Period for this cycle
+        const workingPeriodHours = calculateDefaultWorkingHours(p.dateOfJoining, budgetedHours);
+
+        // Step 5: Calculate Base Wages & Gross Wages
         let baseWages = 0;
-        if (p.payType?.toLowerCase() === 'hourly') {
+        if (payType === "Hourly") {
           baseWages = workingPeriodHours * payRate;
         } else {
-          baseWages = payRate; // Salary
+          baseWages = (budgetedHours > 0 && workingPeriodHours !== budgetedHours)
+            ? (workingPeriodHours / budgetedHours) * payRate
+            : payRate;
         }
 
         const bufferAmount = baseWages * (bufferPercent / 100);
@@ -158,34 +302,46 @@ export default function CalculatePrefunding() {
 
         return {
           id: p.id,
-          name: `${p.firstName} ${p.lastName}`,
-          jobCategory: p.jobCategory || "N/A",
-          location: p.workLocation || "N/A",
-          state: p.state || "N/A",
-          joinDate: p.dateOfJoining ? new Date(p.dateOfJoining).toISOString().split('T')[0] : "N/A",
-          payType: p.payType || "Salary",
-          payRate: payRate,
-          budgetedHours: budgetedHours,
-          bufferPercent: bufferPercent,
-          workingPeriodHours: workingPeriodHours,
+          name: `${p.firstName} ${p.lastName}`.trim() || "Unnamed Employee",
+          jobCategory: p.jobCategory || "General Staff",
+          location: p.workLocation || "Main Location",
+          state: p.state || "NY",
+          joinDate: p.dateOfJoining ? new Date(p.dateOfJoining).toISOString().split("T")[0] : "N/A",
+          payType,
+          payRate,
+          budgetedHours,
+          bufferPercent,
+          workingPeriodHours,
           baseWages: Math.round(baseWages * 100) / 100,
-          grossWages: grossWages,
+          grossWages,
+          isExcluded: false,
         };
       });
       setEmployees(mappedEmployees);
 
-      // 2. Fetch rates
-      const ratesRes = await apiConnector({ url: prefundingEndpoints.RATES, method: "GET", credentials: true });
+      // 2. Fetch all rates assigned to this practice
+      const ratesRes = await apiConnector({
+        url: `${prefundingEndpoints.RATES}?practiceId=${selectedPractice}&limit=1000`,
+        method: "GET",
+        credentials: true,
+      });
       const allRates = ratesRes?.data?.rates || [];
-      // Filter rates applicable to selected practice
-      const practiceSpecificRates = allRates.filter((r: any) => 
-        r.practiceRates?.some((pr: any) => pr.practiceId === selectedPractice)
-      );
-      setRates(practiceSpecificRates);
+      const mappedRates: PrefundingRateCalculationItem[] = allRates.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        basis: r.basis || "Gross Wages",
+        pricingModel: r.pricingModel || "Percentage",
+        rate: Number(r.rate) || 0,
+        amount: 0,
+        isOneTime: false,
+        isExcluded: false,
+      }));
+      setRates(mappedRates);
 
       setStep(2);
     } catch (err) {
       console.error("Failed to load data", err);
+      toast.error("Failed to load practice employees or rates");
     } finally {
       setLoading(false);
     }
@@ -204,14 +360,6 @@ export default function CalculatePrefunding() {
       selectedPracticeObj.prefundingCycle
     );
   }, [selectedPracticeObj]);
-
-  const handleNextStep = () => {
-    if (step === 1) {
-      loadEmployeesAndRates();
-    } else {
-      setStep(s => Math.min(s + 1, 4));
-    }
-  };
 
   const handlePracticeChange = (practiceId: string) => {
     setSelectedPractice(practiceId);
@@ -243,24 +391,399 @@ export default function CalculatePrefunding() {
     }
   };
 
-  const handleEmployeeChange = (id: string, field: string, value: string) => {
-    setEmployees(prev => prev.map(emp => {
-      if (emp.id !== id) return emp;
-      const numVal = Number(value) || 0;
-      const updatedEmp = { ...emp, [field]: numVal };
-      
-      if (field === 'workingPeriodHours' || field === 'bufferPercent' || field === 'payRate') {
-        const base = updatedEmp.payType?.toLowerCase() === 'hourly'
-          ? updatedEmp.workingPeriodHours * updatedEmp.payRate
-          : updatedEmp.payRate;
-        const buffer = base * (updatedEmp.bufferPercent / 100);
-        updatedEmp.baseWages = Math.round(base * 100) / 100;
-        updatedEmp.grossWages = Math.round((base + buffer) * 100) / 100;
-      }
-      return updatedEmp;
-    }));
+  // Employee editing (Section 9)
+  const handleEmployeeFieldChange = (id: string, field: keyof EmployeeCalculationItem, val: any) => {
+    setEmployees((prev) =>
+      prev.map((emp) => {
+        if (emp.id !== id) return emp;
+        const updated = { ...emp, [field]: val };
+
+        if (field === "grossWages") {
+          updated.grossWages = Number(val) || 0;
+          updated.isCustomGrossWages = true;
+          return updated;
+        }
+
+        if (
+          field === "workingPeriodHours" ||
+          field === "bufferPercent" ||
+          field === "payRate" ||
+          field === "payType" ||
+          field === "budgetedHours"
+        ) {
+          const numRate = Number(updated.payRate) || 0;
+          const numHours = Number(updated.workingPeriodHours) || 0;
+          const numBudgeted = Number(updated.budgetedHours) || 0;
+          const numBuffer = Number(updated.bufferPercent) || 0;
+
+          let base = 0;
+          if (updated.payType === "Hourly") {
+            base = numHours * numRate;
+          } else {
+            base = (numBudgeted > 0 && numHours !== numBudgeted)
+              ? (numHours / numBudgeted) * numRate
+              : numRate;
+          }
+          const buffer = base * (numBuffer / 100);
+          updated.baseWages = Math.round(base * 100) / 100;
+          if (!updated.isCustomGrossWages) {
+            updated.grossWages = Math.round((base + buffer) * 100) / 100;
+          }
+        }
+        return updated;
+      })
+    );
   };
 
+  // Employee removal & restoration (Section 9)
+  const handleRemoveEmployee = (id: string) => {
+    const emp = employees.find((e) => e.id === id);
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, isExcluded: true } : e))
+    );
+    toast.success(`${emp?.name || "Employee"} excluded from this invoice calculation`);
+  };
+
+  const handleRestoreEmployee = (id: string) => {
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, isExcluded: false } : e))
+    );
+    toast.success("Employee restored to calculation");
+  };
+
+  const handleRestoreAllEmployees = () => {
+    setEmployees((prev) => prev.map((e) => ({ ...e, isExcluded: false })));
+    toast.success("All employees restored to calculation");
+  };
+
+  // Add Ad-Hoc employee for this calculation
+  const handleAddCustomEmployee = () => {
+    if (!newEmployeeName.trim()) {
+      toast.error("Employee name is required");
+      return;
+    }
+    const payRate = Number(newEmployeePayRate) || 0;
+    const workingHours = Number(newEmployeeBudgetedHours) || 160;
+    const buffer = Number(newEmployeeBufferPercent) || 10;
+    const base = newEmployeePayType === "Hourly" ? workingHours * payRate : payRate;
+    const gross = Math.round((base + base * (buffer / 100)) * 100) / 100;
+
+    const newEmp: EmployeeCalculationItem = {
+      id: `adhoc_${Date.now()}`,
+      name: newEmployeeName.trim(),
+      jobCategory: newEmployeeJobCategory.trim() || "Staff",
+      location: newEmployeeLocation.trim() || "Clinic",
+      state: newEmployeeState.trim() || "NY",
+      joinDate: new Date().toISOString().split("T")[0],
+      payType: newEmployeePayType,
+      payRate,
+      budgetedHours: workingHours,
+      bufferPercent: buffer,
+      workingPeriodHours: workingHours,
+      baseWages: Math.round(base * 100) / 100,
+      grossWages: gross,
+      isExcluded: false,
+    };
+
+    setEmployees((prev) => [...prev, newEmp]);
+    setShowAddEmployeeModal(false);
+    setNewEmployeeName("");
+    toast.success("Employee added to this calculation");
+  };
+
+  // Active employees
+  const activeEmployees = useMemo(() => {
+    return employees.filter((e) => !e.isExcluded);
+  }, [employees]);
+
+  const excludedEmployees = useMemo(() => {
+    return employees.filter((e) => e.isExcluded);
+  }, [employees]);
+
+  const totalGrossWages = useMemo(() => {
+    return Math.round(activeEmployees.reduce((acc, emp) => acc + emp.grossWages, 0) * 100) / 100;
+  }, [activeEmployees]);
+
+  const totalBaseWages = useMemo(() => {
+    return Math.round(activeEmployees.reduce((acc, emp) => acc + emp.baseWages, 0) * 100) / 100;
+  }, [activeEmployees]);
+
+  const totalEmployeesCount = activeEmployees.length;
+
+  // Active rates calculation with dependency resolution
+  const activeRates = useMemo(() => {
+    return rates.filter((r) => !r.isExcluded);
+  }, [rates]);
+
+  const excludedRates = useMemo(() => {
+    return rates.filter((r) => r.isExcluded);
+  }, [rates]);
+
+  // Multi-pass dependency resolution for prefunding rates
+  const calculatedRates = useMemo(() => {
+    const rateIdAmountMap: Record<string, number> = {};
+    const rateNameAmountMap: Record<string, number> = {};
+
+    const computeSingleRate = (rate: PrefundingRateCalculationItem) => {
+      if (rate.customAmount !== undefined && rate.customAmount !== null) {
+        return Number(rate.customAmount);
+      }
+
+      let amount = 0;
+      const rateVal = Number(rate.rate) || 0;
+      const basisList = (rate.basis || "")
+        .split(",")
+        .map((s: string) => s.trim().toLowerCase())
+        .filter(Boolean);
+
+      let baseAmount = 0;
+      let includesGrossWages = false;
+      let includesEmployees = false;
+      let includesFlatFee = false;
+      let hasLineItemDependency = false;
+
+      basisList.forEach((b: string) => {
+        if (b === "gross wages" || b === "gross wage") {
+          baseAmount += totalGrossWages;
+          includesGrossWages = true;
+        } else if (b === "total employees" || b === "total employee" || b === "headcount") {
+          includesEmployees = true;
+        } else if (b === "flat fee" || b === "flat") {
+          includesFlatFee = true;
+        } else {
+          // Line item dependency (e.g. "Medicare Tax")
+          hasLineItemDependency = true;
+          const match = activeRates.find(
+            (r) => r.id === b || r.name.toLowerCase() === b
+          );
+          if (match) {
+            const val = rateIdAmountMap[match.id] ?? rateNameAmountMap[match.name.toLowerCase()];
+            if (val !== undefined) {
+              baseAmount += val;
+            }
+          } else {
+            const directMatchKey = Object.keys(rateNameAmountMap).find(
+              (k) => k === b || k.includes(b) || b.includes(k)
+            );
+            if (directMatchKey && rateNameAmountMap[directMatchKey] !== undefined) {
+              baseAmount += rateNameAmountMap[directMatchKey];
+            }
+          }
+        }
+      });
+
+      const model = (rate.pricingModel || "").toLowerCase();
+
+      if (includesFlatFee && model === "flat fee") {
+        amount = rateVal;
+      } else if (model === "percentage") {
+        const base = (hasLineItemDependency || includesGrossWages)
+          ? baseAmount
+          : (baseAmount > 0 ? baseAmount : totalGrossWages);
+        amount = base * (rateVal / 100);
+      } else if (model === "flat fee") {
+        if (includesEmployees) {
+          amount = totalEmployeesCount * rateVal;
+        } else {
+          amount = rateVal;
+        }
+      } else if (model === "multiplication") {
+        if (includesEmployees) {
+          amount = totalEmployeesCount * rateVal;
+        } else if (baseAmount > 0) {
+          amount = baseAmount * rateVal;
+        } else {
+          amount = rateVal;
+        }
+      } else if (model === "division") {
+        if (rateVal !== 0) {
+          const base = (hasLineItemDependency || includesGrossWages) ? baseAmount : totalGrossWages;
+          amount = base / rateVal;
+        } else {
+          amount = 0;
+        }
+      } else if (model === "subtraction") {
+        amount = -Math.abs(rateVal);
+      } else if (model === "addition") {
+        amount = rateVal;
+      } else {
+        amount = rateVal;
+      }
+
+      return Math.round(amount * 100) / 100;
+    };
+
+    const passes = Math.max(1, activeRates.length);
+    for (let pass = 0; pass < passes; pass++) {
+      for (const rate of activeRates) {
+        const computed = computeSingleRate(rate);
+        rateIdAmountMap[rate.id] = computed;
+        rateNameAmountMap[rate.name.toLowerCase()] = computed;
+      }
+    }
+
+    return activeRates.map((rate) => ({
+      ...rate,
+      amount: rate.customAmount !== undefined && rate.customAmount !== null
+        ? Number(rate.customAmount)
+        : (rateIdAmountMap[rate.id] ?? computeSingleRate(rate)),
+    }));
+  }, [activeRates, totalGrossWages, totalEmployeesCount]);
+
+  const totalRatesAmount = useMemo(() => {
+    return Math.round(calculatedRates.reduce((acc, rate) => acc + rate.amount, 0) * 100) / 100;
+  }, [calculatedRates]);
+
+  const grandTotal = useMemo(() => {
+    return Math.round((totalGrossWages + totalRatesAmount) * 100) / 100;
+  }, [totalGrossWages, totalRatesAmount]);
+
+  // Section 10.2 & 10.3: Add Additional Line Item
+  const handleCreateAdditionalLineItem = async () => {
+    if (!newLineItemName.trim()) {
+      toast.error("Line item name is required");
+      return;
+    }
+    if (!newLineItemBasis || newLineItemBasis.length === 0) {
+      toast.error("Please select at least one basis");
+      return;
+    }
+
+    const rateNum = Number(newLineItemRate) || 0;
+    const formattedBasis = newLineItemBasis.join(", ");
+    setIsSavingLineItem(true);
+
+    try {
+      if (newLineItemStorageOption === "template") {
+        // Option 1: Add to Prefunding Rates Template
+        const createRes = await createPrefundingRate({
+          name: newLineItemName.trim(),
+          basis: formattedBasis,
+          pricingModel: newLineItemPricingModel,
+          rate: rateNum,
+          practiceIds: [selectedPractice],
+        });
+
+        const createdRate = createRes?.prefundingRate;
+        const newRateItem: PrefundingRateCalculationItem = {
+          id: createdRate?.id || `template_${Date.now()}`,
+          name: newLineItemName.trim(),
+          basis: formattedBasis,
+          pricingModel: newLineItemPricingModel,
+          rate: rateNum,
+          amount: 0,
+          isOneTime: false,
+          isExcluded: false,
+        };
+
+        setRates((prev) => [...prev, newRateItem]);
+        toast.success("Rate created and added to practice template for future cycles!");
+      } else {
+        // Option 2: One-Time Only
+        const newRateItem: PrefundingRateCalculationItem = {
+          id: `onetime_${Date.now()}`,
+          name: newLineItemName.trim(),
+          basis: formattedBasis,
+          pricingModel: newLineItemPricingModel,
+          rate: rateNum,
+          amount: 0,
+          isOneTime: true,
+          isExcluded: false,
+        };
+
+        setRates((prev) => [...prev, newRateItem]);
+        toast.success("One-time charge added to current invoice calculation!");
+      }
+
+      // Reset modal state
+      setShowAddLineItemModal(false);
+      setNewLineItemName("");
+      setNewLineItemBasis(["Gross Wages"]);
+      setNewLineItemPricingModel("Percentage");
+      setNewLineItemRate(10);
+      setNewLineItemStorageOption("onetime");
+    } catch (err: any) {
+      console.error("Failed to create line item", err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to add line item");
+    } finally {
+      setIsSavingLineItem(false);
+    }
+  };
+
+  // Section 10.1: Edit Line Item
+  const handleOpenEditLineItem = (rate: PrefundingRateCalculationItem) => {
+    setEditingLineItem(rate);
+    setEditLineItemName(rate.name);
+    setEditLineItemBasis(
+      rate.basis ? rate.basis.split(",").map((s) => s.trim()).filter(Boolean) : []
+    );
+    setEditLineItemPricingModel(rate.pricingModel);
+    setEditLineItemRate(rate.rate);
+    setEditLineItemAmount(rate.amount);
+    setShowEditLineItemModal(true);
+  };
+
+  const handleSaveEditedLineItem = () => {
+    if (!editingLineItem) return;
+    if (!editLineItemName.trim()) {
+      toast.error("Name cannot be empty");
+      return;
+    }
+
+    const updatedRateNum = Number(editLineItemRate) || 0;
+    const customAmtNum = editLineItemAmount !== "" ? Number(editLineItemAmount) : null;
+    const formattedBasis = editLineItemBasis.join(", ");
+
+    setRates((prev) =>
+      prev.map((r) => {
+        if (r.id !== editingLineItem.id) return r;
+        return {
+          ...r,
+          name: editLineItemName.trim(),
+          basis: formattedBasis || r.basis,
+          pricingModel: editLineItemPricingModel || r.pricingModel,
+          rate: updatedRateNum,
+          customAmount: customAmtNum !== null && !isNaN(customAmtNum) ? customAmtNum : null,
+        };
+      })
+    );
+
+    setShowEditLineItemModal(false);
+    setEditingLineItem(null);
+    toast.success("Line item updated for this calculation");
+  };
+
+  // Section 11: Remove Line Item
+  const handleRemoveLineItem = (id: string) => {
+    const target = rates.find((r) => r.id === id);
+    if (target?.isOneTime) {
+      // One-time item can just be deleted from array
+      setRates((prev) => prev.filter((r) => r.id !== id));
+      toast.success(`"${target.name}" removed from invoice`);
+    } else {
+      // Template rate: exclude from this invoice calculation without deleting from DB
+      setRates((prev) => prev.map((r) => (r.id === id ? { ...r, isExcluded: true } : r)));
+      toast.success(`"${target?.name}" removed from current invoice (template preserved)`);
+    }
+  };
+
+  const handleRestoreLineItem = (id: string) => {
+    setRates((prev) => prev.map((r) => (r.id === id ? { ...r, isExcluded: false } : r)));
+    toast.success("Rate restored to calculation");
+  };
+
+  // Dynamic basis options including other line items
+  const dynamicBasisOptions = useMemo(() => {
+    const options = [...BASE_BASIS_OPTIONS];
+    activeRates.forEach((r) => {
+      if (!options.some((o) => o.value.toLowerCase() === r.name.toLowerCase())) {
+        options.push({ value: r.name, label: `${r.name} (Line Item)` });
+      }
+    });
+    return options;
+  }, [activeRates]);
+
+  // Final Generate Invoice (Step 7)
   const generateInvoice = async () => {
     setSubmitting(true);
     try {
@@ -270,21 +793,50 @@ export default function CalculatePrefunding() {
         invoiceDate: cycleStartDate ? new Date(cycleStartDate).toISOString() : new Date().toISOString(),
         dueDate: cycleEndDate ? new Date(cycleEndDate).toISOString() : new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
         totalAmount: grandTotal,
-        lineItems: calculatedRates.map(r => ({
-          name: r.name,
-          basis: r.basis,
-          pricingModel: r.pricingModel,
-          rate: r.rate,
-          amount: r.amount,
-          isOneTime: false,
-        })),
+        lineItems: [
+          // Primary line item representing Employee Gross Wages
+          {
+            name: `Gross Wages (${activeEmployees.length} Employee${activeEmployees.length === 1 ? "" : "s"})`,
+            basis: "Gross Wages",
+            pricingModel: "Addition",
+            rate: totalGrossWages,
+            amount: totalGrossWages,
+            isOneTime: false,
+          },
+          // Prefunding rates line items
+          ...calculatedRates.map((r) => ({
+            name: r.name,
+            basis: r.basis,
+            pricingModel: r.pricingModel,
+            rate: r.rate,
+            amount: r.amount,
+            isOneTime: Boolean(r.isOneTime),
+          })),
+        ],
       };
 
-      await apiConnector({ url: prefundingEndpoints.INVOICES, method: "POST", body: payload, credentials: true });
+      const res = await apiConnector({
+        url: prefundingEndpoints.INVOICES,
+        method: "POST",
+        body: payload,
+        credentials: true,
+      });
+
+      const inv = res?.data?.prefundingInvoice;
+      const year = new Date().getFullYear();
+      const code = inv?.id ? inv.id.replace(/-/g, "").slice(0, 5).toUpperCase() : "001";
+      const invoiceNumber = `INV-${year}-${code}`;
+
+      setGeneratedInvoice({
+        id: inv?.id,
+        invoiceNumber,
+        totalAmount: grandTotal,
+        cycle: selectedCycle,
+        dueDate: cycleEndDate || "In 30 days",
+      });
+
+      setShowGeneratedModal(true);
       toast.success("Prefunding Invoice Generated Successfully!");
-      setStep(1);
-      setSelectedPractice("");
-      setSelectedCycle("");
     } catch (err: any) {
       console.error("Failed to generate invoice", err);
       toast.error(err?.response?.data?.message || err?.message || "Failed to generate invoice");
@@ -293,459 +845,1176 @@ export default function CalculatePrefunding() {
     }
   };
 
-  const totalGrossWages = employees.reduce((acc, emp) => acc + emp.grossWages, 0);
-  const totalEmployees = employees.length;
-
-  const rateIdAmountMap: Record<string, number> = {};
-  const rateNameAmountMap: Record<string, number> = {};
-
-  const computeSingleRate = (rate: any) => {
-    let amount = 0;
-    const rateVal = Number(rate.rate) || 0;
-    const basisList = (rate.basis || "")
-      .split(",")
-      .map((s: string) => s.trim().toLowerCase())
-      .filter(Boolean);
-
-    let baseAmount = 0;
-    let includesGrossWages = false;
-    let includesEmployees = false;
-    let includesFlatFee = false;
-    let hasLineItemDependency = false;
-
-    basisList.forEach((b: string) => {
-      if (b === "gross wages" || b === "gross wage") {
-        baseAmount += totalGrossWages;
-        includesGrossWages = true;
-      } else if (b === "total employees" || b === "total employee" || b === "headcount") {
-        includesEmployees = true;
-      } else if (b === "flat fee" || b === "flat") {
-        includesFlatFee = true;
-      } else {
-        // Line item dependency (e.g. "Medicare Tax")
-        hasLineItemDependency = true;
-        // Search by ID or Name among other rates
-        const match = rates.find(
-          (r) => r.id === b || r.name.toLowerCase() === b
-        );
-        if (match) {
-          const val = rateIdAmountMap[match.id] ?? rateNameAmountMap[match.name.toLowerCase()];
-          if (val !== undefined) {
-            baseAmount += val;
-          }
-        } else {
-          // Fallback to name map directly
-          const directMatchKey = Object.keys(rateNameAmountMap).find(
-            (k) => k === b || k.includes(b) || b.includes(k)
-          );
-          if (directMatchKey && rateNameAmountMap[directMatchKey] !== undefined) {
-            baseAmount += rateNameAmountMap[directMatchKey];
-          }
-        }
-      }
-    });
-
-    const model = (rate.pricingModel || "").toLowerCase();
-
-    if (includesFlatFee && model === "flat fee") {
-      amount = rateVal;
-    } else if (model === "percentage") {
-      // If a line item dependency or gross wages was explicitly specified, use baseAmount.
-      // Do NOT fall back to gross wages if it depends on another line item!
-      const base = (hasLineItemDependency || includesGrossWages)
-        ? baseAmount
-        : (baseAmount > 0 ? baseAmount : totalGrossWages);
-      amount = base * (rateVal / 100);
-    } else if (model === "flat fee") {
-      if (includesEmployees) {
-        amount = totalEmployees * rateVal;
-      } else {
-        amount = rateVal;
-      }
-    } else if (model === "multiplication") {
-      if (includesEmployees) {
-        amount = totalEmployees * rateVal;
-      } else if (baseAmount > 0) {
-        amount = baseAmount * rateVal;
-      } else {
-        amount = rateVal;
-      }
-    } else if (model === "division") {
-      if (rateVal !== 0) {
-        const base = (hasLineItemDependency || includesGrossWages) ? baseAmount : totalGrossWages;
-        amount = base / rateVal;
-      } else {
-        amount = 0;
-      }
-    } else if (model === "subtraction") {
-      amount = -Math.abs(rateVal);
-    } else if (model === "addition") {
-      amount = rateVal;
-    } else {
-      amount = rateVal;
-    }
-
-    return Math.round(amount * 100) / 100;
+  const resetCalculationWizard = () => {
+    setShowGeneratedModal(false);
+    setGeneratedInvoice(null);
+    setStep(1);
+    setSelectedPractice("");
+    setSelectedCycle("");
+    setCycleStartDate("");
+    setCycleEndDate("");
+    setEmployees([]);
+    setRates([]);
   };
-
-  // Perform multiple passes (up to rates.length) to resolve dependencies in any order
-  const passes = Math.max(1, rates.length);
-  for (let pass = 0; pass < passes; pass++) {
-    for (const rate of rates) {
-      const computed = computeSingleRate(rate);
-      rateIdAmountMap[rate.id] = computed;
-      rateNameAmountMap[rate.name.toLowerCase()] = computed;
-    }
-  }
-
-  const calculatedRates = rates.map((rate) => ({
-    ...rate,
-    amount: rateIdAmountMap[rate.id] ?? computeSingleRate(rate),
-  }));
-
-  const totalRatesAmount = calculatedRates.reduce((acc, rate) => acc + rate.amount, 0);
-  const grandTotal = totalGrossWages + totalRatesAmount;
 
   return (
     <AppLayout title="Calculate Prefunding" activeModule="Prefunding" navbarActions={navbarActions}>
       <div className="app-split font-app-sans">
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
+          {/* Header */}
           <div className="flex items-center justify-between px-6 py-5 border-b border-[#f0ece6]">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Calculate Prefunding</h1>
-              <p className="text-sm text-slate-500 mt-1">Generate prefunding invoices based on practice requirements</p>
+              <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                <Calculator className="h-6 w-6 text-[#4f63ea]" />
+                Calculate Prefunding
+              </h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Configure employee wages, apply prefunding rate line items, and generate invoices
+              </p>
             </div>
-          </div>
-          <div className="flex flex-1 overflow-hidden">
-          {/* Left Sidebar Stepper */}
-          <div className="w-[280px] flex-shrink-0 border-r border-[#f0ece6] bg-[#fcfaf8] p-8 overflow-y-auto">
-            <div className="flex flex-col">
-              {[
-                { num: 1, label: "Setup", desc: "Select practice and cycle", icon: Calendar },
-                { num: 2, label: "Employees & Wages", desc: "Verify working periods", icon: Users },
-                { num: 3, label: "Prefunding Rates", desc: "Apply adjustments", icon: Calculator },
-                { num: 4, label: "Summary", desc: "Review and generate", icon: FileText }
-              ].map((s, i) => (
-                <div key={s.num} className="relative flex items-start group">
-                  {i < 3 && (
-                    <div className={`absolute left-4 top-8 -bottom-4 w-[2px] ${step > s.num ? 'bg-[#4f63ea]' : 'bg-slate-200'}`} />
-                  )}
-                  <div className="relative z-10 flex items-center justify-center w-8 h-8 shrink-0 rounded-full bg-white border-2">
-                    <div className={`flex items-center justify-center w-full h-full rounded-full ${step >= s.num ? 'border-[#4f63ea] bg-[#f0f2fe] text-[#4f63ea]' : 'border-slate-300 bg-white text-slate-400'}`}>
-                      {step > s.num ? <CheckCircle2 className="w-5 h-5 text-[#4f63ea]" /> : <s.icon className="w-4 h-4" />}
-                    </div>
-                  </div>
-                  <div className="ml-4 pb-8">
-                    <p className={`text-[14px] font-semibold ${step >= s.num ? 'text-slate-800' : 'text-slate-500'}`}>{s.label}</p>
-                    <p className="text-[13px] text-slate-500 mt-0.5">{s.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          {/* Right Side Content */}
-          <div className="flex-1 overflow-y-auto p-10 bg-white">
-            <div className="max-w-4xl space-y-6">
-            
-            {/* Step 1: Setup */}
-            <div className={`bg-white rounded-xl border ${step >= 1 ? 'border-[#e8e4dc]' : 'border-transparent opacity-50 pointer-events-none'} shadow-sm overflow-hidden transition-all`}>
-              <div className="bg-slate-50/50 px-6 py-4 border-b border-[#e8e4dc] flex items-center justify-between">
-                <h2 className="text-[15px] font-semibold text-slate-800">1. Setup Criteria</h2>
-                {step > 1 && <span className="text-xs font-medium px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md">Completed</span>}
-              </div>
-              <div className="p-6 grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Select Practice</label>
-                  <Select 
-                    options={practices}
-                    value={selectedPractice}
-                    onChange={handlePracticeChange}
-                    placeholder="Choose a practice..."
-                  />
-                  {selectedPracticeObj && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                      <span>Cycle: <strong className="text-slate-700 font-semibold">{selectedPracticeObj.prefundingCycle || "MONTHLY"}</strong></span>
-                      {selectedPracticeObj.prefundingStartDate && (
-                        <>
-                          <span>•</span>
-                          <span>Start Date: <strong className="text-slate-700 font-semibold">{selectedPracticeObj.prefundingStartDate.split('T')[0]}</strong></span>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Prefunding Cycle</label>
-                  <Select 
-                    options={availableCycles}
-                    value={selectedCycle}
-                    onChange={handleCycleChange}
-                    placeholder="Choose cycle..."
-                  />
-                </div>
-                {selectedCycle && (
-                  <>
-                    <div>
-                      <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Cycle Start Date</label>
-                      <input 
-                        type="date"
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        value={cycleStartDate}
-                        onChange={(e) => setCycleStartDate(e.target.value)}
-                        disabled={step > 1}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Cycle End Date</label>
-                      <input 
-                        type="date"
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        value={cycleEndDate}
-                        onChange={(e) => setCycleEndDate(e.target.value)}
-                        disabled={step > 1}
-                      />
-                    </div>
-                  </>
+            {step > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setStep((s) => Math.max(1, s - 1))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Back
+                </button>
+                {step < 4 && (
+                  <button
+                    onClick={() => setStep((s) => Math.min(4, s + 1))}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#4f63ea] hover:bg-[#3d4ecf] rounded-lg transition-colors"
+                  >
+                    Next
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
                 )}
               </div>
-              {step === 1 && (
-                <div className="px-6 py-4 bg-slate-50 border-t border-[#e8e4dc] flex justify-end">
-                  <button 
-                    onClick={handleNextStep}
-                    disabled={!selectedPractice || !selectedCycle || loading}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#4f63ea] text-white rounded-md text-[13px] font-medium disabled:opacity-50 transition-colors"
+            )}
+          </div>
+
+          <div className="flex flex-1 overflow-hidden">
+            {/* Left Sidebar Stepper */}
+            <div className="w-[280px] flex-shrink-0 border-r border-[#f0ece6] bg-[#fcfaf8] p-8 overflow-y-auto">
+              <div className="flex flex-col">
+                {[
+                  { num: 1, label: "Setup", desc: "Select practice & cycle", icon: Calendar },
+                  { num: 2, label: "Employees & Wages", desc: "Working periods & wages", icon: Users },
+                  { num: 3, label: "Prefunding Rates", desc: "Applicable line items", icon: Calculator },
+                  { num: 4, label: "Summary & Generate", desc: "Review grand total", icon: FileText },
+                ].map((s, i) => (
+                  <div
+                    key={s.num}
+                    onClick={() => {
+                      if (step > s.num) setStep(s.num);
+                    }}
+                    className={`relative flex items-start group ${
+                      step > s.num ? "cursor-pointer" : ""
+                    }`}
                   >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Load Employees"}
-                    {!loading && <ChevronRight className="h-4 w-4" />}
-                  </button>
+                    {i < 3 && (
+                      <div
+                        className={`absolute left-4 top-8 -bottom-4 w-[2px] transition-colors ${
+                          step > s.num ? "bg-[#4f63ea]" : "bg-slate-200"
+                        }`}
+                      />
+                    )}
+                    <div className="relative z-10 flex items-center justify-center w-8 h-8 shrink-0 rounded-full bg-white border-2">
+                      <div
+                        className={`flex items-center justify-center w-full h-full rounded-full transition-all ${
+                          step === s.num
+                            ? "border-[#4f63ea] bg-[#f0f2fe] text-[#4f63ea] ring-4 ring-[#4f63ea]/10 font-bold"
+                            : step > s.num
+                            ? "border-[#4f63ea] bg-[#4f63ea] text-white"
+                            : "border-slate-300 bg-white text-slate-400"
+                        }`}
+                      >
+                        {step > s.num ? <Check className="w-4 h-4 stroke-[3]" /> : <s.icon className="w-4 h-4" />}
+                      </div>
+                    </div>
+                    <div className="ml-4 pb-8">
+                      <p
+                        className={`text-[14px] font-semibold transition-colors ${
+                          step === s.num
+                            ? "text-[#4f63ea]"
+                            : step > s.num
+                            ? "text-slate-800 hover:text-[#4f63ea]"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {s.label}
+                      </p>
+                      <p className="text-[12px] text-slate-500 mt-0.5">{s.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Quick Summary Pill in Sidebar */}
+              {step > 1 && (
+                <div className="mt-4 pt-6 border-t border-slate-200/80 space-y-3">
+                  <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Running Total</p>
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500">Active Staff:</span>
+                      <span className="font-semibold text-slate-800">{activeEmployees.length}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500">Gross Wages:</span>
+                      <span className="font-semibold text-slate-800">
+                        ${totalGrossWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500">Prefunding Rates:</span>
+                      <span className="font-semibold text-slate-800">
+                        ${totalRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 flex justify-between text-xs font-bold">
+                      <span className="text-[#4f63ea]">Grand Total:</span>
+                      <span className="text-[#4f63ea]">
+                        ${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Step 2: Employees */}
-            {step >= 2 && (
-              <div className="bg-white rounded-xl border border-[#e8e4dc] shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
-                <div className="bg-slate-50/50 px-6 py-4 border-b border-[#e8e4dc] flex items-center justify-between">
-                  <h2 className="text-[15px] font-semibold text-slate-800">2. Employees & Wages</h2>
-                  {step > 2 && <span className="text-xs font-medium px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md">Completed</span>}
-                </div>
-                <div className="overflow-x-auto">
-                  {employees.length === 0 ? (
-                    <div className="p-6 text-center text-slate-500">No employees found for this practice.</div>
-                  ) : (
-                    <table className="w-full text-[13px] text-left">
-                      <thead className="bg-slate-50 text-slate-500 font-medium">
-                        <tr>
-                          <th className="px-5 py-3">Employee</th>
-                          <th className="px-5 py-3">Job & Location</th>
-                          <th className="px-5 py-3">Pay Info</th>
-                          <th className="px-5 py-3">Working Period (Hrs)</th>
-                          <th className="px-5 py-3">Buffer %</th>
-                          <th className="px-5 py-3">Base Wages ($)</th>
-                          <th className="px-5 py-3">Gross Wages ($)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#e8e4dc]">
-                        {employees.map(emp => {
-                          const base = emp.baseWages !== undefined
-                            ? emp.baseWages
-                            : (emp.payType?.toLowerCase() === 'hourly' ? emp.workingPeriodHours * emp.payRate : emp.payRate);
-                          const bufferAmt = Math.round((base * ((Number(emp.bufferPercent) || 0) / 100)) * 100) / 100;
-
-                          return (
-                            <tr key={emp.id} className="hover:bg-slate-50/50">
-                              <td className="px-5 py-4">
-                                <div className="font-medium text-slate-800">{emp.name}</div>
-                                <div className="text-slate-500 text-xs mt-0.5">Joined: {emp.joinDate}</div>
-                              </td>
-                              <td className="px-5 py-4">
-                                <div className="text-slate-700">{emp.jobCategory}</div>
-                                <div className="text-slate-500 text-xs mt-0.5">{emp.location} ({emp.state})</div>
-                              </td>
-                              <td className="px-5 py-4">
-                                <div className="text-slate-700">{emp.payType}</div>
-                                <div className="text-slate-500 text-xs mt-0.5">${emp.payRate} {emp.payType?.toLowerCase() === 'hourly' ? '/hr' : ''}</div>
-                              </td>
-                              <td className="px-5 py-4">
-                                <input
-                                  type="number"
-                                  className="w-20 rounded-md border border-slate-300 px-2 py-1 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  value={emp.workingPeriodHours}
-                                  onChange={(e) => handleEmployeeChange(emp.id, 'workingPeriodHours', e.target.value)}
-                                  disabled={step > 2}
-                                />
-                              </td>
-                              <td className="px-5 py-4">
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="number"
-                                    className="w-16 rounded-md border border-slate-300 px-2 py-1 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    value={emp.bufferPercent}
-                                    onChange={(e) => handleEmployeeChange(emp.id, 'bufferPercent', e.target.value)}
-                                    disabled={step > 2}
-                                  />
-                                  <span className="text-xs text-slate-500">%</span>
-                                </div>
-                                <div className="text-[11px] text-emerald-600 mt-0.5">
-                                  +${bufferAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} buffer
-                                </div>
-                              </td>
-                              <td className="px-5 py-4 text-slate-700 font-medium">
-                                ${base.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </td>
-                              <td className="px-5 py-4">
-                                <input
-                                  type="number"
-                                  className="w-28 rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-[13px] font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  value={emp.grossWages}
-                                  onChange={(e) => handleEmployeeChange(emp.id, 'grossWages', e.target.value)}
-                                  disabled={step > 2}
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot className="bg-slate-50 font-medium text-slate-800 border-t border-[#e8e4dc]">
-                        <tr>
-                          <td colSpan={6} className="px-5 py-4 text-right">Total Gross Wages (incl. 10% Buffer):</td>
-                          <td className="px-5 py-4 text-emerald-600 font-bold">${totalGrossWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  )}
-                </div>
-                {step === 2 && (
-                  <div className="px-6 py-4 bg-slate-50 flex justify-end">
-                    <button 
-                      onClick={handleNextStep}
-                      className="flex items-center gap-2 px-4 py-2 bg-[#4f63ea] text-white rounded-md text-[13px] font-medium transition-colors"
-                    >
-                      Apply Prefunding Rates
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Step 3: Rates */}
-            {step >= 3 && (
-              <div className="bg-white rounded-xl border border-[#e8e4dc] shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
-                <div className="bg-slate-50/50 px-6 py-4 border-b border-[#e8e4dc] flex items-center justify-between">
-                  <h2 className="text-[15px] font-semibold text-slate-800">3. Prefunding Rates</h2>
-                  {step > 3 && <span className="text-xs font-medium px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md">Completed</span>}
-                </div>
-                <div className="overflow-x-auto">
-                  {calculatedRates.length === 0 ? (
-                    <div className="p-6 text-center text-slate-500">No prefunding rates found.</div>
-                  ) : (
-                    <table className="w-full text-[13px] text-left">
-                      <thead className="bg-slate-50 text-slate-500 font-medium">
-                        <tr>
-                          <th className="px-6 py-3">Rate Name</th>
-                          <th className="px-6 py-3">Basis</th>
-                          <th className="px-6 py-3">Pricing Model</th>
-                          <th className="px-6 py-3">Rate</th>
-                          <th className="px-6 py-3">Calculated Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#e8e4dc]">
-                        {calculatedRates.map(rate => (
-                          <tr key={rate.id} className="hover:bg-slate-50/50">
-                            <td className="px-6 py-4 font-medium text-slate-800">{rate.name}</td>
-                            <td className="px-6 py-4 text-slate-700">{rate.basis}</td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getPricingModelColorClass(rate.pricingModel)}`}>
-                                {rate.pricingModel}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-slate-700">
-                                {rate.pricingModel === 'Percentage' ? `${rate.rate}%` : 
-                                 rate.pricingModel === 'Multiplication' ? `x${rate.rate}` : 
-                                 rate.pricingModel === 'Division' ? `/${rate.rate}` : 
-                                 `${rate.rate}`}
-                              </td>
-                            <td className="px-6 py-4 font-medium text-slate-800">${rate.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-slate-50 font-medium text-slate-800 border-t border-[#e8e4dc]">
-                        <tr>
-                          <td colSpan={4} className="px-6 py-4 text-right">Total Rates Amount:</td>
-                          <td className="px-6 py-4 text-indigo-600">${totalRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  )}
-                </div>
-                {step === 3 && (
-                  <div className="px-6 py-4 bg-slate-50 flex justify-end">
-                    <button 
-                      onClick={handleNextStep}
-                      className="flex items-center gap-2 px-4 py-2 bg-[#4f63ea] text-white rounded-md text-[13px] font-medium transition-colors"
-                    >
-                      Calculate Grand Total
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Step 4: Summary */}
-            {step === 4 && (
-              <div className="bg-white rounded-xl border border-[#4f63ea]/20 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
-                <div className="bg-[#f0f2fe] px-6 py-5 border-b border-[#4f63ea]/20 flex items-center justify-between">
-                  <h2 className="text-[16px] font-semibold text-[#4f63ea] flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" />
-                    Grand Total Summary
-                  </h2>
-                  <button 
-                    onClick={generateInvoice}
-                    disabled={submitting}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#4f63ea] text-white rounded-md text-[13px] font-medium hover:bg-[#4f63ea]/90 transition-colors shadow-sm disabled:opacity-50"
-                  >
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-                    {submitting ? "Generating..." : "Generate Invoice"}
-                  </button>
-                </div>
-                <div className="p-8">
-                  <div className="max-w-md mx-auto space-y-4">
-                    <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-200">
-                      <span className="text-slate-600">Prefunding Cycle</span>
-                      <span className="font-medium text-slate-800">{selectedCycle}</span>
+            {/* Right Side Content Panel */}
+            <div className="flex-1 overflow-y-auto p-8 lg:p-10 bg-white">
+              <div className="max-w-5xl space-y-8">
+                {/* ======================================================== */}
+                {/* STEP 1: SETUP CRITERIA */}
+                {/* ======================================================== */}
+                <div
+                  className={`bg-white rounded-xl border ${
+                    step >= 1 ? "border-[#e8e4dc]" : "border-transparent opacity-50 pointer-events-none"
+                  } shadow-xs overflow-hidden transition-all`}
+                >
+                  <div className="bg-slate-50/70 px-6 py-4 border-b border-[#e8e4dc] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#4f63ea] text-white text-xs font-bold">
+                        1
+                      </span>
+                      <h2 className="text-[15px] font-semibold text-slate-800">Setup Criteria</h2>
                     </div>
-                    {cycleStartDate && cycleEndDate && (
-                      <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-200">
-                        <span className="text-slate-600">Cycle Period</span>
-                        <span className="font-medium text-slate-800 text-xs bg-slate-100 px-2 py-1 rounded">
-                          {cycleStartDate} → {cycleEndDate}
+                    {step > 1 && (
+                      <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-md flex items-center gap-1 border border-emerald-200">
+                        <Check className="w-3.5 h-3.5" /> Configured
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
+                        Select Practice <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        options={practices}
+                        value={selectedPractice}
+                        onChange={handlePracticeChange}
+                        placeholder="Choose a practice with prefunding..."
+                        disabled={step > 1}
+                      />
+                      {selectedPracticeObj && (
+                        <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                          <span>
+                            Cycle Type:{" "}
+                            <strong className="text-slate-700 font-semibold">
+                              {selectedPracticeObj.prefundingCycle || "MONTHLY"}
+                            </strong>
+                          </span>
+                          {selectedPracticeObj.prefundingStartDate && (
+                            <>
+                              <span>•</span>
+                              <span>
+                                Anchor Start:{" "}
+                                <strong className="text-slate-700 font-semibold">
+                                  {selectedPracticeObj.prefundingStartDate.split("T")[0]}
+                                </strong>
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
+                        Prefunding Cycle <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        options={availableCycles}
+                        value={selectedCycle}
+                        onChange={handleCycleChange}
+                        placeholder="Choose from next 12 cycles..."
+                        disabled={step > 1 || !selectedPractice}
+                      />
+                      <p className="text-xs text-slate-400 mt-1.5">Displaying next 12 configured cycles</p>
+                    </div>
+
+                    {selectedCycle && (
+                      <>
+                        <div>
+                          <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
+                            Cycle Start Date
+                          </label>
+                          <input
+                            type="date"
+                            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                            value={cycleStartDate}
+                            onChange={(e) => setCycleStartDate(e.target.value)}
+                            disabled={step > 1}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
+                            Cycle End Date
+                          </label>
+                          <input
+                            type="date"
+                            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                            value={cycleEndDate}
+                            onChange={(e) => setCycleEndDate(e.target.value)}
+                            disabled={step > 1}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {step === 1 && (
+                    <div className="px-6 py-4 bg-slate-50 border-t border-[#e8e4dc] flex justify-end">
+                      <button
+                        onClick={loadEmployeesAndRates}
+                        disabled={!selectedPractice || !selectedCycle || loading}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-[13px] font-semibold disabled:opacity-50 transition-colors shadow-xs"
+                      >
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Load Employees & Rates"}
+                        {!loading && <ChevronRight className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* ======================================================== */}
+                {/* STEP 2: EMPLOYEES & WAGES (Sections 8.2 Steps 3, 4, 5 & 9) */}
+                {/* ======================================================== */}
+                {step >= 2 && (
+                  <div className="bg-white rounded-xl border border-[#e8e4dc] shadow-xs overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+                    <div className="bg-slate-50/70 px-6 py-4 border-b border-[#e8e4dc] flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#4f63ea] text-white text-xs font-bold">
+                          2
                         </span>
+                        <div>
+                          <h2 className="text-[15px] font-semibold text-slate-800">
+                            Employees & Working Periods
+                          </h2>
+                          <p className="text-xs text-slate-500">
+                            Review working periods, pay rates, buffer %, and gross wages (editable)
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowAddEmployeeModal(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors shadow-2xs"
+                        >
+                          <Plus className="h-3.5 w-3.5 text-[#4f63ea]" />
+                          Add Employee
+                        </button>
+                        {step > 2 && (
+                          <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-md border border-emerald-200">
+                            Completed
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      {activeEmployees.length === 0 ? (
+                        <div className="p-8 text-center text-slate-500">
+                          <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                          <p className="font-medium text-slate-700">No active employees in this calculation</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Add an employee or restore excluded employees below
+                          </p>
+                        </div>
+                      ) : (
+                        <table className="w-full text-[13px] text-left">
+                          <thead className="bg-slate-50/90 text-slate-500 font-semibold text-xs border-b border-[#e8e4dc]">
+                            <tr>
+                              <th className="px-5 py-3">Employee Details</th>
+                              <th className="px-4 py-3">Pay Type</th>
+                              <th className="px-4 py-3">Pay Rate ($)</th>
+                              <th className="px-4 py-3">Working Period (Hrs)</th>
+                              <th className="px-4 py-3">Buffer %</th>
+                              <th className="px-4 py-3">Base Wages ($)</th>
+                              <th className="px-4 py-3">Gross Wages ($)</th>
+                              <th className="px-3 py-3 text-center">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#e8e4dc]">
+                            {activeEmployees.map((emp) => {
+                              const bufferAmt = Math.round((emp.baseWages * (emp.bufferPercent / 100)) * 100) / 100;
+
+                              return (
+                                <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                                  <td className="px-5 py-3.5">
+                                    <div className="font-medium text-slate-800">{emp.name}</div>
+                                    <div className="text-slate-500 text-xs flex items-center gap-1.5 mt-0.5">
+                                      <span>{emp.jobCategory}</span>
+                                      <span>•</span>
+                                      <span>{emp.location} ({emp.state})</span>
+                                      <span>•</span>
+                                      <span>Joined: {emp.joinDate}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <select
+                                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                                      value={emp.payType}
+                                      onChange={(e) =>
+                                        handleEmployeeFieldChange(emp.id, "payType", e.target.value as "Hourly" | "Salary")
+                                      }
+                                    >
+                                      <option value="Hourly">Hourly</option>
+                                      <option value="Salary">Salary</option>
+                                    </select>
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <div className="relative w-24">
+                                      <span className="absolute left-2.5 top-1.5 text-xs text-slate-400 font-medium">$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-full rounded-md border border-slate-300 pl-6 pr-2 py-1 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        value={emp.payRate}
+                                        onChange={(e) => handleEmployeeFieldChange(emp.id, "payRate", e.target.value)}
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <input
+                                      type="number"
+                                      className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      value={emp.workingPeriodHours}
+                                      onChange={(e) =>
+                                        handleEmployeeFieldChange(emp.id, "workingPeriodHours", e.target.value)
+                                      }
+                                    />
+                                    <span className="text-[11px] text-slate-400 block mt-0.5">
+                                      Budgeted: {emp.budgetedHours}h
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        className="w-14 rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        value={emp.bufferPercent}
+                                        onChange={(e) => handleEmployeeFieldChange(emp.id, "bufferPercent", e.target.value)}
+                                      />
+                                      <span className="text-xs text-slate-400 font-medium">%</span>
+                                    </div>
+                                    <span className="text-[11px] text-emerald-600 block mt-0.5 font-medium">
+                                      +${bufferAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3.5 text-slate-700 font-medium">
+                                    ${emp.baseWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <div className="relative w-28">
+                                      <span className="absolute left-2.5 top-1.5 text-xs text-slate-400 font-semibold">$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-full rounded-md border border-slate-300 bg-slate-50/50 pl-6 pr-2 py-1 text-xs font-bold text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        value={emp.grossWages}
+                                        onChange={(e) => handleEmployeeFieldChange(emp.id, "grossWages", e.target.value)}
+                                      />
+                                    </div>
+                                    {emp.isCustomGrossWages && (
+                                      <span className="text-[10px] text-amber-600 font-medium block mt-0.5">
+                                        Manual override
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-3.5 text-center">
+                                    <button
+                                      onClick={() => handleRemoveEmployee(emp.id)}
+                                      title="Exclude from current invoice calculation"
+                                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="bg-slate-50/80 font-semibold text-slate-800 border-t border-[#e8e4dc]">
+                            <tr>
+                              <td colSpan={5} className="px-5 py-3.5 text-right text-xs text-slate-600">
+                                Total Gross Wages ({activeEmployees.length} Active Employees):
+                              </td>
+                              <td className="px-4 py-3.5 text-xs text-slate-700">
+                                ${totalBaseWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-4 py-3.5 text-emerald-600 font-bold text-sm">
+                                ${totalGrossWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      )}
+                    </div>
+
+                    {/* Excluded Employees Banner (Section 9) */}
+                    {excludedEmployees.length > 0 && (
+                      <div className="p-4 bg-amber-50/60 border-t border-amber-200/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2 text-amber-800">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>
+                            <strong>{excludedEmployees.length}</strong> employee(s) excluded from this invoice
+                            (practice profile remains untouched):
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 ml-2">
+                            {excludedEmployees.map((e) => (
+                              <button
+                                key={e.id}
+                                onClick={() => handleRestoreEmployee(e.id)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-amber-300 rounded-md text-amber-900 hover:bg-amber-100 transition-colors text-[11px]"
+                              >
+                                {e.name}
+                                <RotateCcw className="w-3 h-3 text-amber-700" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleRestoreAllEmployees}
+                          className="font-semibold text-amber-900 hover:underline shrink-0"
+                        >
+                          Restore All
+                        </button>
                       </div>
                     )}
-                    <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-200">
-                      <span className="text-slate-600">Total Gross Wages (incl. 10% Buffer)</span>
-                      <span className="font-medium text-slate-800">${totalGrossWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+
+                    {step === 2 && (
+                      <div className="px-6 py-4 bg-slate-50 border-t border-[#e8e4dc] flex items-center justify-between">
+                        <button
+                          onClick={() => setStep(1)}
+                          className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-100 transition-colors"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Back to Setup
+                        </button>
+                        <button
+                          onClick={() => setStep(3)}
+                          className="flex items-center gap-2 px-5 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-xs"
+                        >
+                          Continue to Prefunding Rates
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ======================================================== */}
+                {/* STEP 3: PREFUNDING RATES (Sections 8.2 Step 6, 10 & 11) */}
+                {/* ======================================================== */}
+                {step >= 3 && (
+                  <div className="bg-white rounded-xl border border-[#e8e4dc] shadow-xs overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+                    <div className="bg-slate-50/70 px-6 py-4 border-b border-[#e8e4dc] flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#4f63ea] text-white text-xs font-bold">
+                          3
+                        </span>
+                        <div>
+                          <h2 className="text-[15px] font-semibold text-slate-800">
+                            Prefunding Rates & Line Items
+                          </h2>
+                          <p className="text-xs text-slate-500">
+                            Applied practice rates, manual additions (Option 1 template / Option 2 one-time), and line item edits
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowAddLineItemModal(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white text-xs font-semibold rounded-lg transition-colors shadow-xs"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Add Line Item
+                        </button>
+                        {step > 3 && (
+                          <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-md border border-emerald-200">
+                            Completed
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-200">
-                      <span className="text-slate-600">Total Prefunding Rates</span>
-                      <span className="font-medium text-slate-800">${totalRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+
+                    <div className="overflow-x-auto">
+                      {calculatedRates.length === 0 ? (
+                        <div className="p-8 text-center text-slate-500">
+                          <Calculator className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                          <p className="font-medium text-slate-700">No applicable rates for this calculation</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Click "+ Add Line Item" above to add template or one-time line items
+                          </p>
+                        </div>
+                      ) : (
+                        <table className="w-full text-[13px] text-left">
+                          <thead className="bg-slate-50/90 text-slate-500 font-semibold text-xs border-b border-[#e8e4dc]">
+                            <tr>
+                              <th className="px-6 py-3">Rate / Line Item</th>
+                              <th className="px-5 py-3">Basis</th>
+                              <th className="px-5 py-3">Pricing Model</th>
+                              <th className="px-5 py-3">Rate</th>
+                              <th className="px-5 py-3">Calculated Amount</th>
+                              <th className="px-4 py-3">Type</th>
+                              <th className="px-3 py-3 text-center">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#e8e4dc]">
+                            {calculatedRates.map((rate) => (
+                              <tr key={rate.id} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="px-6 py-4 font-semibold text-slate-800">
+                                  {rate.name}
+                                </td>
+                                <td className="px-5 py-4 text-slate-700">
+                                  <span className="text-xs font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                                    {rate.basis}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-4">
+                                  <span
+                                    className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold border ${getPricingModelColorClass(
+                                      rate.pricingModel
+                                    )}`}
+                                  >
+                                    {rate.pricingModel}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-4 text-slate-700 font-medium">
+                                  {rate.pricingModel === "Percentage"
+                                    ? `${rate.rate}%`
+                                    : rate.pricingModel === "Multiplication"
+                                    ? `x${rate.rate}`
+                                    : rate.pricingModel === "Division"
+                                    ? `/${rate.rate}`
+                                    : `$${rate.rate}`}
+                                </td>
+                                <td className="px-5 py-4 font-bold text-slate-900">
+                                  ${rate.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {rate.customAmount !== undefined && rate.customAmount !== null && (
+                                    <span className="text-[10px] text-amber-600 font-medium block">
+                                      Custom override
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-4">
+                                  {rate.isOneTime ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-[11px] font-semibold">
+                                      <Sparkles className="w-3 h-3 text-amber-500" />
+                                      One-Time
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md text-[11px] font-semibold">
+                                      <Layers className="w-3 h-3 text-blue-500" />
+                                      Template
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-4 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={() => handleOpenEditLineItem(rate)}
+                                      title="Edit line item values"
+                                      className="p-1.5 text-slate-400 hover:text-[#4f63ea] hover:bg-slate-100 rounded-md transition-colors"
+                                    >
+                                      <Edit3 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleRemoveLineItem(rate.id)}
+                                      title="Remove from current invoice"
+                                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-slate-50/80 font-semibold text-slate-800 border-t border-[#e8e4dc]">
+                            <tr>
+                              <td colSpan={4} className="px-6 py-4 text-right text-xs text-slate-600">
+                                Total Prefunding Adjustments:
+                              </td>
+                              <td className="px-5 py-4 text-indigo-600 font-bold text-sm">
+                                ${totalRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td colSpan={2}></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      )}
                     </div>
-                    <div className="flex justify-between items-center py-4 mt-4 bg-slate-50 px-4 rounded-lg border border-slate-200">
-                      <span className="text-[15px] font-semibold text-slate-800">Grand Total Prefunding</span>
-                      <span className="text-[18px] font-bold text-[#4f63ea]">${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+
+                    {/* Excluded Template Rates Notice (Section 11) */}
+                    {excludedRates.length > 0 && (
+                      <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <Info className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>
+                            Template rates excluded from this invoice:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 ml-2">
+                            {excludedRates.map((r) => (
+                              <button
+                                key={r.id}
+                                onClick={() => handleRestoreLineItem(r.id)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-300 rounded-md text-slate-800 hover:bg-slate-100 transition-colors text-[11px]"
+                              >
+                                {r.name}
+                                <RotateCcw className="w-3 h-3 text-[#4f63ea]" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {step === 3 && (
+                      <div className="px-6 py-4 bg-slate-50 border-t border-[#e8e4dc] flex items-center justify-between">
+                        <button
+                          onClick={() => setStep(2)}
+                          className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-100 transition-colors"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Back to Employees
+                        </button>
+                        <button
+                          onClick={() => setStep(4)}
+                          className="flex items-center gap-2 px-5 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-xs"
+                        >
+                          Calculate Grand Total & Review
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ======================================================== */}
+                {/* STEP 4: SUMMARY & GENERATE (Sections 8.2 Step 7) */}
+                {/* ======================================================== */}
+                {step === 4 && (
+                  <div className="bg-white rounded-xl border border-[#4f63ea]/30 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+                    <div className="bg-[#f0f2fe] px-6 py-5 border-b border-[#4f63ea]/20 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-5 w-5 text-[#4f63ea]" />
+                        <h2 className="text-[16px] font-bold text-[#4f63ea]">
+                          Step 7: Grand Total Prefunding Summary
+                        </h2>
+                      </div>
+                      <button
+                        onClick={generateInvoice}
+                        disabled={submitting}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-xs disabled:opacity-50"
+                      >
+                        {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                        {submitting ? "Generating..." : "Generate Invoice"}
+                      </button>
+                    </div>
+
+                    <div className="p-8 space-y-6">
+                      {/* Formula Visual Banner */}
+                      <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl flex flex-wrap items-center justify-around gap-4 text-center">
+                        <div>
+                          <p className="text-xs text-slate-500 font-medium">Employee Gross Wages</p>
+                          <p className="text-lg font-bold text-slate-800 mt-0.5">
+                            ${totalGrossWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <span className="text-xl font-bold text-slate-400">+</span>
+                        <div>
+                          <p className="text-xs text-slate-500 font-medium">Prefunding Adjustments</p>
+                          <p className="text-lg font-bold text-indigo-700 mt-0.5">
+                            ${totalRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <span className="text-xl font-bold text-slate-400">=</span>
+                        <div>
+                          <p className="text-xs text-indigo-600 font-bold uppercase tracking-wider">Grand Total</p>
+                          <p className="text-2xl font-black text-[#4f63ea] mt-0.5">
+                            ${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Invoice Itemization Table */}
+                      <div className="border border-slate-200 rounded-xl overflow-hidden">
+                        <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 font-semibold text-xs text-slate-700">
+                          Invoice Line Items Breakdown
+                        </div>
+                        <table className="w-full text-xs text-left">
+                          <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-200">
+                            <tr>
+                              <th className="px-5 py-2.5">Line Item</th>
+                              <th className="px-5 py-2.5">Basis</th>
+                              <th className="px-5 py-2.5">Pricing Model</th>
+                              <th className="px-5 py-2.5">Rate</th>
+                              <th className="px-5 py-2.5 text-right">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            <tr className="bg-emerald-50/20 font-medium">
+                              <td className="px-5 py-3 text-slate-900 font-semibold flex items-center gap-2">
+                                <Users className="w-4 h-4 text-emerald-600" />
+                                Gross Wages ({activeEmployees.length} Employee{activeEmployees.length === 1 ? "" : "s"})
+                              </td>
+                              <td className="px-5 py-3 text-slate-600">Gross Wages</td>
+                              <td className="px-5 py-3">Addition</td>
+                              <td className="px-5 py-3">-</td>
+                              <td className="px-5 py-3 text-right font-bold text-slate-900">
+                                ${totalGrossWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                            {calculatedRates.map((rate) => (
+                              <tr key={rate.id} className="hover:bg-slate-50/50">
+                                <td className="px-5 py-3 text-slate-800 font-medium flex items-center gap-1.5">
+                                  {rate.name}
+                                  {rate.isOneTime && (
+                                    <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                      One-Time
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-5 py-3 text-slate-500">{rate.basis}</td>
+                                <td className="px-5 py-3 text-slate-500">{rate.pricingModel}</td>
+                                <td className="px-5 py-3 text-slate-500">
+                                  {rate.pricingModel === "Percentage"
+                                    ? `${rate.rate}%`
+                                    : rate.pricingModel === "Multiplication"
+                                    ? `x${rate.rate}`
+                                    : rate.pricingModel === "Division"
+                                    ? `/${rate.rate}`
+                                    : `$${rate.rate}`}
+                                </td>
+                                <td className="px-5 py-3 text-right font-semibold text-slate-800">
+                                  ${rate.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                            <tr>
+                              <td colSpan={4} className="px-5 py-3 text-right text-slate-700">
+                                Total Prefunding Amount Due:
+                              </td>
+                              <td className="px-5 py-3 text-right text-base text-[#4f63ea]">
+                                ${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                        <button
+                          onClick={() => setStep(3)}
+                          className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-100 transition-colors"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Back to Rates
+                        </button>
+                        <button
+                          onClick={generateInvoice}
+                          disabled={submitting}
+                          className="flex items-center gap-2 px-6 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-xs disabled:opacity-50"
+                        >
+                          {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                          {submitting ? "Finalizing..." : "Finalize & Generate Invoice"}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
-            )}
-          </div>
             </div>
           </div>
-          </section>
+        </section>
+      </div>
+
+      {/* ======================================================== */}
+      {/* MODAL 1: ADD LINE ITEM (Section 10.2 & 10.3) */}
+      {/* ======================================================== */}
+      <ConfirmModal
+        isOpen={showAddLineItemModal}
+        onClose={() => setShowAddLineItemModal(false)}
+        onConfirm={handleCreateAdditionalLineItem}
+        title="Add Prefunding Line Item"
+        confirmLabel={isSavingLineItem ? "Adding..." : "Add Line Item"}
+        cancelLabel="Cancel"
+        isConfirming={isSavingLineItem}
+      >
+        <div className="space-y-4 text-xs text-slate-700">
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">
+              Line Item Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Worker Comp Surcharge, Medical Staff Fee"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={newLineItemName}
+              onChange={(e) => setNewLineItemName(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">
+              Basis <span className="text-red-500">*</span>
+            </label>
+            <MultiSelect
+              options={dynamicBasisOptions}
+              value={newLineItemBasis}
+              onChange={setNewLineItemBasis}
+              placeholder="Select calculation basis..."
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Select Gross Wages, Total Employees, Flat Fee, or an existing line item to calculate on
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Pricing Model</label>
+              <Select
+                options={PRICING_MODELS}
+                value={newLineItemPricingModel}
+                onChange={setNewLineItemPricingModel}
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Rate Value</label>
+              <input
+                type="number"
+                step="0.01"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={newLineItemRate}
+                onChange={(e) => setNewLineItemRate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Section 10.3: Storage Scope Selection */}
+          <div className="pt-2 border-t border-slate-100">
+            <label className="block font-bold text-slate-800 mb-2">Scope & Template Storage (Section 10.3)</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label
+                onClick={() => setNewLineItemStorageOption("template")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  newLineItemStorageOption === "template"
+                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="scope"
+                    checked={newLineItemStorageOption === "template"}
+                    onChange={() => setNewLineItemStorageOption("template")}
+                    className="text-[#4f63ea]"
+                  />
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-[#4f63ea]" /> Option 1: Template
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  Save to practice template. Appears on this invoice AND all future cycles.
+                </p>
+              </label>
+
+              <label
+                onClick={() => setNewLineItemStorageOption("onetime")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  newLineItemStorageOption === "onetime"
+                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="scope"
+                    checked={newLineItemStorageOption === "onetime"}
+                    onChange={() => setNewLineItemStorageOption("onetime")}
+                    className="text-[#4f63ea]"
+                  />
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Option 2: One-Time
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  Applies to this invoice only. Does not alter the template for future cycles.
+                </p>
+              </label>
+            </div>
+          </div>
         </div>
+      </ConfirmModal>
+
+      {/* ======================================================== */}
+      {/* MODAL 2: EDIT LINE ITEM (Section 10.1) */}
+      {/* ======================================================== */}
+      <ConfirmModal
+        isOpen={showEditLineItemModal}
+        onClose={() => setShowEditLineItemModal(false)}
+        onConfirm={handleSaveEditedLineItem}
+        title="Edit Prefunding Line Item"
+        confirmLabel="Save Changes"
+        cancelLabel="Cancel"
+      >
+        <div className="space-y-4 text-xs text-slate-700">
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">Line Item Name</label>
+            <input
+              type="text"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={editLineItemName}
+              onChange={(e) => setEditLineItemName(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">Basis</label>
+            <MultiSelect
+              options={dynamicBasisOptions}
+              value={editLineItemBasis}
+              onChange={setEditLineItemBasis}
+              placeholder="Select basis..."
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Pricing Model</label>
+              <Select
+                options={PRICING_MODELS}
+                value={editLineItemPricingModel}
+                onChange={setEditLineItemPricingModel}
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Rate Value</label>
+              <input
+                type="number"
+                step="0.01"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={editLineItemRate}
+                onChange={(e) => setEditLineItemRate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">
+              Custom Amount Override ($)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Leave blank to use auto-calculated amount"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={editLineItemAmount}
+              onChange={(e) => setEditLineItemAmount(e.target.value)}
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Optionally force a custom dollar amount for this invoice before finalization
+            </p>
+          </div>
+        </div>
+      </ConfirmModal>
+
+      {/* ======================================================== */}
+      {/* MODAL 3: ADD AD-HOC EMPLOYEE (Section 9) */}
+      {/* ======================================================== */}
+      <ConfirmModal
+        isOpen={showAddEmployeeModal}
+        onClose={() => setShowAddEmployeeModal(false)}
+        onConfirm={handleAddCustomEmployee}
+        title="Add Employee to Calculation"
+        confirmLabel="Add Employee"
+        cancelLabel="Cancel"
+      >
+        <div className="space-y-4 text-xs text-slate-700">
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">Employee Full Name *</label>
+            <input
+              type="text"
+              placeholder="e.g. Jane Doe"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={newEmployeeName}
+              onChange={(e) => setNewEmployeeName(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Job Category</label>
+              <input
+                type="text"
+                placeholder="e.g. Registered Nurse"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={newEmployeeJobCategory}
+                onChange={(e) => setNewEmployeeJobCategory(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Work Location</label>
+              <input
+                type="text"
+                placeholder="e.g. Main Clinic"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={newEmployeeLocation}
+                onChange={(e) => setNewEmployeeLocation(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Pay Type</label>
+              <select
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={newEmployeePayType}
+                onChange={(e) => setNewEmployeePayType(e.target.value as "Hourly" | "Salary")}
+              >
+                <option value="Hourly">Hourly</option>
+                <option value="Salary">Salary</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Pay Rate ($)</label>
+              <input
+                type="number"
+                step="0.01"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={newEmployeePayRate}
+                onChange={(e) => setNewEmployeePayRate(Number(e.target.value))}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Working Period (Hrs)</label>
+              <input
+                type="number"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={newEmployeeBudgetedHours}
+                onChange={(e) => setNewEmployeeBudgetedHours(Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
+              <input
+                type="number"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={newEmployeeBufferPercent}
+                onChange={(e) => setNewEmployeeBufferPercent(Number(e.target.value))}
+              />
+            </div>
+          </div>
+        </div>
+      </ConfirmModal>
+
+      {/* ======================================================== */}
+      {/* MODAL 4: INVOICE GENERATED SUCCESS MODAL */}
+      {/* ======================================================== */}
+      {showGeneratedModal && generatedInvoice && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-xs animate-in fade-in" />
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-6 text-white text-center">
+              <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
+                <CheckCircle2 className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold">Prefunding Invoice Generated!</h3>
+              <p className="text-emerald-100 text-xs mt-1">
+                Draft invoice has been created and logged in the Prefunding Invoices module
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Invoice Number:</span>
+                  <span className="font-bold text-slate-800">{generatedInvoice.invoiceNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Practice:</span>
+                  <span className="font-semibold text-slate-800">{selectedPracticeObj?.label}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Prefunding Cycle:</span>
+                  <span className="font-semibold text-slate-800">{generatedInvoice.cycle}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Payment Due Date:</span>
+                  <span className="font-semibold text-slate-800">{generatedInvoice.dueDate}</span>
+                </div>
+                <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-sm">
+                  <span className="text-slate-700">Total Invoice Amount:</span>
+                  <span className="text-[#4f63ea]">
+                    ${generatedInvoice.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <button
+                  onClick={() => openPrefundingInvoicePdf(generatedInvoice.id)}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-xs transition-colors shadow-2xs"
+                >
+                  <Eye className="w-4 h-4 text-[#4f63ea]" />
+                  Preview PDF
+                </button>
+                <button
+                  onClick={() => navigate("/prefunding/invoices")}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white font-semibold rounded-xl text-xs transition-colors shadow-xs"
+                >
+                  <FileText className="w-4 h-4" />
+                  View All Invoices
+                </button>
+              </div>
+
+              <div className="text-center pt-2">
+                <button
+                  onClick={resetCalculationWizard}
+                  className="text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors"
+                >
+                  Calculate Another Cycle
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
