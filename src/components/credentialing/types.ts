@@ -148,6 +148,7 @@ export const defaultCredentialingChecklistTasks = [
 
 export type CredentialingPracticeDetails = {
   name?: string | null;
+  practiceId?: number | null;
   npi?: string | null;
   referredBy?: string | null;
   addressLine1?: string | null;

@@ -212,6 +212,18 @@ function ActivePracticesPage() {
         size: 220,
       },
       {
+        id: "practiceId",
+        accessorFn: (row) => getCellValue(row.values.practiceId),
+        header: () => (
+          <div className="flex items-center gap-2">
+            <FileText className="h-3.5 w-3.5 text-slate-400" />
+            <span>Practice ID</span>
+          </div>
+        ),
+        cell: ({ row }) => getCellValue(row.original.values.practiceId),
+        size: 130,
+      },
+      {
         id: "npi",
         accessorFn: (row) => getCellValue(row.values.npi),
         header: () => (
@@ -455,6 +467,12 @@ function ActivePracticesPage() {
               >
                 <div className="flex-1 overflow-auto p-4">
                   <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Practice ID</span>
+                      <span className="text-right text-slate-700">
+                        {selectedPractice.practiceId ?? "-"}
+                      </span>
+                    </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">NPI</span>
                       <span className="text-right text-slate-700">

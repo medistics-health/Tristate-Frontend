@@ -884,6 +884,12 @@ export default function PracticeProfilePage() {
             <div className="rounded-3xl border border-[#ece8e1] bg-white/70 p-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <p className="text-xs text-slate-400">Practice ID</p>
+                  <p className="mt-1 font-semibold">
+                    {practice.practiceId ?? "-"}
+                  </p>
+                </div>
+                <div>
                   <p className="text-xs text-slate-400">NPI</p>
                   <p className="mt-1 font-semibold">{practice.npi || "-"}</p>
                 </div>
@@ -947,6 +953,7 @@ export default function PracticeProfilePage() {
             description="Core practice identifiers and ownership details."
           >
             <div className="grid gap-3 md:grid-cols-2">
+              <InfoRow label="Practice ID" value={practice.practiceId} />
               <InfoRow label="Practice Name" value={practice.name} />
               <InfoRow
                 label="Practice Status"

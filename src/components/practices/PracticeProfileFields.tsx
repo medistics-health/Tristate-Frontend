@@ -460,7 +460,7 @@ export default function PracticeProfileFields({
             )}
             <TextInput
               value={row.phone}
-              placeholder="Phone"
+              placeholder="Contact Number"
               onChange={(event) =>
                 updateContact(key, index, { phone: event.target.value })
               }
