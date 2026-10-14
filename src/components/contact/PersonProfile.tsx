@@ -656,6 +656,9 @@ export default function PersonProfilePage() {
                           {practice.name || "Unnamed practice"}
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
+                          Practice ID: {practice.practiceId ?? "-"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
                           NPI: {practice.npi || "-"}
                         </p>
                       </div>

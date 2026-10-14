@@ -183,6 +183,10 @@ function practiceInfoFields(practice?: CredentialingPracticeDetails | null) {
     .join(" | ");
 
   return [
+    [
+      "Practice ID",
+      practice?.practiceId != null ? String(practice.practiceId) : "",
+    ],
     ["Practice Name", practice?.name],
     ["Practice Owner Name", practice?.practicePersonNames],
     ["Referred By", practice?.referredBy],
