@@ -20,6 +20,7 @@ import {
   Printer,
   Trash2,
   List,
+  Users,
 } from "lucide-react";
 import DataTableToolbar, {
   SortableHeaderCell,
@@ -45,6 +46,9 @@ type InvoiceLineItem = {
   pricingModel: string | null;
   rate: number | null;
   amount: number;
+  notes?: string | null;
+  includeInGrandTotal?: boolean;
+  sequence?: number;
   isOneTime: boolean;
 };
 
@@ -442,7 +446,7 @@ export default function PrefundingInvoices() {
 
           {/* Sidebar */}
           {selectedRowId && selectedInvoice && (
-            <div className="flex w-[480px] flex-shrink-0 flex-col border-l border-[#f0ece6] bg-white transition-all duration-300">
+            <div className="flex w-[620px] max-w-full flex-shrink-0 flex-col border-l border-[#f0ece6] bg-white transition-all duration-300">
               <div className="flex h-[45px] flex-shrink-0 items-center gap-2 border-b border-[#f0ece6] bg-[#fcfaf8] px-3">
                 <button
                   type="button"
@@ -498,32 +502,194 @@ export default function PrefundingInvoices() {
                   </div>
                 </div>
 
-                {/* Line Items Breakdown */}
+                {/* Line Items Breakdown (Styled matching /prefunding/calculate) */}
                 {selectedInvoice.lineItems && selectedInvoice.lineItems.length > 0 && (
                   <div className="space-y-3">
                     <h4 className="text-[13px] font-semibold text-slate-800 flex items-center gap-2">
                       <List className="h-4 w-4 text-slate-400" />
-                      Invoice Line Items
+                      Invoice Line Items & Rates Breakdown
                     </h4>
-                    <div className="rounded-xl border border-[#e8e4dc] overflow-hidden">
-                      <table className="w-full text-[12px] text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-[#e8e4dc]">
+                    <div className="rounded-xl border border-[#ece8e1] overflow-hidden">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-[#fbfaf8] text-slate-500 font-semibold text-[11px] border-b border-[#ece8e1]">
                           <tr>
-                            <th className="px-3 py-2">Item</th>
-                            <th className="px-3 py-2">Model</th>
-                            <th className="px-3 py-2 text-right">Amount</th>
+                            <th className="px-3.5 py-2.5">Rate / Line Item</th>
+                            <th className="px-3 py-2.5">Basis</th>
+                            <th className="px-3 py-2.5">Model</th>
+                            <th className="px-3 py-2.5">Rate</th>
+                            <th className="px-3.5 py-2.5 text-right">Amount</th>
+                            <th className="px-2.5 py-2.5 text-center">Type</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#e8e4dc] bg-white">
-                          {selectedInvoice.lineItems.map((item) => (
-                            <tr key={item.id}>
-                              <td className="px-3 py-2 font-medium text-slate-800">{item.name}</td>
-                              <td className="px-3 py-2 text-slate-600">{item.pricingModel || item.basis || "-"}</td>
-                              <td className="px-3 py-2 text-right font-semibold text-slate-800">
-                                ${item.amount.toFixed(2)}
-                              </td>
-                            </tr>
-                          ))}
+                        <tbody className="divide-y divide-[#ece8e1] bg-white">
+                          {(() => {
+                            const items = selectedInvoice.lineItems || [];
+                            const grossWageItem = items.find((i) =>
+                              (i.name || "").toLowerCase().includes("gross wage") ||
+                              (i.basis || "").toLowerCase().includes("gross wage")
+                            );
+                            const otherItems = items.filter((i) => i.id !== grossWageItem?.id);
+
+                            // Checked items = includeInGrandTotal is true (or default true)
+                            const checkedItems = otherItems
+                              .filter((i) => i.includeInGrandTotal !== false)
+                              .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+
+                            // Unchecked / Additional items = includeInGrandTotal is false
+                            const uncheckedItems = otherItems
+                              .filter((i) => i.includeInGrandTotal === false)
+                              .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+
+                            const grossWagesAmount = grossWageItem ? grossWageItem.amount : 0;
+                            const checkedAmount = checkedItems.reduce((acc, curr) => acc + curr.amount, 0);
+                            const prefundingSubtotal = grossWagesAmount + checkedAmount;
+                            const uncheckedAmount = uncheckedItems.reduce((acc, curr) => acc + curr.amount, 0);
+
+                            const formatRateVal = (rate: number | null, model: string | null) => {
+                              if (rate === null || rate === undefined) return "-";
+                              if (model === "Percentage") return `${rate}%`;
+                              if (model === "Multiplication") return `x${rate}`;
+                              if (model === "Division") return `/${rate}`;
+                              return `$${rate}`;
+                            };
+
+                            return (
+                              <>
+                                {/* Employee Gross Wages Row */}
+                                {grossWageItem && (
+                                  <tr key={grossWageItem.id} className="bg-emerald-50/25 font-medium hover:bg-emerald-50/40 transition-colors">
+                                    <td className="px-3.5 py-2.5 font-semibold text-slate-900">
+                                      <div className="flex items-center gap-1.5">
+                                        <Users className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>{grossWageItem.name}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-slate-600">
+                                      <span className="text-[11px] font-medium bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                        Gross Wages
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-slate-600">Addition</td>
+                                    <td className="px-3 py-2.5 text-slate-600">-</td>
+                                    <td className="px-3.5 py-2.5 text-right font-bold text-slate-900">
+                                      ${grossWageItem.amount.toFixed(2)}
+                                    </td>
+                                    <td className="px-2.5 py-2.5 text-center">
+                                      <span className="inline-block px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-semibold">
+                                        Wages
+                                      </span>
+                                    </td>
+                                  </tr>
+                                )}
+
+                                {/* Checked adjustments (Taxes & Template Line Items) */}
+                                {checkedItems.map((item) => (
+                                  <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                                    <td className="px-3.5 py-2.5 font-semibold text-slate-800">
+                                      <div>{item.name}</div>
+                                      {item.notes && (
+                                        <div className="text-[10px] text-slate-500 font-normal italic mt-0.5">
+                                          <span className="text-slate-400 not-italic">Note:</span> {item.notes}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-slate-600">
+                                      <span className="text-[11px] font-medium bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                        {item.basis || "-"}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-slate-600">{item.pricingModel || "-"}</td>
+                                    <td className="px-3 py-2.5 text-slate-600">
+                                      {formatRateVal(item.rate, item.pricingModel)}
+                                    </td>
+                                    <td className="px-3.5 py-2.5 text-right font-semibold text-slate-800">
+                                      ${item.amount.toFixed(2)}
+                                    </td>
+                                    <td className="px-2.5 py-2.5 text-center">
+                                      {item.isOneTime ? (
+                                        <span className="inline-block px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-semibold">
+                                          One-Time
+                                        </span>
+                                      ) : (
+                                        <span className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-semibold">
+                                          Template
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+
+                                {/* Total Prefunding Adjustments subtotal (Gross Wages + Adjustments) */}
+                                <tr className="bg-slate-50/90 border-t border-[#ece8e1] font-semibold">
+                                  <td colSpan={4} className="px-3.5 py-2.5 text-right text-[11px] text-slate-700">
+                                    <div>Total Prefunding Adjustments:</div>
+                                    <div className="text-[10px] text-slate-400 font-normal">
+                                      Gross Wages (${grossWagesAmount.toFixed(2)}) + Adjustments (${checkedAmount.toFixed(2)})
+                                    </div>
+                                  </td>
+                                  <td className="px-3.5 py-2.5 text-right text-indigo-700 font-bold text-xs">
+                                    ${prefundingSubtotal.toFixed(2)}
+                                  </td>
+                                  <td></td>
+                                </tr>
+
+                                {/* Unchecked Additional Line Items (shown after Total Prefunding Adjustments) */}
+                                {uncheckedItems.map((item) => (
+                                  <tr key={item.id} className="bg-slate-50/40 hover:bg-slate-50/70 transition-colors">
+                                    <td className="px-3.5 py-2.5 font-semibold text-slate-800">
+                                      <div>{item.name}</div>
+                                      {item.notes && (
+                                        <div className="text-[10px] text-slate-500 font-normal italic mt-0.5">
+                                          <span className="text-slate-400 not-italic">Note:</span> {item.notes}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-slate-600">
+                                      <span className="text-[11px] font-medium bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                        {item.basis || "Grand Total"}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-slate-600">{item.pricingModel || "-"}</td>
+                                    <td className="px-3 py-2.5 text-slate-600">
+                                      {formatRateVal(item.rate, item.pricingModel)}
+                                    </td>
+                                    <td className="px-3.5 py-2.5 text-right font-semibold text-slate-800">
+                                      ${item.amount.toFixed(2)}
+                                    </td>
+                                    <td className="px-2.5 py-2.5 text-center">
+                                      {item.isOneTime ? (
+                                        <span className="inline-block px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-semibold">
+                                          One-Time
+                                        </span>
+                                      ) : (
+                                        <span className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-semibold">
+                                          Template
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+
+                                {/* Total Grand Total row */}
+                                <tr className="border-t border-[#e2ded6] bg-[#f5f7fe]/80 font-bold">
+                                  <td colSpan={4} className="px-3.5 py-3 text-right">
+                                    <div className="text-[#4f63ea] text-[11px] uppercase tracking-wide">
+                                      Total Grand Total:
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-normal">
+                                      {uncheckedItems.length > 0
+                                        ? `Total Adjustments ($${prefundingSubtotal.toFixed(2)}) + Additional Line Items ($${uncheckedAmount.toFixed(2)})`
+                                        : `Total Adjustments ($${prefundingSubtotal.toFixed(2)})`}
+                                    </div>
+                                  </td>
+                                  <td className="px-3.5 py-3 text-right text-[#4f63ea] text-[13px] font-black">
+                                    ${selectedInvoice.totalAmount.toFixed(2)}
+                                  </td>
+                                  <td></td>
+                                </tr>
+                              </>
+                            );
+                          })()}
                         </tbody>
                       </table>
                     </div>

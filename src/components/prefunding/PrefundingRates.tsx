@@ -38,6 +38,7 @@ type PrefundingRate = {
   basis: string;
   pricingModel: string;
   rate: number;
+  notes?: string | null;
   practiceIds: string[];
 };
 
@@ -46,6 +47,7 @@ type RateFormData = {
   basis: string[];
   pricingModel: string;
   rate: number;
+  notes: string;
   practiceIds: string[];
 };
 
@@ -62,6 +64,8 @@ const BASE_BASIS_OPTIONS = [
   { value: "Gross Wages", label: "Gross Wages" },
   { value: "Total Employees", label: "Total Employees" },
   { value: "Flat Fee", label: "Flat Fee" },
+  { value: "Prefunding Adjustments", label: "Total Prefunding Adjustments (Subtotal)" },
+  { value: "Grand Total", label: "Grand Total" },
 ];
 
 function parseBasisToArray(basisVal: any): string[] {
@@ -101,6 +105,7 @@ export default function PrefundingRates() {
     basis: ["Gross Wages"],
     pricingModel: "Percentage",
     rate: 0,
+    notes: "",
     practiceIds: [],
   });
 
@@ -164,7 +169,19 @@ export default function PrefundingRates() {
           <span>Name</span>
         </div>
       ),
-      cell: (info) => <span className="font-medium">{info.getValue() as string}</span>,
+      cell: (info) => {
+        const item = info.row.original;
+        return (
+          <div>
+            <span className="font-medium">{info.getValue() as string}</span>
+            {item.notes && (
+              <div className="text-[11px] text-slate-500 font-normal italic mt-0.5">
+                <span className="text-slate-400 not-italic">Note:</span> {item.notes}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "basis",
@@ -232,10 +249,10 @@ export default function PrefundingRates() {
         if (model === "Percentage") return `${val}%`;
         if (model === "Multiplication") return `x${val}`;
         if (model === "Division") return `/${val}`;
-        return val.toLocaleString("en-US", {
-          style: "currency",
-          currency: "USD",
-        });
+        return `$${val.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 6,
+        })}`;
       },
     },
     {
@@ -284,6 +301,7 @@ export default function PrefundingRates() {
       basis: ["Gross Wages"],
       pricingModel: "Percentage",
       rate: 0,
+      notes: "",
       practiceIds: [],
     });
     setShowCreateForm(true);
@@ -300,6 +318,7 @@ export default function PrefundingRates() {
         basis: parseBasisToArray(item.basis),
         pricingModel: item.pricingModel,
         rate: item.rate,
+        notes: item.notes || "",
         practiceIds: item.practiceIds,
       });
       setSelectedRowId(id);
@@ -445,6 +464,8 @@ export default function PrefundingRates() {
           )}
           <input
             type="number"
+            step="any"
+            min="0"
             className={`w-full rounded-md border border-slate-300 ${formData.pricingModel === "Percentage" ? "pl-3 pr-8" : "pl-7 pr-3"} py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
             value={formData.rate}
             onChange={(e) => setFormData((prev) => ({ ...prev, rate: parseFloat(e.target.value) || 0 }))}
@@ -465,6 +486,17 @@ export default function PrefundingRates() {
           options={practices.map((p) => ({ value: p.id, label: p.name }))}
           value={formData.practiceIds}
           onChange={(val) => setFormData((prev) => ({ ...prev, practiceIds: val }))}
+          disabled={!showCreateForm && !isEditing}
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-[13px] font-medium text-slate-700">Note (Optional)</label>
+        <input
+          type="text"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          value={formData.notes}
+          onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+          placeholder="e.g. Standard rate policy or specific condition note"
           disabled={!showCreateForm && !isEditing}
         />
       </div>
