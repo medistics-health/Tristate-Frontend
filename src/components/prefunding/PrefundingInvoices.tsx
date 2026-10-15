@@ -619,10 +619,10 @@ export default function PrefundingInvoices() {
                                   </tr>
                                 ))}
 
-                                {/* Total Prefunding Adjustments subtotal (Gross Wages + Adjustments) */}
+                                {/* GMS Projection subtotal (Gross Wages + Adjustments) */}
                                 <tr className="bg-slate-50/90 border-t border-[#ece8e1] font-semibold">
                                   <td colSpan={4} className="px-3.5 py-2.5 text-right text-[11px] text-slate-700">
-                                    <div>Total Prefunding Adjustments:</div>
+                                    <div>GMS Projection:</div>
                                     <div className="text-[10px] text-slate-400 font-normal">
                                       Gross Wages (${grossWagesAmount.toFixed(2)}) + Adjustments (${checkedAmount.toFixed(2)})
                                     </div>
@@ -633,7 +633,7 @@ export default function PrefundingInvoices() {
                                   <td></td>
                                 </tr>
 
-                                {/* Unchecked Additional Line Items (shown after Total Prefunding Adjustments) */}
+                                {/* Unchecked Additional Line Items (shown after GMS Projection) */}
                                 {uncheckedItems.map((item) => (
                                   <tr key={item.id} className="bg-slate-50/40 hover:bg-slate-50/70 transition-colors">
                                     <td className="px-3.5 py-2.5 font-semibold text-slate-800">
@@ -671,15 +671,15 @@ export default function PrefundingInvoices() {
                                 ))}
 
                                 {/* Total Grand Total row */}
-                                <tr className="border-t border-[#e2ded6] bg-[#f5f7fe]/80 font-bold">
+                                <tr className="border-t border-[#e2ded6] bg-white font-bold">
                                   <td colSpan={4} className="px-3.5 py-3 text-right">
                                     <div className="text-[#4f63ea] text-[11px] uppercase tracking-wide">
                                       Total Grand Total:
                                     </div>
                                     <div className="text-[10px] text-slate-400 font-normal">
                                       {uncheckedItems.length > 0
-                                        ? `Total Adjustments ($${prefundingSubtotal.toFixed(2)}) + Additional Line Items ($${uncheckedAmount.toFixed(2)})`
-                                        : `Total Adjustments ($${prefundingSubtotal.toFixed(2)})`}
+                                        ? `GMS Projection ($${prefundingSubtotal.toFixed(2)}) + Additional Line Items ($${uncheckedAmount.toFixed(2)})`
+                                        : `GMS Projection ($${prefundingSubtotal.toFixed(2)})`}
                                     </div>
                                   </td>
                                   <td className="px-3.5 py-3 text-right text-[#4f63ea] text-[13px] font-black">

@@ -27,6 +27,7 @@ import {
 import AppLayout from "../layout/AppLayout";
 import { getStandardNavbarActions } from "../shared/PageComponents";
 import Select from "../shared/Select";
+import DatePicker from "../shared/DatePicker";
 import MultiSelect from "../shared/MultiSelect";
 import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
@@ -81,7 +82,7 @@ const BASE_BASIS_OPTIONS = [
   { value: "Gross Wages", label: "Gross Wages" },
   { value: "Total Employees", label: "Total Employees" },
   { value: "Flat Fee", label: "Flat Fee" },
-  { value: "Prefunding Adjustments", label: "Total Prefunding Adjustments (Subtotal)" },
+  { value: "GMS Projection", label: "GMS Projection (Subtotal)" },
   { value: "Grand Total", label: "Grand Total" },
 ];
 
@@ -212,9 +213,10 @@ export default function CalculatePrefunding() {
   const [newEmployeeLocation, setNewEmployeeLocation] = useState("Main Clinic");
   const [newEmployeeState, setNewEmployeeState] = useState("NY");
   const [newEmployeePayType, setNewEmployeePayType] = useState<"Hourly" | "Salary">("Hourly");
-  const [newEmployeePayRate, setNewEmployeePayRate] = useState<number>(25);
-  const [newEmployeeBudgetedHours, setNewEmployeeBudgetedHours] = useState<number>(160);
-  const [newEmployeeBufferPercent, setNewEmployeeBufferPercent] = useState<number>(10);
+  const [newEmployeePayRate, setNewEmployeePayRate] = useState<number | string>(25);
+  const [newEmployeeBudgetedHours, setNewEmployeeBudgetedHours] = useState<number | string>(160);
+  const [newEmployeeBufferPercent, setNewEmployeeBufferPercent] = useState<number | string>(10);
+  const [employeeModalErrors, setEmployeeModalErrors] = useState<Record<string, string>>({});
 
   // Generated Invoice Result
   const [generatedInvoice, setGeneratedInvoice] = useState<{
@@ -408,7 +410,7 @@ export default function CalculatePrefunding() {
         const updated = { ...emp, [field]: val };
 
         if (field === "grossWages") {
-          updated.grossWages = Number(val) || 0;
+          updated.grossWages = Math.max(0, Number(val) || 0);
           updated.isCustomGrossWages = true;
           return updated;
         }
@@ -420,10 +422,14 @@ export default function CalculatePrefunding() {
           field === "payType" ||
           field === "budgetedHours"
         ) {
-          const numRate = Number(updated.payRate) || 0;
-          const numHours = Number(updated.workingPeriodHours) || 0;
-          const numBudgeted = Number(updated.budgetedHours) || 0;
-          const numBuffer = Number(updated.bufferPercent) || 0;
+          const numRate = Math.max(0, Number(updated.payRate) || 0);
+          const numHours = Math.max(0, Number(updated.workingPeriodHours) || 0);
+          const numBudgeted = Math.max(0, Number(updated.budgetedHours) || 0);
+          const numBuffer = Math.max(0, Number(updated.bufferPercent) || 0);
+
+          if (field === "payRate") updated.payRate = numRate;
+          if (field === "workingPeriodHours") updated.workingPeriodHours = numHours;
+          if (field === "bufferPercent") updated.bufferPercent = numBuffer;
 
           let base = 0;
           if (updated.payType === "Hourly") {
@@ -467,13 +473,32 @@ export default function CalculatePrefunding() {
 
   // Add Ad-Hoc employee for this calculation
   const handleAddCustomEmployee = () => {
+    const errors: Record<string, string> = {};
+
     if (!newEmployeeName.trim()) {
-      toast.error("Employee name is required");
+      errors.name = "Employee full name is required";
+    }
+
+    const payRateNum = Number(newEmployeePayRate);
+    if (newEmployeePayRate === "" || isNaN(payRateNum) || payRateNum <= 0) {
+      errors.payRate = "Pay rate must be greater than 0";
+    }
+
+    const workingHoursNum = Number(newEmployeeBudgetedHours);
+    if (newEmployeeBudgetedHours === "" || isNaN(workingHoursNum) || workingHoursNum <= 0) {
+      errors.budgetedHours = "Working hours must be greater than 0";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setEmployeeModalErrors(errors);
+      toast.error("Please fill in all required fields correctly");
       return;
     }
-    const payRate = Number(newEmployeePayRate) || 0;
-    const workingHours = Number(newEmployeeBudgetedHours) || 160;
-    const buffer = Number(newEmployeeBufferPercent) || 10;
+
+    setEmployeeModalErrors({});
+    const payRate = payRateNum;
+    const workingHours = workingHoursNum;
+    const buffer = Number(newEmployeeBufferPercent) || 0;
     const base = newEmployeePayType === "Hourly" ? workingHours * payRate : payRate;
     const gross = Math.round((base + base * (buffer / 100)) * 100) / 100;
 
@@ -497,6 +522,10 @@ export default function CalculatePrefunding() {
     setEmployees((prev) => [...prev, newEmp]);
     setShowAddEmployeeModal(false);
     setNewEmployeeName("");
+    setNewEmployeePayRate(25);
+    setNewEmployeeBudgetedHours(160);
+    setNewEmployeeBufferPercent(10);
+    setEmployeeModalErrors({});
     toast.success("Employee added to this calculation");
   };
 
@@ -564,7 +593,14 @@ export default function CalculatePrefunding() {
           const otherRatesSum = Object.values(rateIdAmountMap).reduce((acc, v) => acc + (typeof v === "number" ? v : 0), 0);
           baseAmount += (totalGrossWages + otherRatesSum);
           includesGrossWages = true;
-        } else if (b === "prefunding adjustments" || b === "prefunding adjustments (subtotal)" || b === "total prefunding adjustments") {
+        } else if (
+          b === "prefunding adjustments" ||
+          b === "prefunding adjustments (subtotal)" ||
+          b === "total prefunding adjustments" ||
+          b === "gms projection" ||
+          b === "gms projection (subtotal)" ||
+          b === "total gms projection"
+        ) {
           // Computes based on Wages + checked rates
           const checkedRatesSum = activeRates
             .filter((r) => r.includeInGrandTotal !== false && r.id !== rate.id)
@@ -749,7 +785,7 @@ export default function CalculatePrefunding() {
       return;
     }
 
-    const rateNum = Number(newLineItemRate) || 0;
+    const rateNum = Math.max(0, Number(newLineItemRate) || 0);
     const formattedBasis = newLineItemBasis.join(", ");
     setIsSavingLineItem(true);
 
@@ -838,8 +874,8 @@ export default function CalculatePrefunding() {
       return;
     }
 
-    const updatedRateNum = Number(editLineItemRate) || 0;
-    const customAmtNum = editLineItemAmount !== "" ? Number(editLineItemAmount) : null;
+    const updatedRateNum = Math.max(0, Number(editLineItemRate) || 0);
+    const customAmtNum = editLineItemAmount !== "" ? Math.max(0, Number(editLineItemAmount)) : null;
     const formattedBasis = editLineItemBasis.join(", ");
 
     setRates((prev) =>
@@ -1186,27 +1222,25 @@ export default function CalculatePrefunding() {
                     {selectedCycle && (
                       <>
                         <div>
-                          <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
+                          <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
                             Cycle Start Date
                           </label>
-                          <input
-                            type="date"
-                            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                          <DatePicker
                             value={cycleStartDate}
-                            onChange={(e) => setCycleStartDate(e.target.value)}
+                            onChange={(val) => setCycleStartDate(val)}
                             disabled={step > 1}
+                            placeholder="MM-DD-YYYY"
                           />
                         </div>
                         <div>
-                          <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
+                          <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
                             Cycle End Date
                           </label>
-                          <input
-                            type="date"
-                            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                          <DatePicker
                             value={cycleEndDate}
-                            onChange={(e) => setCycleEndDate(e.target.value)}
+                            onChange={(val) => setCycleEndDate(val)}
                             disabled={step > 1}
+                            placeholder="MM-DD-YYYY"
                           />
                         </div>
                       </>
@@ -1291,7 +1325,7 @@ export default function CalculatePrefunding() {
 
                               return (
                                 <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
-                                  <td className="px-5 py-3.5">
+                                  <td className="px-5 py-3.5 align-middle">
                                     <div className="font-medium text-slate-800">{emp.name}</div>
                                     <div className="text-slate-500 text-xs flex items-center gap-1.5 mt-0.5">
                                       <span>{emp.jobCategory}</span>
@@ -1301,34 +1335,45 @@ export default function CalculatePrefunding() {
                                       <span>Joined: {emp.joinDate}</span>
                                     </div>
                                   </td>
-                                  <td className="px-4 py-3.5">
-                                    <select
-                                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
-                                      value={emp.payType}
-                                      onChange={(e) =>
-                                        handleEmployeeFieldChange(emp.id, "payType", e.target.value as "Hourly" | "Salary")
-                                      }
-                                    >
-                                      <option value="Hourly">Hourly</option>
-                                      <option value="Salary">Salary</option>
-                                    </select>
+                                  <td className="px-4 py-3.5 align-middle">
+                                    <div className="w-28">
+                                      <Select
+                                        options={[
+                                          { value: "Hourly", label: "Hourly" },
+                                          { value: "Salary", label: "Salary" },
+                                        ]}
+                                        value={emp.payType}
+                                        onChange={(val) =>
+                                          handleEmployeeFieldChange(emp.id, "payType", val as "Hourly" | "Salary")
+                                        }
+                                        className="!py-1 !text-xs !rounded-lg"
+                                      />
+                                    </div>
                                   </td>
-                                  <td className="px-4 py-3.5">
+                                  <td className="px-4 py-3.5 align-middle">
                                     <div className="relative w-24">
-                                      <span className="absolute left-2.5 top-1.5 text-xs text-slate-400 font-medium">$</span>
+                                      <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-medium">$</span>
                                       <input
                                         type="number"
                                         step="0.01"
-                                        className="w-full rounded-md border border-slate-300 pl-6 pr-2 py-1 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        min="0"
+                                        onKeyDown={(e) => {
+                                          if (e.key === "-" || e.key === "e") e.preventDefault();
+                                        }}
+                                        className="w-full h-8 rounded-lg border border-slate-300 bg-white pl-6 pr-2 py-1 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
                                         value={emp.payRate}
                                         onChange={(e) => handleEmployeeFieldChange(emp.id, "payRate", e.target.value)}
                                       />
                                     </div>
                                   </td>
-                                  <td className="px-4 py-3.5">
+                                  <td className="px-4 py-3.5 align-middle">
                                     <input
                                       type="number"
-                                      className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      min="0"
+                                      onKeyDown={(e) => {
+                                        if (e.key === "-" || e.key === "e") e.preventDefault();
+                                      }}
+                                      className="w-20 h-8 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
                                       value={emp.workingPeriodHours}
                                       onChange={(e) =>
                                         handleEmployeeFieldChange(emp.id, "workingPeriodHours", e.target.value)
@@ -1338,11 +1383,15 @@ export default function CalculatePrefunding() {
                                       Budgeted: {emp.budgetedHours}h
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3.5">
+                                  <td className="px-4 py-3.5 align-middle">
                                     <div className="flex items-center gap-1">
                                       <input
                                         type="number"
-                                        className="w-14 rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        min="0"
+                                        onKeyDown={(e) => {
+                                          if (e.key === "-" || e.key === "e") e.preventDefault();
+                                        }}
+                                        className="w-16 h-8 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
                                         value={emp.bufferPercent}
                                         onChange={(e) => handleEmployeeFieldChange(emp.id, "bufferPercent", e.target.value)}
                                       />
@@ -1352,16 +1401,20 @@ export default function CalculatePrefunding() {
                                       +${bufferAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3.5 text-slate-700 font-medium">
+                                  <td className="px-4 py-3.5 align-middle text-slate-700 font-medium">
                                     ${emp.baseWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
-                                  <td className="px-4 py-3.5">
+                                  <td className="px-4 py-3.5 align-middle">
                                     <div className="relative w-28">
-                                      <span className="absolute left-2.5 top-1.5 text-xs text-slate-400 font-semibold">$</span>
+                                      <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-semibold">$</span>
                                       <input
                                         type="number"
                                         step="0.01"
-                                        className="w-full rounded-md border border-slate-300 bg-slate-50/50 pl-6 pr-2 py-1 text-xs font-bold text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        min="0"
+                                        onKeyDown={(e) => {
+                                          if (e.key === "-" || e.key === "e") e.preventDefault();
+                                        }}
+                                        className="w-full h-8 rounded-lg border border-slate-300 bg-slate-50/50 pl-6 pr-2 py-1 text-xs font-bold text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
                                         value={emp.grossWages}
                                         onChange={(e) => handleEmployeeFieldChange(emp.id, "grossWages", e.target.value)}
                                       />
@@ -1372,7 +1425,7 @@ export default function CalculatePrefunding() {
                                       </span>
                                     )}
                                   </td>
-                                  <td className="px-3 py-3.5 text-center">
+                                  <td className="px-3 py-3.5 align-middle text-center">
                                     <button
                                       onClick={() => handleRemoveEmployee(emp.id)}
                                       title="Exclude from current invoice calculation"
@@ -1551,12 +1604,12 @@ export default function CalculatePrefunding() {
                                   }`}
                                 >
                                   {/* Drag Handle */}
-                                  <td className="w-8 px-2 py-4 text-center cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600">
+                                  <td className="w-8 px-2 py-4 align-middle text-center cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600">
                                     <div className="flex items-center justify-center">
                                       <GripVertical className="w-4 h-4" />
                                     </div>
                                   </td>
-                                  <td className="px-5 py-4 font-semibold text-slate-800">
+                                  <td className="px-5 py-4 align-middle font-semibold text-slate-800">
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                       <span>{rate.name}</span>
                                     </div>
@@ -1566,12 +1619,12 @@ export default function CalculatePrefunding() {
                                       </div>
                                     )}
                                   </td>
-                                  <td className="px-5 py-4 text-slate-700">
+                                  <td className="px-5 py-4 align-middle text-slate-700">
                                     <span className="text-xs font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
                                       {rate.basis}
                                     </span>
                                   </td>
-                                  <td className="px-5 py-4">
+                                  <td className="px-5 py-4 align-middle">
                                     <span
                                       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold border ${getPricingModelColorClass(
                                         rate.pricingModel
@@ -1580,7 +1633,7 @@ export default function CalculatePrefunding() {
                                       {rate.pricingModel}
                                     </span>
                                   </td>
-                                  <td className="px-5 py-4 text-slate-700 font-medium">
+                                  <td className="px-5 py-4 align-middle text-slate-700 font-medium">
                                     {rate.pricingModel === "Percentage"
                                       ? `${rate.rate}%`
                                       : rate.pricingModel === "Multiplication"
@@ -1589,7 +1642,7 @@ export default function CalculatePrefunding() {
                                       ? `/${rate.rate}`
                                       : `$${rate.rate}`}
                                   </td>
-                                  <td className="px-5 py-4 font-bold text-slate-900">
+                                  <td className="px-5 py-4 align-middle font-bold text-slate-900">
                                     ${rate.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     {rate.customAmount !== undefined && rate.customAmount !== null && (
                                       <span className="text-[10px] text-amber-600 font-medium block">
@@ -1597,7 +1650,7 @@ export default function CalculatePrefunding() {
                                       </span>
                                     )}
                                   </td>
-                                  <td className="px-4 py-4">
+                                  <td className="px-4 py-4 align-middle">
                                     {rate.isOneTime ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-[11px] font-semibold">
                                         <Sparkles className="w-3 h-3 text-amber-500" />
@@ -1610,7 +1663,7 @@ export default function CalculatePrefunding() {
                                       </span>
                                     )}
                                   </td>
-                                  <td className="px-3 py-4 text-center">
+                                  <td className="px-3 py-4 align-middle text-center">
                                     <div className="flex items-center justify-center gap-1">
                                       <button
                                         type="button"
@@ -1635,10 +1688,10 @@ export default function CalculatePrefunding() {
                             })}
                           </tbody>
                           <tfoot className="bg-[#fbfaf8] font-semibold text-slate-800 border-t border-[#ece8e1]">
-                            {/* Total Prefunding Adjustments (Gross Wages + Checked Adjustments) */}
+                            {/* GMS Projection (Gross Wages + Checked Adjustments) */}
                             <tr className="bg-slate-50/80 border-t border-[#ece8e1]">
                               <td colSpan={5} className="px-6 py-3.5 text-right text-xs text-slate-700 font-semibold">
-                                Total Prefunding Adjustments:
+                                GMS Projection:
                                 <div className="text-[11px] text-slate-500 font-normal">
                                   Gross Wages (${totalGrossWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) + Adjustments (${checkedRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                                 </div>
@@ -1687,12 +1740,12 @@ export default function CalculatePrefunding() {
                                   }`}
                                 >
                                   {/* Drag Handle */}
-                                  <td className="w-8 px-2 py-3.5 text-center cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600">
+                                  <td className="w-8 px-2 py-3.5 align-middle text-center cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600">
                                     <div className="flex items-center justify-center">
                                       <GripVertical className="w-4 h-4" />
                                     </div>
                                   </td>
-                                  <td className="px-5 py-3.5 font-semibold text-slate-800">
+                                  <td className="px-5 py-3.5 align-middle font-semibold text-slate-800">
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                       <span>{rate.name}</span>
                                     </div>
@@ -1702,12 +1755,12 @@ export default function CalculatePrefunding() {
                                       </div>
                                     )}
                                   </td>
-                                  <td className="px-5 py-3.5 text-slate-700">
+                                  <td className="px-5 py-3.5 align-middle text-slate-700">
                                     <span className="text-xs font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
                                       {rate.basis}
                                     </span>
                                   </td>
-                                  <td className="px-5 py-3.5">
+                                  <td className="px-5 py-3.5 align-middle">
                                     <span
                                       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold border ${getPricingModelColorClass(
                                         rate.pricingModel
@@ -1716,7 +1769,7 @@ export default function CalculatePrefunding() {
                                       {rate.pricingModel}
                                     </span>
                                   </td>
-                                  <td className="px-5 py-3.5 text-slate-700 font-medium">
+                                  <td className="px-5 py-3.5 align-middle text-slate-700 font-medium">
                                     {rate.pricingModel === "Percentage"
                                       ? `${rate.rate}%`
                                       : rate.pricingModel === "Multiplication"
@@ -1725,7 +1778,7 @@ export default function CalculatePrefunding() {
                                       ? `/${rate.rate}`
                                       : `$${rate.rate}`}
                                   </td>
-                                  <td className="px-5 py-3.5 font-bold text-slate-900">
+                                  <td className="px-5 py-3.5 align-middle font-bold text-slate-900">
                                     ${rate.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     {rate.customAmount !== undefined && rate.customAmount !== null && (
                                       <span className="text-[10px] text-amber-600 font-medium block">
@@ -1733,7 +1786,7 @@ export default function CalculatePrefunding() {
                                       </span>
                                     )}
                                   </td>
-                                  <td className="px-4 py-3.5">
+                                  <td className="px-4 py-3.5 align-middle">
                                     {rate.isOneTime ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-[11px] font-semibold">
                                         <Sparkles className="w-3 h-3 text-amber-500" />
@@ -1746,7 +1799,7 @@ export default function CalculatePrefunding() {
                                       </span>
                                     )}
                                   </td>
-                                  <td className="px-3 py-3.5 text-center">
+                                  <td className="px-3 py-3.5 align-middle text-center">
                                     <div className="flex items-center justify-center gap-1">
                                       <button
                                         type="button"
@@ -1771,7 +1824,7 @@ export default function CalculatePrefunding() {
                             })}
 
                             {/* Final Total Grand Total row */}
-                            <tr className="border-t border-[#e2ded6] bg-[#f5f7fe]/70">
+                            <tr className="border-t border-[#e2ded6] bg-white">
                               <td colSpan={5} className="px-6 py-4 text-right">
                                 <div className="text-xs font-bold text-[#4f63ea] uppercase tracking-wide">
                                   Total Grand Total:
@@ -1779,11 +1832,11 @@ export default function CalculatePrefunding() {
                                 <div className="text-[11px] text-slate-500 font-normal">
                                   {uncheckedRates.length > 0 ? (
                                     <>
-                                      Total Prefunding Adjustments (${prefundingSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) + Additional Line Items (${uncheckedRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                      GMS Projection (${prefundingSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) + Additional Line Items (${uncheckedRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                                     </>
                                   ) : (
                                     <>
-                                      Total Prefunding Adjustments (${prefundingSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                      GMS Projection (${prefundingSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                                     </>
                                   )}
                                 </div>
@@ -1850,10 +1903,17 @@ export default function CalculatePrefunding() {
                   <div className="bg-white rounded-xl border border-[#4f63ea]/30 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
                     <div className="bg-[#f0f2fe] px-6 py-5 border-b border-[#4f63ea]/20 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <DollarSign className="h-5 w-5 text-[#4f63ea]" />
-                        <h2 className="text-[16px] font-bold text-[#4f63ea]">
-                          Step 7: Grand Total Prefunding Summary
-                        </h2>
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#4f63ea] text-white text-xs font-bold">
+                          4
+                        </span>
+                        <div>
+                          <h2 className="text-[15px] font-semibold text-slate-800">
+                            Summary & Generate Invoice
+                          </h2>
+                          <p className="text-xs text-slate-500">
+                            Review employee gross wages, GMS Projection, and final grand total before posting
+                          </p>
+                        </div>
                       </div>
                       <button
                         onClick={generateInvoice}
@@ -1883,7 +1943,7 @@ export default function CalculatePrefunding() {
                         </div>
                         <span className="text-xl font-bold text-slate-400">=</span>
                         <div>
-                          <p className="text-xs text-indigo-700 font-semibold">Total Prefunding Adjustments</p>
+                          <p className="text-xs text-indigo-700 font-semibold">GMS Projection</p>
                           <p className="text-lg font-black text-indigo-900 mt-0.5">
                             ${prefundingSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </p>
@@ -1983,10 +2043,10 @@ export default function CalculatePrefunding() {
                             ))}
                           </tbody>
                           <tfoot className="bg-[#fbfaf8] border-t border-[#ece8e1] font-bold">
-                            {/* Total Prefunding Adjustments (Gross Wages + Checked Adjustments) */}
+                            {/* GMS Projection (Gross Wages + Checked Adjustments) */}
                             <tr className="bg-slate-50/80 border-t border-[#ece8e1]">
                               <td colSpan={4} className="px-5 py-3 text-right text-xs text-slate-700 font-semibold">
-                                Total Prefunding Adjustments:
+                                GMS Projection:
                                 <div className="text-[11px] text-slate-500 font-normal">
                                   Gross Wages (${totalGrossWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) + Adjustments (${checkedRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                                 </div>
@@ -2039,7 +2099,7 @@ export default function CalculatePrefunding() {
                             ))}
 
                             {/* Total Grand Total */}
-                            <tr className="border-t border-[#e2ded6] bg-[#f5f7fe]/70">
+                            <tr className="border-t border-[#e2ded6] bg-white">
                               <td colSpan={4} className="px-5 py-3 text-right">
                                 <div className="text-xs font-bold text-[#4f63ea] uppercase tracking-wide">
                                   Total Grand Total:
@@ -2047,11 +2107,11 @@ export default function CalculatePrefunding() {
                                 <div className="text-[11px] text-slate-500 font-normal">
                                   {uncheckedRates.length > 0 ? (
                                     <>
-                                      Total Prefunding Adjustments (${prefundingSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) + Additional Line Items (${uncheckedRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                      GMS Projection (${prefundingSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) + Additional Line Items (${uncheckedRatesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                                     </>
                                   ) : (
                                     <>
-                                      Total Prefunding Adjustments (${prefundingSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                      GMS Projection (${prefundingSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                                     </>
                                   )}
                                 </div>
@@ -2146,6 +2206,10 @@ export default function CalculatePrefunding() {
               <input
                 type="number"
                 step="0.01"
+                min="0"
+                onKeyDown={(e) => {
+                  if (e.key === "-" || e.key === "e") e.preventDefault();
+                }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={newLineItemRate}
                 onChange={(e) => setNewLineItemRate(e.target.value)}
@@ -2173,7 +2237,7 @@ export default function CalculatePrefunding() {
               className="rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea]"
             />
             <label htmlFor="newLineItemIncludeInGrandTotal" className="text-xs text-slate-700 font-medium cursor-pointer">
-              Include in Prefunding Adjustments subtotal (Uncheck to place in Additional Line Items)
+              Include in GMS Projection subtotal (Uncheck to place in Additional Line Items)
             </label>
           </div>
 
@@ -2281,6 +2345,10 @@ export default function CalculatePrefunding() {
               <input
                 type="number"
                 step="0.01"
+                min="0"
+                onKeyDown={(e) => {
+                  if (e.key === "-" || e.key === "e") e.preventDefault();
+                }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={editLineItemRate}
                 onChange={(e) => setEditLineItemRate(e.target.value)}
@@ -2295,6 +2363,10 @@ export default function CalculatePrefunding() {
             <input
               type="number"
               step="0.01"
+              min="0"
+              onKeyDown={(e) => {
+                if (e.key === "-" || e.key === "e") e.preventDefault();
+              }}
               placeholder="Leave blank to use auto-calculated amount"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               value={editLineItemAmount}
@@ -2326,10 +2398,10 @@ export default function CalculatePrefunding() {
               />
               <div>
                 <span className="font-semibold text-slate-800 block text-xs">
-                  Include in Prefunding Adjustments subtotal (Checked section)
+                  Include in GMS Projection subtotal (Checked section)
                 </span>
                 <span className="text-[11px] text-slate-500 leading-normal block">
-                  Checked items are included in the Total Prefunding Adjustments (Wages + Taxes) subtotal. Unchecked items appear after the subtotal and add to the Total Grand Total.
+                  Checked items are included in the GMS Projection (Wages + Taxes) subtotal. Unchecked items appear after the subtotal and add to the Total Grand Total.
                 </span>
               </div>
             </label>
@@ -2342,22 +2414,40 @@ export default function CalculatePrefunding() {
       {/* ======================================================== */}
       <ConfirmModal
         isOpen={showAddEmployeeModal}
-        onClose={() => setShowAddEmployeeModal(false)}
+        onClose={() => {
+          setShowAddEmployeeModal(false);
+          setEmployeeModalErrors({});
+        }}
         onConfirm={handleAddCustomEmployee}
+        closeOnConfirm={false}
         title="Add Employee to Calculation"
         confirmLabel="Add Employee"
         cancelLabel="Cancel"
       >
         <div className="space-y-4 text-xs text-slate-700">
           <div>
-            <label className="block font-semibold text-slate-800 mb-1">Employee Full Name *</label>
+            <label className="block font-semibold text-slate-800 mb-1">
+              Employee Full Name <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               placeholder="e.g. Jane Doe"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
+                employeeModalErrors.name
+                  ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
+                  : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+              }`}
               value={newEmployeeName}
-              onChange={(e) => setNewEmployeeName(e.target.value)}
+              onChange={(e) => {
+                setNewEmployeeName(e.target.value);
+                if (employeeModalErrors.name) {
+                  setEmployeeModalErrors((prev) => ({ ...prev, name: "" }));
+                }
+              }}
             />
+            {employeeModalErrors.name && (
+              <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.name}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -2386,44 +2476,86 @@ export default function CalculatePrefunding() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Pay Type</label>
-              <select
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              <Select
+                options={[
+                  { value: "Hourly", label: "Hourly" },
+                  { value: "Salary", label: "Salary" },
+                ]}
                 value={newEmployeePayType}
-                onChange={(e) => setNewEmployeePayType(e.target.value as "Hourly" | "Salary")}
-              >
-                <option value="Hourly">Hourly</option>
-                <option value="Salary">Salary</option>
-              </select>
+                onChange={(val) => setNewEmployeePayType(val as "Hourly" | "Salary")}
+              />
             </div>
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">Pay Rate ($)</label>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Pay Rate ($) <span className="text-red-500">*</span>
+              </label>
               <input
                 type="number"
                 step="0.01"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                min="0"
+                onKeyDown={(e) => {
+                  if (e.key === "-" || e.key === "e") e.preventDefault();
+                }}
+                placeholder="e.g. 25"
+                className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
+                  employeeModalErrors.payRate
+                    ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                }`}
                 value={newEmployeePayRate}
-                onChange={(e) => setNewEmployeePayRate(Number(e.target.value))}
+                onChange={(e) => {
+                  setNewEmployeePayRate(e.target.value);
+                  if (employeeModalErrors.payRate) {
+                    setEmployeeModalErrors((prev) => ({ ...prev, payRate: "" }));
+                  }
+                }}
               />
+              {employeeModalErrors.payRate && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.payRate}</p>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">Working Period (Hrs)</label>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Working Period (Hrs) <span className="text-red-500">*</span>
+              </label>
               <input
                 type="number"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                min="0"
+                onKeyDown={(e) => {
+                  if (e.key === "-" || e.key === "e") e.preventDefault();
+                }}
+                placeholder="e.g. 160"
+                className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
+                  employeeModalErrors.budgetedHours
+                    ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                }`}
                 value={newEmployeeBudgetedHours}
-                onChange={(e) => setNewEmployeeBudgetedHours(Number(e.target.value))}
+                onChange={(e) => {
+                  setNewEmployeeBudgetedHours(e.target.value);
+                  if (employeeModalErrors.budgetedHours) {
+                    setEmployeeModalErrors((prev) => ({ ...prev, budgetedHours: "" }));
+                  }
+                }}
               />
+              {employeeModalErrors.budgetedHours && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.budgetedHours}</p>
+              )}
             </div>
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
               <input
                 type="number"
+                min="0"
+                onKeyDown={(e) => {
+                  if (e.key === "-" || e.key === "e") e.preventDefault();
+                }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={newEmployeeBufferPercent}
-                onChange={(e) => setNewEmployeeBufferPercent(Number(e.target.value))}
+                onChange={(e) => setNewEmployeeBufferPercent(e.target.value)}
               />
             </div>
           </div>
@@ -2437,14 +2569,11 @@ export default function CalculatePrefunding() {
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-xs animate-in fade-in" />
           <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-6 text-white text-center">
-              <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
-                <CheckCircle2 className="w-8 h-8 text-white" />
+            <div className="p-6 text-center border-b border-slate-100 bg-white">
+              <div className="w-12 h-12 bg-emerald-50 border border-emerald-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
               </div>
-              <h3 className="text-xl font-bold">Prefunding Invoice Generated!</h3>
-              <p className="text-emerald-100 text-xs mt-1">
-                Draft invoice has been created and logged in the Prefunding Invoices module
-              </p>
+              <h3 className="text-lg font-bold text-slate-800">Prefunding Invoice Generated!</h3>
             </div>
 
             <div className="p-6 space-y-4">
@@ -2475,15 +2604,17 @@ export default function CalculatePrefunding() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => openPrefundingInvoicePdf(generatedInvoice.id)}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-xs transition-colors shadow-2xs"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-xs transition-colors shadow-2xs cursor-pointer"
                 >
                   <Eye className="w-4 h-4 text-[#4f63ea]" />
                   Preview PDF
                 </button>
                 <button
+                  type="button"
                   onClick={() => navigate("/prefunding/invoices")}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white font-semibold rounded-xl text-xs transition-colors shadow-xs"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white font-semibold rounded-xl text-xs transition-colors shadow-xs cursor-pointer"
                 >
                   <FileText className="w-4 h-4" />
                   View All Invoices
@@ -2492,8 +2623,9 @@ export default function CalculatePrefunding() {
 
               <div className="text-center pt-2">
                 <button
+                  type="button"
                   onClick={resetCalculationWizard}
-                  className="text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors"
+                  className="text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors cursor-pointer"
                 >
                   Calculate Another Cycle
                 </button>

@@ -64,7 +64,7 @@ const BASE_BASIS_OPTIONS = [
   { value: "Gross Wages", label: "Gross Wages" },
   { value: "Total Employees", label: "Total Employees" },
   { value: "Flat Fee", label: "Flat Fee" },
-  { value: "Prefunding Adjustments", label: "Total Prefunding Adjustments (Subtotal)" },
+  { value: "GMS Projection", label: "GMS Projection (Subtotal)" },
   { value: "Grand Total", label: "Grand Total" },
 ];
 
