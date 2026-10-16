@@ -86,6 +86,37 @@ const BASE_BASIS_OPTIONS = [
   { value: "Grand Total", label: "Grand Total" },
 ];
 
+const JOB_CATEGORY_OPTIONS = [
+  { label: "Clinical", value: "CLINICAL" },
+  { label: "Non-Clinical", value: "NON_CLINICAL" },
+];
+
+const US_STATES_OPTIONS = [
+  { label: "Alabama", value: "AL" }, { label: "Alaska", value: "AK" }, { label: "Arizona", value: "AZ" },
+  { label: "Arkansas", value: "AR" }, { label: "California", value: "CA" }, { label: "Colorado", value: "CO" },
+  { label: "Connecticut", value: "CT" }, { label: "Delaware", value: "DE" }, { label: "Florida", value: "FL" },
+  { label: "Georgia", value: "GA" }, { label: "Hawaii", value: "HI" }, { label: "Idaho", value: "ID" },
+  { label: "Illinois", value: "IL" }, { label: "Indiana", value: "IN" }, { label: "Iowa", value: "IA" },
+  { label: "Kansas", value: "KS" }, { label: "Kentucky", value: "KY" }, { label: "Louisiana", value: "LA" },
+  { label: "Maine", value: "ME" }, { label: "Maryland", value: "MD" }, { label: "Massachusetts", value: "MA" },
+  { label: "Michigan", value: "MI" }, { label: "Minnesota", value: "MN" }, { label: "Mississippi", value: "MS" },
+  { label: "Missouri", value: "MO" }, { label: "Montana", value: "MT" }, { label: "Nebraska", value: "NE" },
+  { label: "Nevada", value: "NV" }, { label: "New Hampshire", value: "NH" }, { label: "New Jersey", value: "NJ" },
+  { label: "New Mexico", value: "NM" }, { label: "New York", value: "NY" }, { label: "North Carolina", value: "NC" },
+  { label: "North Dakota", value: "ND" }, { label: "Ohio", value: "OH" }, { label: "Oklahoma", value: "OK" },
+  { label: "Oregon", value: "OR" }, { label: "Pennsylvania", value: "PA" }, { label: "Rhode Island", value: "RI" },
+  { label: "South Carolina", value: "SC" }, { label: "South Dakota", value: "SD" }, { label: "Tennessee", value: "TN" },
+  { label: "Texas", value: "TX" }, { label: "Utah", value: "UT" }, { label: "Vermont", value: "VT" },
+  { label: "Virginia", value: "VA" }, { label: "Washington", value: "WA" }, { label: "West Virginia", value: "WV" },
+  { label: "Wisconsin", value: "WI" }, { label: "Wyoming", value: "WY" }
+];
+
+const EMPLOYEE_PAY_TYPE_OPTIONS = [
+  { label: "Hourly", value: "Hourly" },
+  { label: "Monthly", value: "Monthly" },
+  { label: "Annually", value: "Annually" },
+];
+
 function generatePracticeCycles(startDateStr?: string | null, cycleType?: string | null) {
   let baseDate: Date;
   if (startDateStr) {
@@ -196,6 +227,7 @@ export default function CalculatePrefunding() {
   const [newLineItemIncludeInGrandTotal, setNewLineItemIncludeInGrandTotal] = useState(true);
   const [newLineItemStorageOption, setNewLineItemStorageOption] = useState<"template" | "onetime">("onetime");
   const [isSavingLineItem, setIsSavingLineItem] = useState(false);
+  const [lineItemModalErrors, setLineItemModalErrors] = useState<Record<string, string>>({});
 
   // Edit line item form state
   const [editLineItemName, setEditLineItemName] = useState("");
@@ -209,9 +241,10 @@ export default function CalculatePrefunding() {
   // Add ad-hoc employee modal
   const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false);
   const [newEmployeeName, setNewEmployeeName] = useState("");
-  const [newEmployeeJobCategory, setNewEmployeeJobCategory] = useState("Medical Assistant");
+  const [newEmployeeJobCategory, setNewEmployeeJobCategory] = useState("CLINICAL");
   const [newEmployeeLocation, setNewEmployeeLocation] = useState("Main Clinic");
   const [newEmployeeState, setNewEmployeeState] = useState("NY");
+  const [newEmployeeDateOfJoining, setNewEmployeeDateOfJoining] = useState(new Date().toISOString().split("T")[0]);
   const [newEmployeePayType, setNewEmployeePayType] = useState<"Hourly" | "Salary">("Hourly");
   const [newEmployeePayRate, setNewEmployeePayRate] = useState<number | string>(25);
   const [newEmployeeBudgetedHours, setNewEmployeeBudgetedHours] = useState<number | string>(160);
@@ -491,7 +524,6 @@ export default function CalculatePrefunding() {
 
     if (Object.keys(errors).length > 0) {
       setEmployeeModalErrors(errors);
-      toast.error("Please fill in all required fields correctly");
       return;
     }
 
@@ -505,10 +537,10 @@ export default function CalculatePrefunding() {
     const newEmp: EmployeeCalculationItem = {
       id: `adhoc_${Date.now()}`,
       name: newEmployeeName.trim(),
-      jobCategory: newEmployeeJobCategory.trim() || "Staff",
-      location: newEmployeeLocation.trim() || "Clinic",
+      jobCategory: newEmployeeJobCategory === "CLINICAL" ? "Clinical" : newEmployeeJobCategory === "NON_CLINICAL" ? "Non-Clinical" : (newEmployeeJobCategory.trim() || "Staff"),
+      location: newEmployeeLocation.trim() || "Main Location",
       state: newEmployeeState.trim() || "NY",
-      joinDate: new Date().toISOString().split("T")[0],
+      joinDate: newEmployeeDateOfJoining ? new Date(newEmployeeDateOfJoining).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       payType: newEmployeePayType,
       payRate,
       budgetedHours: workingHours,
@@ -522,6 +554,11 @@ export default function CalculatePrefunding() {
     setEmployees((prev) => [...prev, newEmp]);
     setShowAddEmployeeModal(false);
     setNewEmployeeName("");
+    setNewEmployeeJobCategory("CLINICAL");
+    setNewEmployeeLocation("Main Clinic");
+    setNewEmployeeState("NY");
+    setNewEmployeeDateOfJoining(new Date().toISOString().split("T")[0]);
+    setNewEmployeePayType("Hourly");
     setNewEmployeePayRate(25);
     setNewEmployeeBudgetedHours(160);
     setNewEmployeeBufferPercent(10);
@@ -776,16 +813,28 @@ export default function CalculatePrefunding() {
 
   // Section 10.2 & 10.3: Add Additional Line Item
   const handleCreateAdditionalLineItem = async () => {
+    const errors: Record<string, string> = {};
+
     if (!newLineItemName.trim()) {
-      toast.error("Line item name is required");
-      return;
+      errors.name = "Line item name is required";
     }
+
     if (!newLineItemBasis || newLineItemBasis.length === 0) {
-      toast.error("Please select at least one basis");
+      errors.basis = "Please select at least one basis";
+    }
+
+    const rateNum = Number(newLineItemRate);
+    if (newLineItemRate === "" || isNaN(rateNum) || rateNum < 0) {
+      errors.rate = "Rate value must be greater than or equal to 0";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setLineItemModalErrors(errors);
       return;
     }
 
-    const rateNum = Math.max(0, Number(newLineItemRate) || 0);
+    setLineItemModalErrors({});
+    const validRateNum = Math.max(0, rateNum);
     const formattedBasis = newLineItemBasis.join(", ");
     setIsSavingLineItem(true);
 
@@ -796,7 +845,7 @@ export default function CalculatePrefunding() {
           name: newLineItemName.trim(),
           basis: formattedBasis,
           pricingModel: newLineItemPricingModel,
-          rate: rateNum,
+          rate: validRateNum,
           practiceIds: [selectedPractice],
         });
 
@@ -806,7 +855,7 @@ export default function CalculatePrefunding() {
           name: newLineItemName.trim(),
           basis: formattedBasis,
           pricingModel: newLineItemPricingModel,
-          rate: rateNum,
+          rate: validRateNum,
           amount: 0,
           notes: newLineItemNotes.trim() || null,
           includeInGrandTotal: newLineItemIncludeInGrandTotal,
@@ -823,7 +872,7 @@ export default function CalculatePrefunding() {
           name: newLineItemName.trim(),
           basis: formattedBasis,
           pricingModel: newLineItemPricingModel,
-          rate: rateNum,
+          rate: validRateNum,
           amount: 0,
           notes: newLineItemNotes.trim() || null,
           includeInGrandTotal: newLineItemIncludeInGrandTotal,
@@ -844,6 +893,7 @@ export default function CalculatePrefunding() {
       setNewLineItemNotes("");
       setNewLineItemIncludeInGrandTotal(true);
       setNewLineItemStorageOption("onetime");
+      setLineItemModalErrors({});
     } catch (err: any) {
       console.error("Failed to create line item", err);
       toast.error(err?.response?.data?.message || err?.message || "Failed to add line item");
@@ -2156,8 +2206,12 @@ export default function CalculatePrefunding() {
       {/* ======================================================== */}
       <ConfirmModal
         isOpen={showAddLineItemModal}
-        onClose={() => setShowAddLineItemModal(false)}
+        onClose={() => {
+          setShowAddLineItemModal(false);
+          setLineItemModalErrors({});
+        }}
         onConfirm={handleCreateAdditionalLineItem}
+        closeOnConfirm={false}
         title="Add Prefunding Line Item"
         confirmLabel={isSavingLineItem ? "Adding..." : "Add Line Item"}
         cancelLabel="Cancel"
@@ -2171,10 +2225,22 @@ export default function CalculatePrefunding() {
             <input
               type="text"
               placeholder="e.g. Worker Comp Surcharge, Medical Staff Fee"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
+                lineItemModalErrors.name
+                  ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
+                  : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+              }`}
               value={newLineItemName}
-              onChange={(e) => setNewLineItemName(e.target.value)}
+              onChange={(e) => {
+                setNewLineItemName(e.target.value);
+                if (lineItemModalErrors.name) {
+                  setLineItemModalErrors((prev) => ({ ...prev, name: "" }));
+                }
+              }}
             />
+            {lineItemModalErrors.name && (
+              <p className="text-[11px] text-red-500 mt-1 font-medium">{lineItemModalErrors.name}</p>
+            )}
           </div>
 
           <div>
@@ -2184,9 +2250,18 @@ export default function CalculatePrefunding() {
             <MultiSelect
               options={dynamicBasisOptions}
               value={newLineItemBasis}
-              onChange={setNewLineItemBasis}
+              onChange={(val) => {
+                setNewLineItemBasis(val);
+                if (lineItemModalErrors.basis) {
+                  setLineItemModalErrors((prev) => ({ ...prev, basis: "" }));
+                }
+              }}
               placeholder="Select calculation basis..."
+              className={lineItemModalErrors.basis ? "!border-red-400" : ""}
             />
+            {lineItemModalErrors.basis && (
+              <p className="text-[11px] text-red-500 mt-1 font-medium">{lineItemModalErrors.basis}</p>
+            )}
             <p className="text-[11px] text-slate-400 mt-1">
               Select Gross Wages, Grand Total, Prefunding Adjustments, Total Employees, Flat Fee, or an existing line item to calculate on
             </p>
@@ -2202,7 +2277,9 @@ export default function CalculatePrefunding() {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">Rate Value</label>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Rate Value <span className="text-red-500">*</span>
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -2210,10 +2287,22 @@ export default function CalculatePrefunding() {
                 onKeyDown={(e) => {
                   if (e.key === "-" || e.key === "e") e.preventDefault();
                 }}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
+                  lineItemModalErrors.rate
+                    ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                }`}
                 value={newLineItemRate}
-                onChange={(e) => setNewLineItemRate(e.target.value)}
+                onChange={(e) => {
+                  setNewLineItemRate(e.target.value);
+                  if (lineItemModalErrors.rate) {
+                    setLineItemModalErrors((prev) => ({ ...prev, rate: "" }));
+                  }
+                }}
               />
+              {lineItemModalErrors.rate && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{lineItemModalErrors.rate}</p>
+              )}
             </div>
           </div>
 
@@ -2241,9 +2330,9 @@ export default function CalculatePrefunding() {
             </label>
           </div>
 
-          {/* Section 10.3: Storage Scope Selection */}
+          {/* Scope Selection */}
           <div className="pt-2 border-t border-slate-100">
-            <label className="block font-bold text-slate-800 mb-2">Scope & Template Storage (Section 10.3)</label>
+            <label className="block font-bold text-slate-800 mb-2">Scope & Template Storage</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label
                 onClick={() => setNewLineItemStorageOption("template")}
@@ -2424,7 +2513,7 @@ export default function CalculatePrefunding() {
         confirmLabel="Add Employee"
         cancelLabel="Cancel"
       >
-        <div className="space-y-4 text-xs text-slate-700">
+        <div className="space-y-3.5 text-xs text-slate-700">
           <div>
             <label className="block font-semibold text-slate-800 mb-1">
               Employee Full Name <span className="text-red-500">*</span>
@@ -2453,19 +2542,19 @@ export default function CalculatePrefunding() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Job Category</label>
-              <input
-                type="text"
-                placeholder="e.g. Registered Nurse"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              <Select
                 value={newEmployeeJobCategory}
-                onChange={(e) => setNewEmployeeJobCategory(e.target.value)}
+                onChange={(val) => setNewEmployeeJobCategory(val)}
+                options={JOB_CATEGORY_OPTIONS}
+                placeholder="Select Category"
+                className="w-full !text-xs !py-1.5"
               />
             </div>
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Work Location</label>
               <input
                 type="text"
-                placeholder="e.g. Main Clinic"
+                placeholder="Location"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={newEmployeeLocation}
                 onChange={(e) => setNewEmployeeLocation(e.target.value)}
@@ -2475,14 +2564,35 @@ export default function CalculatePrefunding() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <label className="block font-semibold text-slate-800 mb-1">State</label>
+              <Select
+                value={newEmployeeState}
+                onChange={(val) => setNewEmployeeState(val)}
+                options={US_STATES_OPTIONS}
+                placeholder="Select State"
+                className="w-full !text-xs !py-1.5"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Date of Joining</label>
+              <DatePicker
+                value={newEmployeeDateOfJoining}
+                onChange={(val) => setNewEmployeeDateOfJoining(val)}
+                placeholder="Select Date"
+                className="w-full !text-xs !py-1.5"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
               <label className="block font-semibold text-slate-800 mb-1">Pay Type</label>
               <Select
-                options={[
-                  { value: "Hourly", label: "Hourly" },
-                  { value: "Salary", label: "Salary" },
-                ]}
+                options={EMPLOYEE_PAY_TYPE_OPTIONS}
                 value={newEmployeePayType}
                 onChange={(val) => setNewEmployeePayType(val as "Hourly" | "Salary")}
+                placeholder="Select Pay Type"
+                className="w-full !text-xs !py-1.5"
               />
             </div>
             <div>
@@ -2496,7 +2606,7 @@ export default function CalculatePrefunding() {
                 onKeyDown={(e) => {
                   if (e.key === "-" || e.key === "e") e.preventDefault();
                 }}
-                placeholder="e.g. 25"
+                placeholder="0.00"
                 className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
                   employeeModalErrors.payRate
                     ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
@@ -2523,11 +2633,12 @@ export default function CalculatePrefunding() {
               </label>
               <input
                 type="number"
+                step="0.5"
                 min="0"
                 onKeyDown={(e) => {
                   if (e.key === "-" || e.key === "e") e.preventDefault();
                 }}
-                placeholder="e.g. 160"
+                placeholder="0"
                 className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
                   employeeModalErrors.budgetedHours
                     ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
@@ -2549,10 +2660,12 @@ export default function CalculatePrefunding() {
               <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
               <input
                 type="number"
+                step="0.1"
                 min="0"
                 onKeyDown={(e) => {
                   if (e.key === "-" || e.key === "e") e.preventDefault();
                 }}
+                placeholder="0.0"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={newEmployeeBufferPercent}
                 onChange={(e) => setNewEmployeeBufferPercent(e.target.value)}
