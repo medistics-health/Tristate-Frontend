@@ -72,6 +72,14 @@ import OnboardingTemplatesPage from "./components/onboarding-projects/Onboarding
 import DocumentHubPage from "./components/document-hub/DocumentHub";
 import DocumentHubCategoriesPage from "./components/document-hub/DocumentHubCategories";
 import PublicSharePage from "./components/document-hub/PublicSharePage";
+import FormListPage from "./components/forms/FormListPage";
+import FormBuilderPage from "./components/forms/FormBuilderPage";
+import DistributionPage from "./components/forms/DistributionPage";
+import ResultsPage from "./components/forms/ResultsPage";
+import TemplatesPage from "./components/forms/TemplatesPage";
+import MyFormsPage from "./components/forms/MyFormsPage";
+import AuditPage from "./components/forms/AuditPage";
+import PublicFormPage from "./components/forms/PublicFormPage";
 
 function App() {
   function ModuleRoute({
@@ -647,6 +655,7 @@ function App() {
         }
       />
       <Route path="/share/:token" element={<PublicSharePage />} />
+      <Route path="/f/:token" element={<PublicFormPage />} />
       <Route
         path="/document-hub"
         element={
@@ -734,6 +743,70 @@ function App() {
         element={
           <ModuleRoute allowedRoles={BUSINESS_WRITE_ROLES}>
             <SubmitMonthlyReport />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/forms"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <FormListPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/forms/templates"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <TemplatesPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/forms/my-forms"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <MyFormsPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/forms/audit"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.ADMIN_ONLY}>
+            <AuditPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/forms/:id"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <FormBuilderPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/forms/:id/preview"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <FormBuilderPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/forms/:id/distribute"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <DistributionPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
+        path="/forms/:id/results"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <ResultsPage />
           </ModuleRoute>
         }
       />
