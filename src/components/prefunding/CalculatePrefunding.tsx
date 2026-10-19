@@ -983,11 +983,23 @@ export default function CalculatePrefunding() {
   const generateInvoice = async () => {
     setSubmitting(true);
     try {
+      // Section 17: Due Date calculation based on Due On (Days before start of cycle)
+      let calculatedDueDate = cycleEndDate ? new Date(cycleEndDate) : new Date(new Date().setDate(new Date().getDate() + 30));
+      if (cycleStartDate) {
+        const startDate = new Date(cycleStartDate);
+        if (!isNaN(startDate.getTime())) {
+          const dueOnDays = selectedPracticeObj?.prefundingDueOn !== undefined && selectedPracticeObj?.prefundingDueOn !== null && selectedPracticeObj?.prefundingDueOn !== ""
+            ? Number(selectedPracticeObj.prefundingDueOn)
+            : 5;
+          calculatedDueDate = new Date(startDate.getTime() - dueOnDays * 24 * 60 * 60 * 1000);
+        }
+      }
+
       const payload = {
         practiceId: selectedPractice,
         cycle: selectedCycle,
         invoiceDate: cycleStartDate ? new Date(cycleStartDate).toISOString() : new Date().toISOString(),
-        dueDate: cycleEndDate ? new Date(cycleEndDate).toISOString() : new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
+        dueDate: calculatedDueDate.toISOString(),
         totalAmount: grandTotal,
         lineItems: [
           // Primary line item representing Employee Gross Wages

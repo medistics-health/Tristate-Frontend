@@ -21,6 +21,9 @@ import {
   Trash2,
   List,
   Users,
+  ExternalLink,
+  CreditCard,
+  Loader2,
 } from "lucide-react";
 import DataTableToolbar, {
   SortableHeaderCell,
@@ -59,6 +62,11 @@ type Invoice = {
   practiceId: string;
   prefundingCycle: string;
   totalAmount: number;
+  subtotalAmount?: number;
+  processingFeeAmount?: number;
+  companyFeeAmount?: number;
+  paymentMethod?: string | null;
+  paymentMethodDisplay?: string | null;
   status: string;
   dueDate: string;
   invoiceDate: string;
@@ -68,6 +76,10 @@ type Invoice = {
   createdBy: string;
   createdDate: string;
   postedDate: string | null;
+  stripeInvoiceId?: string | null;
+  stripeHostedInvoiceUrl?: string | null;
+  stripeInvoicePdfUrl?: string | null;
+  paidDate?: string | null;
   lineItems?: InvoiceLineItem[];
 };
 
@@ -495,11 +507,157 @@ export default function PrefundingInvoices() {
                     )}
                   </div>
                   <div className="col-span-2 pt-2 border-t border-slate-200/60">
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total Invoice Amount</p>
-                    <p className="text-lg font-bold text-[#4f63ea] mt-0.5">
-                      {selectedInvoice.totalAmount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
-                    </p>
+                    <div className="flex justify-between items-baseline">
+                      <div>
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total Invoice Amount</p>
+                        {Boolean(selectedInvoice.processingFeeAmount && selectedInvoice.processingFeeAmount > 0) && (
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Subtotal: ${(selectedInvoice.subtotalAmount ?? selectedInvoice.totalAmount).toFixed(2)} + Processing Fee: ${Number(selectedInvoice.processingFeeAmount).toFixed(2)}
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-lg font-bold text-[#4f63ea]">
+                        {selectedInvoice.totalAmount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                      </p>
+                    </div>
                   </div>
+                </div>
+
+                {/* Audit Information */}
+                <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4">
+                  <h4 className="text-[12px] font-semibold text-slate-800 mb-2.5">Audit Information</h4>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Created By</span>
+                      <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.createdBy}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Created Date</span>
+                      <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.createdDate}</span>
+                    </div>
+                    {selectedInvoice.postedDate && (
+                      <div className="col-span-2 pt-2 border-t border-slate-200/60">
+                        <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Posted Date</span>
+                        <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.postedDate}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Stripe & Payment Information (shown after Audit Information) */}
+                {(selectedInvoice.stripeHostedInvoiceUrl || selectedInvoice.paidDate || selectedInvoice.paymentMethodDisplay) && (
+                  <div className="rounded-xl border border-blue-200/80 bg-blue-50/40 p-4">
+                    <h4 className="text-[12px] font-semibold text-blue-950 mb-2 flex items-center gap-1.5">
+                      <CreditCard className="h-3.5 w-3.5 text-blue-600" />
+                      Payment & Stripe Details
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      {selectedInvoice.paymentMethodDisplay && (
+                        <div>
+                          <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Payment Method</span>
+                          <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.paymentMethodDisplay}</span>
+                        </div>
+                      )}
+                      {selectedInvoice.paidDate && (
+                        <div>
+                          <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Paid Date</span>
+                          <span className="font-semibold text-emerald-700 mt-0.5 block">{selectedInvoice.paidDate}</span>
+                        </div>
+                      )}
+                      {selectedInvoice.stripeHostedInvoiceUrl && (
+                        <div className="col-span-2 pt-2 border-t border-blue-100 flex items-center justify-between">
+                          <span className="text-slate-500 text-[11px] font-medium">Stripe Hosted Invoice</span>
+                          <a
+                            href={selectedInvoice.stripeHostedInvoiceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#4f63ea] hover:underline"
+                          >
+                            Open Payment Page <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions Buttons */}
+                <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                  {selectedInvoice.status.toLowerCase() === "draft" && (
+                    <button
+                      type="button"
+                      onClick={() => handleStatusChange("Pending Approval")}
+                      disabled={isUpdatingStatus}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      Submit for Approval
+                    </button>
+                  )}
+
+                  {selectedInvoice.status.toLowerCase().includes("pending") && (
+                    <button
+                      type="button"
+                      onClick={() => handleStatusChange("Approved")}
+                      disabled={isUpdatingStatus}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Approve Invoice
+                    </button>
+                  )}
+
+                  {selectedInvoice.status.toLowerCase() === "approved" && (
+                    <button
+                      type="button"
+                      onClick={() => handleStatusChange("Posted")}
+                      disabled={isUpdatingStatus}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                    >
+                      {isUpdatingStatus ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Posting & Sending Stripe Invoice...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-3.5 w-3.5" />
+                          Post Invoice
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {selectedInvoice.stripeHostedInvoiceUrl && (
+                    <a
+                      href={selectedInvoice.stripeHostedInvoiceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Pay Online / Stripe Invoice
+                    </a>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handlePreviewPdf}
+                    disabled={isPreviewingPdf}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    {isPreviewingPdf ? "Generating PDF..." : "Preview & Print PDF (A4)"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-red-200 bg-white hover:bg-red-50 text-red-600 rounded-lg text-xs font-semibold transition-colors shadow-2xs cursor-pointer ml-auto"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete Invoice
+                  </button>
                 </div>
 
                 {/* Line Items Breakdown (Styled matching /prefunding/calculate) */}
@@ -670,7 +828,7 @@ export default function PrefundingInvoices() {
                                   </tr>
                                 ))}
 
-                                {/* Total Grand Total row */}
+                                {/* Total Grand Total (Line Items Subtotal) row */}
                                 <tr className="border-t border-[#e2ded6] bg-white font-bold">
                                   <td colSpan={4} className="px-3.5 py-3 text-right">
                                     <div className="text-[#4f63ea] text-[11px] uppercase tracking-wide">
@@ -683,10 +841,35 @@ export default function PrefundingInvoices() {
                                     </div>
                                   </td>
                                   <td className="px-3.5 py-3 text-right text-[#4f63ea] text-[13px] font-black">
-                                    ${selectedInvoice.totalAmount.toFixed(2)}
+                                    ${(selectedInvoice.subtotalAmount ?? (prefundingSubtotal + uncheckedAmount)).toFixed(2)}
                                   </td>
                                   <td></td>
                                 </tr>
+
+                                {/* Processing Fee row (if fee > 0) */}
+                                {Boolean(selectedInvoice.processingFeeAmount && selectedInvoice.processingFeeAmount > 0) && (
+                                  <>
+                                    <tr className="bg-slate-50/80 border-t border-[#ece8e1]">
+                                      <td colSpan={4} className="px-3.5 py-2.5 text-right font-medium text-slate-600 text-xs">
+                                        Payment Processing Fee ({selectedInvoice.paymentMethod === "CREDIT_CARD" ? "Credit Card 1.5%" : "ACH"}):
+                                      </td>
+                                      <td className="px-3.5 py-2.5 text-right font-semibold text-slate-800 text-xs">
+                                        +${Number(selectedInvoice.processingFeeAmount).toFixed(2)}
+                                      </td>
+                                      <td></td>
+                                    </tr>
+
+                                    <tr className="bg-blue-50/40 border-t-2 border-blue-200 font-bold">
+                                      <td colSpan={4} className="px-3.5 py-3 text-right text-blue-900 text-[11px] uppercase tracking-wider">
+                                        Final Total Amount Due:
+                                      </td>
+                                      <td className="px-3.5 py-3 text-right text-[#4f63ea] text-[13px] font-black">
+                                        ${selectedInvoice.totalAmount.toFixed(2)}
+                                      </td>
+                                      <td></td>
+                                    </tr>
+                                  </>
+                                )}
                               </>
                             );
                           })()}
@@ -695,78 +878,6 @@ export default function PrefundingInvoices() {
                     </div>
                   </div>
                 )}
-
-                <div className="border-t border-[#e8e4dc] pt-5">
-                  <h4 className="text-[13px] font-semibold text-slate-800 mb-3">Audit Information</h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Created By</span>
-                      <span className="font-medium text-slate-800">{selectedInvoice.createdBy}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Created Date</span>
-                      <span className="font-medium text-slate-800">{selectedInvoice.createdDate}</span>
-                    </div>
-                    {selectedInvoice.postedDate && (
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Posted Date</span>
-                        <span className="font-medium text-slate-800">{selectedInvoice.postedDate}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="border-t border-[#e8e4dc] pt-5 space-y-2.5">
-                  {selectedInvoice.status.toLowerCase() === "draft" && (
-                    <button
-                      onClick={() => handleStatusChange("Pending Approval")}
-                      disabled={isUpdatingStatus}
-                      className="w-full flex items-center justify-center gap-2 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      <Clock className="h-4 w-4" />
-                      Submit for Approval
-                    </button>
-                  )}
-
-                  {selectedInvoice.status.toLowerCase().includes("pending") && (
-                    <button
-                      onClick={() => handleStatusChange("Approved")}
-                      disabled={isUpdatingStatus}
-                      className="w-full flex items-center justify-center gap-2 py-2 bg-[#4f63ea] hover:bg-[#4f63ea]/90 text-white rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      Approve Invoice
-                    </button>
-                  )}
-
-                  {selectedInvoice.status.toLowerCase() === "approved" && (
-                    <button
-                      onClick={() => handleStatusChange("Posted")}
-                      disabled={isUpdatingStatus}
-                      className="w-full flex items-center justify-center gap-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      <Send className="h-4 w-4" />
-                      Post Invoice
-                    </button>
-                  )}
-
-                  <button
-                    onClick={handlePreviewPdf}
-                    disabled={isPreviewingPdf}
-                    className="w-full flex items-center justify-center gap-2 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
-                  >
-                    <Printer className="h-4 w-4" />
-                    {isPreviewingPdf ? "Generating PDF..." : "Preview & Print PDF (A4)"}
-                  </button>
-
-                  <button
-                    onClick={handleDelete}
-                    className="w-full flex items-center justify-center gap-2 py-2 border border-red-200 bg-white hover:bg-red-50 text-red-600 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Invoice
-                  </button>
-                </div>
               </div>
             </div>
           )}
