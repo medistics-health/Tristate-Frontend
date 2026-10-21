@@ -174,6 +174,10 @@ export type FormRecord = {
   responses: FormResponse[];
   reminder: ReminderSettings;
   email: EmailTemplate;
+  lockVersion?: number;
+  detailLoaded?: boolean;
+  recipientCount?: number;
+  responseCount?: number;
 };
 
 export type FormTemplate = {

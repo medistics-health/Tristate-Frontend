@@ -1,5 +1,6 @@
-import { useSyncExternalStore } from "react";
+﻿import { useSyncExternalStore } from "react";
 import { readStoredUser } from "../../utils/auth";
+import * as formApi from "./api";
 import {
   flattenQuestions,
   type AuditEntry,
@@ -11,8 +12,6 @@ import {
   type QuestionType,
 } from "./types";
 
-const STORAGE_KEY = "tristate.form-builder.v1";
-
 type StoreState = {
   forms: FormRecord[];
   templates: FormTemplate[];
@@ -23,9 +22,9 @@ type StoreState = {
 let state: StoreState = { forms: [], templates: [], audit: [], seq: 1 };
 const listeners = new Set<() => void>();
 
-function uid(prefix: string) {
+function uid(_prefix: string) {
   state.seq += 1;
-  return `${prefix}-${state.seq.toString(36)}`;
+  return crypto.randomUUID();
 }
 
 function nowIso() {
@@ -38,23 +37,64 @@ function currentUserName() {
   return name || "Alex Morgan";
 }
 
-let persistTimer = 0;
+const saveTimers = new Map<string, number>();
 
-function persistNow() {
-  window.clearTimeout(persistTimer);
-  persistTimer = 0;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* The draft still lives in memory if storage is full. */
-  }
+function replaceForm(form: FormRecord) {
+  const index = state.forms.findIndex((item) => item.id === form.id);
+  if (index >= 0) state.forms[index] = form;
+  else state.forms.unshift(form);
+  emit();
+}
+
+function scheduleSave(id: string) {
+  window.clearTimeout(saveTimers.get(id));
+  saveTimers.set(
+    id,
+    window.setTimeout(() => {
+      void flushSave(id);
+    }, 600),
+  );
+}
+
+export async function flushSave(id: string) {
+  window.clearTimeout(saveTimers.get(id));
+  const form = getForm(id);
+  if (!form?.detailLoaded) return form;
+  const saved = await formApi.saveDocument(form);
+  replaceForm(saved);
+  return saved;
+}
+
+export async function loadFormDocument(id: string) {
+  const form = await formApi.getDocument(id);
+  replaceForm(form);
+  return form;
+}
+
+let loading: Promise<void> | null = null;
+
+export function loadForms() {
+  if (loading) return loading;
+  loading = (async () => {
+    const [forms, templates, auditLog] = await Promise.all([
+      formApi.listForms(),
+      formApi.listTemplates(),
+      formApi.listAudit(),
+    ]);
+    const detailed = new Map(state.forms.filter((form) => form.detailLoaded).map((form) => [form.id, form]));
+    state.forms = forms.map((form) => detailed.get(form.id) || form);
+    state.templates = templates;
+    state.audit = auditLog;
+    emit();
+  })().finally(() => {
+    loading = null;
+  });
+  return loading;
 }
 
 function emit() {
-  state = { ...state };
+  state = { ...state, forms: [...state.forms], templates: [...state.templates], audit: [...state.audit] };
   listeners.forEach((listener) => listener());
-  window.clearTimeout(persistTimer);
-  persistTimer = window.setTimeout(persistNow, 400);
 }
 
 function subscribe(listener: () => void) {
@@ -67,6 +107,7 @@ function getSnapshot() {
 }
 
 export function useFormStore() {
+  void loadForms();
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
@@ -194,77 +235,50 @@ function audit(action: string, form: Pick<FormRecord, "id" | "title">, summary: 
 
 function touch(form: FormRecord) {
   form.updatedAt = nowIso();
+  if (form.detailLoaded) scheduleSave(form.id);
 }
 
 export function getForm(id: string) {
   return state.forms.find((form) => form.id === id) ?? null;
 }
 
-export function createForm(title = "Untitled form") {
-  const form = blankForm(title.trim() || "Untitled form");
-  state.forms.unshift(form);
-  audit("Create", form, "Created a draft form.");
-  emit();
+export async function createForm(title = "Untitled form") {
+  const form = await formApi.createForm(title.trim() || "Untitled form");
+  replaceForm(form);
   return form;
 }
 
-export function createFromTemplate(templateId: string) {
+export async function createFromTemplate(templateId: string) {
   const template = state.templates.find((item) => item.id === templateId);
-  if (!template) return null;
-  const form = blankForm(template.content.title || template.name);
-  form.description = template.content.description;
-  form.instructions = template.content.instructions;
-  form.confirmationMessage = template.content.confirmationMessage;
-  form.responseMode = template.content.responseMode;
-  form.oneResponse = template.content.oneResponse;
-  form.displayMode = template.content.displayMode;
-  form.showProgress = template.content.showProgress;
-  form.showNumbers = template.content.showNumbers;
-  form.sections = structuredClone(template.content.sections);
-  form.reminder = structuredClone(template.content.reminder);
-  template.usageCount += 1;
-  template.lastUsedAt = nowIso();
-  state.forms.unshift(form);
-  audit("Create from template", form, `Created from “${template.name}”.`);
-  emit();
+  const form = await formApi.createFromTemplate(templateId, template?.name);
+  replaceForm(form);
+  await loadForms();
   return form;
 }
 
 export function updateForm(id: string, patch: Partial<FormRecord>) {
+  if (patch.publicToken) {
+    void formApi.regenerateLink(id).then(replaceForm);
+    return;
+  }
   const form = getForm(id);
   if (!form) return;
   Object.assign(form, patch, { updatedAt: nowIso() });
   emit();
+  if (form.detailLoaded) scheduleSave(id);
 }
 
-export function duplicateForm(id: string) {
-  const source = getForm(id);
-  if (!source) return null;
-  const copy = structuredClone(source);
-  copy.id = uid("frm");
-  copy.refCode = nextRef();
-  copy.title = `Copy of ${source.title}`;
-  copy.status = "DRAFT";
-  copy.scheduled = false;
-  copy.owner = currentUserName();
-  copy.createdAt = nowIso();
-  copy.updatedAt = copy.createdAt;
-  copy.recipients = [];
-  copy.responses = [];
-  copy.sendAt = null;
-  copy.closeAt = null;
-  copy.publicToken = uid("pub");
-  state.forms.unshift(copy);
-  audit("Duplicate", copy, `Duplicated from ${source.refCode}.`);
-  emit();
+export async function duplicateForm(id: string) {
+  const copy = await formApi.duplicateForm(id);
+  replaceForm(copy);
   return copy;
 }
 
-export function deleteDraft(id: string) {
+export async function deleteDraft(id: string) {
   const form = getForm(id);
   if (!form || form.status !== "DRAFT") return false;
+  await formApi.deleteDraft(id);
   state.forms = state.forms.filter((item) => item.id !== id);
-  audit("Delete", form, "Soft-deleted a draft form.");
   emit();
   return true;
 }
@@ -287,7 +301,7 @@ export function publishValidation(form: FormRecord) {
       (item.type === "image" && item.config.imageMode === "choice");
     if (choice && item.options.filter((optionItem) => optionItem.label.trim()).length < 2) {
       errors.push({
-        message: `“${item.label || "Untitled"}” needs at least two options.`,
+        message: `â€œ${item.label || "Untitled"}â€ needs at least two options.`,
         target: item.id,
       });
     }
@@ -297,7 +311,7 @@ export function publishValidation(form: FormRecord) {
       );
       if (sourceIndex === -1 || sourceIndex >= index) {
         errors.push({
-          message: `Logic on “${item.label}” references a missing or later question.`,
+          message: `Logic on â€œ${item.label}â€ references a missing or later question.`,
           target: item.id,
         });
       }
@@ -322,74 +336,39 @@ export function publishValidation(form: FormRecord) {
   return errors;
 }
 
-export function publishForm(id: string, scheduled: boolean) {
+export async function publishForm(id: string, _scheduled: boolean) {
   const form = getForm(id);
   if (!form) return [];
-  const errors = publishValidation(form);
+  await flushSave(id);
+  const latest = getForm(id);
+  if (!latest) return [];
+  const errors = publishValidation(latest);
   if (errors.length) return errors;
-  form.status = "PUBLISHED";
-  form.scheduled = scheduled;
-  if (!scheduled) {
-    form.sendAt = nowIso();
-    form.recipients.forEach((recipient) => {
-      if (recipient.status === "PENDING") {
-        recipient.status = recipient.email.includes("bounce") ? "BOUNCED" : "NOT_OPENED";
-        recipient.delivery = recipient.status === "BOUNCED" ? "BOUNCED" : "DELIVERED";
-        recipient.sentAt = nowIso();
-      }
-    });
+  try {
+    replaceForm(await formApi.publishForm(id));
+    return [];
+  } catch (error) {
+    return [{ message: error instanceof Error ? error.message : "Unable to publish.", target: "builder" }];
   }
-  touch(form);
-  audit("Publish", form, scheduled ? "Scheduled the invitation." : "Published and queued invitations.");
-  emit();
-  return [];
 }
 
-export function closeForm(id: string) {
-  const form = getForm(id);
-  if (!form || form.status !== "PUBLISHED") return;
-  form.status = "CLOSED";
-  form.scheduled = false;
-  form.recipients.forEach((recipient) => {
-    if (recipient.status === "NOT_OPENED" || recipient.status === "IN_PROGRESS") {
-      recipient.status = "EXPIRED";
-    }
-  });
-  touch(form);
-  audit("Close", form, "Closed the form. Pending recipients expired.");
-  emit();
+export async function closeForm(id: string) {
+  replaceForm(await formApi.closeForm(id));
 }
 
-export function reopenForm(id: string, closeAt: string) {
-  const form = getForm(id);
-  if (!form || form.status !== "CLOSED") return;
-  form.status = "PUBLISHED";
-  form.closeAt = closeAt;
-  form.recipients.forEach((recipient) => {
-    if (recipient.status === "EXPIRED") recipient.status = "NOT_OPENED";
-  });
-  touch(form);
-  audit("Re-open", form, `Re-opened until ${closeAt}.`);
-  emit();
+export async function reopenForm(id: string, closeAt: string) {
+  replaceForm(await formApi.reopenForm(id, closeAt));
 }
 
-export function archiveForm(id: string) {
+export async function archiveForm(id: string) {
   const form = getForm(id);
   if (!form || form.status !== "CLOSED") return false;
-  form.status = "ARCHIVED";
-  touch(form);
-  audit("Archive", form, "Archived the form.");
-  emit();
+  replaceForm(await formApi.archiveForm(id));
   return true;
 }
 
-export function restoreForm(id: string) {
-  const form = getForm(id);
-  if (!form || form.status !== "ARCHIVED") return;
-  form.status = "CLOSED";
-  touch(form);
-  audit("Restore", form, "Restored the form to Closed.");
-  emit();
+export async function restoreForm(id: string) {
+  replaceForm(await formApi.restoreForm(id));
 }
 
 export function addSection(formId: string) {
@@ -517,9 +496,13 @@ export function moveQuestion(
   return { ok: true, message: "" };
 }
 
-export function setRecipients(formId: string, recipients: FormRecipient[]) {
+export async function setRecipients(
+  formId: string,
+  recipients: FormRecipient[],
+  extra: { practiceIds?: string[]; personIds?: string[]; includePracticePersons?: boolean } = {},
+) {
   const form = getForm(formId);
-  if (!form) return;
+  if (!form) return 0;
   const seen = new Set<string>();
   const merged: FormRecipient[] = [];
   let duplicates = 0;
@@ -532,11 +515,26 @@ export function setRecipients(formId: string, recipients: FormRecipient[]) {
     seen.add(key);
     merged.push({ ...recipient, email: recipient.email.trim() });
   });
-  form.recipients = merged;
-  touch(form);
-  audit("Recipients", form, `Updated recipient list (${merged.length}).`);
-  emit();
+  const previous = new Set(form.recipients.map((recipient) => recipient.email.toLowerCase()));
+  const emails = merged.filter((recipient) => !previous.has(recipient.email.toLowerCase()) && !extra.practiceIds?.length && !extra.personIds?.length).map((recipient) => recipient.email);
+  const saved = await formApi.addRecipientEmails(
+    formId,
+    extra.practiceIds?.length || extra.personIds?.length ? merged.filter((recipient) => recipient.source === "NEW_EMAIL").map((recipient) => recipient.email) : emails,
+    extra.practiceIds || [],
+    extra.personIds || [],
+    Boolean(extra.includePracticePersons),
+  );
+  replaceForm(saved);
   return duplicates;
+}
+
+export async function sendTestEmail(formId: string) {
+  await formApi.sendTestEmail(formId);
+}
+
+export async function sendReminder(formId: string) {
+  await formApi.sendReminder(formId);
+  await loadFormDocument(formId);
 }
 
 export function makeRecipient(partial: Omit<FormRecipient, "id" | "token" | "reminderCount" | "lastReminderAt"> & Partial<FormRecipient>): FormRecipient {
@@ -550,6 +548,10 @@ export function makeRecipient(partial: Omit<FormRecipient, "id" | "token" | "rem
 }
 
 export function updateRecipient(formId: string, recipientId: string, patch: Partial<FormRecipient>) {
+  if (patch.status === "REMOVED") {
+    void formApi.removeRecipient(formId, recipientId).then(replaceForm);
+    return;
+  }
   const form = getForm(formId);
   const recipient = form?.recipients.find((item) => item.id === recipientId);
   if (!form || !recipient) return;
@@ -606,303 +608,18 @@ export function markOpened(formId: string, recipientId: string) {
   emit();
 }
 
-export function saveAsTemplate(
+export async function saveAsTemplate(
   formId: string,
   meta: { name: string; description: string; category: string; visibility: "PRIVATE" | "SHARED" },
 ) {
-  const form = getForm(formId);
-  if (!form) return;
-  state.templates.unshift({
-    id: uid("tpl"),
-    name: meta.name,
-    description: meta.description,
-    category: meta.category,
-    visibility: meta.visibility,
-    owner: currentUserName(),
-    version: 1,
-    usageCount: 0,
-    lastUsedAt: null,
-    content: {
-      title: form.title,
-      description: form.description,
-      instructions: form.instructions,
-      confirmationMessage: form.confirmationMessage,
-      responseMode: form.responseMode,
-      oneResponse: form.oneResponse,
-      displayMode: form.displayMode,
-      showProgress: form.showProgress,
-      showNumbers: form.showNumbers,
-      sections: structuredClone(form.sections),
-      reminder: structuredClone(form.reminder),
-    },
-  });
-  audit("Save template", form, `Saved template “${meta.name}”.`);
-  emit();
+  await flushSave(formId);
+  await formApi.saveTemplate(formId, meta);
+  await loadForms();
 }
 
-export function deleteTemplate(id: string) {
-  const template = state.templates.find((item) => item.id === id);
-  if (!template || template.visibility === "SYSTEM") return;
+export async function deleteTemplate(id: string) {
+  await formApi.deleteTemplate(id);
   state.templates = state.templates.filter((item) => item.id !== id);
   emit();
 }
 
-function seed(): StoreState {
-  state = { forms: [], templates: [], audit: [], seq: 100 };
-  const q1 = question("rating", "How satisfied are you with onboarding support?", {
-    required: true,
-    config: { scale: 5, style: "numbers", lowLabel: "Not satisfied", highLabel: "Very satisfied" },
-  });
-  const q2 = question("multiple_choice", "Which services are active for your practice?", {
-    options: [
-      option("Credentialing"),
-      option("Revenue cycle"),
-      option("Benefits"),
-      option("IT support"),
-    ],
-  });
-  const q3 = question("yes_no", "Would you recommend Tristate to another practice?");
-  const q4 = question("long_text", "What should we improve?", {
-    required: false,
-    logic: {
-      action: "SHOW",
-      match: "ALL",
-      conditions: [
-        { id: uid("cnd"), sourceQuestionId: q3.id, operator: "is", value: "No" },
-      ],
-    },
-  });
-  const q5 = question("date", "Preferred date for a follow-up call", { required: false });
-
-  const practices = [
-    "Riverside Family Medicine",
-    "Oak Street Pediatrics",
-    "Harbor Dental Group",
-    "Northwind Cardiology",
-  ];
-  const people = [
-    ["Ava Chen", "ava.chen@riverside.example"],
-    ["Noah Patel", "noah.patel@oakstreet.example"],
-    ["Mia Alvarez", "mia.alvarez@harbor.example"],
-    ["Liam Brooks", "liam.brooks@northwind.example"],
-    ["Sofia Nguyen", "sofia.nguyen@riverside.example"],
-    ["Ethan Cole", "ethan.cole@oakstreet.example"],
-    ["bounce.test", "front-desk@invalid-bounce.example"],
-    ["Priya Shah", "priya.shah@harbor.example"],
-  ];
-  const statuses: FormRecipient["status"][] = [
-    "COMPLETED",
-    "COMPLETED",
-    "IN_PROGRESS",
-    "NOT_OPENED",
-    "COMPLETED",
-    "COMPLETED",
-    "BOUNCED",
-    "COMPLETED",
-  ];
-
-  const survey = blankForm("Practice satisfaction survey");
-  survey.description = "Quarterly check-in with active practices.";
-  survey.instructions = "This takes about three minutes. Required questions are marked.";
-  survey.status = "PUBLISHED";
-  survey.closeAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 12).toISOString();
-  survey.sections = [section("Experience", [q1, q2, q3, q4], "Tell us how the last quarter felt."), section("Follow-up", [q5])];
-  survey.recipients = people.map((person, index) =>
-    makeRecipient({
-      source: index % 2 === 0 ? "PERSON" : "PRACTICE",
-      practice: practices[index % practices.length],
-      name: person[0] === "bounce.test" ? "Front desk" : person[0],
-      email: person[1],
-      status: statuses[index],
-      delivery: statuses[index] === "BOUNCED" ? "BOUNCED" : "DELIVERED",
-      sentAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6).toISOString(),
-      openedAt: statuses[index] === "NOT_OPENED" || statuses[index] === "BOUNCED" ? null : new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(),
-      completedAt: statuses[index] === "COMPLETED" ? new Date(Date.now() - 1000 * 60 * 60 * 24 * (index + 1)).toISOString() : null,
-      reminderCount: statuses[index] === "NOT_OPENED" ? 1 : 0,
-      lastReminderAt: statuses[index] === "NOT_OPENED" ? new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString() : null,
-    }),
-  );
-  const completed = survey.recipients.filter((item) => item.status === "COMPLETED");
-  const ratings = ["5", "4", "5", "3", "4"];
-  const services = [
-    ["Credentialing", "Revenue cycle"],
-    ["Credentialing"],
-    ["Benefits", "IT support"],
-    ["Revenue cycle", "Benefits"],
-    ["Credentialing", "IT support"],
-  ];
-  const yesNo = ["Yes", "Yes", "No", "Yes", "Yes"];
-  survey.responses = completed.map((recipient, index) => ({
-    id: uid("rsp"),
-    recipientId: recipient.id,
-    practice: recipient.practice,
-    respondent: recipient.name,
-    submittedAt: recipient.completedAt || nowIso(),
-    answers: {
-      [q1.id]: ratings[index] || "4",
-      [q2.id]: services[index] || ["Credentialing"],
-      [q3.id]: yesNo[index] || "Yes",
-      [q4.id]: yesNo[index] === "No" ? "Faster credentialing status updates." : "",
-      [q5.id]: "2026-11-04",
-    },
-  }));
-
-  const intake = blankForm("Provider credentialing intake");
-  intake.description = "Collect provider details before a credentialing file is opened.";
-  intake.sections = [
-    section("Provider", [
-      question("short_text", "Provider full name"),
-      question("email", "Work email"),
-      question("phone", "Mobile phone"),
-      question("dropdown", "Primary specialty", {
-        options: [option("Family medicine"), option("Pediatrics"), option("Cardiology"), option("Dental")],
-      }),
-    ]),
-    section("Documents", [
-      question("image", "Upload a copy of the state license", {
-        config: { imageMode: "upload", maxFiles: 1, maxSizeMb: 5 },
-        options: [],
-      }),
-      question("date", "License expiration date"),
-    ]),
-  ];
-
-  const compliance = blankForm("Q3 compliance attestation");
-  compliance.status = "CLOSED";
-  compliance.closeAt = new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString();
-  compliance.sections = [
-    section("Attestation", [
-      question("yes_no", "Policies were reviewed this quarter"),
-      question("single_choice", "Overall risk level", {
-        options: [option("Low"), option("Medium"), option("High")],
-      }),
-    ]),
-  ];
-
-  const satisfaction = blankForm("Customer satisfaction");
-  satisfaction.sections = [
-    section("Feedback", [
-      question("rating", "Overall satisfaction"),
-      question("long_text", "Comments", { required: false }),
-    ]),
-  ];
-
-  state.forms = [];
-  [survey, intake, compliance].forEach((form) => {
-    form.refCode = nextRef();
-    state.forms.push(form);
-  });
-  state.templates = [
-    {
-      id: uid("tpl"),
-      name: "Customer satisfaction",
-      description: "Short score plus an open comment.",
-      category: "Feedback",
-      visibility: "SYSTEM",
-      owner: "System",
-      version: 1,
-      usageCount: 12,
-      lastUsedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 9).toISOString(),
-      content: {
-        title: satisfaction.title,
-        description: "Tell us how we did.",
-        instructions: satisfaction.instructions,
-        confirmationMessage: satisfaction.confirmationMessage,
-        responseMode: "ANONYMOUS",
-        oneResponse: true,
-        displayMode: "SINGLE_PAGE",
-        showProgress: true,
-        showNumbers: true,
-        sections: structuredClone(satisfaction.sections),
-        reminder: structuredClone(satisfaction.reminder),
-      },
-    },
-    {
-      id: uid("tpl"),
-      name: "Practice feedback",
-      description: "Service mix, recommendation, and a follow-up date.",
-      category: "Practices",
-      visibility: "SYSTEM",
-      owner: "System",
-      version: 1,
-      usageCount: 4,
-      lastUsedAt: null,
-      content: {
-        title: survey.title,
-        description: survey.description,
-        instructions: survey.instructions,
-        confirmationMessage: survey.confirmationMessage,
-        responseMode: "IDENTIFIED",
-        oneResponse: true,
-        displayMode: "MULTI_PAGE",
-        showProgress: true,
-        showNumbers: true,
-        sections: structuredClone(survey.sections),
-        reminder: structuredClone(survey.reminder),
-      },
-    },
-    {
-      id: uid("tpl"),
-      name: "Event registration",
-      description: "Name, email, and session choice.",
-      category: "Events",
-      visibility: "SYSTEM",
-      owner: "System",
-      version: 1,
-      usageCount: 7,
-      lastUsedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 20).toISOString(),
-      content: {
-        title: "Event registration",
-        description: "Register a practice contact for an upcoming session.",
-        instructions: "",
-        confirmationMessage: "You are registered. A confirmation will follow.",
-        responseMode: "IDENTIFIED",
-        oneResponse: true,
-        displayMode: "SINGLE_PAGE",
-        showProgress: false,
-        showNumbers: false,
-        sections: [
-          section("Registration", [
-            question("short_text", "Attendee name"),
-            question("email", "Email"),
-            question("single_choice", "Session", {
-              options: [option("Morning workshop"), option("Afternoon clinic")],
-            }),
-          ]),
-        ],
-        reminder: defaultReminder(),
-      },
-    },
-  ];
-  state.audit = [
-    {
-      id: uid("aud"),
-      at: survey.updatedAt,
-      user: "Alex Morgan",
-      action: "Publish",
-      formId: survey.id,
-      formTitle: survey.title,
-      summary: "Published and queued invitations.",
-    },
-  ];
-  return state;
-}
-
-function load(): StoreState {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as StoreState;
-      if (parsed?.forms && parsed.templates) return parsed;
-    }
-  } catch {
-    /* seed below */
-  }
-  const seeded = seed();
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-  return seeded;
-}
-
-state = load();
-
-window.addEventListener("pagehide", persistNow);

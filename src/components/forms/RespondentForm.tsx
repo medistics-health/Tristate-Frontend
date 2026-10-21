@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState, startTransition } from "react";
+import { memo, useEffect, useMemo, useRef, useState, startTransition, type ReactNode } from "react";
 import {
   flattenQuestions,
   isTargetVisible,
@@ -372,10 +372,12 @@ export function RespondentForm({
   form,
   preview = false,
   onSubmit,
+  footer,
 }: {
   form: FormRecord;
   preview?: boolean;
   onSubmit?: (answers: AnswerMap) => void;
+  footer?: ReactNode;
 }) {
   const [answers, setAnswers] = useState<AnswerMap>({});
   const answersRef = useRef<AnswerMap>({});
@@ -413,7 +415,6 @@ export function RespondentForm({
       return;
     }
     onSubmit?.(latest);
-    setDone(true);
   }
 
   const frame =
@@ -510,6 +511,9 @@ export function RespondentForm({
                 />
               ))}
         </div>
+        {footer && (form.displayMode !== "MULTI_PAGE" || page >= pages.length - 1) ? (
+          <div className="border-t border-[#f0ece6] px-6 py-4 sm:px-8">{footer}</div>
+        ) : null}
         <div className="flex items-center justify-between border-t border-[#f0ece6] px-6 py-4 sm:px-8">
           {form.displayMode === "MULTI_PAGE" && page > 0 ? (
             <button type="button" onClick={() => setPage((value) => value - 1)} className="text-[14px] font-medium text-slate-600">

@@ -1,19 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { FormsLayout, GhostButton, Panel, formatDay, formatWhen } from "./chrome";
-import { useFormStore } from "./store";
+import { loadFormDocument, useFormStore } from "./store";
+import { requestExport } from "./api";
 import { flattenQuestions, type FormQuestion, type FormRecord } from "./types";
 
 export default function ResultsPage() {
   const { id = "" } = useParams();
   const form = useFormStore().forms.find((item) => item.id === id);
+  useEffect(() => {
+    if (id) void loadFormDocument(id);
+  }, [id]);
   const [tab, setTab] = useState<"Overview" | "Questions" | "Responses" | "Trends">("Overview");
   const [practice, setPractice] = useState("ALL");
   const [selected, setSelected] = useState(0);
   const [trend, setTrend] = useState<"day" | "week" | "month">("day");
 
-  if (!form) return null;
+  if (!form?.detailLoaded) return <FormsLayout title="Results" activeSubItem="All Forms"><p className="p-6 text-[13px] text-slate-500">Loading results…</p></FormsLayout>;
   const practices = Array.from(new Set(form.responses.map((item) => item.practice).filter(Boolean)));
   const responses = form.responses.filter((item) => practice === "ALL" || item.practice === practice);
   const sent = form.recipients.filter((item) => !["BOUNCED", "REMOVED", "PENDING"].includes(item.status));
@@ -47,9 +51,9 @@ export default function ResultsPage() {
               <option value="ALL">All practices</option>
               {practices.map((item) => <option key={item}>{item}</option>)}
             </select>
-            <GhostButton onClick={() => toast.success("CSV export started")}>CSV</GhostButton>
-            <GhostButton onClick={() => toast.success("Excel export started")}>Excel</GhostButton>
-            <GhostButton onClick={() => toast.success("PDF report started")}>PDF</GhostButton>
+            <GhostButton onClick={() => { void requestExport(form.id, "csv").then(() => toast.success("CSV downloaded")).catch((error: Error) => toast.error(error.message)); }}>CSV</GhostButton>
+            <GhostButton onClick={() => { void requestExport(form.id, "xlsx").then(() => toast.success("Excel downloaded")).catch((error: Error) => toast.error(error.message)); }}>Excel</GhostButton>
+            <GhostButton onClick={() => { void requestExport(form.id, "pdf").then(() => toast.success("PDF downloaded")).catch((error: Error) => toast.error(error.message)); }}>PDF</GhostButton>
           </div>
         </div>
         {practice !== "ALL" ? (

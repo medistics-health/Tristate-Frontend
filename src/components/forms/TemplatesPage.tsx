@@ -42,14 +42,13 @@ export default function TemplatesPage() {
               <div className="mt-4 flex gap-2">
                 <GhostButton
                   onClick={() => {
-                    const form = createFromTemplate(template.id);
-                    if (form) navigate(`/forms/${form.id}`);
+                    void createFromTemplate(template.id).then((form) => navigate(`/forms/${form.id}`));
                   }}
                 >
                   Use this template
                 </GhostButton>
                 {template.visibility !== "SYSTEM" ? (
-                  <button type="button" className="text-[13px] text-[#b42318]" onClick={() => deleteTemplate(template.id)}>
+                  <button type="button" className="text-[13px] text-[#b42318]" onClick={() => { void deleteTemplate(template.id); }}>
                     Delete
                   </button>
                 ) : null}

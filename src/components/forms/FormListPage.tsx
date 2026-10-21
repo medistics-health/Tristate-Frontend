@@ -126,8 +126,8 @@ export default function FormListPage() {
                     <td className="px-4 py-3">{form.owner}</td>
                     <td className="px-4 py-3 text-slate-500">{formatDay(form.createdAt)}</td>
                     <td className="px-4 py-3 text-slate-500">{formatDay(form.updatedAt)}</td>
-                    <td className="px-4 py-3">{form.recipients.filter((item) => item.status !== "REMOVED").length}</td>
-                    <td className="px-4 py-3">{form.responses.length}</td>
+                    <td className="px-4 py-3">{form.recipientCount ?? form.recipients.filter((item) => item.status !== "REMOVED").length}</td>
+                    <td className="px-4 py-3">{form.responseCount ?? form.responses.length}</td>
                     <td className="px-4 py-3 text-slate-500">{formatDay(form.closeAt)}</td>
                     <td className="relative px-4 py-3 text-right">
                       <button type="button" onClick={() => setMenuId(menuId === form.id ? null : form.id)} className="rounded-md p-1 hover:bg-[#f3f0ea]">
@@ -137,14 +137,14 @@ export default function FormListPage() {
                         <div className="absolute right-4 z-10 w-44 rounded-xl border border-[#ece8e1] bg-white py-1 text-left shadow-lg">
                           <MenuItem icon={<Eye className="h-3.5 w-3.5" />} label="Edit" onClick={() => navigate(`/forms/${form.id}`)} />
                           <MenuItem icon={<Eye className="h-3.5 w-3.5" />} label="Preview" onClick={() => navigate(`/forms/${form.id}/preview`)} />
-                          <MenuItem icon={<Copy className="h-3.5 w-3.5" />} label="Duplicate" onClick={() => { const copy = duplicateForm(form.id); if (copy) navigate(`/forms/${copy.id}`); }} />
+                          <MenuItem icon={<Copy className="h-3.5 w-3.5" />} label="Duplicate" onClick={() => { void duplicateForm(form.id).then((copy) => navigate(`/forms/${copy.id}`)); }} />
                           <MenuItem icon={<Send className="h-3.5 w-3.5" />} label="Distribute" onClick={() => navigate(`/forms/${form.id}/distribute`)} />
                           <MenuItem icon={<BarChart3 className="h-3.5 w-3.5" />} label="Results" onClick={() => navigate(`/forms/${form.id}/results`)} />
                           {form.status === "CLOSED" ? (
                             <MenuItem icon={<Archive className="h-3.5 w-3.5" />} label="Archive" onClick={() => archiveForm(form.id)} />
                           ) : null}
                           {form.status === "DRAFT" ? (
-                            <MenuItem icon={<Trash2 className="h-3.5 w-3.5" />} label="Delete" onClick={() => { deleteDraft(form.id); toast.success("Draft deleted"); }} />
+                            <MenuItem icon={<Trash2 className="h-3.5 w-3.5" />} label="Delete" onClick={() => { void deleteDraft(form.id).then(() => toast.success("Draft deleted")); }} />
                           ) : null}
                         </div>
                       ) : null}
@@ -184,8 +184,7 @@ export default function FormListPage() {
                   key={template.id}
                   type="button"
                   onClick={() => {
-                    const form = createFromTemplate(template.id);
-                    if (form) navigate(`/forms/${form.id}`);
+                    void createFromTemplate(template.id).then((form) => navigate(`/forms/${form.id}`));
                   }}
                   className="rounded-xl border border-[#ece8e1] px-3 py-2 text-left hover:bg-[#fbfaf8]"
                 >
@@ -198,8 +197,7 @@ export default function FormListPage() {
               <GhostButton onClick={() => setCreating(false)}>Cancel</GhostButton>
               <PrimaryButton
                 onClick={() => {
-                  const form = createForm(title || "Untitled form");
-                  navigate(`/forms/${form.id}`);
+                  void createForm(title || "Untitled form").then((form) => navigate(`/forms/${form.id}`));
                 }}
               >
                 Create blank form
@@ -212,12 +210,12 @@ export default function FormListPage() {
   );
 }
 
-function completion(forms: { recipients: { status: string }[]; responses: unknown[] }[]) {
+function completion(forms: { recipients: { status: string }[]; responses: unknown[]; recipientCount?: number; responseCount?: number }[]) {
   const sent = forms.reduce(
-    (sum, form) => sum + form.recipients.filter((item) => !["BOUNCED", "REMOVED", "PENDING"].includes(item.status)).length,
+    (sum, form) => sum + (form.recipientCount ?? form.recipients.filter((item) => !["BOUNCED", "REMOVED", "PENDING"].includes(item.status)).length),
     0,
   );
-  const done = forms.reduce((sum, form) => sum + form.responses.length, 0);
+  const done = forms.reduce((sum, form) => sum + (form.responseCount ?? form.responses.length), 0);
   if (!sent) return 0;
   return Math.round((done / sent) * 100);
 }

@@ -1,15 +1,25 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FormsLayout, Panel, RecipientPill } from "./chrome";
-import { useFormStore } from "./store";
+import { myForms } from "./api";
+import type { RecipientStatus } from "./types";
+
+type Row = { formId: string; title: string; status: RecipientStatus; practice: string; token: string };
 
 export default function MyFormsPage() {
-  const { forms } = useFormStore();
-  const assigned = forms.flatMap((form) =>
-    form.recipients
-      .filter((recipient) => recipient.status !== "REMOVED" && recipient.status !== "BOUNCED")
-      .slice(0, 1)
-      .map((recipient) => ({ form, recipient })),
-  );
+  const [rows, setRows] = useState<Row[]>([]);
+
+  useEffect(() => {
+    void myForms().then((forms) => {
+      setRows(forms.map((form) => ({
+        formId: form.formId,
+        title: form.title,
+        practice: form.practice,
+        token: form.token,
+        status: (form.status || "PENDING") as RecipientStatus,
+      })));
+    }).catch(() => setRows([]));
+  }, []);
 
   return (
     <FormsLayout title="My forms" activeSubItem="My Forms">
@@ -23,19 +33,19 @@ export default function MyFormsPage() {
             </tr>
           </thead>
           <tbody>
-            {assigned.map(({ form, recipient }) => (
-              <tr key={form.id} className="border-t border-[#f3f0ea]">
-                <td className="px-4 py-3 font-medium">{form.title}</td>
-                <td className="px-4 py-3">{recipient.practice || "—"}</td>
-                <td className="px-4 py-3"><RecipientPill status={recipient.status} /></td>
+            {rows.map((row) => (
+              <tr key={row.formId + row.token} className="border-t border-[#f3f0ea]">
+                <td className="px-4 py-3 font-medium">{row.title}</td>
+                <td className="px-4 py-3">{row.practice || "—"}</td>
+                <td className="px-4 py-3"><RecipientPill status={row.status} /></td>
                 <td className="px-4 py-3 text-right">
-                  <Link to={`/f/${recipient.token}`} className="font-medium text-[#4f63ea]">
-                    {recipient.status === "COMPLETED" ? "View" : "Open"}
+                  <Link to={`/f/${row.token}`} className="font-medium text-[#4f63ea]">
+                    {row.status === "COMPLETED" ? "View" : "Open"}
                   </Link>
                 </td>
               </tr>
             ))}
-            {assigned.length === 0 ? (
+            {rows.length === 0 ? (
               <tr><td colSpan={4} className="px-4 py-12 text-center text-slate-400">No forms are assigned to you.</td></tr>
             ) : null}
           </tbody>

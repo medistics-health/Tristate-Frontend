@@ -1,52 +1,262 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import axios from "axios";
+import { apiConnector } from "../../services/apiConnector";
 import { RespondentForm } from "./RespondentForm";
-import { markOpened, submitResponse, useFormStore } from "./store";
+import { flattenQuestions, type FormQuestion, type FormRecord, type QuestionType } from "./types";
+
+const TYPE_TO_UI: Record<string, QuestionType> = {
+  SINGLE_CHOICE: "single_choice",
+  MULTIPLE_CHOICE: "multiple_choice",
+  DROPDOWN: "dropdown",
+  SHORT_TEXT: "short_text",
+  LONG_TEXT: "long_text",
+  RATING: "rating",
+  DATE: "date",
+  NUMBER: "number",
+  PRICE: "price",
+  FEES: "fees",
+  YES_NO: "yes_no",
+  IMAGE_UPLOAD: "image",
+  IMAGE_CHOICE: "image",
+  EMAIL: "email",
+  PHONE: "phone",
+  CONTENT: "content",
+};
 
 export default function PublicFormPage() {
   const { token = "" } = useParams();
-  const { forms } = useFormStore();
-  const match = forms.flatMap((form) => {
-    const recipient = form.recipients.find((item) => item.token === token);
-    if (recipient) return [{ form, recipient }];
-    if (form.publicLinkEnabled && form.publicToken === token) return [{ form, recipient: null }];
-    return [];
-  })[0];
+  const [form, setForm] = useState<FormRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [captcha, setCaptcha] = useState<{ prompt: string; token: string; answer: string } | null>(null);
+  const [requiresCaptcha, setRequiresCaptcha] = useState(false);
 
   useEffect(() => {
-    if (match?.recipient && match.form.status === "PUBLISHED") {
-      markOpened(match.form.id, match.recipient.id);
-    }
-  }, [match?.form.id, match?.form.status, match?.recipient]);
+    const root = (import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ?? "") + "/api/v1";
+    void apiConnector({ method: "GET", url: `${root}/f/${token}` })
+      .then((response) => {
+        const data = response.data as { form?: Snapshot; requiresCaptcha?: boolean };
+        if (data.form) setForm(snapshotToForm(data.form));
+        setRequiresCaptcha(Boolean(data.requiresCaptcha));
+        if (data.requiresCaptcha) {
+          return apiConnector({ method: "GET", url: `${root}/f/${token}/captcha` }).then((captchaResponse) => {
+            const issued = captchaResponse.data as { prompt: string; token: string };
+            setCaptcha({ ...issued, answer: "" });
+          });
+        }
+        return undefined;
+      })
+      .catch((error: unknown) => {
+        const message = axios.isAxiosError(error)
+          ? (error.response?.data as { message?: string } | undefined)?.message
+          : "This link is not valid";
+        setNotice(message || "This link is not valid");
+      });
+  }, [token]);
 
-  if (!match) return <Status title="This link is not valid" body="The link may have been revoked or typed incorrectly." />;
-  const { form, recipient } = match;
-  if (form.status === "DRAFT" || form.scheduled) return <Status title="This form is not open yet" body="Please come back when the invitation window starts." />;
-  if (form.status === "CLOSED" || form.status === "ARCHIVED") return <Status title="This form is closed" body="Responses are no longer accepted." />;
-  if (recipient?.status === "REMOVED" || recipient?.status === "EXPIRED") return <Status title="This link is no longer active" body="Ask the sender for a new invitation." />;
-  if (form.oneResponse && recipient?.status === "COMPLETED") return <Status title="Already submitted" body="A response has already been recorded for this link." />;
+  if (notice && !form) return <Status title={notice} body="If you think this is a mistake, ask the sender for a new link." />;
+  if (!form) return <Status title="Loading" body="Opening the form." />;
   if (notice) return <Status title="Thank you" body={notice} />;
 
   return (
     <main className="min-h-screen bg-[#f6f4f0] px-4 py-8 font-app-sans">
       <RespondentForm
         form={form}
+        footer={
+          requiresCaptcha && captcha ? (
+            <div>
+              <p className="text-[13px] text-slate-600">{captcha.prompt}</p>
+              <input
+                value={captcha.answer}
+                onChange={(event) => setCaptcha({ ...captcha, answer: event.target.value })}
+                className="mt-2 h-10 w-full rounded-lg border border-[#e4dfd6] px-3 text-[14px]"
+              />
+            </div>
+          ) : null
+        }
         onSubmit={(answers) => {
-          const result = submitResponse(
-            form.id,
-            recipient?.id || null,
-            answers,
-            recipient?.practice || "",
-            recipient?.name || "Anonymous",
-          );
-          if (!result.ok && result.reason === "already") setNotice("A response has already been recorded for this link.");
-          else if (!result.ok) setNotice("This form is no longer accepting responses.");
-          else setNotice(form.confirmationMessage);
+          const root = (import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ?? "") + "/api/v1";
+          void apiConnector({
+            method: "POST",
+            url: `${root}/f/${token}/submit`,
+            body: {
+              answers: toApiAnswers(form, answers),
+              captchaToken: captcha?.token,
+              captchaAnswer: captcha?.answer,
+            },
+          })
+            .then((response) => setNotice((response.data as { message?: string }).message || form.confirmationMessage))
+            .catch((error: unknown) => {
+              const message = axios.isAxiosError(error)
+                ? (error.response?.data as { message?: string } | undefined)?.message
+                : "This form is no longer accepting responses.";
+              setNotice(message || "This form is no longer accepting responses.");
+            });
         }}
       />
     </main>
   );
+}
+
+const UI_OPERATOR: Record<string, string> = {
+  is_not: "is not",
+  is_any_of: "is any of",
+  does_not_contain: "does not contain",
+  contains_any_of: "contains any of",
+  contains_all_of: "contains all of",
+  does_not_equal: "does not equal",
+  is_empty: "is empty",
+  is_not_empty: "is not empty",
+  eq: "=",
+  neq: "≠",
+  gt: ">",
+  gte: "≥",
+  lt: "<",
+  lte: "≤",
+  is_on: "is on",
+  is_before: "is before",
+  is_after: "is after",
+  is_between: "is between",
+  is_answered: "is answered",
+  is_not_answered: "is not answered",
+};
+
+type Snapshot = {
+  id: string;
+  refCode: string;
+  title: string;
+  description?: string;
+  instructions?: string;
+  displayMode: FormRecord["displayMode"];
+  showProgressBar: boolean;
+  showQuestionNumbers: boolean;
+  allowSaveResume: boolean;
+  confirmationMessage: string;
+  redirectUrl?: string | null;
+  responseMode: FormRecord["responseMode"];
+  allowMultipleResponses: boolean;
+  sections: Array<{ id: string; title: string; description?: string }>;
+  questions: Array<{
+    id: string;
+    key: string;
+    sectionId: string;
+    type: string;
+    label: string;
+    helpText?: string | null;
+    isRequired: boolean;
+    config: FormQuestion["config"];
+    options: Array<{ id: string; label: string; isOther?: boolean }>;
+  }>;
+  logic: Array<{
+    targetType: "question" | "section";
+    targetId: string;
+    action: "show" | "hide";
+    matchType: "all" | "any";
+    conditions: Array<{ sourceQuestionId: string; operator: string; value?: unknown }>;
+  }>;
+};
+
+function snapshotToForm(snapshot: Snapshot): FormRecord {
+  const logicFor = (type: string, id: string) => {
+    const rule = snapshot.logic.find((item) => item.targetType === type && item.targetId === id);
+    if (!rule) return null;
+    return {
+      action: rule.action === "hide" ? "HIDE" as const : "SHOW" as const,
+      match: rule.matchType === "any" ? "ANY" as const : "ALL" as const,
+      conditions: rule.conditions.map((condition, index) => ({
+        id: `${id}-${index}`,
+        sourceQuestionId: condition.sourceQuestionId,
+        operator: UI_OPERATOR[condition.operator] || String(condition.operator).replace(/_/g, " "),
+        value: condition.value == null ? "" : String(condition.value),
+      })),
+    };
+  };
+  return {
+    id: snapshot.id,
+    refCode: snapshot.refCode,
+    title: snapshot.title,
+    description: snapshot.description || "",
+    instructions: snapshot.instructions || "",
+    status: "PUBLISHED",
+    scheduled: false,
+    owner: "",
+    createdAt: "",
+    updatedAt: "",
+    version: 1,
+    responseMode: snapshot.responseMode,
+    recordPracticeWhenAnonymous: false,
+    oneResponse: !snapshot.allowMultipleResponses,
+    displayMode: snapshot.displayMode,
+    showProgress: snapshot.showProgressBar,
+    showNumbers: snapshot.showQuestionNumbers,
+    allowResume: snapshot.allowSaveResume,
+    confirmationMessage: snapshot.confirmationMessage,
+    redirectUrl: snapshot.redirectUrl || "",
+    closeAt: null,
+    sendAt: null,
+    timezone: "UTC",
+    publicLinkEnabled: false,
+    publicToken: "",
+    recipients: [],
+    responses: [],
+    reminder: { enabled: false, firstAfterDays: 3, repeatEveryDays: 3, maxCount: 1, finalBeforeCloseDays: null, subject: "", body: "" },
+    email: { subject: "", body: "", senderName: "", replyTo: "" },
+    sections: snapshot.sections.map((section) => ({
+      id: section.id,
+      title: section.title,
+      description: section.description || "",
+      logic: logicFor("section", section.id),
+      questions: snapshot.questions.filter((question) => question.sectionId === section.id).map((question) => ({
+        id: question.id,
+        key: question.key,
+        type: TYPE_TO_UI[question.type] || "short_text",
+        label: question.label,
+        helpText: question.helpText || "",
+        required: question.isRequired,
+        config: {
+          ...(question.config || {}),
+          imageMode: question.type === "IMAGE_CHOICE" ? "choice" : question.config?.imageMode,
+        },
+        options: question.options,
+        logic: logicFor("question", question.id),
+      })),
+    })),
+  };
+}
+
+function toApiAnswers(form: FormRecord, answers: Record<string, string | string[]>) {
+  const payload: Record<string, unknown> = {};
+  flattenQuestions(form).forEach(({ question }) => {
+    const raw = answers[question.id];
+    if (raw === undefined || raw === "" || (Array.isArray(raw) && raw.length === 0)) return;
+    if (question.type === "single_choice" || question.type === "dropdown" || (question.type === "image" && question.config.imageMode === "choice")) {
+      const label = Array.isArray(raw) ? raw[0] : raw;
+      payload[question.id] = question.options.find((option) => option.label === label)?.id || label;
+      return;
+    }
+    if (question.type === "multiple_choice") {
+      const labels = Array.isArray(raw) ? raw : [raw];
+      payload[question.id] = { optionIds: labels.map((label) => question.options.find((option) => option.label === label)?.id || label) };
+      return;
+    }
+    if (question.type === "yes_no") {
+      const value = Array.isArray(raw) ? raw[0] : raw;
+      payload[question.id] = value === (question.config.noLabel || "No") ? "no" : "yes";
+      return;
+    }
+    if (question.type === "rating" || question.type === "number" || question.type === "price") {
+      payload[question.id] = Number(Array.isArray(raw) ? raw[0] : raw);
+      return;
+    }
+    if (question.type === "fees") {
+      const text = Array.isArray(raw) ? raw[0] : raw;
+      const [amount, frequency] = text.split("|");
+      payload[question.id] = { amount: Number(amount), frequency };
+      return;
+    }
+    payload[question.id] = raw;
+  });
+  return payload;
 }
 
 function Status({ title, body }: { title: string; body: string }) {

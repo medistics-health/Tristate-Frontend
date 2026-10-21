@@ -1,24 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { FieldLabel, FormsLayout, GhostButton, Panel, PrimaryButton, RecipientPill, BufferedInput, BufferedTextArea, TextArea, TextInput, formatWhen } from "./chrome";
-import { makeRecipient, publishForm, setRecipients, updateForm, updateRecipient, useFormStore } from "./store";
+import { loadFormDocument, makeRecipient, publishForm, sendReminder, sendTestEmail, setRecipients, updateForm, updateRecipient, useFormStore } from "./store";
+import { getAllPractices } from "../../services/operations/practices";
+import { apiConnector } from "../../services/apiConnector";
 import type { FormRecipient, RecipientSource } from "./types";
 
-const PRACTICES = [
-  { name: "Riverside Family Medicine", email: "admin@riverside.example", people: ["Ava Chen", "Sofia Nguyen"] },
-  { name: "Oak Street Pediatrics", email: "office@oakstreet.example", people: ["Noah Patel", "Ethan Cole"] },
-  { name: "Harbor Dental Group", email: "hello@harbor.example", people: ["Mia Alvarez", "Priya Shah"] },
-  { name: "Northwind Cardiology", email: "desk@northwind.example", people: ["Liam Brooks"] },
-];
-
-const PEOPLE = [
-  { name: "Ava Chen", email: "ava.chen@riverside.example", practice: "Riverside Family Medicine" },
-  { name: "Noah Patel", email: "noah.patel@oakstreet.example", practice: "Oak Street Pediatrics" },
-  { name: "Mia Alvarez", email: "mia.alvarez@harbor.example", practice: "Harbor Dental Group" },
-  { name: "Liam Brooks", email: "liam.brooks@northwind.example", practice: "Northwind Cardiology" },
-  { name: "Jordan Hale", email: "", practice: "Riverside Family Medicine" },
-];
+type PracticeChoice = { id: string; name: string; email: string };
+type PersonChoice = { id: string; name: string; email: string; practice: string };
 
 const STEPS = ["Recipients", "Delivery", "Reminders", "Review", "Tracker"] as const;
 
@@ -26,6 +16,8 @@ export default function DistributionPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const form = useFormStore().forms.find((item) => item.id === id);
+  const [practiceOptions, setPracticeOptions] = useState<PracticeChoice[]>([]);
+  const [personOptions, setPersonOptions] = useState<PersonChoice[]>([]);
   const [step, setStep] = useState<(typeof STEPS)[number]>("Recipients");
   const [practiceQuery, setPracticeQuery] = useState("");
   const [selectedPractices, setSelectedPractices] = useState<string[]>([]);
@@ -33,13 +25,36 @@ export default function DistributionPage() {
   const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
   const [manual, setManual] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  useEffect(() => {
+    if (id) void loadFormDocument(id);
+  }, [id]);
+
+  useEffect(() => {
+    void getAllPractices().then((list) => {
+      setPracticeOptions(list.map((practice) => ({
+        id: practice.id,
+        name: practice.name,
+        email: practice.emails?.[0] || "",
+      })));
+    }).catch(() => undefined);
+    const root = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ?? "";
+    void apiConnector({ method: "GET", url: `${root}/api/v1/persons?limit=100`, credentials: true }).then((response) => {
+      const people = (response.data.persons || []) as Array<{ id: string; firstName: string; lastName: string; email?: string; practices?: Array<{ practice: { name: string } }> }>;
+      setPersonOptions(people.map((person) => ({
+        id: person.id,
+        name: `${person.firstName} ${person.lastName}`.trim(),
+        email: person.email || "",
+        practice: person.practices?.[0]?.practice?.name || "",
+      })));
+    }).catch(() => undefined);
+  }, []);
 
   const draftRecipients = useMemo(() => {
     if (!form) return [];
     const next: FormRecipient[] = [...form.recipients];
-    selectedPractices.forEach((name) => {
-      const practice = PRACTICES.find((item) => item.name === name);
-      if (!practice) return;
+    selectedPractices.forEach((practiceId) => {
+      const practice = practiceOptions.find((item) => item.id === practiceId);
+      if (!practice?.email) return;
       next.push(makeRecipient({
         source: "PRACTICE",
         practice: practice.name,
@@ -52,7 +67,7 @@ export default function DistributionPage() {
         completedAt: null,
       }));
       if (includePeople) {
-        PEOPLE.filter((person) => person.practice === practice.name && person.email).forEach((person) => {
+        personOptions.filter((person) => person.practice === practice.name && person.email).forEach((person) => {
           next.push(makeRecipient({
             source: "PERSON",
             practice: person.practice,
@@ -67,9 +82,9 @@ export default function DistributionPage() {
         });
       }
     });
-    selectedPeople.forEach((email) => {
-      const person = PEOPLE.find((item) => item.email === email);
-      if (!person) return;
+    selectedPeople.forEach((personId) => {
+      const person = personOptions.find((item) => item.id === personId);
+      if (!person?.email) return;
       next.push(makeRecipient({
         source: "PERSON",
         practice: person.practice,
@@ -96,11 +111,11 @@ export default function DistributionPage() {
       }));
     });
     return dedupe(next);
-  }, [form, includePeople, manual, selectedPeople, selectedPractices]);
+  }, [form, includePeople, manual, personOptions, practiceOptions, selectedPeople, selectedPractices]);
 
-  if (!form) return null;
+  if (!form?.detailLoaded) return <FormsLayout title="Distribute" activeSubItem="All Forms"><p className="p-6 text-[13px] text-slate-500">Loading distribution…</p></FormsLayout>;
 
-  const missingEmail = PEOPLE.filter((person) => selectedPeople.includes(person.name) && !person.email);
+  const missingEmail = personOptions.filter((person) => selectedPeople.includes(person.id) && !person.email);
   const tracker = form.recipients.filter((recipient) => statusFilter === "ALL" || recipient.status === statusFilter);
 
   return (
@@ -134,18 +149,18 @@ export default function DistributionPage() {
               <label className="mt-3 flex items-center gap-2 text-[13px]">
                 <input
                   type="checkbox"
-                  checked={selectedPractices.length === PRACTICES.length}
-                  onChange={(event) => setSelectedPractices(event.target.checked ? PRACTICES.map((item) => item.name) : [])}
+                  checked={practiceOptions.length > 0 && selectedPractices.length === practiceOptions.length}
+                  onChange={(event) => setSelectedPractices(event.target.checked ? practiceOptions.map((item) => item.id) : [])}
                 />
-                Select all ({PRACTICES.length})
+                Select all ({practiceOptions.length})
               </label>
               <div className="mt-2 space-y-1">
-                {PRACTICES.filter((item) => item.name.toLowerCase().includes(practiceQuery.toLowerCase())).map((practice) => (
-                  <label key={practice.name} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] hover:bg-[#f7f5f1]">
+                {practiceOptions.filter((item) => item.name.toLowerCase().includes(practiceQuery.toLowerCase())).map((practice) => (
+                  <label key={practice.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] hover:bg-[#f7f5f1]">
                     <input
                       type="checkbox"
-                      checked={selectedPractices.includes(practice.name)}
-                      onChange={(event) => setSelectedPractices((current) => event.target.checked ? [...current, practice.name] : current.filter((item) => item !== practice.name))}
+                      checked={selectedPractices.includes(practice.id)}
+                      onChange={(event) => setSelectedPractices((current) => event.target.checked ? [...current, practice.id] : current.filter((item) => item !== practice.id))}
                     />
                     {practice.name}
                     <span className="text-slate-400">{practice.email}</span>
@@ -159,13 +174,13 @@ export default function DistributionPage() {
             </Panel>
             <Panel className="space-y-3 p-4">
               <h2 className="text-[14px] font-semibold">People and new emails</h2>
-              {PEOPLE.map((person) => (
-                <label key={person.name} className="flex items-center gap-2 text-[13px]">
+              {personOptions.map((person) => (
+                <label key={person.id} className="flex items-center gap-2 text-[13px]">
                   <input
                     type="checkbox"
                     disabled={!person.email}
-                    checked={selectedPeople.includes(person.email)}
-                    onChange={(event) => setSelectedPeople((current) => event.target.checked ? [...current, person.email] : current.filter((item) => item !== person.email))}
+                    checked={selectedPeople.includes(person.id)}
+                    onChange={(event) => setSelectedPeople((current) => event.target.checked ? [...current, person.id] : current.filter((item) => item !== person.id))}
                   />
                   <span>{person.name}</span>
                   <span className="text-slate-400">{person.email || "No email — excluded"}</span>
@@ -177,9 +192,14 @@ export default function DistributionPage() {
               <p className="text-[13px] text-slate-500">{draftRecipients.removed} duplicates will be removed. {draftRecipients.list.length} recipients ready.</p>
               <PrimaryButton
                 onClick={() => {
-                  const removed = setRecipients(form.id, draftRecipients.list);
-                  toast.success(removed ? `${removed} duplicates removed` : "Recipients saved");
-                  setStep("Review");
+                  void setRecipients(form.id, draftRecipients.list, {
+                    practiceIds: selectedPractices,
+                    personIds: selectedPeople,
+                    includePracticePersons: includePeople,
+                  }).then((removed) => {
+                    toast.success(removed ? `${removed} duplicates removed` : "Recipients saved");
+                    setStep("Review");
+                  });
                 }}
               >
                 Save recipient list
@@ -232,7 +252,7 @@ export default function DistributionPage() {
               <BufferedInput value={form.email.senderName} onCommit={(senderName) => updateForm(form.id, { email: { ...form.email, senderName } })} />
               <BufferedInput value={form.email.replyTo} onCommit={(replyTo) => updateForm(form.id, { email: { ...form.email, replyTo } })} />
             </div>
-            <GhostButton onClick={() => toast.success("Test email queued to you")}>Send test email to me</GhostButton>
+            <GhostButton onClick={() => { void sendTestEmail(form.id).then(() => toast.success("Test email sent")).catch((error: Error) => toast.error(error.message)); }}>Send test email to me</GhostButton>
           </Panel>
         ) : null}
 
@@ -259,8 +279,8 @@ export default function DistributionPage() {
             <div className="flex items-center justify-between px-4 py-3">
               <p className="text-[13px] text-slate-500">{form.recipients.length} recipients</p>
               <div className="flex gap-2">
-                <GhostButton onClick={() => { const errors = publishForm(form.id, true); if (errors.length) toast.error(errors[0].message); else toast.success("Scheduled"); }}>Schedule send</GhostButton>
-                <PrimaryButton onClick={() => { const errors = publishForm(form.id, false); if (errors.length) toast.error(errors[0].message); else toast.success("Published"); }}>Publish and send now</PrimaryButton>
+                <GhostButton onClick={() => { void publishForm(form.id, true).then((errors) => { if (errors.length) toast.error(errors[0].message); else toast.success("Scheduled"); }); }}>Schedule send</GhostButton>
+                <PrimaryButton onClick={() => { void publishForm(form.id, false).then((errors) => { if (errors.length) toast.error(errors[0].message); else toast.success("Published"); }); }}>Publish and send now</PrimaryButton>
               </div>
             </div>
             <RecipientTable
@@ -279,7 +299,7 @@ export default function DistributionPage() {
                   <option key={status} value={status}>{status.replace("_", " ")}</option>
                 ))}
               </select>
-              <GhostButton onClick={() => toast.success("Reminder sent to pending recipients")}>Send reminder now</GhostButton>
+              <GhostButton onClick={() => { void sendReminder(form.id).then(() => toast.success("Reminder sent to pending recipients")).catch((error: Error) => toast.error(error.message)); }}>Send reminder now</GhostButton>
             </div>
             <RecipientTable recipients={tracker} onRemove={(recipientId) => updateRecipient(form.id, recipientId, { status: "REMOVED" })} />
           </Panel>

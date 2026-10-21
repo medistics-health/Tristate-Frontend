@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -18,6 +18,7 @@ import {
   deleteQuestion,
   deleteSection,
   duplicateQuestion,
+  loadFormDocument,
   moveQuestion,
   publishForm,
   publishValidation,
@@ -44,6 +45,9 @@ export default function FormBuilderPage() {
   const location = useLocation();
   const { forms } = useFormStore();
   const form = forms.find((item) => item.id === id);
+  useEffect(() => {
+    if (id) void loadFormDocument(id);
+  }, [id]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"question" | "settings" | "logic">("question");
   const [errors, setErrors] = useState<{ message: string; target: string }[]>([]);
@@ -55,25 +59,22 @@ export default function FormBuilderPage() {
     return flattenQuestions(form).find((item) => item.question.id === selectedId)?.question ?? null;
   }, [form, selectedId]);
 
-  if (!form) {
-    return (
-      <div className="p-8 text-sm text-slate-500">
-        Form not found. <Link to="/forms" className="text-[#4f63ea]">Back to forms</Link>
-      </div>
-    );
+  if (!form?.detailLoaded) {
+    return <div className="p-8 text-sm text-slate-500">Loading form…</div>;
   }
 
   const locked = form.responses.length > 0;
   const questions = flattenQuestions(form);
 
   function publish(scheduled: boolean) {
-    const result = publishForm(form!.id, scheduled);
-    if (result.length) {
-      setErrors(result);
-      toast.error("Fix the listed issues before publishing.");
-      return;
-    }
-    toast.success(scheduled ? "Form scheduled" : "Form published");
+    void publishForm(form.id, scheduled).then((result) => {
+      if (result.length) {
+        setErrors(result);
+        toast.error(result[0]?.message || "Fix the listed issues before publishing.");
+        return;
+      }
+      toast.success(scheduled ? "Form scheduled" : "Form published");
+    });
   }
 
   return (
@@ -586,9 +587,10 @@ function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => vo
           <PrimaryButton
             disabled={!name.trim()}
             onClick={() => {
-              saveAsTemplate(formId, { name, description, category, visibility });
-              toast.success("Template saved");
-              onClose();
+              void saveAsTemplate(formId, { name, description, category, visibility }).then(() => {
+                toast.success("Template saved");
+                onClose();
+              });
             }}
           >
             Save template
