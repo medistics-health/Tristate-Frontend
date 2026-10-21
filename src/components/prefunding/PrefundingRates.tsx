@@ -44,7 +44,7 @@ type PrefundingRate = {
 
 type RateFormData = {
   name: string;
-  basis: string[];
+  basis: string;
   pricingModel: string;
   rate: number;
   notes: string;
@@ -102,7 +102,7 @@ export default function PrefundingRates() {
 
   const [formData, setFormData] = useState<RateFormData>({
     name: "",
-    basis: ["Gross Wages"],
+    basis: "Gross Wages",
     pricingModel: "Percentage",
     rate: 0,
     notes: "",
@@ -298,7 +298,7 @@ export default function PrefundingRates() {
   const handleOpenCreateForm = () => {
     setFormData({
       name: "",
-      basis: ["Gross Wages"],
+      basis: "Gross Wages",
       pricingModel: "Percentage",
       rate: 0,
       notes: "",
@@ -315,7 +315,7 @@ export default function PrefundingRates() {
     if (item) {
       setFormData({
         name: item.name,
-        basis: parseBasisToArray(item.basis),
+        basis: item.basis || "Gross Wages",
         pricingModel: item.pricingModel,
         rate: item.rate,
         notes: item.notes || "",
@@ -333,14 +333,14 @@ export default function PrefundingRates() {
       toast.error("Name is required");
       return;
     }
-    if (!formData.basis || formData.basis.length === 0) {
-      toast.error("Please select at least one Basis option");
+    if (!formData.basis) {
+      toast.error("Please select a Basis option");
       return;
     }
     try {
       const payload = {
         ...formData,
-        basis: formData.basis.join(", "),
+        basis: formData.basis,
       };
       if (showCreateForm) {
         await createPrefundingRate(payload);
@@ -399,9 +399,9 @@ export default function PrefundingRates() {
       ...otherRateOptions.map((o) => o.value.toLowerCase()),
     ]);
 
-    const extraOptions = (formData.basis || [])
-      .filter((b) => b && !existingKeys.has(b.toLowerCase()))
-      .map((b) => ({ value: b, label: b }));
+    const extraOptions = formData.basis && !existingKeys.has(formData.basis.toLowerCase())
+      ? [{ value: formData.basis, label: formData.basis }]
+      : [];
 
     return [...baseOptions, ...otherRateOptions, ...extraOptions];
   }, [data, selectedRowId, formData.name, formData.basis]);
@@ -421,9 +421,9 @@ export default function PrefundingRates() {
       </div>
       <div>
         <label className="mb-1 block text-[13px] font-medium text-slate-700">
-          Basis <span className="text-red-500">*</span> <span className="text-xs text-slate-400 font-normal">(Multiple Selection)</span>
+          Basis <span className="text-red-500">*</span>
         </label>
-        <MultiSelect
+        <Select
           placeholder="Select calculation basis"
           value={formData.basis}
           onChange={(val) => setFormData((prev) => ({ ...prev, basis: val }))}
@@ -431,7 +431,7 @@ export default function PrefundingRates() {
           disabled={!showCreateForm && !isEditing}
         />
         <p className="mt-1 text-[11px] text-slate-400">
-          Select Gross Wages, Total Employees, or other line items on which calculation depends.
+          Select Gross Wages, Total Employees, or another line item on which this rate calculates.
         </p>
       </div>
       <div>

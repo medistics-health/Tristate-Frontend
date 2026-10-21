@@ -329,5 +329,6 @@ export const prefundingEndpoints = {
   INVOICES: BACKEND_URL + "/api/v1/prefunding/invoices",
   INVOICE: (id: string) => BACKEND_URL + `/api/v1/prefunding/invoices/${id}`,
   UPDATE_INVOICE_STATUS: (id: string) => BACKEND_URL + `/api/v1/prefunding/invoices/${id}/status`,
+  RESEND_INVOICE: (id: string) => BACKEND_URL + `/api/v1/prefunding/invoices/${id}/resend`,
   INVOICE_PDF: (id: string) => BACKEND_URL + `/api/v1/prefunding/invoices/${id}/pdf`,
 };

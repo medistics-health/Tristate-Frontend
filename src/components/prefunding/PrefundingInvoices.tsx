@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import AppLayout from "../layout/AppLayout";
+import { DetailCard } from "../shared/tablePageUtils";
 import {
   flexRender,
   getCoreRowModel,
@@ -24,6 +26,14 @@ import {
   ExternalLink,
   CreditCard,
   Loader2,
+  Mail,
+  Edit,
+  ShieldCheck,
+  AlertCircle,
+  ArrowRightLeft,
+  Landmark,
+  Calendar,
+  Info,
 } from "lucide-react";
 import DataTableToolbar, {
   SortableHeaderCell,
@@ -37,8 +47,21 @@ import {
   updatePrefundingInvoiceStatus,
   deletePrefundingInvoice,
   openPrefundingInvoicePdf,
+  resendPrefundingInvoice,
 } from "../../services/operations/prefundingInvoices";
 import { getAllPractices, type Practice } from "../../services/operations/practices";
+import { getSystemSettingsApi, type SystemSettings } from "../../services/operations/users";
+import {
+  buildPracticeDefaultProcessingFeeSettings,
+  buildProcessingFeeSettings,
+  buildPracticeLabelSettings,
+  buildGeneralSettingsTotals,
+  buildResolvedProcessingFeeSettings,
+  getAllocationPercent,
+  roundToPrecision,
+  type ProcessingFeeSettings,
+  type BillingPaymentMethod,
+} from "../../utils/processingFeeConfig";
 
 type InvoiceStatus = "Draft" | "Pending Approval" | "Approved" | "Posted";
 
@@ -60,13 +83,15 @@ type Invoice = {
   invoiceNumber: string;
   practice: string;
   practiceId: string;
-  prefundingCycle: string;
+  prefundingCycle?: string;
+  cycle?: string;
   totalAmount: number;
   subtotalAmount?: number;
   processingFeeAmount?: number;
   companyFeeAmount?: number;
   paymentMethod?: string | null;
   paymentMethodDisplay?: string | null;
+  feeBearer?: "CLIENT" | "COMPANY" | string | null;
   status: string;
   dueDate: string;
   invoiceDate: string;
@@ -75,11 +100,20 @@ type Invoice = {
   recipientEmail?: string;
   createdBy: string;
   createdDate: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
   postedDate: string | null;
+  postedAt?: string | null;
+  paidDate?: string | null;
+  paidAt?: string | null;
   stripeInvoiceId?: string | null;
   stripeHostedInvoiceUrl?: string | null;
   stripeInvoicePdfUrl?: string | null;
-  paidDate?: string | null;
+  invoicePdfBlobUrl?: string | null;
+  receiptPdfBlobUrl?: string | null;
+  stripeTransfers?: any[];
   lineItems?: InvoiceLineItem[];
 };
 
@@ -88,14 +122,35 @@ const INVOICE_STATUS_OPTIONS = [
   { value: "Pending Approval", label: "Pending Approval" },
   { value: "Approved", label: "Approved" },
   { value: "Posted", label: "Posted" },
+  { value: "Paid", label: "Paid" },
+  { value: "Overdue", label: "Overdue" },
 ];
 
+function formatMoney(value?: string | number | null) {
+  if (value === undefined || value === null || value === "") return "-";
+  const numericValue = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(numericValue)) return String(value);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numericValue);
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 export default function PrefundingInvoices() {
+  const navigate = useNavigate();
   const [data, setData] = useState<Invoice[]>([]);
   const [practices, setPractices] = useState<Practice[]>([]);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isPreviewingPdf, setIsPreviewingPdf] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -127,7 +182,7 @@ export default function PrefundingInvoices() {
       const sortBy = sorting.length > 0 ? sorting[0].id : undefined;
       const sortOrder = sorting.length > 0 ? (sorting[0].desc ? "desc" : "asc") : undefined;
 
-      const [invoicesRes, practicesRes] = await Promise.all([
+      const [invoicesRes, practicesRes, settingsRes] = await Promise.all([
         getPrefundingInvoices({
           page: pagination.page,
           limit: pagination.limit,
@@ -138,6 +193,7 @@ export default function PrefundingInvoices() {
           sortOrder,
         }),
         practices.length === 0 ? getAllPractices() : Promise.resolve(practices),
+        systemSettings ? Promise.resolve(systemSettings) : getSystemSettingsApi().catch(() => null),
       ]);
 
       const list = invoicesRes?.invoices || [];
@@ -153,6 +209,10 @@ export default function PrefundingInvoices() {
 
       if (practicesRes && Array.isArray(practicesRes)) {
         setPractices(practicesRes);
+      }
+
+      if (settingsRes && !systemSettings) {
+        setSystemSettings(settingsRes);
       }
     } catch (error) {
       console.error("Failed to load prefunding invoices:", error);
@@ -180,18 +240,24 @@ export default function PrefundingInvoices() {
     }
   };
 
-  const handlePreviewPdf = async () => {
+  const handlePreviewPdf = () => {
     if (!selectedInvoice) return;
-    setIsPreviewingPdf(true);
-    const toastId = toast.loading("Generating A4 Prefunding Invoice PDF...");
+    openPrefundingInvoicePdf(selectedInvoice.id);
+  };
+
+  const handleResend = async () => {
+    if (!selectedInvoice) return;
+    setIsResending(true);
+    const toastId = toast.loading("Resending invoice email with latest payment link...");
     try {
-      await openPrefundingInvoicePdf(selectedInvoice.id);
-      toast.success("PDF opened in new tab", { id: toastId });
+      await resendPrefundingInvoice(selectedInvoice.id);
+      toast.success("Prefunding invoice email resent successfully!", { id: toastId });
+      await loadData();
     } catch (err: any) {
-      console.error("Failed to generate PDF:", err);
-      toast.error(err.message || "Failed to preview PDF", { id: toastId });
+      console.error("Failed to resend invoice:", err);
+      toast.error(err.message || "Failed to resend prefunding invoice", { id: toastId });
     } finally {
-      setIsPreviewingPdf(false);
+      setIsResending(false);
     }
   };
 
@@ -217,16 +283,87 @@ export default function PrefundingInvoices() {
     }
   };
 
+  const calculateInvoiceFees = useCallback(
+    (inv: Invoice) => {
+      const invoicePractice = practices.find((p) => p.id === inv.practiceId);
+      const rawPaymentMethod = (inv.paymentMethod || invoicePractice?.billingPaymentMethod || "ACH").toUpperCase();
+      const currentPaymentMethod: "ACH" | "CREDIT_CARD" = rawPaymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "ACH";
+
+      const feeConfig = invoicePractice?.processingFeeConfig
+        ? buildProcessingFeeSettings(invoicePractice.processingFeeConfig)
+        : buildPracticeDefaultProcessingFeeSettings(systemSettings);
+
+      const resolvedSettings = buildResolvedProcessingFeeSettings(
+        feeConfig,
+        systemSettings,
+      );
+
+      const prefundingBase = Number(inv.subtotalAmount ?? inv.totalAmount);
+      const normalizedBase = roundMoney(Math.max(0, prefundingBase));
+
+      let clientProcessingFee = Number(inv.processingFeeAmount || 0);
+      let companyAbsorbedFee = Number(inv.companyFeeAmount || 0);
+
+      if (clientProcessingFee === 0 && companyAbsorbedFee === 0 && normalizedBase > 0) {
+        if (currentPaymentMethod === "CREDIT_CARD") {
+          const clientRule = resolvedSettings.creditCard.CLIENT;
+          const companyRule = resolvedSettings.creditCard.COMPANY;
+          clientProcessingFee = roundMoney(
+            normalizedBase * (clientRule.ratePercent / 100) + clientRule.fixedFee,
+          );
+          companyAbsorbedFee = roundMoney(
+            normalizedBase * (companyRule.ratePercent / 100) + companyRule.fixedFee,
+          );
+        } else {
+          const clientRule = resolvedSettings.ach.CLIENT;
+          const companyRule = resolvedSettings.ach.COMPANY;
+          clientProcessingFee = roundMoney(
+            Math.min(
+              roundMoney(normalizedBase * (clientRule.ratePercent / 100)),
+              Math.max(0, clientRule.capAmount),
+            ),
+          );
+          companyAbsorbedFee = roundMoney(
+            Math.min(
+              roundMoney(normalizedBase * (companyRule.ratePercent / 100)),
+              Math.max(0, companyRule.capAmount),
+            ),
+          );
+        }
+      }
+
+      const grossInvoiceTotal = roundMoney(normalizedBase + clientProcessingFee);
+
+      return {
+        currentPaymentMethod,
+        prefundingBase: normalizedBase,
+        clientProcessingFee,
+        companyAbsorbedFee,
+        grossInvoiceTotal,
+      };
+    },
+    [practices, systemSettings]
+  );
+
   const getStatusBadge = (status: string) => {
-    const s = status.toLowerCase();
-    let badgeClass = "bg-slate-100 text-slate-700";
-    if (s.includes("pending")) badgeClass = "bg-amber-100 text-amber-800";
-    else if (s.includes("approved")) badgeClass = "bg-blue-100 text-blue-800";
-    else if (s.includes("posted")) badgeClass = "bg-emerald-100 text-emerald-800";
-    else if (s.includes("draft")) badgeClass = "bg-slate-100 text-slate-700";
+    const s = (status || "").toLowerCase();
+    let badgeClass = "bg-slate-100 text-slate-700 border border-slate-200";
+    if (s.includes("paid")) {
+      badgeClass = "bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold";
+    } else if (s.includes("overdue")) {
+      badgeClass = "bg-red-100 text-red-800 border border-red-300 font-semibold";
+    } else if (s.includes("posted")) {
+      badgeClass = "bg-teal-100 text-teal-800 border border-teal-300 font-semibold";
+    } else if (s.includes("approved")) {
+      badgeClass = "bg-blue-100 text-blue-800 border border-blue-300 font-medium";
+    } else if (s.includes("pending")) {
+      badgeClass = "bg-amber-100 text-amber-800 border border-amber-300 font-medium";
+    } else if (s.includes("draft")) {
+      badgeClass = "bg-slate-100 text-slate-700 border border-slate-200";
+    }
 
     return (
-      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClass}`}>
+      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs ${badgeClass}`}>
         {status}
       </span>
     );
@@ -265,19 +402,58 @@ export default function PrefundingInvoices() {
         cell: (info) => <span>{info.getValue() as string}</span>,
       },
       {
-        accessorKey: "totalAmount",
+        id: "paymentMethod",
+        header: () => (
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-3.5 w-3.5 text-slate-400" />
+            <span>Payment Method</span>
+          </div>
+        ),
+        cell: ({ row }) => {
+          const inv = row.original;
+          const { currentPaymentMethod } = calculateInvoiceFees(inv);
+          const isCC = currentPaymentMethod === "CREDIT_CARD";
+          return (
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                isCC
+                  ? "bg-purple-50 text-purple-700 border border-purple-200"
+                  : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+              }`}
+            >
+              <CreditCard className="h-3 w-3" />
+              {isCC ? "Credit Card" : "ACH"}
+            </span>
+          );
+        },
+      },
+      {
+        id: "grossTotal",
         header: () => (
           <div className="flex items-center gap-2">
             <DollarSign className="h-3.5 w-3.5 text-slate-400" />
-            <span>Total Amount</span>
+            <span>Gross Invoice Total</span>
           </div>
         ),
-        cell: ({ getValue }) => {
-          const val = Number(getValue()) || 0;
+        cell: ({ row }) => {
+          const inv = row.original;
+          const { grossInvoiceTotal, clientProcessingFee, prefundingBase } = calculateInvoiceFees(inv);
+
           return (
-            <span className="font-semibold text-slate-800">
-              {val.toLocaleString("en-US", { style: "currency", currency: "USD" })}
-            </span>
+            <div className="flex flex-col">
+              <span className="font-semibold text-slate-900">
+                {grossInvoiceTotal.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+              </span>
+              {clientProcessingFee > 0 ? (
+                <span className="text-[11px] text-slate-500">
+                  Base: ${prefundingBase.toFixed(2)} + Fee: ${clientProcessingFee.toFixed(2)}
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-400">
+                  Base: ${prefundingBase.toFixed(2)}
+                </span>
+              )}
+            </div>
           );
         },
       },
@@ -292,6 +468,45 @@ export default function PrefundingInvoices() {
         cell: ({ getValue }) => getStatusBadge(getValue() as string),
       },
       {
+        id: "stripeSettlement",
+        header: () => (
+          <div className="flex items-center gap-1.5">
+            <Landmark className="h-3.5 w-3.5 text-slate-400" />
+            <span>Stripe Settlement</span>
+          </div>
+        ),
+        cell: ({ row }) => {
+          const inv = row.original;
+          if (inv.status.toLowerCase() !== "paid") return <span className="text-slate-400">-</span>;
+          const transfers = inv.stripeTransfers;
+          if (!transfers || transfers.length === 0) return <span className="text-slate-400">N/A</span>;
+          const isAllPending = transfers.every((t: any) => t.status === "PENDING");
+          if (isAllPending) return <span className="text-amber-600 font-semibold text-xs">In Progress</span>;
+          return <span className="text-emerald-600 font-semibold text-xs">Settled</span>;
+        },
+      },
+      {
+        id: "transferStatus",
+        header: () => (
+          <div className="flex items-center gap-1.5">
+            <ArrowRightLeft className="h-3.5 w-3.5 text-slate-400" />
+            <span>Transfer Status</span>
+          </div>
+        ),
+        cell: ({ row }) => {
+          const inv = row.original;
+          if (inv.status.toLowerCase() !== "paid") return <span className="text-slate-400">-</span>;
+          const transfers = inv.stripeTransfers;
+          if (!transfers || transfers.length === 0) return <span className="text-slate-400">N/A</span>;
+          const hasSent = transfers.some((t: any) => t.status === "SENT");
+          const isAllSent = transfers.every((t: any) => t.status === "SENT");
+          if (isAllSent || hasSent) return <span className="text-emerald-600 font-semibold text-xs">Completed</span>;
+          const isFailed = transfers.some((t: any) => t.status === "FAILED");
+          if (isFailed) return <span className="text-red-600 font-semibold text-xs">Failed</span>;
+          return <span className="text-amber-600 font-semibold text-xs">In Progress</span>;
+        },
+      },
+      {
         accessorKey: "dueDate",
         header: () => (
           <div className="flex items-center gap-2">
@@ -302,7 +517,7 @@ export default function PrefundingInvoices() {
         cell: (info) => <span>{info.getValue() as string}</span>,
       },
     ],
-    []
+    [calculateInvoiceFees]
   );
 
   const table = useReactTable({
@@ -459,11 +674,12 @@ export default function PrefundingInvoices() {
           {/* Sidebar */}
           {selectedRowId && selectedInvoice && (
             <div className="flex w-[620px] max-w-full flex-shrink-0 flex-col border-l border-[#f0ece6] bg-white transition-all duration-300">
+              {/* Header Bar */}
               <div className="flex h-[45px] flex-shrink-0 items-center gap-2 border-b border-[#f0ece6] bg-[#fcfaf8] px-3">
                 <button
                   type="button"
                   onClick={() => setSelectedRowId(null)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -473,201 +689,256 @@ export default function PrefundingInvoices() {
                 </span>
                 <span className="mr-1">{getStatusBadge(selectedInvoice.status)}</span>
               </div>
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900">{selectedInvoice.practice}</h3>
-                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
-                    <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-                    Prefunding Cycle: <span className="font-medium text-slate-700">{selectedInvoice.prefundingCycle}</span>
-                  </p>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200/80 bg-slate-50/50 p-4">
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Invoice Date</p>
-                    <p className="text-sm font-medium text-slate-800 mt-0.5">{selectedInvoice.invoiceDate}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Due Date</p>
-                    <p className="text-sm font-medium text-slate-800 mt-0.5">{selectedInvoice.dueDate}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Recipient (Primary Contact)</p>
-                    {selectedInvoice.recipientName ? (
-                      <div className="mt-0.5">
-                        <p className="text-sm font-semibold text-slate-800">{selectedInvoice.recipientName}</p>
-                        {selectedInvoice.recipientEmail && (
-                          <p className="text-xs text-slate-500 mt-0.5">{selectedInvoice.recipientEmail}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm font-medium text-slate-800 mt-0.5 truncate" title={selectedInvoice.recipient}>
-                        {selectedInvoice.recipient || "N/A"}
-                      </p>
-                    )}
-                  </div>
-                  <div className="col-span-2 pt-2 border-t border-slate-200/60">
-                    <div className="flex justify-between items-baseline">
-                      <div>
-                        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total Invoice Amount</p>
-                        {Boolean(selectedInvoice.processingFeeAmount && selectedInvoice.processingFeeAmount > 0) && (
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            Subtotal: ${(selectedInvoice.subtotalAmount ?? selectedInvoice.totalAmount).toFixed(2)} + Processing Fee: ${Number(selectedInvoice.processingFeeAmount).toFixed(2)}
-                          </p>
-                        )}
-                      </div>
-                      <p className="text-lg font-bold text-[#4f63ea]">
-                        {selectedInvoice.totalAmount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+              {/* Action Toolbar Header (Standard CRM & BillingRun placement) */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-[#f0ece6] bg-slate-50/60 px-4 py-2.5">
+                {selectedInvoice.status.toLowerCase() === "draft" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cycleParam = selectedInvoice.cycle || selectedInvoice.prefundingCycle || "";
+                        const url = `/prefunding/calculate?invoiceId=${selectedInvoice.id}&practiceId=${selectedInvoice.practiceId}${cycleParam ? `&cycle=${encodeURIComponent(cycleParam)}` : ""}`;
+                        navigate(url);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-all cursor-pointer"
+                    >
+                      <Edit className="h-3.5 w-3.5 text-slate-500" />
+                      Edit Draft
+                    </button>
 
-                {/* Audit Information */}
-                <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4">
-                  <h4 className="text-[12px] font-semibold text-slate-800 mb-2.5">Audit Information</h4>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Created By</span>
-                      <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.createdBy}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Created Date</span>
-                      <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.createdDate}</span>
-                    </div>
-                    {selectedInvoice.postedDate && (
-                      <div className="col-span-2 pt-2 border-t border-slate-200/60">
-                        <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Posted Date</span>
-                        <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.postedDate}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Stripe & Payment Information (shown after Audit Information) */}
-                {(selectedInvoice.stripeHostedInvoiceUrl || selectedInvoice.paidDate || selectedInvoice.paymentMethodDisplay) && (
-                  <div className="rounded-xl border border-blue-200/80 bg-blue-50/40 p-4">
-                    <h4 className="text-[12px] font-semibold text-blue-950 mb-2 flex items-center gap-1.5">
-                      <CreditCard className="h-3.5 w-3.5 text-blue-600" />
-                      Payment & Stripe Details
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      {selectedInvoice.paymentMethodDisplay && (
-                        <div>
-                          <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Payment Method</span>
-                          <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.paymentMethodDisplay}</span>
-                        </div>
-                      )}
-                      {selectedInvoice.paidDate && (
-                        <div>
-                          <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Paid Date</span>
-                          <span className="font-semibold text-emerald-700 mt-0.5 block">{selectedInvoice.paidDate}</span>
-                        </div>
-                      )}
-                      {selectedInvoice.stripeHostedInvoiceUrl && (
-                        <div className="col-span-2 pt-2 border-t border-blue-100 flex items-center justify-between">
-                          <span className="text-slate-500 text-[11px] font-medium">Stripe Hosted Invoice</span>
-                          <a
-                            href={selectedInvoice.stripeHostedInvoiceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#4f63ea] hover:underline"
-                          >
-                            Open Payment Page <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Actions Buttons */}
-                <div className="flex flex-wrap items-center gap-2.5 pt-1">
-                  {selectedInvoice.status.toLowerCase() === "draft" && (
                     <button
                       type="button"
                       onClick={() => handleStatusChange("Pending Approval")}
                       disabled={isUpdatingStatus}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-600 disabled:opacity-50 transition-all cursor-pointer"
                     >
                       <Clock className="h-3.5 w-3.5" />
                       Submit for Approval
                     </button>
-                  )}
+                  </>
+                )}
 
-                  {selectedInvoice.status.toLowerCase().includes("pending") && (
-                    <button
-                      type="button"
-                      onClick={() => handleStatusChange("Approved")}
-                      disabled={isUpdatingStatus}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
-                    >
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      Approve Invoice
-                    </button>
-                  )}
-
-                  {selectedInvoice.status.toLowerCase() === "approved" && (
-                    <button
-                      type="button"
-                      onClick={() => handleStatusChange("Posted")}
-                      disabled={isUpdatingStatus}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
-                    >
-                      {isUpdatingStatus ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          Posting & Sending Stripe Invoice...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="h-3.5 w-3.5" />
-                          Post Invoice
-                        </>
-                      )}
-                    </button>
-                  )}
-
-                  {selectedInvoice.stripeHostedInvoiceUrl && (
-                    <a
-                      href={selectedInvoice.stripeHostedInvoiceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Pay Online / Stripe Invoice
-                    </a>
-                  )}
-
+                {selectedInvoice.status.toLowerCase().includes("pending") && (
                   <button
                     type="button"
-                    onClick={handlePreviewPdf}
-                    disabled={isPreviewingPdf}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                    onClick={() => handleStatusChange("Approved")}
+                    disabled={isUpdatingStatus}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#4f63ea] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#3d4ecf] disabled:opacity-50 transition-all cursor-pointer"
                   >
-                    <Printer className="h-3.5 w-3.5" />
-                    {isPreviewingPdf ? "Generating PDF..." : "Preview & Print PDF (A4)"}
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Approve Invoice
                   </button>
+                )}
 
+                {selectedInvoice.status.toLowerCase() === "approved" && (
                   <button
                     type="button"
-                    onClick={handleDelete}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-red-200 bg-white hover:bg-red-50 text-red-600 rounded-lg text-xs font-semibold transition-colors shadow-2xs cursor-pointer ml-auto"
+                    onClick={() => handleStatusChange("Posted")}
+                    disabled={isUpdatingStatus}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50 transition-all cursor-pointer"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete Invoice
+                    {isUpdatingStatus ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Posting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-3.5 w-3.5" />
+                        Post & Send Invoice
+                      </>
+                    )}
                   </button>
-                </div>
+                )}
 
-                {/* Line Items Breakdown (Styled matching /prefunding/calculate) */}
+                {selectedInvoice.status.toLowerCase() === "posted" && (
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={isResending}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-2xs hover:bg-indigo-100 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    {isResending ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Resending...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="h-3.5 w-3.5" />
+                        Resend Email
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handlePreviewPdf}
+                  disabled={isPreviewingPdf}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-slate-700 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  <Printer className="h-3.5 w-3.5 text-slate-300" />
+                  {isPreviewingPdf
+                    ? "Generating..."
+                    : selectedInvoice.status.toLowerCase() === "paid"
+                    ? "View Receipt"
+                    : selectedInvoice.status.toLowerCase() === "posted"
+                    ? "View Invoice"
+                    : "Preview Invoice"}
+                </button>
+
+                {selectedInvoice.status.toLowerCase() !== "approved" &&
+                  selectedInvoice.status.toLowerCase() !== "posted" &&
+                  selectedInvoice.status.toLowerCase() !== "paid" && (
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 hover:border-red-300 transition-all cursor-pointer"
+                      title="Delete Invoice"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  )}
+              </div>
+
+              {/* Scrollable Content Body */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                {(() => {
+                  const invoicePractice = practices.find((p) => p.id === selectedInvoice.practiceId);
+                  const rawPaymentMethod = (selectedInvoice.paymentMethod || invoicePractice?.billingPaymentMethod || "ACH").toUpperCase();
+                  const currentPaymentMethod: "ACH" | "CREDIT_CARD" = rawPaymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "ACH";
+
+                  const feeConfig = invoicePractice?.processingFeeConfig
+                    ? buildProcessingFeeSettings(invoicePractice.processingFeeConfig)
+                    : buildPracticeDefaultProcessingFeeSettings(systemSettings);
+
+                  const resolvedSettings = buildResolvedProcessingFeeSettings(
+                    feeConfig,
+                    systemSettings,
+                  );
+
+                  const prefundingBase = Number(selectedInvoice.subtotalAmount ?? selectedInvoice.totalAmount);
+                  const normalizedBase = roundMoney(Math.max(0, prefundingBase));
+
+                  // Calculate exact fees based on rate setup (Client & Company)
+                  let clientProcessingFee = Number(selectedInvoice.processingFeeAmount || 0);
+                  let companyAbsorbedFee = Number(selectedInvoice.companyFeeAmount || 0);
+
+                  // If invoice is draft/approved or fees are 0, dynamically calculate based on rate setup
+                  if (clientProcessingFee === 0 && companyAbsorbedFee === 0 && normalizedBase > 0) {
+                    if (currentPaymentMethod === "CREDIT_CARD") {
+                      const clientRule = resolvedSettings.creditCard.CLIENT;
+                      const companyRule = resolvedSettings.creditCard.COMPANY;
+                      clientProcessingFee = roundMoney(
+                        normalizedBase * (clientRule.ratePercent / 100) + clientRule.fixedFee,
+                      );
+                      companyAbsorbedFee = roundMoney(
+                        normalizedBase * (companyRule.ratePercent / 100) + companyRule.fixedFee,
+                      );
+                    } else {
+                      const clientRule = resolvedSettings.ach.CLIENT;
+                      const companyRule = resolvedSettings.ach.COMPANY;
+                      clientProcessingFee = roundMoney(
+                        Math.min(
+                          roundMoney(normalizedBase * (clientRule.ratePercent / 100)),
+                          Math.max(0, clientRule.capAmount),
+                        ),
+                      );
+                      companyAbsorbedFee = roundMoney(
+                        Math.min(
+                          roundMoney(normalizedBase * (companyRule.ratePercent / 100)),
+                          Math.max(0, companyRule.capAmount),
+                        ),
+                      );
+                    }
+                  }
+
+                  const grossInvoiceTotal = roundMoney(normalizedBase + clientProcessingFee);
+
+                  return (
+                    <>
+                      {/* 1. Detail Card: Practice & Core Invoice Details */}
+                      <DetailCard
+                        title={selectedInvoice.practice}
+                        infoRows={[
+                          {
+                            label: "Prefunding Cycle",
+                            value: selectedInvoice.prefundingCycle || selectedInvoice.cycle || "-",
+                          },
+                          {
+                            label: "Invoice Date",
+                            value: selectedInvoice.invoiceDate || "-",
+                          },
+                          {
+                            label: "Due Date",
+                            value: selectedInvoice.dueDate || "-",
+                          },
+                          {
+                            label: "Recipient (Primary Contact)",
+                            value: selectedInvoice.recipientName
+                              ? `${selectedInvoice.recipientName} (${selectedInvoice.recipientEmail || "No email"})`
+                              : selectedInvoice.recipient || "-",
+                          },
+                        ]}
+                        metric={{
+                          label: "Gross Invoice Total",
+                          value: formatMoney(grossInvoiceTotal),
+                        }}
+                      />
+
+                      {/* 2. Billing Run Summary Card */}
+                      <div className="rounded-2xl border border-[#eadfcd] bg-gradient-to-br from-[#f9f4ec] via-white to-[#f4f7fb] p-4 text-[13px] space-y-3 shadow-xs">
+                        <h3 className="font-semibold text-slate-800 text-[14px] border-b border-[#eadfcd]/40 pb-2 flex items-center justify-between">
+                          <span>Billing Run Summary</span>
+                          <span className="text-[11px] font-normal text-slate-400">Processing Fees & Totals</span>
+                        </h3>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Prefunding amount</span>
+                          <span className="font-bold text-slate-800">{formatMoney(normalizedBase)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Processing Fee</span>
+                          <span className="font-bold text-slate-700">{formatMoney(clientProcessingFee)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Company Absorbed</span>
+                          <span className="font-bold text-slate-700">
+                            {formatMoney(normalizedBase === 0 ? 0 : companyAbsorbedFee)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Payment Method</span>
+                          <span className="font-bold text-slate-700">
+                            {currentPaymentMethod === "CREDIT_CARD" ? "Credit Card" : "ACH"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-[#eadfcd]/40 pt-2.5">
+                          <span className="text-slate-600 font-semibold">Gross Invoice Total</span>
+                          <span className="font-extrabold text-[15px] text-emerald-600">
+                            {formatMoney(grossInvoiceTotal)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {/* 3. Invoice Line Items & Rates Breakdown */}
                 {selectedInvoice.lineItems && selectedInvoice.lineItems.length > 0 && (
-                  <div className="space-y-3">
-                    <h4 className="text-[13px] font-semibold text-slate-800 flex items-center gap-2">
-                      <List className="h-4 w-4 text-slate-400" />
-                      Invoice Line Items & Rates Breakdown
-                    </h4>
-                    <div className="rounded-xl border border-[#ece8e1] overflow-hidden">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+                        <List className="h-4 w-4 text-slate-400" />
+                        Invoice Line Items & Rates Breakdown
+                      </h4>
+                      <span className="text-[11px] text-slate-400">
+                        {selectedInvoice.lineItems.length} items
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-[#ece8e1] overflow-hidden shadow-2xs">
                       <table className="w-full text-xs text-left">
                         <thead className="bg-[#fbfaf8] text-slate-500 font-semibold text-[11px] border-b border-[#ece8e1]">
                           <tr>
@@ -702,6 +973,13 @@ export default function PrefundingInvoices() {
                             const checkedAmount = checkedItems.reduce((acc, curr) => acc + curr.amount, 0);
                             const prefundingSubtotal = grossWagesAmount + checkedAmount;
                             const uncheckedAmount = uncheckedItems.reduce((acc, curr) => acc + curr.amount, 0);
+
+                            const {
+                              currentPaymentMethod,
+                              prefundingBase,
+                              clientProcessingFee,
+                              grossInvoiceTotal,
+                            } = calculateInvoiceFees(selectedInvoice);
 
                             const formatRateVal = (rate: number | null, model: string | null) => {
                               if (rate === null || rate === undefined) return "-";
@@ -831,8 +1109,8 @@ export default function PrefundingInvoices() {
                                 {/* Total Grand Total (Line Items Subtotal) row */}
                                 <tr className="border-t border-[#e2ded6] bg-white font-bold">
                                   <td colSpan={4} className="px-3.5 py-3 text-right">
-                                    <div className="text-[#4f63ea] text-[11px] uppercase tracking-wide">
-                                      Total Grand Total:
+                                    <div className="text-slate-800 text-[11px] uppercase tracking-wide">
+                                      Prefunding Amount (Subtotal):
                                     </div>
                                     <div className="text-[10px] text-slate-400 font-normal">
                                       {uncheckedItems.length > 0
@@ -840,36 +1118,32 @@ export default function PrefundingInvoices() {
                                         : `GMS Projection ($${prefundingSubtotal.toFixed(2)})`}
                                     </div>
                                   </td>
-                                  <td className="px-3.5 py-3 text-right text-[#4f63ea] text-[13px] font-black">
-                                    ${(selectedInvoice.subtotalAmount ?? (prefundingSubtotal + uncheckedAmount)).toFixed(2)}
+                                  <td className="px-3.5 py-3 text-right text-slate-900 text-[13px] font-bold">
+                                    ${prefundingBase.toFixed(2)}
                                   </td>
                                   <td></td>
                                 </tr>
 
-                                {/* Processing Fee row (if fee > 0) */}
-                                {Boolean(selectedInvoice.processingFeeAmount && selectedInvoice.processingFeeAmount > 0) && (
-                                  <>
-                                    <tr className="bg-slate-50/80 border-t border-[#ece8e1]">
-                                      <td colSpan={4} className="px-3.5 py-2.5 text-right font-medium text-slate-600 text-xs">
-                                        Payment Processing Fee ({selectedInvoice.paymentMethod === "CREDIT_CARD" ? "Credit Card 1.5%" : "ACH"}):
-                                      </td>
-                                      <td className="px-3.5 py-2.5 text-right font-semibold text-slate-800 text-xs">
-                                        +${Number(selectedInvoice.processingFeeAmount).toFixed(2)}
-                                      </td>
-                                      <td></td>
-                                    </tr>
+                                {/* Processing Fee row (showing payment method and fee) */}
+                                <tr className="bg-slate-50/80 border-t border-[#ece8e1]">
+                                  <td colSpan={4} className="px-3.5 py-2.5 text-right font-medium text-slate-600 text-xs">
+                                    Payment Processing Fee ({currentPaymentMethod === "CREDIT_CARD" ? "Credit Card" : "ACH"}):
+                                  </td>
+                                  <td className="px-3.5 py-2.5 text-right font-semibold text-slate-800 text-xs">
+                                    {clientProcessingFee > 0 ? `+$${clientProcessingFee.toFixed(2)}` : "$0.00"}
+                                  </td>
+                                  <td></td>
+                                </tr>
 
-                                    <tr className="bg-blue-50/40 border-t-2 border-blue-200 font-bold">
-                                      <td colSpan={4} className="px-3.5 py-3 text-right text-blue-900 text-[11px] uppercase tracking-wider">
-                                        Final Total Amount Due:
-                                      </td>
-                                      <td className="px-3.5 py-3 text-right text-[#4f63ea] text-[13px] font-black">
-                                        ${selectedInvoice.totalAmount.toFixed(2)}
-                                      </td>
-                                      <td></td>
-                                    </tr>
-                                  </>
-                                )}
+                                <tr className="bg-blue-50/50 border-t-2 border-blue-200 font-bold">
+                                  <td colSpan={4} className="px-3.5 py-3 text-right text-blue-950 text-[11px] uppercase tracking-wider">
+                                    Gross Invoice Total:
+                                  </td>
+                                  <td className="px-3.5 py-3 text-right text-[#4f63ea] text-[14px] font-black">
+                                    ${grossInvoiceTotal.toFixed(2)}
+                                  </td>
+                                  <td></td>
+                                </tr>
                               </>
                             );
                           })()}
@@ -878,6 +1152,169 @@ export default function PrefundingInvoices() {
                     </div>
                   </div>
                 )}
+
+                {/* 4. Payment & Stripe Info (when paid / Stripe details present) */}
+                {(selectedInvoice.paidDate || selectedInvoice.paymentMethodDisplay || (selectedInvoice.stripeTransfers && selectedInvoice.stripeTransfers.length > 0)) && (
+                  <div className="rounded-xl border border-blue-200/80 bg-blue-50/40 p-3.5 text-xs space-y-3">
+                    <h4 className="text-[12px] font-semibold text-blue-950 flex items-center gap-1.5">
+                      <CreditCard className="h-3.5 w-3.5 text-blue-600" />
+                      Payment & Stripe Details
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      {selectedInvoice.paymentMethodDisplay && (
+                        <div>
+                          <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Payment Method</span>
+                          <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.paymentMethodDisplay}</span>
+                        </div>
+                      )}
+                      {selectedInvoice.paidDate && (
+                        <div>
+                          <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Paid Date</span>
+                          <span className="font-semibold text-emerald-700 mt-0.5 block">{selectedInvoice.paidDate}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Settlement & Transfer Tracker */}
+                    {selectedInvoice.stripeTransfers && selectedInvoice.stripeTransfers.length > 0 && (
+                      <div className="pt-3 border-t border-blue-200/60">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Stripe Settlement</span>
+                            <span className={`font-bold mt-0.5 block ${
+                              selectedInvoice.stripeTransfers.every((t: any) => t.status === "PENDING")
+                                ? "text-amber-600"
+                                : "text-emerald-700"
+                            }`}>
+                              {selectedInvoice.stripeTransfers.every((t: any) => t.status === "PENDING") ? "In Progress" : "Settled"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Transfer Status</span>
+                            <span className={`font-bold mt-0.5 block ${
+                              selectedInvoice.stripeTransfers.some((t: any) => t.status === "SENT")
+                                ? "text-emerald-700"
+                                : selectedInvoice.stripeTransfers.some((t: any) => t.status === "FAILED")
+                                ? "text-red-600"
+                                : "text-amber-600"
+                            }`}>
+                              {selectedInvoice.stripeTransfers.some((t: any) => t.status === "SENT")
+                                ? "Completed"
+                                : selectedInvoice.stripeTransfers.some((t: any) => t.status === "FAILED")
+                                ? "Failed"
+                                : "In Progress"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Show error messages if any transfer failed */}
+                        {selectedInvoice.stripeTransfers.some((t: any) => t.status === "FAILED" && t.failureMessage) && (
+                          <div className="mt-2.5 rounded-lg bg-red-50 p-2.5 border border-red-200 text-xs text-red-700">
+                            <div className="flex items-center gap-1.5 font-bold text-red-800 mb-1">
+                              <AlertCircle className="h-3.5 w-3.5 text-red-600" />
+                              <span>Transfer Error</span>
+                            </div>
+                            <div className="pl-5 space-y-1">
+                              {selectedInvoice.stripeTransfers
+                                .filter((t: any) => t.status === "FAILED" && t.failureMessage)
+                                .map((t: any) => (
+                                  <div key={t.id} className="text-[11px] leading-tight">
+                                    <span className="font-semibold">{t.stripeConnectedAccountId}: </span>
+                                    {t.failureMessage}
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 5. Audit Information */}
+                <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4">
+                  <h4 className="text-[12px] font-semibold text-slate-800 mb-2.5 flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-slate-500" />
+                    Audit Information
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Created By</span>
+                      <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.createdBy}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Created Date & Time</span>
+                      <span className="font-semibold text-slate-800 mt-0.5 block">
+                        {selectedInvoice.createdAt
+                          ? new Date(selectedInvoice.createdAt).toLocaleString("en-US", {
+                              month: "short",
+                              day: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })
+                          : selectedInvoice.createdDate}
+                      </span>
+                    </div>
+
+                    {selectedInvoice.updatedAt && selectedInvoice.updatedAt !== selectedInvoice.createdAt && (
+                      <div className="sm:col-span-2 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                        <span className="text-slate-400 text-[11px] font-medium uppercase tracking-wider">Last Edited / Modified</span>
+                        <span className="font-semibold text-slate-700">
+                          {new Date(selectedInvoice.updatedAt).toLocaleString("en-US", {
+                            month: "short",
+                            day: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                        </span>
+                      </div>
+                    )}
+
+                    {selectedInvoice.approvedAt && (
+                      <div className="sm:col-span-2 pt-2 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Approved By</span>
+                          <span className="font-semibold text-blue-700 mt-0.5 block">
+                            {selectedInvoice.approvedBy || "Administrator"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Approved Date & Time</span>
+                          <span className="font-semibold text-slate-800 mt-0.5 block">
+                            {new Date(selectedInvoice.approvedAt).toLocaleString("en-US", {
+                              month: "short",
+                              day: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedInvoice.postedAt && (
+                      <div className="sm:col-span-2 pt-2 border-t border-slate-200/60">
+                        <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Posted Date & Time</span>
+                        <span className="font-semibold text-slate-800 mt-0.5 block">
+                          {new Date(selectedInvoice.postedAt).toLocaleString("en-US", {
+                            month: "short",
+                            day: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}

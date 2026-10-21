@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Calculator,
   Calendar,
@@ -34,7 +34,7 @@ import toast from "react-hot-toast";
 import { apiConnector } from "../../services/apiConnector";
 import { practiceEndpoints, prefundingEndpoints } from "../../services/apis";
 import { createPrefundingRate } from "../../services/operations/prefundingRates";
-import { openPrefundingInvoicePdf } from "../../services/operations/prefundingInvoices";
+import { openPrefundingInvoicePdf, getPrefundingInvoice, updatePrefundingInvoice } from "../../services/operations/prefundingInvoices";
 
 // Types
 export type EmployeeCalculationItem = {
@@ -197,14 +197,18 @@ const getPricingModelColorClass = (val: string) => {
 
 export default function CalculatePrefunding() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const navbarActions = getStandardNavbarActions(() => {});
 
   // Wizard state
+  const editingInvoiceId = searchParams.get("invoiceId");
   const [step, setStep] = useState(1);
   const [selectedPractice, setSelectedPractice] = useState("");
   const [selectedCycle, setSelectedCycle] = useState("");
   const [cycleStartDate, setCycleStartDate] = useState("");
   const [cycleEndDate, setCycleEndDate] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [dueDate, setDueDate] = useState("");
 
   const [practices, setPractices] = useState<any[]>([]);
   const [employees, setEmployees] = useState<EmployeeCalculationItem[]>([]);
@@ -220,7 +224,7 @@ export default function CalculatePrefunding() {
 
   // New line item form state
   const [newLineItemName, setNewLineItemName] = useState("");
-  const [newLineItemBasis, setNewLineItemBasis] = useState<string[]>(["Gross Wages"]);
+  const [newLineItemBasis, setNewLineItemBasis] = useState("Gross Wages");
   const [newLineItemPricingModel, setNewLineItemPricingModel] = useState("Percentage");
   const [newLineItemRate, setNewLineItemRate] = useState<number | string>(10);
   const [newLineItemNotes, setNewLineItemNotes] = useState("");
@@ -231,7 +235,7 @@ export default function CalculatePrefunding() {
 
   // Edit line item form state
   const [editLineItemName, setEditLineItemName] = useState("");
-  const [editLineItemBasis, setEditLineItemBasis] = useState<string[]>([]);
+  const [editLineItemBasis, setEditLineItemBasis] = useState("Gross Wages");
   const [editLineItemPricingModel, setEditLineItemPricingModel] = useState("");
   const [editLineItemRate, setEditLineItemRate] = useState<number | string>(0);
   const [editLineItemAmount, setEditLineItemAmount] = useState<number | string>("");
@@ -285,6 +289,177 @@ export default function CalculatePrefunding() {
     };
     fetchPractices();
   }, []);
+
+
+  // Pre-fill or load from API when editing an existing invoice
+  useEffect(() => {
+    const initData = async () => {
+      const qPracticeId = searchParams.get("practiceId");
+      const qCycle = searchParams.get("cycle");
+
+      if (editingInvoiceId) {
+        setLoading(true);
+        try {
+          const invRes = await getPrefundingInvoice(editingInvoiceId);
+          const inv = invRes?.prefundingInvoice || invRes?.invoice || invRes;
+
+          if (inv) {
+            const pid = inv.practiceId || qPracticeId || "";
+            const cycleVal = (inv.cycle || inv.prefundingCycle || qCycle || "").trim();
+
+            setSelectedPractice(pid);
+            if (cycleVal && cycleVal !== "undefined" && cycleVal !== "null") {
+              setSelectedCycle(cycleVal);
+            }
+
+            if (inv.invoiceDate) {
+              setInvoiceDate(new Date(inv.invoiceDate).toISOString().split("T")[0]);
+            }
+            if (inv.dueDate) {
+              setDueDate(new Date(inv.dueDate).toISOString().split("T")[0]);
+            }
+
+            // Extract cycle start and end dates from cycle string if present
+            if (cycleVal && cycleVal.includes(" - ")) {
+              const [startStr, endStr] = cycleVal.split(" - ").map((s: string) => s.trim());
+              const parsedStart = new Date(startStr);
+              const parsedEnd = new Date(endStr);
+              if (!isNaN(parsedStart.getTime())) {
+                setCycleStartDate(parsedStart.toISOString().split("T")[0]);
+              }
+              if (!isNaN(parsedEnd.getTime())) {
+                setCycleEndDate(parsedEnd.toISOString().split("T")[0]);
+              }
+            }
+
+            // Load Practice Employees
+            if (pid) {
+              const practiceRes = await apiConnector({
+                url: practiceEndpoints.GET(pid),
+                method: "GET",
+                credentials: true,
+              });
+              const practicePersons = practiceRes?.data?.practice?.persons?.map((pp: any) => pp.person) || [];
+
+              const mappedEmployees: EmployeeCalculationItem[] = practicePersons.map((p: any) => {
+                const payRate = p.payRate ? Number(p.payRate) : 0;
+                const budgetedHours = p.budgetedHours ? Number(p.budgetedHours) : 160;
+                const bufferPercent = (p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) > 0)
+                  ? Number(p.bufferPercentage)
+                  : 10;
+                const payType: "Hourly" | "Salary" = p.payType?.toLowerCase() === "hourly" ? "Hourly" : "Salary";
+
+                const workingPeriodHours = budgetedHours;
+                let baseWages = 0;
+                if (payType === "Hourly") {
+                  baseWages = workingPeriodHours * payRate;
+                } else {
+                  baseWages = (budgetedHours > 0 && workingPeriodHours !== budgetedHours)
+                    ? (workingPeriodHours / budgetedHours) * payRate
+                    : payRate;
+                }
+                const bufferAmount = baseWages * (bufferPercent / 100);
+                const grossWages = Math.round((baseWages + bufferAmount) * 100) / 100;
+
+                return {
+                  id: p.id,
+                  name: `${p.firstName} ${p.lastName}`.trim() || "Unnamed Employee",
+                  jobCategory: p.jobCategory || "General Staff",
+                  location: p.workLocation || "Main Location",
+                  state: p.state || "NY",
+                  joinDate: p.dateOfJoining ? new Date(p.dateOfJoining).toISOString().split("T")[0] : "N/A",
+                  payType,
+                  payRate,
+                  budgetedHours,
+                  bufferPercent,
+                  workingPeriodHours,
+                  baseWages: Math.round(baseWages * 100) / 100,
+                  grossWages,
+                  isExcluded: false,
+                };
+              });
+              setEmployees(mappedEmployees);
+
+              // Rates: Map from saved invoice line items (excluding gross wages line item)
+              if (Array.isArray(inv.lineItems) && inv.lineItems.length > 0) {
+                const nonGrossItems = inv.lineItems.filter(
+                  (li: any) => !li.name?.toLowerCase().startsWith("gross wages")
+                );
+
+                if (nonGrossItems.length > 0) {
+                  const mappedRates: PrefundingRateCalculationItem[] = nonGrossItems.map((li: any) => ({
+                    id: li.id || `rate_${Date.now()}_${Math.random()}`,
+                    name: li.name,
+                    basis: li.basis || "Gross Wages",
+                    pricingModel: li.pricingModel || "Percentage",
+                    rate: li.rate !== null && li.rate !== undefined ? Number(li.rate) : 0,
+                    amount: Number(li.amount) || 0,
+                    notes: li.notes || null,
+                    customAmount: null,
+                    includeInGrandTotal: li.includeInGrandTotal !== false,
+                    isOneTime: Boolean(li.isOneTime),
+                    isExcluded: false,
+                  }));
+                  setRates(mappedRates);
+                } else {
+                  // Fallback: fetch practice rates
+                  const ratesRes = await apiConnector({
+                    url: `${prefundingEndpoints.RATES}?practiceId=${pid}&limit=1000`,
+                    method: "GET",
+                    credentials: true,
+                  });
+                  const allRates = ratesRes?.data?.rates || [];
+                  setRates(allRates.map((r: any) => ({
+                    id: r.id,
+                    name: r.name,
+                    basis: r.basis || "Gross Wages",
+                    pricingModel: r.pricingModel || "Percentage",
+                    rate: Number(r.rate) || 0,
+                    amount: 0,
+                    isOneTime: false,
+                    isExcluded: false,
+                  })));
+                }
+              }
+
+              // All steps open/accessible: jump straight to summary so user can see full breakdown or any step
+              setStep(4);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load existing invoice", err);
+          toast.error("Failed to load existing invoice data");
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // Reset wizard state when navigating directly to fresh calculation (e.g. from Sidebar)
+        setStep(1);
+        setEmployees([]);
+        setRates([]);
+        setGeneratedInvoice(null);
+        setShowGeneratedModal(false);
+
+        if (qPracticeId) {
+          setSelectedPractice(qPracticeId);
+        } else {
+          setSelectedPractice("");
+        }
+
+        if (qCycle && qCycle !== "undefined" && qCycle !== "null") {
+          setSelectedCycle(qCycle);
+        } else {
+          setSelectedCycle("");
+          setCycleStartDate("");
+          setCycleEndDate("");
+        }
+        setInvoiceDate("");
+        setDueDate("");
+      }
+    };
+
+    initData();
+  }, [editingInvoiceId, searchParams]);
 
   // Determine working period hours considering employee dates & cycle period
   const calculateDefaultWorkingHours = (empJoinDateStr: string | null | undefined, budgetedHours: number) => {
@@ -819,8 +994,8 @@ export default function CalculatePrefunding() {
       errors.name = "Line item name is required";
     }
 
-    if (!newLineItemBasis || newLineItemBasis.length === 0) {
-      errors.basis = "Please select at least one basis";
+    if (!newLineItemBasis) {
+      errors.basis = "Please select a basis";
     }
 
     const rateNum = Number(newLineItemRate);
@@ -835,7 +1010,7 @@ export default function CalculatePrefunding() {
 
     setLineItemModalErrors({});
     const validRateNum = Math.max(0, rateNum);
-    const formattedBasis = newLineItemBasis.join(", ");
+    const formattedBasis = newLineItemBasis.trim();
     setIsSavingLineItem(true);
 
     try {
@@ -887,7 +1062,7 @@ export default function CalculatePrefunding() {
       // Reset modal state
       setShowAddLineItemModal(false);
       setNewLineItemName("");
-      setNewLineItemBasis(["Gross Wages"]);
+      setNewLineItemBasis("Gross Wages");
       setNewLineItemPricingModel("Percentage");
       setNewLineItemRate(10);
       setNewLineItemNotes("");
@@ -906,9 +1081,7 @@ export default function CalculatePrefunding() {
   const handleOpenEditLineItem = (rate: PrefundingRateCalculationItem) => {
     setEditingLineItem(rate);
     setEditLineItemName(rate.name);
-    setEditLineItemBasis(
-      rate.basis ? rate.basis.split(",").map((s) => s.trim()).filter(Boolean) : []
-    );
+    setEditLineItemBasis(rate.basis ? rate.basis.trim() : "Gross Wages");
     setEditLineItemPricingModel(rate.pricingModel);
     setEditLineItemRate(rate.rate);
     setEditLineItemAmount(rate.amount);
@@ -926,7 +1099,7 @@ export default function CalculatePrefunding() {
 
     const updatedRateNum = Math.max(0, Number(editLineItemRate) || 0);
     const customAmtNum = editLineItemAmount !== "" ? Math.max(0, Number(editLineItemAmount)) : null;
-    const formattedBasis = editLineItemBasis.join(", ");
+    const formattedBasis = editLineItemBasis.trim();
 
     setRates((prev) =>
       prev.map((r) => {
@@ -979,13 +1152,13 @@ export default function CalculatePrefunding() {
     return options;
   }, [activeRates]);
 
-  // Final Generate Invoice (Step 7)
+  // Final Generate or Update Invoice (Step 7)
   const generateInvoice = async () => {
     setSubmitting(true);
     try {
       // Section 17: Due Date calculation based on Due On (Days before start of cycle)
-      let calculatedDueDate = cycleEndDate ? new Date(cycleEndDate) : new Date(new Date().setDate(new Date().getDate() + 30));
-      if (cycleStartDate) {
+      let calculatedDueDate = dueDate ? new Date(dueDate) : (cycleEndDate ? new Date(cycleEndDate) : new Date(new Date().setDate(new Date().getDate() + 30)));
+      if (!dueDate && cycleStartDate) {
         const startDate = new Date(cycleStartDate);
         if (!isNaN(startDate.getTime())) {
           const dueOnDays = selectedPracticeObj?.prefundingDueOn !== undefined && selectedPracticeObj?.prefundingDueOn !== null && selectedPracticeObj?.prefundingDueOn !== ""
@@ -995,10 +1168,12 @@ export default function CalculatePrefunding() {
         }
       }
 
+      const effectiveInvoiceDate = invoiceDate ? new Date(invoiceDate) : (cycleStartDate ? new Date(cycleStartDate) : new Date());
+
       const payload = {
         practiceId: selectedPractice,
         cycle: selectedCycle,
-        invoiceDate: cycleStartDate ? new Date(cycleStartDate).toISOString() : new Date().toISOString(),
+        invoiceDate: effectiveInvoiceDate.toISOString(),
         dueDate: calculatedDueDate.toISOString(),
         totalAmount: grandTotal,
         lineItems: [
@@ -1040,31 +1215,50 @@ export default function CalculatePrefunding() {
         ],
       };
 
-      const res = await apiConnector({
-        url: prefundingEndpoints.INVOICES,
-        method: "POST",
-        body: payload,
-        credentials: true,
-      });
+      if (editingInvoiceId) {
+        const updateRes = await updatePrefundingInvoice(editingInvoiceId, payload);
+        const inv = updateRes?.prefundingInvoice || updateRes?.invoice || updateRes;
+        const year = new Date().getFullYear();
+        const code = inv?.id ? inv.id.replace(/-/g, "").slice(0, 5).toUpperCase() : "001";
+        const invoiceNumber = inv?.invoiceNumber || `INV-${year}-${code}`;
 
-      const inv = res?.data?.prefundingInvoice;
-      const year = new Date().getFullYear();
-      const code = inv?.id ? inv.id.replace(/-/g, "").slice(0, 5).toUpperCase() : "001";
-      const invoiceNumber = `INV-${year}-${code}`;
+        setGeneratedInvoice({
+          id: inv?.id || editingInvoiceId,
+          invoiceNumber,
+          totalAmount: grandTotal,
+          cycle: selectedCycle,
+          dueDate: dueDate || cycleEndDate || "In 30 days",
+        });
 
-      setGeneratedInvoice({
-        id: inv?.id,
-        invoiceNumber,
-        totalAmount: grandTotal,
-        cycle: selectedCycle,
-        dueDate: cycleEndDate || "In 30 days",
-      });
+        setShowGeneratedModal(true);
+        toast.success("Prefunding Invoice Updated Successfully!");
+      } else {
+        const res = await apiConnector({
+          url: prefundingEndpoints.INVOICES,
+          method: "POST",
+          body: payload,
+          credentials: true,
+        });
 
-      setShowGeneratedModal(true);
-      toast.success("Prefunding Invoice Generated Successfully!");
+        const inv = res?.data?.prefundingInvoice;
+        const year = new Date().getFullYear();
+        const code = inv?.id ? inv.id.replace(/-/g, "").slice(0, 5).toUpperCase() : "001";
+        const invoiceNumber = `INV-${year}-${code}`;
+
+        setGeneratedInvoice({
+          id: inv?.id,
+          invoiceNumber,
+          totalAmount: grandTotal,
+          cycle: selectedCycle,
+          dueDate: cycleEndDate || "In 30 days",
+        });
+
+        setShowGeneratedModal(true);
+        toast.success("Prefunding Invoice Generated Successfully!");
+      }
     } catch (err: any) {
-      console.error("Failed to generate invoice", err);
-      toast.error(err?.response?.data?.message || err?.message || "Failed to generate invoice");
+      console.error("Failed to save prefunding invoice", err);
+      toast.error(err?.response?.data?.message || err?.message || (editingInvoiceId ? "Failed to update invoice" : "Failed to generate invoice"));
     } finally {
       setSubmitting(false);
     }
@@ -1128,34 +1322,39 @@ export default function CalculatePrefunding() {
                   { num: 1, label: "Setup", desc: "Practice & cycle", icon: Calendar },
                   { num: 2, label: "Employees & Wages", desc: "Periods & wages", icon: Users },
                   { num: 3, label: "Prefunding Rates", desc: "Line items", icon: Calculator },
-                  { num: 4, label: "Summary & Generate", desc: "Grand total", icon: FileText },
+                  { num: 4, label: editingInvoiceId ? "Summary & Update" : "Summary & Generate", desc: "Grand total", icon: FileText },
                 ].map((s, i) => (
                   <div
                     key={s.num}
                     onClick={() => {
-                      if (step > s.num) setStep(s.num);
+                      // Allow opening any step when editing or when practice is loaded
+                      if (editingInvoiceId || step >= s.num || employees.length > 0) {
+                        setStep(s.num);
+                      }
                     }}
-                    className={`flex items-center gap-2 whitespace-nowrap shrink-0 ${
-                      step > s.num ? "cursor-pointer group" : ""
-                    }`}
+                    className={`flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer group`}
                   >
                     <div
                       className={`flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full text-xs font-bold transition-all shrink-0 ${
                         step === s.num
                           ? "bg-[#4f63ea] text-white ring-4 ring-[#4f63ea]/20 shadow-xs"
-                          : step > s.num
+                          : (editingInvoiceId || step > s.num)
                           ? "bg-[#4f63ea] text-white"
                           : "border border-slate-300 bg-white text-slate-400"
                       }`}
                     >
-                      {step > s.num ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : s.num}
+                      {(editingInvoiceId && step !== s.num) || step > s.num ? (
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      ) : (
+                        s.num
+                      )}
                     </div>
                     <div>
                       <span
                         className={`text-xs font-semibold block transition-colors leading-tight ${
                           step === s.num
                             ? "text-[#4f63ea]"
-                            : step > s.num
+                            : (editingInvoiceId || step > s.num)
                             ? "text-slate-800 group-hover:text-[#4f63ea]"
                             : "text-slate-400"
                         }`}
@@ -1242,7 +1441,7 @@ export default function CalculatePrefunding() {
                         value={selectedPractice}
                         onChange={handlePracticeChange}
                         placeholder="Choose a practice with prefunding..."
-                        disabled={step > 1}
+                        disabled={submitting}
                       />
                       {selectedPracticeObj && (
                         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
@@ -1276,7 +1475,7 @@ export default function CalculatePrefunding() {
                         value={selectedCycle}
                         onChange={handleCycleChange}
                         placeholder="Choose from next 12 cycles..."
-                        disabled={step > 1 || !selectedPractice}
+                        disabled={submitting || !selectedPractice}
                       />
                       <p className="text-xs text-slate-400 mt-1.5">Displaying next 12 configured cycles</p>
                     </div>
@@ -1290,7 +1489,7 @@ export default function CalculatePrefunding() {
                           <DatePicker
                             value={cycleStartDate}
                             onChange={(val) => setCycleStartDate(val)}
-                            disabled={step > 1}
+                            disabled={submitting}
                             placeholder="MM-DD-YYYY"
                           />
                         </div>
@@ -1301,7 +1500,7 @@ export default function CalculatePrefunding() {
                           <DatePicker
                             value={cycleEndDate}
                             onChange={(val) => setCycleEndDate(val)}
-                            disabled={step > 1}
+                            disabled={submitting}
                             placeholder="MM-DD-YYYY"
                           />
                         </div>
@@ -1309,18 +1508,19 @@ export default function CalculatePrefunding() {
                     )}
                   </div>
 
-                  {step === 1 && (
-                    <div className="px-6 py-4 bg-slate-50 border-t border-[#e8e4dc] flex justify-end">
-                      <button
-                        onClick={loadEmployeesAndRates}
-                        disabled={!selectedPractice || !selectedCycle || loading}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-[13px] font-semibold disabled:opacity-50 transition-colors shadow-xs"
-                      >
-                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Load Employees & Rates"}
-                        {!loading && <ChevronRight className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  )}
+                  <div className="px-6 py-4 bg-slate-50 border-t border-[#e8e4dc] flex items-center justify-between">
+                    <span className="text-xs text-slate-500">
+                      {editingInvoiceId ? "Invoice configuration loaded from saved draft" : "Select practice and cycle to load prefunding details"}
+                    </span>
+                    <button
+                      onClick={loadEmployeesAndRates}
+                      disabled={!selectedPractice || !selectedCycle || loading || submitting}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-[13px] font-semibold disabled:opacity-50 transition-colors shadow-xs"
+                    >
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Load Employees & Rates"}
+                      {!loading && <ChevronRight className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 {/* ======================================================== */}
@@ -1983,7 +2183,7 @@ export default function CalculatePrefunding() {
                         className="flex items-center gap-2 px-5 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-xs disabled:opacity-50"
                       >
                         {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-                        {submitting ? "Generating..." : "Generate Invoice"}
+                        {submitting ? (editingInvoiceId ? "Updating..." : "Generating...") : (editingInvoiceId ? "Update Invoice" : "Generate Invoice")}
                       </button>
                     </div>
 
@@ -2201,7 +2401,9 @@ export default function CalculatePrefunding() {
                           className="flex items-center gap-2 px-6 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-xs disabled:opacity-50"
                         >
                           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-                          {submitting ? "Finalizing..." : "Finalize & Generate Invoice"}
+                          {submitting
+                            ? (editingInvoiceId ? "Updating..." : "Finalizing...")
+                            : (editingInvoiceId ? "Finalize & Update Invoice" : "Finalize & Generate Invoice")}
                         </button>
                       </div>
                     </div>
@@ -2259,7 +2461,7 @@ export default function CalculatePrefunding() {
             <label className="block font-semibold text-slate-800 mb-1">
               Basis <span className="text-red-500">*</span>
             </label>
-            <MultiSelect
+            <Select
               options={dynamicBasisOptions}
               value={newLineItemBasis}
               onChange={(val) => {
@@ -2424,7 +2626,7 @@ export default function CalculatePrefunding() {
 
           <div>
             <label className="block font-semibold text-slate-800 mb-1">Basis</label>
-            <MultiSelect
+            <Select
               options={dynamicBasisOptions}
               value={editLineItemBasis}
               onChange={setEditLineItemBasis}
@@ -2698,7 +2900,9 @@ export default function CalculatePrefunding() {
               <div className="w-12 h-12 bg-emerald-50 border border-emerald-200 rounded-full flex items-center justify-center mx-auto mb-3">
                 <CheckCircle2 className="w-6 h-6 text-emerald-600" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Prefunding Invoice Generated!</h3>
+              <h3 className="text-lg font-bold text-slate-800">
+                {editingInvoiceId ? "Prefunding Invoice Updated!" : "Prefunding Invoice Generated!"}
+              </h3>
             </div>
 
             <div className="p-6 space-y-4">

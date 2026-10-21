@@ -50,6 +50,16 @@ export async function createPrefundingInvoice(data: any) {
   return response.data;
 }
 
+export async function updatePrefundingInvoice(id: string, data: any) {
+  const response = await apiConnector({
+    method: "PUT",
+    url: prefundingEndpoints.INVOICE(id),
+    body: data,
+    credentials: true,
+  });
+  return response.data;
+}
+
 export async function updatePrefundingInvoiceStatus(id: string, status: string) {
   const response = await apiConnector({
     method: "PUT",
@@ -69,15 +79,15 @@ export async function deletePrefundingInvoice(id: string) {
   return response.data;
 }
 
-export async function openPrefundingInvoicePdf(id: string) {
+export function openPrefundingInvoicePdf(id: string) {
+  const target = prefundingEndpoints.INVOICE_PDF(id);
+  window.open(target, "_blank", "noopener,noreferrer");
+}
+export async function resendPrefundingInvoice(id: string) {
   const response = await apiConnector({
-    method: "GET",
-    url: prefundingEndpoints.INVOICE_PDF(id),
+    method: "POST",
+    url: prefundingEndpoints.RESEND_INVOICE(id),
     credentials: true,
-    responseType: "blob",
   });
-  const file = new Blob([response.data], { type: "application/pdf" });
-  const fileURL = URL.createObjectURL(file);
-  window.open(fileURL, "_blank");
-  return fileURL;
+  return response.data;
 }
