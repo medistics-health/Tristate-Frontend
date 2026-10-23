@@ -67,6 +67,8 @@ import {
   type PracticeQueryParams,
 } from "../../services/operations/practices";
 import { getStripeConnectedAccounts, type StripeConnectedAccount } from "../../services/operations/stripeAccounts";
+import { getPrefundingRates } from "../../services/operations/prefundingRates";
+import { getPersonsView } from "../../services/operations/persons";
 import DatePicker from "../shared/DatePicker";
 import { getAllCompanies } from "../../services/operations/companies";
 import {
@@ -262,6 +264,8 @@ export default function AllPracticePage() {
       const [companies, setCompanies] = useState<Company[]>([]);
     const [stripeAccounts, setStripeAccounts] = useState<StripeConnectedAccount[]>([]);
     const [stripeAccountsLoading, setStripeAccountsLoading] = useState(false);
+    const [availableRates, setAvailableRates] = useState<{ label: string; value: string }[]>([]);
+    const [availablePersons, setAvailablePersons] = useState<{ label: string; value: string }[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
   const [companyTaxIds, setCompanyTaxIds] = useState<TaxIdOption[]>([]);
   const [pagination, setPagination] = useState({
@@ -420,6 +424,36 @@ export default function AllPracticePage() {
       }
     }
     loadSystemSettings();
+
+    async function loadPrefundingDropdowns() {
+      try {
+        const [ratesRes, personsRes] = await Promise.all([
+          getPrefundingRates({ limit: 1000 }),
+          getPersonsView({ page: 1, limit: 1000 }),
+        ]);
+
+        if (ratesRes?.rates) {
+          setAvailableRates(
+            ratesRes.rates.map((r: any) => ({
+              label: `${r.name} (${r.pricingModel} - ${r.rate}${r.pricingModel === "Percentage" ? "%" : ""})`,
+              value: r.id,
+            }))
+          );
+        }
+
+        if (personsRes?.persons) {
+          setAvailablePersons(
+            personsRes.persons.map((p: any) => ({
+              label: `${p.name}${p.email ? ` (${p.email})` : ""}`,
+              value: p.id,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Failed to load prefunding dropdowns", err);
+      }
+    }
+    loadPrefundingDropdowns();
   }, []);
 
   const refreshPracticeRecords = async () => {
@@ -1610,26 +1644,50 @@ export default function AllPracticePage() {
               </div>
             </div>
 
-            <div>
-              <label className="mb-1 block text-[12px] font-medium text-slate-600">Reminder On (Days Before Due)</label>
-              <input
-                type="number"
-                value={formData.prefundingReminderOn || ""}
-                onChange={(e) => setFormData((prev) => ({ ...prev, prefundingReminderOn: e.target.value }))}
-                disabled={readOnly}
-                className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Reminder On (Days Before Due)</label>
+                <input
+                  type="number"
+                  value={formData.prefundingReminderOn || ""}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, prefundingReminderOn: e.target.value }))}
+                  disabled={readOnly}
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Stripe Account</label>
+                <Select
+                  value={formData.prefundingStripeAccountId || ""}
+                  onChange={(val) => setFormData((prev) => ({ ...prev, prefundingStripeAccountId: val }))}
+                  options={stripeAccountOptions}
+                  placeholder="Select Stripe Account"
+                  disabled={readOnly}
+                  className="w-full"
+                />
+              </div>
             </div>
-            
+
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-slate-600">Stripe Account</label>
+              <label className="mb-1 block text-[12px] font-medium text-slate-600">Prefunding Invoice Recipient</label>
               <Select
-                value={formData.prefundingStripeAccountId || ""}
-                onChange={(val) => setFormData((prev) => ({ ...prev, prefundingStripeAccountId: val }))}
-                options={stripeAccountOptions}
-                placeholder="Select Stripe Account"
+                value={formData.prefundingInvoiceRecipientId || ""}
+                onChange={(val) => setFormData((prev) => ({ ...prev, prefundingInvoiceRecipientId: val }))}
+                options={availablePersons}
+                placeholder="Select Recipient Person"
                 disabled={readOnly}
                 className="w-full"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[12px] font-medium text-slate-600">Applicable Prefunding Rates</label>
+              <MultiSelect
+                options={availableRates}
+                value={formData.prefundingRateIds || []}
+                onChange={(val) => setFormData((prev) => ({ ...prev, prefundingRateIds: val }))}
+                placeholder="Assign Prefunding Rates"
+                disabled={readOnly}
               />
             </div>
           </div>

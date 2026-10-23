@@ -91,3 +91,37 @@ export async function resendPrefundingInvoice(id: string) {
   });
   return response.data;
 }
+
+export async function validatePracticeForPrefunding(practiceId: string) {
+  const response = await apiConnector({
+    method: "GET",
+    url: prefundingEndpoints.VALIDATE_PRACTICE(practiceId),
+    credentials: true,
+  });
+  return response.data;
+}
+
+export async function getPrefundingDashboard(params?: {
+  practiceId?: string;
+  cycle?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  const searchParams = new URLSearchParams();
+  if (params?.practiceId) searchParams.append("practiceId", params.practiceId);
+  if (params?.cycle) searchParams.append("cycle", params.cycle);
+  if (params?.status) searchParams.append("status", params.status);
+  if (params?.dateFrom) searchParams.append("dateFrom", params.dateFrom);
+  if (params?.dateTo) searchParams.append("dateTo", params.dateTo);
+
+  const qs = searchParams.toString();
+  const url = qs ? `${prefundingEndpoints.DASHBOARD}?${qs}` : prefundingEndpoints.DASHBOARD;
+
+  const response = await apiConnector({
+    method: "GET",
+    url,
+    credentials: true,
+  });
+  return response.data;
+}

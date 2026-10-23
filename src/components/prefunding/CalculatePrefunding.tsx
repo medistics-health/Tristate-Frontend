@@ -34,7 +34,7 @@ import toast from "react-hot-toast";
 import { apiConnector } from "../../services/apiConnector";
 import { practiceEndpoints, prefundingEndpoints } from "../../services/apis";
 import { createPrefundingRate } from "../../services/operations/prefundingRates";
-import { openPrefundingInvoicePdf, getPrefundingInvoice, updatePrefundingInvoice } from "../../services/operations/prefundingInvoices";
+import { openPrefundingInvoicePdf, getPrefundingInvoice, updatePrefundingInvoice, validatePracticeForPrefunding } from "../../services/operations/prefundingInvoices";
 
 // Types
 export type EmployeeCalculationItem = {
@@ -216,6 +216,15 @@ export default function CalculatePrefunding() {
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Practice Validation State
+  const [practiceValidation, setPracticeValidation] = useState<{
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
+    details?: any;
+  } | null>(null);
+  const [isValidatingPractice, setIsValidatingPractice] = useState(false);
 
   // Modals state
   const [showAddLineItemModal, setShowAddLineItemModal] = useState(false);
@@ -489,7 +498,22 @@ export default function CalculatePrefunding() {
 
   const loadEmployeesAndRates = async () => {
     if (!selectedPractice) return;
+
+    // Practice Validation check before loading calculation
     setLoading(true);
+    try {
+      const valRes = await validatePracticeForPrefunding(selectedPractice);
+      setPracticeValidation(valRes);
+
+      if (!valRes.isValid) {
+        toast.error("Practice fails configuration validation. Please resolve the errors in Practice Settings.");
+        setLoading(false);
+        return;
+      }
+    } catch (valErr) {
+      console.warn("Validation error:", valErr);
+    }
+
     try {
       // 1. Fetch practice details to get its persons
       const practiceRes = await apiConnector({ url: practiceEndpoints.GET(selectedPractice), method: "GET", credentials: true });
@@ -580,8 +604,10 @@ export default function CalculatePrefunding() {
     );
   }, [selectedPracticeObj]);
 
-  const handlePracticeChange = (practiceId: string) => {
+  const handlePracticeChange = async (practiceId: string) => {
     setSelectedPractice(practiceId);
+    setPracticeValidation(null);
+
     const p = practices.find((item) => item.value === practiceId);
     if (p) {
       const generated = generatePracticeCycles(p.prefundingStartDate, p.prefundingCycle);
@@ -589,10 +615,34 @@ export default function CalculatePrefunding() {
         setSelectedCycle(generated[0].value);
         setCycleStartDate(generated[0].startDate);
         setCycleEndDate(generated[0].endDate);
+
+        // Calculate Due Date based on Due On (Days before start of cycle)
+        if (generated[0].startDate) {
+          const sDate = new Date(generated[0].startDate);
+          if (!isNaN(sDate.getTime())) {
+            const dueDays = p.prefundingDueOn !== undefined && p.prefundingDueOn !== null && p.prefundingDueOn !== ""
+              ? Number(p.prefundingDueOn)
+              : 5;
+            const calcDue = new Date(sDate.getTime() - dueDays * 24 * 60 * 60 * 1000);
+            setDueDate(calcDue.toISOString().split("T")[0]);
+          }
+        }
       } else {
         setSelectedCycle("");
         setCycleStartDate("");
         setCycleEndDate("");
+        setDueDate("");
+      }
+
+      // Validate configuration for the selected practice
+      setIsValidatingPractice(true);
+      try {
+        const valRes = await validatePracticeForPrefunding(practiceId);
+        setPracticeValidation(valRes);
+      } catch (err: any) {
+        console.error("Practice validation check failed:", err);
+      } finally {
+        setIsValidatingPractice(false);
       }
     } else {
       setSelectedCycle("");
@@ -607,6 +657,18 @@ export default function CalculatePrefunding() {
     if (found) {
       setCycleStartDate(found.startDate);
       setCycleEndDate(found.endDate);
+
+      // Re-calculate Due Date based on Due On (Days before start of cycle)
+      if (found.startDate && selectedPracticeObj) {
+        const sDate = new Date(found.startDate);
+        if (!isNaN(sDate.getTime())) {
+          const dueDays = selectedPracticeObj.prefundingDueOn !== undefined && selectedPracticeObj.prefundingDueOn !== null && selectedPracticeObj.prefundingDueOn !== ""
+            ? Number(selectedPracticeObj.prefundingDueOn)
+            : 5;
+          const calcDue = new Date(sDate.getTime() - dueDays * 24 * 60 * 60 * 1000);
+          setDueDate(calcDue.toISOString().split("T")[0]);
+        }
+      }
     }
   };
 
@@ -1408,7 +1470,86 @@ export default function CalculatePrefunding() {
           <div className="flex flex-1 overflow-hidden">
             {/* Main Content Panel */}
             <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white">
-              <div className="mx-auto space-y-8">
+              {/* Skeleton loading when opening an existing draft invoice */}
+              {editingInvoiceId && loading ? (
+                <div className="mx-auto space-y-6 animate-pulse">
+                  {/* Top Notification Banner Skeleton */}
+                  <div className="h-16 w-full rounded-xl bg-slate-100 border border-slate-200" />
+
+                  {/* Step 1 Setup Criteria Card Skeleton */}
+                  <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-200" />
+                        <div className="h-4 w-32 bg-slate-200 rounded" />
+                      </div>
+                      <div className="h-5 w-24 bg-slate-200 rounded" />
+                    </div>
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <div className="space-y-2">
+                        <div className="h-3 w-20 bg-slate-200 rounded" />
+                        <div className="h-10 w-full bg-slate-100 rounded-lg" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-3 w-24 bg-slate-200 rounded" />
+                        <div className="h-10 w-full bg-slate-100 rounded-lg" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-3 w-20 bg-slate-200 rounded" />
+                        <div className="h-10 w-full bg-slate-100 rounded-lg" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-3 w-20 bg-slate-200 rounded" />
+                        <div className="h-10 w-full bg-slate-100 rounded-lg" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Table Skeleton (Employees / Calculations) */}
+                  <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-200" />
+                        <div className="h-4 w-40 bg-slate-200 rounded" />
+                      </div>
+                      <div className="h-8 w-32 bg-slate-200 rounded-lg" />
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {/* Table Header row */}
+                      <div className="grid grid-cols-6 gap-4 pb-3 border-b border-slate-100">
+                        <div className="h-3 bg-slate-200 rounded col-span-2" />
+                        <div className="h-3 bg-slate-200 rounded" />
+                        <div className="h-3 bg-slate-200 rounded" />
+                        <div className="h-3 bg-slate-200 rounded" />
+                        <div className="h-3 bg-slate-200 rounded" />
+                      </div>
+                      {/* Table items rows */}
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="grid grid-cols-6 gap-4 py-3 border-b border-slate-50 items-center">
+                          <div className="space-y-1.5 col-span-2">
+                            <div className="h-4 w-3/4 bg-slate-200 rounded" />
+                            <div className="h-3 w-1/2 bg-slate-100 rounded" />
+                          </div>
+                          <div className="h-4 bg-slate-100 rounded" />
+                          <div className="h-4 bg-slate-100 rounded" />
+                          <div className="h-4 bg-slate-100 rounded" />
+                          <div className="h-4 bg-slate-200 rounded" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Summary / Grand Total Card Skeleton */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs flex items-center justify-between">
+                    <div className="space-y-2">
+                      <div className="h-4 w-28 bg-slate-200 rounded" />
+                      <div className="h-8 w-44 bg-slate-200 rounded" />
+                    </div>
+                    <div className="h-10 w-36 bg-slate-200 rounded-lg" />
+                  </div>
+                </div>
+              ) : (
+                <div className="mx-auto space-y-8">
                 {/* ======================================================== */}
                 {/* STEP 1: SETUP CRITERIA */}
                 {/* ======================================================== */}
@@ -1504,9 +1645,78 @@ export default function CalculatePrefunding() {
                             placeholder="MM-DD-YYYY"
                           />
                         </div>
+                        <div>
+                          <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
+                            Invoice Due Date (Due On Days Before Start)
+                          </label>
+                          <DatePicker
+                            value={dueDate}
+                            onChange={(val) => setDueDate(val)}
+                            disabled={submitting}
+                            placeholder="MM-DD-YYYY"
+                          />
+                          {selectedPracticeObj?.prefundingDueOn !== undefined && (
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              Calculated as {selectedPracticeObj.prefundingDueOn || 5} days before cycle start date
+                            </p>
+                          )}
+                        </div>
                       </>
                     )}
                   </div>
+
+                  {/* Practice Validation Banner */}
+                  {selectedPractice && (
+                    <div className="px-6 py-3 border-t border-[#e8e4dc]">
+                      {isValidatingPractice ? (
+                        <div className="flex items-center gap-2 text-xs text-slate-500 py-1">
+                          <Loader2 className="w-4 h-4 animate-spin text-[#4f63ea]" />
+                          <span>Checking Practice Configuration Validation...</span>
+                        </div>
+                      ) : practiceValidation ? (
+                        practiceValidation.isValid ? (
+                          <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-start gap-2.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                            <div>
+                              <div className="font-semibold text-emerald-900">
+                                Practice Validation Passed
+                              </div>
+                              <div className="text-emerald-700 mt-0.5">
+                                All required Prefunding parameters (Cycle, Start Date, Due/Reminder, State, Recipient, Rates & Stripe account) are properly configured.
+                              </div>
+                              {practiceValidation.warnings && practiceValidation.warnings.length > 0 && (
+                                <ul className="list-disc pl-4 mt-1 text-emerald-800 space-y-0.5">
+                                  {practiceValidation.warnings.map((w, idx) => (
+                                    <li key={idx}>{w}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-800">
+                            <div className="flex items-center gap-2 font-semibold text-red-900 mb-1.5">
+                              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                              <span>Practice Configuration Incomplete</span>
+                            </div>
+                            <p className="text-red-700 mb-2 leading-relaxed">
+                              This Practice cannot be used for Prefunding calculations until the following required configuration items are resolved in Practice Settings:
+                            </p>
+                            <ul className="list-disc pl-5 space-y-1 text-red-800 font-medium">
+                              {practiceValidation.errors.map((err, idx) => (
+                                <li key={idx}>{err}</li>
+                              ))}
+                            </ul>
+                            <div className="mt-3 pt-2 border-t border-red-200/80">
+                              <span className="text-[11px] text-red-600">
+                                Open <strong>Practices &rarr; Edit Practice &rarr; Prefunding Setup</strong> to complete configuration.
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      ) : null}
+                    </div>
+                  )}
 
                   <div className="px-6 py-4 bg-slate-50 border-t border-[#e8e4dc] flex items-center justify-between">
                     <span className="text-xs text-slate-500">
@@ -1514,7 +1724,7 @@ export default function CalculatePrefunding() {
                     </span>
                     <button
                       onClick={loadEmployeesAndRates}
-                      disabled={!selectedPractice || !selectedCycle || loading || submitting}
+                      disabled={!selectedPractice || !selectedCycle || loading || submitting || (practiceValidation !== null && !practiceValidation.isValid)}
                       className="flex items-center gap-2 px-5 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-[13px] font-semibold disabled:opacity-50 transition-colors shadow-xs"
                     >
                       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Load Employees & Rates"}
@@ -2410,6 +2620,7 @@ export default function CalculatePrefunding() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </div>
         </section>
