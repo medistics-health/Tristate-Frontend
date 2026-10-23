@@ -18,9 +18,9 @@ import {
   deleteQuestion,
   deleteSection,
   duplicateQuestion,
+  flushSave,
   loadFormDocument,
   moveQuestion,
-  publishForm,
   publishValidation,
   saveAsTemplate,
   updateForm,
@@ -66,17 +66,6 @@ export default function FormBuilderPage() {
   const locked = form.responses.length > 0;
   const questions = flattenQuestions(form);
 
-  function publish(scheduled: boolean) {
-    void publishForm(form.id, scheduled).then((result) => {
-      if (result.length) {
-        setErrors(result);
-        toast.error(result[0]?.message || "Fix the listed issues before publishing.");
-        return;
-      }
-      toast.success(scheduled ? "Form scheduled" : "Form published");
-    });
-  }
-
   return (
     <div className="flex h-screen flex-col bg-[#f7f5f1] font-app-sans text-slate-700">
       <header className="flex flex-wrap items-center gap-3 border-b border-[#ece8e1] bg-white px-4 py-3">
@@ -91,10 +80,15 @@ export default function FormBuilderPage() {
         <StatusPill status={form.status} scheduled={form.scheduled} />
         <span className="text-[12px] text-slate-400">Last saved {formatWhen(form.updatedAt)}</span>
         <GhostButton onClick={() => setPreview(true)}><Eye className="h-4 w-4" /> Preview</GhostButton>
-        <GhostButton onClick={() => navigate(`/forms/${form.id}/distribute`)}>Distribute</GhostButton>
         <GhostButton onClick={() => setTemplateOpen(true)}>Save as template</GhostButton>
         {form.status === "DRAFT" || form.status === "PUBLISHED" ? (
-          <PrimaryButton onClick={() => publish(false)}>Publish</PrimaryButton>
+          <PrimaryButton
+            onClick={() => {
+              void flushSave(form.id).then(() => navigate(`/forms/${form.id}/send`));
+            }}
+          >
+            Send
+          </PrimaryButton>
         ) : null}
       </header>
       {locked ? (

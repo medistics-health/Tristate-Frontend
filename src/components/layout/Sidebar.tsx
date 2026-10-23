@@ -129,8 +129,6 @@ const sidebarSteps: SidebarItem[] = [
     items: [
       { label: "All Forms", to: "/forms" },
       { label: "Templates", to: "/forms/templates" },
-      { label: "My Forms", to: "/forms/my-forms" },
-      { label: "Audit Log", to: "/forms/audit", adminOnly: true },
     ],
   },
   {

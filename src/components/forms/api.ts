@@ -232,6 +232,48 @@ export async function sendReminder(id: string) {
   await request("POST", `/forms/${id}/remind`, {});
 }
 
+export async function saveFormContent(id: string, body: Record<string, unknown>) {
+  const data = await request<{ form: FormRecord }>("PUT", `/forms/${id}/document`, body);
+  return { ...data.form, detailLoaded: true };
+}
+
+export type ResponseRow = {
+  id: string;
+  submittedAt: string | null;
+  status: string;
+  respondent: string | null;
+  email: string | null;
+  practice: string | null;
+};
+
+export async function listResponses(formId: string) {
+  const data = await request<{ total: number; responses: ResponseRow[] }>("GET", `/forms/${formId}/responses`);
+  return data;
+}
+
+export async function getResponse(formId: string, responseId: string) {
+  const data = await request<{
+    response: {
+      id: string;
+      submittedAt: string | null;
+      respondent: string | null;
+      practice: string | null;
+      answers: Array<{
+        questionId: string;
+        label: string;
+        type: string;
+        value: {
+          valueText?: string | null;
+          valueNumber?: number | string | null;
+          valueDate?: string | null;
+          valueJson?: unknown;
+        } | null;
+      }>;
+    };
+  }>("GET", `/forms/${formId}/responses/${responseId}`);
+  return data.response;
+}
+
 export async function saveTemplate(formId: string, meta: { name: string; description: string; category: string; visibility: "PRIVATE" | "SHARED" }) {
   await request("POST", `/forms/${formId}/save-as-template`, meta);
 }
