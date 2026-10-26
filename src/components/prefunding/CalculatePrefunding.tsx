@@ -350,15 +350,37 @@ export default function CalculatePrefunding() {
               });
               const practicePersons = practiceRes?.data?.practice?.persons?.map((pp: any) => pp.person) || [];
 
-              const mappedEmployees: EmployeeCalculationItem[] = practicePersons.map((p: any) => {
-                const payRate = p.payRate ? Number(p.payRate) : 0;
-                const budgetedHours = p.budgetedHours ? Number(p.budgetedHours) : 160;
-                const bufferPercent = (p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) > 0)
-                  ? Number(p.bufferPercentage)
-                  : 10;
-                const payType: "Hourly" | "Salary" = p.payType?.toLowerCase() === "hourly" ? "Hourly" : "Salary";
+              const grossWagesLineItem = Array.isArray(inv.lineItems)
+                ? inv.lineItems.find((li: any) => li.name?.toLowerCase().startsWith("gross wages"))
+                : null;
 
-                const workingPeriodHours = budgetedHours;
+              // Restore saved employee snapshots if present in notes, or detect gross wages override
+              let savedEmpSnapshotMap: Record<string, any> = {};
+              if (grossWagesLineItem?.notes) {
+                try {
+                  const parsed = JSON.parse(grossWagesLineItem.notes);
+                  if (parsed && typeof parsed === "object" && parsed.employees) {
+                    savedEmpSnapshotMap = parsed.employees;
+                  }
+                } catch {
+                  // Not JSON, ignore
+                }
+              }
+
+              const mappedEmployees: EmployeeCalculationItem[] = practicePersons.map((p: any) => {
+                const savedEmp = savedEmpSnapshotMap[p.id];
+                const payRate = savedEmp?.payRate !== undefined ? Number(savedEmp.payRate) : (p.payRate ? Number(p.payRate) : 0);
+                const budgetedHours = savedEmp?.budgetedHours !== undefined ? Number(savedEmp.budgetedHours) : (p.budgetedHours ? Number(p.budgetedHours) : 160);
+                const bufferPercent = savedEmp?.bufferPercent !== undefined
+                  ? Number(savedEmp.bufferPercent)
+                  : ((p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) > 0)
+                    ? Number(p.bufferPercentage)
+                    : 10);
+                const payType: "Hourly" | "Salary" = savedEmp?.payType
+                  ? savedEmp.payType
+                  : (p.payType?.toLowerCase() === "hourly" ? "Hourly" : "Salary");
+
+                const workingPeriodHours = savedEmp?.workingPeriodHours !== undefined ? Number(savedEmp.workingPeriodHours) : budgetedHours;
                 let baseWages = 0;
                 if (payType === "Hourly") {
                   baseWages = workingPeriodHours * payRate;
@@ -368,7 +390,11 @@ export default function CalculatePrefunding() {
                     : payRate;
                 }
                 const bufferAmount = baseWages * (bufferPercent / 100);
-                const grossWages = Math.round((baseWages + bufferAmount) * 100) / 100;
+                const formulaGrossWages = Math.round((baseWages + bufferAmount) * 100) / 100;
+                const grossWages = savedEmp?.grossWages !== undefined ? Number(savedEmp.grossWages) : formulaGrossWages;
+                const isCustomGrossWages = savedEmp?.isCustomGrossWages !== undefined
+                  ? Boolean(savedEmp.isCustomGrossWages)
+                  : (savedEmp?.grossWages !== undefined && Math.abs(savedEmp.grossWages - formulaGrossWages) > 0.01);
 
                 return {
                   id: p.id,
@@ -384,9 +410,23 @@ export default function CalculatePrefunding() {
                   workingPeriodHours,
                   baseWages: Math.round(baseWages * 100) / 100,
                   grossWages,
-                  isExcluded: false,
+                  isCustomGrossWages,
+                  isExcluded: Boolean(savedEmp?.isExcluded),
                 };
               });
+
+              // If gross wages line item was manually overridden as a whole and no per-employee snapshot exists
+              if (grossWagesLineItem && !Object.keys(savedEmpSnapshotMap).length && mappedEmployees.length > 0) {
+                const savedGrossWagesTotal = Number(grossWagesLineItem.amount) || 0;
+                const sumDefaultGrossWages = mappedEmployees.reduce((acc, emp) => acc + emp.grossWages, 0);
+                if (savedGrossWagesTotal > 0 && Math.abs(savedGrossWagesTotal - sumDefaultGrossWages) > 0.01) {
+                  // If difference exists, distribute or flag the first employee / mark override
+                  const diff = savedGrossWagesTotal - sumDefaultGrossWages;
+                  mappedEmployees[0].grossWages = Math.round((mappedEmployees[0].grossWages + diff) * 100) / 100;
+                  mappedEmployees[0].isCustomGrossWages = true;
+                }
+              }
+
               setEmployees(mappedEmployees);
 
               // Rates: Map from saved invoice line items (excluding gross wages line item)
@@ -396,19 +436,22 @@ export default function CalculatePrefunding() {
                 );
 
                 if (nonGrossItems.length > 0) {
-                  const mappedRates: PrefundingRateCalculationItem[] = nonGrossItems.map((li: any) => ({
-                    id: li.id || `rate_${Date.now()}_${Math.random()}`,
-                    name: li.name,
-                    basis: li.basis || "Gross Wages",
-                    pricingModel: li.pricingModel || "Percentage",
-                    rate: li.rate !== null && li.rate !== undefined ? Number(li.rate) : 0,
-                    amount: Number(li.amount) || 0,
-                    notes: li.notes || null,
-                    customAmount: null,
-                    includeInGrandTotal: li.includeInGrandTotal !== false,
-                    isOneTime: Boolean(li.isOneTime),
-                    isExcluded: false,
-                  }));
+                  const mappedRates: PrefundingRateCalculationItem[] = nonGrossItems.map((li: any) => {
+                    const savedAmount = li.amount !== null && li.amount !== undefined ? Number(li.amount) : 0;
+                    return {
+                      id: li.id || `rate_${Date.now()}_${Math.random()}`,
+                      name: li.name,
+                      basis: li.basis || "Gross Wages",
+                      pricingModel: li.pricingModel || "Percentage",
+                      rate: li.rate !== null && li.rate !== undefined ? Number(li.rate) : 0,
+                      amount: savedAmount,
+                      notes: li.notes || null,
+                      customAmount: savedAmount,
+                      includeInGrandTotal: li.includeInGrandTotal !== false,
+                      isOneTime: Boolean(li.isOneTime),
+                      isExcluded: false,
+                    };
+                  });
                   setRates(mappedRates);
                 } else {
                   // Fallback: fetch practice rates
@@ -1232,6 +1275,21 @@ export default function CalculatePrefunding() {
 
       const effectiveInvoiceDate = invoiceDate ? new Date(invoiceDate) : (cycleStartDate ? new Date(cycleStartDate) : new Date());
 
+      // Build employee breakdown snapshot to persist overrides
+      const employeeSnapshot: Record<string, any> = {};
+      employees.forEach((emp) => {
+        employeeSnapshot[emp.id] = {
+          payType: emp.payType,
+          payRate: emp.payRate,
+          budgetedHours: emp.budgetedHours,
+          bufferPercent: emp.bufferPercent,
+          workingPeriodHours: emp.workingPeriodHours,
+          grossWages: emp.grossWages,
+          isCustomGrossWages: Boolean(emp.isCustomGrossWages),
+          isExcluded: Boolean(emp.isExcluded),
+        };
+      });
+
       const payload = {
         practiceId: selectedPractice,
         cycle: selectedCycle,
@@ -1239,13 +1297,14 @@ export default function CalculatePrefunding() {
         dueDate: calculatedDueDate.toISOString(),
         totalAmount: grandTotal,
         lineItems: [
-          // Primary line item representing Employee Gross Wages
+          // Primary line item representing Employee Gross Wages with serialized snapshot
           {
             name: `Gross Wages (${activeEmployees.length} Employee${activeEmployees.length === 1 ? "" : "s"})`,
             basis: "Gross Wages",
             pricingModel: "Addition",
             rate: totalGrossWages,
             amount: totalGrossWages,
+            notes: JSON.stringify({ employees: employeeSnapshot }),
             includeInGrandTotal: true,
             sequence: 0,
             isOneTime: false,

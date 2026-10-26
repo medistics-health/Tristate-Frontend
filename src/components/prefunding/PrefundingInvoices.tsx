@@ -89,6 +89,7 @@ type Invoice = {
   subtotalAmount?: number;
   processingFeeAmount?: number;
   companyFeeAmount?: number;
+  netAmount?: number;
   paymentMethod?: string | null;
   paymentMethodDisplay?: string | null;
   feeBearer?: "CLIENT" | "COMPANY" | string | null;
@@ -333,6 +334,10 @@ export default function PrefundingInvoices() {
       }
 
       const grossInvoiceTotal = roundMoney(normalizedBase + clientProcessingFee);
+      const netAmount =
+        inv.netAmount !== undefined && inv.netAmount !== null
+          ? Number(inv.netAmount)
+          : roundMoney(Math.max(0, normalizedBase - companyAbsorbedFee));
 
       return {
         currentPaymentMethod,
@@ -340,6 +345,7 @@ export default function PrefundingInvoices() {
         clientProcessingFee,
         companyAbsorbedFee,
         grossInvoiceTotal,
+        netAmount,
       };
     },
     [practices, systemSettings]
@@ -437,22 +443,40 @@ export default function PrefundingInvoices() {
         ),
         cell: ({ row }) => {
           const inv = row.original;
-          const { grossInvoiceTotal, clientProcessingFee, prefundingBase } = calculateInvoiceFees(inv);
+          const { grossInvoiceTotal, companyAbsorbedFee } = calculateInvoiceFees(inv);
 
           return (
             <div className="flex flex-col">
               <span className="font-semibold text-slate-900">
                 {grossInvoiceTotal.toLocaleString("en-US", { style: "currency", currency: "USD" })}
               </span>
-              {clientProcessingFee > 0 ? (
-                <span className="text-[11px] text-slate-500">
-                  Base: ${prefundingBase.toFixed(2)} + Fee: ${clientProcessingFee.toFixed(2)}
-                </span>
-              ) : (
-                <span className="text-[11px] text-slate-400">
-                  Base: ${prefundingBase.toFixed(2)}
-                </span>
-              )}
+              <span className="text-[11px] text-slate-500">
+                Company Absorbed: ${companyAbsorbedFee.toFixed(2)}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        id: "netAmount",
+        header: () => (
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-3.5 w-3.5 text-slate-400" />
+            <span>Net Amount</span>
+          </div>
+        ),
+        cell: ({ row }) => {
+          const inv = row.original;
+          const { netAmount } = calculateInvoiceFees(inv);
+
+          return (
+            <div className="flex flex-col">
+              <span className="font-semibold text-emerald-700">
+                {netAmount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+              </span>
+              <span className="text-[11px] text-slate-400">
+                Transfer Amount
+              </span>
             </div>
           );
         },
@@ -909,9 +933,9 @@ export default function PrefundingInvoices() {
                             {formatMoney(normalizedBase === 0 ? 0 : companyAbsorbedFee)}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                           <span className="text-slate-500 font-medium">Payment Method</span>
-                          <span className="font-bold text-slate-700">
+                          <span className="font-bold text-slate-700 text-right">
                             {currentPaymentMethod === "CREDIT_CARD" ? "Credit Card" : "ACH"}
                           </span>
                         </div>
@@ -919,6 +943,16 @@ export default function PrefundingInvoices() {
                           <span className="text-slate-600 font-semibold">Gross Invoice Total</span>
                           <span className="font-extrabold text-[15px] text-emerald-600">
                             {formatMoney(grossInvoiceTotal)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-[#eadfcd]/30 pt-2">
+                          <span className="text-slate-600 font-semibold">Net Amount (Transfer)</span>
+                          <span className="font-extrabold text-[15px] text-[#4f63ea]">
+                            {formatMoney(
+                              selectedInvoice.netAmount !== undefined && selectedInvoice.netAmount !== null
+                                ? Number(selectedInvoice.netAmount)
+                                : Math.max(0, normalizedBase - companyAbsorbedFee)
+                            )}
                           </span>
                         </div>
                       </div>
@@ -1160,17 +1194,25 @@ export default function PrefundingInvoices() {
                       <CreditCard className="h-3.5 w-3.5 text-blue-600" />
                       Payment & Stripe Details
                     </h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {selectedInvoice.paidDate && (
+                          <div>
+                            <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Paid Date</span>
+                            <span className="font-semibold text-emerald-700 mt-0.5 block">{selectedInvoice.paidDate}</span>
+                          </div>
+                        )}
+                        {selectedInvoice.paymentMethod && (
+                          <div>
+                            <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Type</span>
+                            <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.paymentMethod}</span>
+                          </div>
+                        )}
+                      </div>
                       {selectedInvoice.paymentMethodDisplay && (
-                        <div>
+                        <div className="pt-2 border-t border-blue-200/50">
                           <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Payment Method</span>
-                          <span className="font-semibold text-slate-800 mt-0.5 block">{selectedInvoice.paymentMethodDisplay}</span>
-                        </div>
-                      )}
-                      {selectedInvoice.paidDate && (
-                        <div>
-                          <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wider">Paid Date</span>
-                          <span className="font-semibold text-emerald-700 mt-0.5 block">{selectedInvoice.paidDate}</span>
+                          <span className="font-semibold text-slate-800 mt-0.5 block break-words whitespace-normal leading-relaxed text-[13px]">{selectedInvoice.paymentMethodDisplay}</span>
                         </div>
                       )}
                     </div>
@@ -1258,22 +1300,6 @@ export default function PrefundingInvoices() {
                       </span>
                     </div>
 
-                    {selectedInvoice.updatedAt && selectedInvoice.updatedAt !== selectedInvoice.createdAt && (
-                      <div className="sm:col-span-2 pt-2 border-t border-slate-200/60 flex items-center justify-between">
-                        <span className="text-slate-400 text-[11px] font-medium uppercase tracking-wider">Last Edited / Modified</span>
-                        <span className="font-semibold text-slate-700">
-                          {new Date(selectedInvoice.updatedAt).toLocaleString("en-US", {
-                            month: "short",
-                            day: "2-digit",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true,
-                          })}
-                        </span>
-                      </div>
-                    )}
-
                     {selectedInvoice.approvedAt && (
                       <div className="sm:col-span-2 pt-2 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
@@ -1303,6 +1329,22 @@ export default function PrefundingInvoices() {
                         <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Posted Date & Time</span>
                         <span className="font-semibold text-slate-800 mt-0.5 block">
                           {new Date(selectedInvoice.postedAt).toLocaleString("en-US", {
+                            month: "short",
+                            day: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                        </span>
+                      </div>
+                    )}
+
+                    {selectedInvoice.updatedAt && selectedInvoice.updatedAt !== selectedInvoice.createdAt && (
+                      <div className="sm:col-span-2 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                        <span className="text-slate-400 text-[11px] font-medium uppercase tracking-wider">Last Edited / Modified</span>
+                        <span className="font-semibold text-slate-700">
+                          {new Date(selectedInvoice.updatedAt).toLocaleString("en-US", {
                             month: "short",
                             day: "2-digit",
                             year: "numeric",

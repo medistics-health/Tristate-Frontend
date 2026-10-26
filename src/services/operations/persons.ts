@@ -199,6 +199,28 @@ export async function getPersonsView(
   }
 }
 
+export async function getAllPersons(params?: PersonQueryParams): Promise<PersonWithPractices[]> {
+  try {
+    const queryString = new URLSearchParams();
+    queryString.set("page", "1");
+    queryString.set("limit", String(params?.limit || 1000));
+    if (params?.search) queryString.set("search", params.search);
+    if (params?.role) queryString.set("role", params.role);
+    if (params?.practiceId) queryString.set("practiceId", params.practiceId);
+    if (params?.companyId) queryString.set("companyId", params.companyId);
+
+    const url = `${LIST}?${queryString.toString()}`;
+    const response = await apiConnector({
+      method: "GET",
+      url,
+      credentials: true,
+    });
+    return (response.data as { persons: PersonWithPractices[] })?.persons || [];
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch persons list."));
+  }
+}
+
 export async function getPerson(id: string): Promise<PersonWithPractices> {
   try {
     const response = await apiConnector({

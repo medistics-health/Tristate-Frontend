@@ -23,6 +23,7 @@ import {
   ChevronRight,
   Mail,
   Shield,
+  AlertCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import PracticeProfileFields, {
@@ -68,7 +69,7 @@ import {
 } from "../../services/operations/practices";
 import { getStripeConnectedAccounts, type StripeConnectedAccount } from "../../services/operations/stripeAccounts";
 import { getPrefundingRates } from "../../services/operations/prefundingRates";
-import { getPersonsView } from "../../services/operations/persons";
+import { getPersonsView, getAllPersons } from "../../services/operations/persons";
 import DatePicker from "../shared/DatePicker";
 import { getAllCompanies } from "../../services/operations/companies";
 import {
@@ -314,6 +315,57 @@ export default function AllPracticePage() {
     ],
   );
 
+  const prefundingValidationError = useMemo(() => {
+    if (!formData.isPrefundingEnabled) return null;
+
+    if (!formData.prefundingCycle || !formData.prefundingCycle.trim()) {
+      return "Prefunding Cycle is required when Prefunding is enabled.";
+    }
+    if (!formData.prefundingStartDate || !formData.prefundingStartDate.trim()) {
+      return "Prefunding Start Date is required when Prefunding is enabled.";
+    }
+    if (
+      formData.prefundingDueOn === undefined ||
+      formData.prefundingDueOn === null ||
+      formData.prefundingDueOn === "" ||
+      Number(formData.prefundingDueOn) <= 0
+    ) {
+      return "Due On (Days Before Start) is required and must be greater than 0.";
+    }
+    if (!formData.prefundingState || !formData.prefundingState.trim()) {
+      return "State of Operation is required when Prefunding is enabled.";
+    }
+    if (
+      formData.prefundingReminderOn === undefined ||
+      formData.prefundingReminderOn === null ||
+      formData.prefundingReminderOn === "" ||
+      Number(formData.prefundingReminderOn) <= 0
+    ) {
+      return "Reminder On (Days Before Due) is required and must be greater than 0.";
+    }
+    if (!formData.prefundingStripeAccountId || !formData.prefundingStripeAccountId.trim()) {
+      return "Stripe Account is required when Prefunding is enabled.";
+    }
+    if (!formData.prefundingInvoiceRecipientId || !formData.prefundingInvoiceRecipientId.trim()) {
+      return "Prefunding Invoice Recipient is required when Prefunding is enabled.";
+    }
+    if (!formData.prefundingRateIds || formData.prefundingRateIds.length === 0) {
+      return "At least one Applicable Prefunding Rate must be assigned.";
+    }
+
+    return null;
+  }, [
+    formData.isPrefundingEnabled,
+    formData.prefundingCycle,
+    formData.prefundingStartDate,
+    formData.prefundingDueOn,
+    formData.prefundingState,
+    formData.prefundingReminderOn,
+    formData.prefundingStripeAccountId,
+    formData.prefundingInvoiceRecipientId,
+    formData.prefundingRateIds,
+  ]);
+
   const [showActivationModal, setShowActivationModal] = useState(false);
   const [activationPerson, setActivationPerson] = useState<Person | null>(null);
   const [activationAgreementType, setActivationAgreementType] = useState("");
@@ -427,9 +479,10 @@ export default function AllPracticePage() {
 
     async function loadPrefundingDropdowns() {
       try {
-        const [ratesRes, personsRes] = await Promise.all([
+        const [ratesRes, personsList, personsViewRes] = await Promise.all([
           getPrefundingRates({ limit: 1000 }),
-          getPersonsView({ page: 1, limit: 1000 }),
+          getAllPersons({ limit: 1000 }).catch(() => []),
+          getPersonsView({ page: 1, limit: 1000 }).catch(() => null),
         ]);
 
         if (ratesRes?.rates) {
@@ -441,12 +494,35 @@ export default function AllPracticePage() {
           );
         }
 
-        if (personsRes?.persons) {
+        const rawPersons = Array.isArray(personsList) && personsList.length > 0
+          ? personsList
+          : personsViewRes?.rows?.map((r: any) => ({
+              id: r.id,
+              firstName: r.values?.firstName,
+              lastName: r.values?.lastName,
+              email: r.values?.email,
+              roles: r.values?.rolesArray || (r.values?.role ? [r.values.role] : []),
+            })) || [];
+
+        // Exclude persons whose role is strictly EMPLOYEE (employees should not be invoice recipients)
+        const nonEmployeePersons = rawPersons.filter((p: any) => {
+          const roles: string[] = Array.isArray(p.roles)
+            ? p.roles.map((r: any) => String(r).toUpperCase())
+            : [];
+          return !roles.includes("EMPLOYEE");
+        });
+
+        if (nonEmployeePersons.length > 0) {
           setAvailablePersons(
-            personsRes.persons.map((p: any) => ({
-              label: `${p.name}${p.email ? ` (${p.email})` : ""}`,
-              value: p.id,
-            }))
+            nonEmployeePersons.map((p: any) => {
+              const fullName = p.firstName || p.lastName
+                ? `${p.firstName || ""} ${p.lastName || ""}`.trim()
+                : (p.name || p.fullName || "Unnamed Contact");
+              return {
+                label: `${fullName}${p.email ? ` (${p.email})` : ""}`,
+                value: p.id,
+              };
+            })
           );
         }
       } catch (err) {
@@ -994,6 +1070,11 @@ export default function AllPracticePage() {
       return;
     }
 
+    if (prefundingValidationError) {
+      toast.error(prefundingValidationError);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const practiceData = {
@@ -1147,6 +1228,11 @@ export default function AllPracticePage() {
 
     if (processingFeeValidationError) {
       toast.error(processingFeeValidationError);
+      return;
+    }
+
+    if (prefundingValidationError) {
+      toast.error(prefundingValidationError);
       return;
     }
 
@@ -1534,6 +1620,40 @@ export default function AllPracticePage() {
   // };
 
   function renderPrefundingSetup(readOnly = false) {
+    const totals = buildGeneralSettingsTotals(systemSettings);
+    const renderAchInput = (
+      feeBearer: FeeBearer,
+      field: FeeFieldKey,
+      value: number,
+    ) => (
+      <div className="flex overflow-hidden rounded-md border border-[#ddd6cc] bg-white shadow-[inset_0_1px_2px_rgba(15,23,42,0.03)]">
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          value={value}
+          readOnly={readOnly}
+          onChange={(event) =>
+            setFormData((prev) => ({
+              ...prev,
+              processingFeeConfig: updateFeeAllocation(
+                prev.processingFeeConfig,
+                systemSettings,
+                "ACH",
+                feeBearer,
+                field,
+                event.target.value,
+              ),
+            }))
+          }
+          className={`w-full min-w-0 border-0 bg-transparent px-3 py-2 text-[12px] text-slate-700 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${readOnly ? "bg-slate-50 text-slate-500" : ""}`}
+        />
+        <span className="flex shrink-0 items-center border-l border-[#ece7df] bg-[#faf9f7] px-2 text-[11px] font-semibold text-slate-400">
+          %
+        </span>
+      </div>
+    );
     const cycleOptions = [
       { label: "Weekly", value: "WEEKLY" },
       { label: "Monthly", value: "MONTHLY" },
@@ -1579,7 +1699,17 @@ export default function AllPracticePage() {
   setFormData(prev => ({
     ...prev,
     isPrefundingEnabled: isEnabled,
-    ...(isEnabled ? {} : {
+    billingPaymentMethod: isEnabled ? "ACH" : prev.billingPaymentMethod,
+    ...(isEnabled ? {
+      processingFeeConfig: {
+        ...prev.processingFeeConfig,
+        allocationMode: "PERCENT",
+        ach: {
+          COMPANY: { ratePercent: 100, capAmount: 100 },
+          CLIENT: { ratePercent: 0, capAmount: 0 }
+        }
+      }
+    } : {
       prefundingCycle: "",
       prefundingStartDate: "",
       prefundingDueOn: "",
@@ -1598,10 +1728,18 @@ export default function AllPracticePage() {
         </div>
         
         {formData.isPrefundingEnabled && (
-          <div className="bg-[#fbfaf8] p-2 rounded-lg border border-[#ece8e1] space-y-4">
+          <div className="bg-[#fbfaf8] p-3 rounded-lg border border-[#ece8e1] space-y-4">
+            {prefundingValidationError && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3.5 py-2.5 text-xs text-amber-800 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="font-medium">{prefundingValidationError}</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">Prefunding Cycle</label>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                  Prefunding Cycle <span className="text-red-500">*</span>
+                </label>
                 <Select
                   value={formData.prefundingCycle || ""}
                   onChange={(val) => setFormData((prev) => ({ ...prev, prefundingCycle: val }))}
@@ -1612,7 +1750,9 @@ export default function AllPracticePage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">Start Date</label>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                  Start Date <span className="text-red-500">*</span>
+                </label>
                 <DatePicker
                   value={formData.prefundingStartDate || ""}
                   onChange={(val) => setFormData((prev) => ({ ...prev, prefundingStartDate: val }))}
@@ -1622,17 +1762,23 @@ export default function AllPracticePage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">Due On (Days Before Start)</label>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                  Due On (Days Before Start) <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="number"
+                  min="1"
                   value={formData.prefundingDueOn || ""}
                   onChange={(e) => setFormData((prev) => ({ ...prev, prefundingDueOn: e.target.value }))}
                   disabled={readOnly}
+                  placeholder="e.g. 5"
                   className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">State of Operation</label>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                  State of Operation <span className="text-red-500">*</span>
+                </label>
                 <Select
                   value={formData.prefundingState || ""}
                   onChange={(val) => setFormData((prev) => ({ ...prev, prefundingState: val }))}
@@ -1646,17 +1792,23 @@ export default function AllPracticePage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">Reminder On (Days Before Due)</label>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                  Reminder On (Days Before Due) <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="number"
+                  min="1"
                   value={formData.prefundingReminderOn || ""}
                   onChange={(e) => setFormData((prev) => ({ ...prev, prefundingReminderOn: e.target.value }))}
                   disabled={readOnly}
+                  placeholder="e.g. 2"
                   className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">Stripe Account</label>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                  Stripe Account <span className="text-red-500">*</span>
+                </label>
                 <Select
                   value={formData.prefundingStripeAccountId || ""}
                   onChange={(val) => setFormData((prev) => ({ ...prev, prefundingStripeAccountId: val }))}
@@ -1669,19 +1821,61 @@ export default function AllPracticePage() {
             </div>
 
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-slate-600">Prefunding Invoice Recipient</label>
-              <Select
-                value={formData.prefundingInvoiceRecipientId || ""}
-                onChange={(val) => setFormData((prev) => ({ ...prev, prefundingInvoiceRecipientId: val }))}
-                options={availablePersons}
-                placeholder="Select Recipient Person"
-                disabled={readOnly}
-                className="w-full"
-              />
+              <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                Prefunding Invoice Recipient <span className="text-red-500">*</span>
+              </label>
+              {(() => {
+                // Combine practice's assigned persons with globally available persons to ensure options are always available (excluding EMPLOYEE role)
+                const practicePersonsList = selectedPracticeDetail?.persons
+                  ?.filter((p: any) => {
+                    const personObj = p.person || p;
+                    const roles: string[] = Array.isArray(personObj.roles)
+                      ? personObj.roles.map((r: any) => String(r).toUpperCase())
+                      : [];
+                    return !roles.includes("EMPLOYEE");
+                  })
+                  ?.map((p: any) => {
+                    const personObj = p.person || p;
+                    const fullName = personObj.firstName || personObj.lastName
+                      ? `${personObj.firstName || ""} ${personObj.lastName || ""}`.trim()
+                      : (personObj.name || "Contact Person");
+                    return {
+                      label: `${fullName}${personObj.email ? ` (${personObj.email})` : ""}`,
+                      value: personObj.id,
+                    };
+                  }) || [];
+
+                // Deduplicate with availablePersons
+                const map = new Map<string, string>();
+                practicePersonsList.forEach((item: any) => {
+                  if (item.value) map.set(item.value, item.label);
+                });
+                availablePersons.forEach((item: any) => {
+                  if (item.value && !map.has(item.value)) map.set(item.value, item.label);
+                });
+
+                const combinedPersonOptions = Array.from(map.entries()).map(([value, label]) => ({
+                  value,
+                  label,
+                }));
+
+                return (
+                  <Select
+                    value={formData.prefundingInvoiceRecipientId || ""}
+                    onChange={(val) => setFormData((prev) => ({ ...prev, prefundingInvoiceRecipientId: val }))}
+                    options={combinedPersonOptions}
+                    placeholder="Select Recipient Person"
+                    disabled={readOnly}
+                    className="w-full"
+                  />
+                );
+              })()}
             </div>
 
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-slate-600">Applicable Prefunding Rates</label>
+              <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                Applicable Prefunding Rates <span className="text-red-500">*</span>
+              </label>
               <MultiSelect
                 options={availableRates}
                 value={formData.prefundingRateIds || []}
@@ -1689,6 +1883,98 @@ export default function AllPracticePage() {
                 placeholder="Assign Prefunding Rates"
                 disabled={readOnly}
               />
+            </div>
+
+            <div className="border-t border-[#ece8e1] pt-4 space-y-4">
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-700">
+                  Billing Payment Method <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value="ACH"
+                  disabled={true}
+                  className="app-control w-full rounded-md px-3 py-2 text-[13px] bg-slate-50 text-slate-700 cursor-not-allowed"
+                  required
+                >
+                  <option value="ACH">ACH only</option>
+                </select>
+              </div>
+
+              <div>
+                <p className="mb-2 font-semibold text-slate-700 text-[12px]">For ACH</p>
+                <div className="overflow-hidden rounded-xl border border-[#ece7df] bg-white">
+                  <table className="w-full border-collapse text-[12px]">
+                    <colgroup>
+                      <col className="w-[46%]" />
+                      <col className="w-[27%]" />
+                      <col className="w-[27%]" />
+                    </colgroup>
+                    <thead>
+                      <tr className="bg-[#fcfbf9] text-[10px] uppercase tracking-wide text-slate-400">
+                        <th className="border-b border-[#ece7df] px-4 py-3 text-left">Bearer</th>
+                        <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                          Percentage Fee (0.8%)
+                        </th>
+                        <th className="border-b border-[#ece7df] px-4 py-3 text-left">
+                          Cap Amount ($5)
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="border-b border-[#ece7df] px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                          Company <br /> (0.8% or $5 max)
+                        </td>
+                        <td className="border-b border-[#ece7df] px-3 py-2">
+                          {renderAchInput(
+                            "COMPANY",
+                            "ratePercent",
+                            getAllocationPercent(
+                              formData.processingFeeConfig.ach.COMPANY.ratePercent,
+                              totals.ach.ratePercent,
+                            ),
+                          )}
+                        </td>
+                        <td className="border-b border-[#ece7df] px-3 py-2">
+                          {renderAchInput(
+                            "COMPANY",
+                            "capAmount",
+                            getAllocationPercent(
+                              formData.processingFeeConfig.ach.COMPANY.capAmount,
+                              totals.ach.capAmount,
+                            ),
+                          )}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                          Client (0% or $0 max)
+                        </td>
+                        <td className="px-3 py-2">
+                          {renderAchInput(
+                            "CLIENT",
+                            "ratePercent",
+                            getAllocationPercent(
+                              formData.processingFeeConfig.ach.CLIENT.ratePercent,
+                              totals.ach.ratePercent,
+                            ),
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {renderAchInput(
+                            "CLIENT",
+                            "capAmount",
+                            getAllocationPercent(
+                              formData.processingFeeConfig.ach.CLIENT.capAmount,
+                              totals.ach.capAmount,
+                            ),
+                          )}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         )}
