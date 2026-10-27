@@ -1715,7 +1715,6 @@ export default function AllPracticePage() {
   setFormData(prev => ({
     ...prev,
     isPrefundingEnabled: isEnabled,
-    billingPaymentMethod: isEnabled ? "ACH" : prev.billingPaymentMethod,
     ...(isEnabled ? {
       prefundingDueOn: prev.prefundingDueOn || "5",
       prefundingReminderOn: prev.prefundingReminderOn || "6",
