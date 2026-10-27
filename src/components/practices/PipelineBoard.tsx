@@ -477,6 +477,12 @@ function PipelineBoardPage() {
                 <div className="flex-1 overflow-auto p-4">
                   <div className="mb-5 space-y-3 rounded-xl border border-[#f0ece6] bg-[#faf9f7] p-3 text-[13px]">
                     <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Practice ID</span>
+                      <span className="text-right text-slate-700">
+                        {selectedPractice.practiceId ?? "-"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
                       <span className="text-slate-400">NPI</span>
                       <span className="text-right text-slate-700">
                         {selectedPractice.npi || "-"}

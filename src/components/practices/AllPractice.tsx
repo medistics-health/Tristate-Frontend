@@ -742,6 +742,7 @@ export default function AllPracticePage() {
     const cols: ColumnDef<PracticeRow>[] = [
       ...visibleFields.map((field) => {
         const iconMap: Record<string, React.ReactNode> = {
+          practiceId: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           name: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           npi: <FileText className="h-3.5 w-3.5 text-slate-400" />,
           status: <Circle className="h-3.5 w-3.5 text-slate-400" />,
@@ -829,7 +830,8 @@ export default function AllPracticePage() {
               <span className="truncate">{getCellDisplayValue(value)}</span>
             );
           },
-          size: field.id === "name" ? 220 : 160,
+          size:
+            field.id === "name" ? 220 : field.id === "practiceId" ? 130 : 160,
         };
       }),
       {
@@ -2674,7 +2676,7 @@ export default function AllPracticePage() {
           <DataTableToolbar
             title="All Practices"
             subtitle="Practices"
-            searchPlaceholder="Search practices by name or NPI..."
+            searchPlaceholder="Search practices by name, ID, or NPI..."
             searchValue={searchInput}
             onSearchChange={(value) => {
               setSearchInput(value);
@@ -2930,6 +2932,10 @@ export default function AllPracticePage() {
                           {String(selectedRow.values.name || "Practice")}
                         </h3>
                         <div className="mt-3 space-y-2 text-[13px] text-slate-700">
+                          <p>
+                            Practice ID:{" "}
+                            {String(selectedRow.values.practiceId || "-")}
+                          </p>
                           {selectedRow.values.npi ? (
                             <p>NPI: {String(selectedRow.values.npi)}</p>
                           ) : null}

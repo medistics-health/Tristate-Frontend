@@ -66,6 +66,7 @@ export type Agreement = {
 
 export type Practice = {
   id: string;
+  practiceId?: number;
   name: string;
   npi?: string;
   status: PracticeStatus;

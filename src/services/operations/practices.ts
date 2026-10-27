@@ -31,6 +31,8 @@ function practiceToRow(practice: Practice): PracticeRow {
     id: practice.id,
     values: {
       id: practice.id,
+      practiceId:
+        practice.practiceId != null ? String(practice.practiceId) : "",
       name: practice.name,
       npi: practice.npi || "",
       status: practice.status,
@@ -76,6 +78,7 @@ function normalizePractice(practice: any): Practice {
 }
 
 const fields = [
+  { id: "practiceId", label: "Practice ID", type: "text" as const, visible: true },
   { id: "name", label: "Name", type: "text" as const, visible: true },
   { id: "npi", label: "NPI", type: "text" as const, visible: true },
   { id: "status", label: "Status", type: "text" as const, visible: true },
