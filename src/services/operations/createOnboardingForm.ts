@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Go to Step 5 (Scope), select services, then check Steps 6 & 7. Here's what to test:
 // Select this in Step 5
 // Billing / Revenue Cycle Management

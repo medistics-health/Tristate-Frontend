@@ -23,7 +23,7 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
-export type PersonWithPractices = Person & {
+export type PersonWithPractices = Omit<Person, "practices" | "companies"> & {
   practices?: { practice: { id: string; name: string } }[];
   companies?: { company: { id: string; name: string } }[];
   docusealSubmissions?: {
@@ -44,8 +44,8 @@ export type PersonWithPractices = Person & {
 };
 
 function personToRow(person: PersonWithPractices): PersonRow {
-  const practicesList = person.practices?.map((p) => p.practice) || [];
-  const companiesList = person.companies?.map((c) => c.company) || [];
+  const practicesList = person.practices?.map((p: any) => p.practice || p) || [];
+  const companiesList = person.companies?.map((c: any) => c.company || c) || [];
   const practiceNames = practicesList.map((p) => p.name).join(", ");
   const companyNames = companiesList.map((c) => c.name).join(", ");
   return {
@@ -55,12 +55,21 @@ function personToRow(person: PersonWithPractices): PersonRow {
       firstName: person.firstName,
       lastName: person.lastName,
       fullName: `${person.firstName} ${person.lastName}`,
-      role: person.role,
+      role: person.roles?.join(", ") || "",
       designation: person.designation || "",
       influence: person.influence,
       email: person.email || "",
       phone: person.phone || "",
       status: person.status || "",
+      rolesArray: person.roles || [],
+      jobCategory: person.jobCategory || "",
+      workLocation: person.workLocation || "",
+      state: person.state || "",
+      dateOfJoining: person.dateOfJoining ? new Date(person.dateOfJoining).toISOString().split('T')[0] : "",
+      payType: person.payType || "",
+      payRate: person.payRate || "",
+      budgetedHours: person.budgetedHours || "",
+      bufferPercentage: person.bufferPercentage || "",
       individualNpi: person.individualNpi || "",
       individualPtan: person.individualPtan || "",
       individualRailroadMedicarePtan: person.individualRailroadMedicarePtan || "",
@@ -190,6 +199,28 @@ export async function getPersonsView(
   }
 }
 
+export async function getAllPersons(params?: PersonQueryParams): Promise<PersonWithPractices[]> {
+  try {
+    const queryString = new URLSearchParams();
+    queryString.set("page", "1");
+    queryString.set("limit", String(params?.limit || 1000));
+    if (params?.search) queryString.set("search", params.search);
+    if (params?.role) queryString.set("role", params.role);
+    if (params?.practiceId) queryString.set("practiceId", params.practiceId);
+    if (params?.companyId) queryString.set("companyId", params.companyId);
+
+    const url = `${LIST}?${queryString.toString()}`;
+    const response = await apiConnector({
+      method: "GET",
+      url,
+      credentials: true,
+    });
+    return (response.data as { persons: PersonWithPractices[] })?.persons || [];
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Unable to fetch persons list."));
+  }
+}
+
 export async function getPerson(id: string): Promise<PersonWithPractices> {
   try {
     const response = await apiConnector({
@@ -294,5 +325,25 @@ export async function getAllPersonEmails(): Promise<string[]> {
     );
   } catch (error) {
     throw new Error(getErrorMessage(error, "Unable to fetch person emails."));
+  }
+}
+
+
+export async function checkDuplicatePersonApi(
+  firstName: string,
+  lastName: string,
+  designation?: string,
+  excludePersonId?: string
+): Promise<{ isDuplicate: boolean; duplicatePerson?: PersonWithPractices }> {
+  try {
+    const response = await apiConnector({
+      method: "POST",
+      url: personEndpoints.BASE + "/check-duplicate",
+        body: { firstName, lastName, designation, excludePersonId },
+        credentials: true,
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error?.response?.data?.message || "Failed to check duplicate person.");
   }
 }

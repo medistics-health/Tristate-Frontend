@@ -55,7 +55,7 @@ export type Person = {
   firstName: string;
   lastName: string;
   email: string | null;
-  role: string;
+  roles?: string[];
 };
 
 export type Agreement = {

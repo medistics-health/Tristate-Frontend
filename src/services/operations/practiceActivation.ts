@@ -11,11 +11,11 @@ import { getPractice, updatePracticeApi } from "./practices";
 type PracticePersonLike = {
   id?: string;
   email?: string | null;
-  role?: string | null;
+  roles?: string[] | null;
   person?: {
     id?: string;
     email?: string | null;
-    role?: string | null;
+    roles?: string[] | null;
   };
 };
 
@@ -24,7 +24,7 @@ function getEligiblePerson(persons: PracticePersonLike[] = []) {
     .map((entry) => entry.person ?? entry)
     .find(
       (person) =>
-        (person.role === "ADMIN" || person.role === "OWNER") && !!person.email,
+        (person.roles?.includes("ADMIN") || person.roles?.includes("OWNER")) && !!person.email,
     );
 }
 

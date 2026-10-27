@@ -11,14 +11,30 @@ createRoot(document.getElementById("root")!).render(
       <App />
       <Toaster
         position="top-right"
+        gutter={10}
         toastOptions={{
-          duration: 3500,
+          duration: 5000,
           style: {
-            borderRadius: "18px",
-            border: "1px solid #e2e8f0",
+            borderRadius: "12px",
+            border: "1px solid #e5e7eb",
             background: "#ffffff",
-            color: "#0f172a",
-            padding: "14px 16px",
+            color: "#111827",
+            padding: "12px 14px",
+            fontSize: "14px",
+            fontWeight: "500",
+            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.08)",
+          },
+          success: {
+            style: {
+              background: "#f7fff9",
+              color: "#166534",
+            },
+          },
+          error: {
+            style: {
+              background: "#fff8f8",
+              color: "#991b1b",
+            },
           },
         }}
       />
