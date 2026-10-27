@@ -76,6 +76,7 @@ import PrefundingDashboard from "./components/prefunding/PrefundingDashboard";
 import PrefundingRates from "./components/prefunding/PrefundingRates";
 import CalculatePrefunding from "./components/prefunding/CalculatePrefunding";
 import PrefundingInvoices from "./components/prefunding/PrefundingInvoices";
+import { hasPrefundingPermission, readStoredUser } from "./utils/auth";
 
 function App() {
   function ModuleRoute({
@@ -94,6 +95,20 @@ function App() {
         </RoleRoute>
       </ProtectedRoute>
     );
+  }
+
+  function PrefundingRoute({
+    children,
+    permission,
+  }: {
+    children: ReactNode;
+    permission?: "VIEW" | "CREATE" | "EDIT" | "CALCULATE" | "APPROVE" | "POST" | "DELETE";
+  }) {
+    const user = readStoredUser();
+    if (!hasPrefundingPermission(user, permission)) {
+      return <Navigate to="/dashboard" replace />;
+    }
+    return <ProtectedRoute>{children as JSX.Element}</ProtectedRoute>;
   }
 
   function UUIDProtectedRoute({ children }: { children: ReactNode }) {
@@ -776,33 +791,33 @@ function App() {
       <Route
         path="/prefunding/dashboard"
         element={
-          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+          <PrefundingRoute permission="VIEW">
             <PrefundingDashboard />
-          </ModuleRoute>
+          </PrefundingRoute>
         }
       />
       <Route
         path="/prefunding/rates"
         element={
-          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+          <PrefundingRoute permission="VIEW">
             <PrefundingRates />
-          </ModuleRoute>
+          </PrefundingRoute>
         }
       />
       <Route
         path="/prefunding/calculate"
         element={
-          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+          <PrefundingRoute permission="CALCULATE">
             <CalculatePrefunding />
-          </ModuleRoute>
+          </PrefundingRoute>
         }
       />
       <Route
         path="/prefunding/invoices"
         element={
-          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+          <PrefundingRoute permission="VIEW">
             <PrefundingInvoices />
-          </ModuleRoute>
+          </PrefundingRoute>
         }
       />
     </Routes>

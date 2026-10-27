@@ -35,6 +35,7 @@ import { apiConnector } from "../../services/apiConnector";
 import { practiceEndpoints, prefundingEndpoints } from "../../services/apis";
 import { createPrefundingRate } from "../../services/operations/prefundingRates";
 import { openPrefundingInvoicePdf, getPrefundingInvoice, updatePrefundingInvoice, validatePracticeForPrefunding } from "../../services/operations/prefundingInvoices";
+import { readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 
 // Types
 export type EmployeeCalculationItem = {
@@ -44,7 +45,7 @@ export type EmployeeCalculationItem = {
   location: string;
   state: string;
   joinDate: string;
-  payType: "Hourly" | "Salary";
+  payType: "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually";
   payRate: number;
   budgetedHours: number;
   bufferPercent: number;
@@ -113,6 +114,8 @@ const US_STATES_OPTIONS = [
 
 const EMPLOYEE_PAY_TYPE_OPTIONS = [
   { label: "Hourly", value: "Hourly" },
+  { label: "Weekly", value: "Weekly" },
+  { label: "Bi-Weekly", value: "Bi-Weekly" },
   { label: "Monthly", value: "Monthly" },
   { label: "Annually", value: "Annually" },
 ];
@@ -183,6 +186,56 @@ function generatePracticeCycles(startDateStr?: string | null, cycleType?: string
   return cycles;
 }
 
+function getCycleDefaultWorkingHours(cycleType?: string | null): number {
+  const c = String(cycleType || "").trim().toUpperCase();
+  if (c === "WEEKLY") return 40;
+  if (c === "QUARTERLY") return 520;
+  if (c === "SEMI_ANNUALLY" || c === "SEMIANNUALLY") return 1040;
+  if (c === "YEARLY") return 2080;
+  // Default Monthly (4 weeks @ 40 hrs)
+  return 160;
+}
+
+function normalizePayType(val?: string | null): "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually" {
+  const s = String(val || "").trim().toUpperCase();
+  if (s === "WEEKLY") return "Weekly";
+  if (s === "BI_WEEKLY" || s === "BIWEEKLY" || s === "BI-WEEKLY") return "Bi-Weekly";
+  if (s === "MONTHLY") return "Monthly";
+  if (s === "ANNUALLY" || s === "YEARLY" || s === "ANNUAL") return "Annually";
+  return "Hourly";
+}
+
+function calculateBaseWagesForPayType(
+  payType: "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually",
+  payRate: number,
+  workingPeriodHours: number,
+  cycleDefaultHours: number
+): number {
+  if (payType === "Hourly") {
+    return workingPeriodHours * payRate;
+  }
+
+  // Calculate annual base pay for the employee
+  let annualSalary = payRate;
+  if (payType === "Weekly") {
+    annualSalary = payRate * 52;
+  } else if (payType === "Bi-Weekly") {
+    annualSalary = payRate * 26;
+  } else if (payType === "Monthly") {
+    annualSalary = payRate * 12;
+  }
+
+  // Yearly full-time hours based on standard 40 hrs/wk = 2080 hrs
+  const fullYearHours = 2080;
+
+  // Prorate wages according to the actual working hours vs standard full year hours
+  if (fullYearHours > 0) {
+    return (workingPeriodHours / fullYearHours) * annualSalary;
+  }
+
+  return payRate;
+}
+
 const getPricingModelColorClass = (val: string) => {
   const colors: Record<string, string> = {
     "Percentage": "bg-purple-100 text-purple-700 border-purple-200",
@@ -199,6 +252,11 @@ export default function CalculatePrefunding() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const navbarActions = getStandardNavbarActions(() => {});
+
+  const currentUser = readStoredUser();
+  const canCalculate = hasPrefundingPermission(currentUser, "CALCULATE");
+  const canCreate = hasPrefundingPermission(currentUser, "CREATE");
+  const canEdit = hasPrefundingPermission(currentUser, "EDIT");
 
   // Wizard state
   const editingInvoiceId = searchParams.get("invoiceId");
@@ -258,7 +316,7 @@ export default function CalculatePrefunding() {
   const [newEmployeeLocation, setNewEmployeeLocation] = useState("Main Clinic");
   const [newEmployeeState, setNewEmployeeState] = useState("NY");
   const [newEmployeeDateOfJoining, setNewEmployeeDateOfJoining] = useState(new Date().toISOString().split("T")[0]);
-  const [newEmployeePayType, setNewEmployeePayType] = useState<"Hourly" | "Salary">("Hourly");
+  const [newEmployeePayType, setNewEmployeePayType] = useState<"Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually">("Hourly");
   const [newEmployeePayRate, setNewEmployeePayRate] = useState<number | string>(25);
   const [newEmployeeBudgetedHours, setNewEmployeeBudgetedHours] = useState<number | string>(160);
   const [newEmployeeBufferPercent, setNewEmployeeBufferPercent] = useState<number | string>(10);
@@ -348,7 +406,14 @@ export default function CalculatePrefunding() {
                 method: "GET",
                 credentials: true,
               });
-              const practicePersons = practiceRes?.data?.practice?.persons?.map((pp: any) => pp.person) || [];
+              const practicePersons = (practiceRes?.data?.practice?.persons || [])
+                .map((pp: any) => pp.person || pp)
+                .filter((p: any) => {
+                  const roles: string[] = Array.isArray(p.roles)
+                    ? p.roles.map((r: any) => String(r).toUpperCase())
+                    : [];
+                  return roles.includes("EMPLOYEE");
+                });
 
               const grossWagesLineItem = Array.isArray(inv.lineItems)
                 ? inv.lineItems.find((li: any) => li.name?.toLowerCase().startsWith("gross wages"))
@@ -367,28 +432,24 @@ export default function CalculatePrefunding() {
                 }
               }
 
+              const pCycle = practiceRes?.data?.practice?.prefundingCycle || inv.prefundingCycle || inv.cycle;
+              const cycleHours = getCycleDefaultWorkingHours(pCycle || cycleVal);
+
               const mappedEmployees: EmployeeCalculationItem[] = practicePersons.map((p: any) => {
                 const savedEmp = savedEmpSnapshotMap[p.id];
                 const payRate = savedEmp?.payRate !== undefined ? Number(savedEmp.payRate) : (p.payRate ? Number(p.payRate) : 0);
-                const budgetedHours = savedEmp?.budgetedHours !== undefined ? Number(savedEmp.budgetedHours) : (p.budgetedHours ? Number(p.budgetedHours) : 160);
+                const budgetedHours = savedEmp?.budgetedHours !== undefined ? Number(savedEmp.budgetedHours) : cycleHours;
                 const bufferPercent = savedEmp?.bufferPercent !== undefined
                   ? Number(savedEmp.bufferPercent)
                   : ((p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) > 0)
                     ? Number(p.bufferPercentage)
                     : 10);
-                const payType: "Hourly" | "Salary" = savedEmp?.payType
-                  ? savedEmp.payType
-                  : (p.payType?.toLowerCase() === "hourly" ? "Hourly" : "Salary");
+                const payType: "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually" = savedEmp?.payType
+                  ? normalizePayType(savedEmp.payType)
+                  : normalizePayType(p.payType);
 
                 const workingPeriodHours = savedEmp?.workingPeriodHours !== undefined ? Number(savedEmp.workingPeriodHours) : budgetedHours;
-                let baseWages = 0;
-                if (payType === "Hourly") {
-                  baseWages = workingPeriodHours * payRate;
-                } else {
-                  baseWages = (budgetedHours > 0 && workingPeriodHours !== budgetedHours)
-                    ? (workingPeriodHours / budgetedHours) * payRate
-                    : payRate;
-                }
+                const baseWages = calculateBaseWagesForPayType(payType, payRate, workingPeriodHours, budgetedHours);
                 const bufferAmount = baseWages * (bufferPercent / 100);
                 const formulaGrossWages = Math.round((baseWages + bufferAmount) * 100) / 100;
                 const grossWages = savedEmp?.grossWages !== undefined ? Number(savedEmp.grossWages) : formulaGrossWages;
@@ -558,31 +619,33 @@ export default function CalculatePrefunding() {
     }
 
     try {
-      // 1. Fetch practice details to get its persons
+      // 1. Fetch practice details to get its persons and filter strictly for role EMPLOYEE
       const practiceRes = await apiConnector({ url: practiceEndpoints.GET(selectedPractice), method: "GET", credentials: true });
-      const practicePersons = practiceRes?.data?.practice?.persons?.map((pp: any) => pp.person) || [];
+      const practicePersons = (practiceRes?.data?.practice?.persons || [])
+        .map((pp: any) => pp.person || pp)
+        .filter((p: any) => {
+          const roles: string[] = Array.isArray(p.roles)
+            ? p.roles.map((r: any) => String(r).toUpperCase())
+            : [];
+          return roles.includes("EMPLOYEE");
+        });
+
+      const selectedPracticeObj = practices.find((p) => p.value === selectedPractice || p.id === selectedPractice);
+      const cycleHours = getCycleDefaultWorkingHours(selectedPracticeObj?.prefundingCycle || selectedCycle);
 
       const mappedEmployees: EmployeeCalculationItem[] = practicePersons.map((p: any) => {
         const payRate = p.payRate ? Number(p.payRate) : 0;
-        const budgetedHours = p.budgetedHours ? Number(p.budgetedHours) : 160;
+        const budgetedHours = cycleHours;
         const bufferPercent = (p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) > 0)
           ? Number(p.bufferPercentage)
           : 10;
-        const payType: "Hourly" | "Salary" = p.payType?.toLowerCase() === "hourly" ? "Hourly" : "Salary";
+        const payType: "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually" = normalizePayType(p.payType);
 
         // Step 4: Calculate applicable Working Period for this cycle
         const workingPeriodHours = calculateDefaultWorkingHours(p.dateOfJoining, budgetedHours);
 
         // Step 5: Calculate Base Wages & Gross Wages
-        let baseWages = 0;
-        if (payType === "Hourly") {
-          baseWages = workingPeriodHours * payRate;
-        } else {
-          baseWages = (budgetedHours > 0 && workingPeriodHours !== budgetedHours)
-            ? (workingPeriodHours / budgetedHours) * payRate
-            : payRate;
-        }
-
+        const baseWages = calculateBaseWagesForPayType(payType, payRate, workingPeriodHours, budgetedHours);
         const bufferAmount = baseWages * (bufferPercent / 100);
         const grossWages = Math.round((baseWages + bufferAmount) * 100) / 100;
 
@@ -744,14 +807,12 @@ export default function CalculatePrefunding() {
           if (field === "workingPeriodHours") updated.workingPeriodHours = numHours;
           if (field === "bufferPercent") updated.bufferPercent = numBuffer;
 
-          let base = 0;
-          if (updated.payType === "Hourly") {
-            base = numHours * numRate;
-          } else {
-            base = (numBudgeted > 0 && numHours !== numBudgeted)
-              ? (numHours / numBudgeted) * numRate
-              : numRate;
-          }
+          const base = calculateBaseWagesForPayType(
+            updated.payType,
+            numRate,
+            numHours,
+            numBudgeted
+          );
           const buffer = base * (numBuffer / 100);
           updated.baseWages = Math.round(base * 100) / 100;
           if (!updated.isCustomGrossWages) {
@@ -811,7 +872,7 @@ export default function CalculatePrefunding() {
     const payRate = payRateNum;
     const workingHours = workingHoursNum;
     const buffer = Number(newEmployeeBufferPercent) || 0;
-    const base = newEmployeePayType === "Hourly" ? workingHours * payRate : payRate;
+    const base = calculateBaseWagesForPayType(newEmployeePayType, payRate, workingHours, workingHours);
     const gross = Math.round((base + base * (buffer / 100)) * 100) / 100;
 
     const newEmp: EmployeeCalculationItem = {
@@ -1869,13 +1930,10 @@ export default function CalculatePrefunding() {
                                   <td className="px-4 py-3.5 align-middle">
                                     <div className="w-28">
                                       <Select
-                                        options={[
-                                          { value: "Hourly", label: "Hourly" },
-                                          { value: "Salary", label: "Salary" },
-                                        ]}
+                                        options={EMPLOYEE_PAY_TYPE_OPTIONS}
                                         value={emp.payType}
                                         onChange={(val) =>
-                                          handleEmployeeFieldChange(emp.id, "payType", val as "Hourly" | "Salary")
+                                          handleEmployeeFieldChange(emp.id, "payType", val as "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually")
                                         }
                                         className="!py-1 !text-xs !rounded-lg"
                                       />
@@ -1911,7 +1969,7 @@ export default function CalculatePrefunding() {
                                       }
                                     />
                                     <span className="text-[11px] text-slate-400 block mt-0.5">
-                                      Budgeted: {emp.budgetedHours}h
+                                      Cycle Default: {emp.budgetedHours}h
                                     </span>
                                   </td>
                                   <td className="px-4 py-3.5 align-middle">
@@ -2448,7 +2506,7 @@ export default function CalculatePrefunding() {
                       </div>
                       <button
                         onClick={generateInvoice}
-                        disabled={submitting}
+                        disabled={submitting || (editingInvoiceId ? !canEdit : !canCreate)}
                         className="flex items-center gap-2 px-5 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-xs disabled:opacity-50"
                       >
                         {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
@@ -2666,7 +2724,7 @@ export default function CalculatePrefunding() {
                         </button>
                         <button
                           onClick={generateInvoice}
-                          disabled={submitting}
+                          disabled={submitting || (editingInvoiceId ? !canEdit : !canCreate)}
                           className="flex items-center gap-2 px-6 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-xs disabled:opacity-50"
                         >
                           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
@@ -3074,7 +3132,7 @@ export default function CalculatePrefunding() {
               <Select
                 options={EMPLOYEE_PAY_TYPE_OPTIONS}
                 value={newEmployeePayType}
-                onChange={(val) => setNewEmployeePayType(val as "Hourly" | "Salary")}
+                onChange={(val) => setNewEmployeePayType(val as "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually")}
                 placeholder="Select Pay Type"
                 className="w-full !text-xs !py-1.5"
               />

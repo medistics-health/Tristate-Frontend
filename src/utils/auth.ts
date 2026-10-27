@@ -1,9 +1,20 @@
+export type PrefundingPermission =
+  | "VIEW"
+  | "CREATE"
+  | "EDIT"
+  | "CALCULATE"
+  | "APPROVE"
+  | "POST"
+  | "DELETE";
+
 export type StoredUser = {
   id?: string;
   firstName?: string;
   lastName?: string;
   email?: string;
   role?: string;
+  hasPrefundingAccess?: boolean;
+  prefundingPermissions?: string[];
   [key: string]: unknown;
 };
 
@@ -125,4 +136,20 @@ export function canDocumentHubShare(role?: string | null) {
 
 export function canDocumentHubContent(role?: string | null) {
   return hasAdminAccess(role);
+}
+
+export function hasPrefundingPermission(
+  user?: StoredUser | null,
+  permission?: PrefundingPermission,
+): boolean {
+  if (!user) return false;
+  if (hasAdminAccess(user.role)) return true;
+  if (!user.hasPrefundingAccess) return false;
+  if (!permission) return true;
+
+  const perms = Array.isArray(user.prefundingPermissions)
+    ? user.prefundingPermissions.map((p) => String(p).toUpperCase())
+    : [];
+
+  return perms.includes(permission.toUpperCase());
 }

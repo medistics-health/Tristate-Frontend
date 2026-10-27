@@ -32,6 +32,7 @@ import {
   getPrefundingDashboard,
   openPrefundingInvoicePdf,
 } from "../../services/operations/prefundingInvoices";
+import { readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 
 interface DashboardData {
   summary: {
@@ -239,6 +240,8 @@ function PrefundingDashboardSkeleton() {
 
 export default function PrefundingDashboard() {
   const navigate = useNavigate();
+  const currentUser = readStoredUser();
+  const canCalculate = hasPrefundingPermission(currentUser, "CALCULATE");
 
   // Filters State
   const [filterPractice, setFilterPractice] = useState<string>("all");
@@ -405,14 +408,16 @@ export default function PrefundingDashboard() {
                 Refresh
               </button>
 
-              <button
-                type="button"
-                onClick={() => navigate("/prefunding/calculate")}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-800 bg-[#fcfaf8] border border-[#f0ece6] rounded-lg shadow-2xs hover:bg-[#f5f0ea] transition"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-[#2a6365]" />
-                New Calculation
-              </button>
+              {canCalculate && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/prefunding/calculate")}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-800 bg-[#fcfaf8] border border-[#f0ece6] rounded-lg shadow-2xs hover:bg-[#f5f0ea] transition"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#2a6365]" />
+                  New Calculation
+                </button>
+              )}
 
               <button
                 type="button"
@@ -937,19 +942,21 @@ export default function PrefundingDashboard() {
                               ? "Active Cycle"
                               : `In ${cycle.daysUntilStart} days`}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigate(
-                                `/prefunding/calculate?practiceId=${cycle.practiceId}&cycle=${encodeURIComponent(
-                                  cycle.label
-                                )}`
-                              )
-                            }
-                            className="block text-[11px] font-semibold text-[#2a6365] hover:underline mt-1 text-right"
-                          >
-                            Calculate &rarr;
-                          </button>
+                          {canCalculate && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(
+                                  `/prefunding/calculate?practiceId=${cycle.practiceId}&cycle=${encodeURIComponent(
+                                    cycle.label
+                                  )}`
+                                )
+                              }
+                              className="block text-[11px] font-semibold text-[#2a6365] hover:underline mt-1 text-right"
+                            >
+                              Calculate &rarr;
+                            </button>
+                          )}
                         </div>
                       </div>
                     );

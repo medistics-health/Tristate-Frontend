@@ -31,6 +31,7 @@ import {
   deletePrefundingRate,
 } from "../../services/operations/prefundingRates";
 import { getAllPractices, type Practice } from "../../services/operations/practices";
+import { readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 
 type PrefundingRate = {
   id: string;
@@ -78,6 +79,11 @@ function parseBasisToArray(basisVal: any): string[] {
 }
 
 export default function PrefundingRates() {
+  const currentUser = readStoredUser();
+  const canCreate = hasPrefundingPermission(currentUser, "CREATE");
+  const canEdit = hasPrefundingPermission(currentUser, "EDIT");
+  const canDelete = hasPrefundingPermission(currentUser, "DELETE");
+
   const [data, setData] = useState<PrefundingRate[]>([]);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -582,8 +588,8 @@ export default function PrefundingRates() {
                 onApplyFilters={handleApplyFilters}
                 filterModalTitle="Filter Rates"
                 filterFields={filterFieldsModal}
-                addNewLabel="Add Rate"
-                onAddNew={handleOpenCreateForm}
+                addNewLabel={canCreate ? "Add Rate" : undefined}
+                onAddNew={canCreate ? handleOpenCreateForm : undefined}
                 onRefresh={loadData}
                 isLoading={isLoading}
                 page={pagination.page}
@@ -693,19 +699,23 @@ export default function PrefundingRates() {
                   </>
                 ) : (
                   <>
-                    <button
-                      onClick={handleDelete}
-                      className="flex items-center gap-2 rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-                    >
-                      Edit Rate
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={handleDelete}
+                        className="flex items-center gap-2 rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                      >
+                        Edit Rate
+                      </button>
+                    )}
                   </>
                 )}
               </div>

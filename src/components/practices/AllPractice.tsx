@@ -206,7 +206,7 @@ type PracticeFormData = {
   credentialingChargeAmount: string;
   processingFeeConfig: ProcessingFeeSettings;
   groupNpis: GroupNpiFormEntry[];
-  goLiveTarget: string; isPrefundingEnabled?: boolean; prefundingCycle?: string; prefundingStartDate?: string; prefundingDueOn?: string; prefundingState?: string; prefundingReminderOn?: string; prefundingStripeAccountId?: string; prefundingInvoiceRecipientId?: string; prefundingRateIds?: string[];
+  goLiveTarget: string; isPrefundingEnabled?: boolean; prefundingCycle?: string; prefundingStartDate?: string; prefundingDueOn?: string; prefundingState?: string; prefundingReminderOn?: string; prefundingStripeAccountId?: string; prefundingInvoiceRecipientId?: string; prefundingReminderRecipientId?: string; prefundingRateIds?: string[];
 };
 
 const initialFormData: PracticeFormData = {
@@ -343,14 +343,19 @@ export default function AllPracticePage() {
     ) {
       return "Reminder On (Days Before Due) is required and must be greater than 0.";
     }
+    const dueOnVal = Number(formData.prefundingDueOn);
+    const reminderOnVal = Number(formData.prefundingReminderOn);
+    if (!isNaN(dueOnVal) && !isNaN(reminderOnVal) && reminderOnVal <= dueOnVal) {
+      return `Reminder On (Days Before Due) must be greater than Due On (${dueOnVal} days) — at least ${dueOnVal + 1} days.`;
+    }
     if (!formData.prefundingStripeAccountId || !formData.prefundingStripeAccountId.trim()) {
       return "Stripe Account is required when Prefunding is enabled.";
     }
     if (!formData.prefundingInvoiceRecipientId || !formData.prefundingInvoiceRecipientId.trim()) {
       return "Prefunding Invoice Recipient is required when Prefunding is enabled.";
     }
-    if (!formData.prefundingRateIds || formData.prefundingRateIds.length === 0) {
-      return "At least one Applicable Prefunding Rate must be assigned.";
+    if (!formData.prefundingReminderRecipientId || !formData.prefundingReminderRecipientId.trim()) {
+      return "Prefunding Reminder Recipient is required when Prefunding is enabled.";
     }
 
     return null;
@@ -363,6 +368,7 @@ export default function AllPracticePage() {
     formData.prefundingReminderOn,
     formData.prefundingStripeAccountId,
     formData.prefundingInvoiceRecipientId,
+    formData.prefundingReminderRecipientId,
     formData.prefundingRateIds,
   ]);
 
@@ -632,12 +638,17 @@ export default function AllPracticePage() {
           String((values as Record<string, unknown>).goLiveTarget || ""),
         ),
         isPrefundingEnabled: Boolean((values as Record<string, unknown>).isPrefundingEnabled),
-        prefundingCycle: String((values as Record<string, unknown>).prefundingCycle || ""),
+        prefundingCycle: String((values as Record<string, unknown>).prefundingCycle || ((values as Record<string, unknown>).isPrefundingEnabled ? "MONTHLY" : "")),
         prefundingStartDate: String((values as Record<string, unknown>).prefundingStartDate || "").split('T')[0],
-        prefundingDueOn: (values as Record<string, unknown>).prefundingDueOn !== undefined && (values as Record<string, unknown>).prefundingDueOn !== null ? String((values as Record<string, unknown>).prefundingDueOn) : "",
-        prefundingReminderOn: (values as Record<string, unknown>).prefundingReminderOn !== undefined && (values as Record<string, unknown>).prefundingReminderOn !== null ? String((values as Record<string, unknown>).prefundingReminderOn) : "",
+        prefundingDueOn: (values as Record<string, unknown>).prefundingDueOn !== undefined && (values as Record<string, unknown>).prefundingDueOn !== null && String((values as Record<string, unknown>).prefundingDueOn) !== ""
+          ? String((values as Record<string, unknown>).prefundingDueOn)
+          : ((values as Record<string, unknown>).isPrefundingEnabled ? "5" : ""),
+        prefundingReminderOn: (values as Record<string, unknown>).prefundingReminderOn !== undefined && (values as Record<string, unknown>).prefundingReminderOn !== null && String((values as Record<string, unknown>).prefundingReminderOn) !== ""
+          ? String((values as Record<string, unknown>).prefundingReminderOn)
+          : ((values as Record<string, unknown>).isPrefundingEnabled ? "6" : ""),
         prefundingStripeAccountId: String((values as Record<string, unknown>).prefundingStripeAccountId || ""),
         prefundingInvoiceRecipientId: String((values as Record<string, unknown>).prefundingInvoiceRecipientId || ""),
+        prefundingReminderRecipientId: String((values as Record<string, unknown>).prefundingReminderRecipientId || ""),
         prefundingState: String((values as Record<string, unknown>).prefundingState || ""),
         prefundingRateIds: Array.isArray((values as Record<string, unknown>).prefundingRates) ? (values as Record<string, unknown>).prefundingRates.map((r: any) => r.prefundingRateId) : [],
       });
@@ -1112,6 +1123,7 @@ export default function AllPracticePage() {
         prefundingReminderOn: formData.prefundingReminderOn ? Number(formData.prefundingReminderOn) : undefined,
         prefundingStripeAccountId: formData.prefundingStripeAccountId || undefined,
         prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
+        prefundingReminderRecipientId: formData.prefundingReminderRecipientId || undefined,
         prefundingState: formData.prefundingState || undefined,
         ...(formData.prefundingRateIds && formData.prefundingRateIds.length > 0 ? { prefundingRateIds: formData.prefundingRateIds } : {}),
         ...practiceProfilePayload(profileForm),
@@ -1300,6 +1312,7 @@ export default function AllPracticePage() {
           prefundingReminderOn: formData.prefundingReminderOn ? Number(formData.prefundingReminderOn) : undefined,
           prefundingStripeAccountId: formData.prefundingStripeAccountId || undefined,
           prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
+        prefundingReminderRecipientId: formData.prefundingReminderRecipientId || undefined,
           prefundingState: formData.prefundingState || undefined,
           ...(formData.prefundingRateIds && formData.prefundingRateIds.length > 0 ? { prefundingRateIds: formData.prefundingRateIds } : {}),
           ...(selectedPracticeDetail
@@ -1357,6 +1370,7 @@ export default function AllPracticePage() {
         prefundingReminderOn: formData.prefundingReminderOn ? Number(formData.prefundingReminderOn) : undefined,
         prefundingStripeAccountId: formData.prefundingStripeAccountId || undefined,
         prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
+        prefundingReminderRecipientId: formData.prefundingReminderRecipientId || undefined,
         prefundingState: formData.prefundingState || undefined,
         ...(formData.prefundingRateIds && formData.prefundingRateIds.length > 0 ? { prefundingRateIds: formData.prefundingRateIds } : {}),
         ...(selectedPracticeDetail
@@ -1701,6 +1715,9 @@ export default function AllPracticePage() {
     isPrefundingEnabled: isEnabled,
     billingPaymentMethod: isEnabled ? "ACH" : prev.billingPaymentMethod,
     ...(isEnabled ? {
+      prefundingDueOn: prev.prefundingDueOn || "5",
+      prefundingReminderOn: prev.prefundingReminderOn || "6",
+      prefundingCycle: prev.prefundingCycle || "MONTHLY",
       processingFeeConfig: {
         ...prev.processingFeeConfig,
         allocationMode: "PERCENT",
@@ -1716,6 +1733,7 @@ export default function AllPracticePage() {
       prefundingReminderOn: "",
       prefundingStripeAccountId: "",
       prefundingInvoiceRecipientId: "",
+      prefundingReminderRecipientId: "",
       prefundingState: "",
       prefundingRateIds: []
     })
@@ -1769,7 +1787,21 @@ export default function AllPracticePage() {
                   type="number"
                   min="1"
                   value={formData.prefundingDueOn || ""}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, prefundingDueOn: e.target.value }))}
+                  onChange={(e) => {
+                    const newDueOn = e.target.value;
+                    const numDueOn = Number(newDueOn);
+                    setFormData((prev) => {
+                      const updated: any = { ...prev, prefundingDueOn: newDueOn };
+                      // If reminder on is not set or less than newDueOn + 1, adjust to default newDueOn + 1
+                      if (!isNaN(numDueOn) && numDueOn > 0) {
+                        const currentReminder = Number(prev.prefundingReminderOn);
+                        if (isNaN(currentReminder) || currentReminder <= numDueOn) {
+                          updated.prefundingReminderOn = String(numDueOn + 1);
+                        }
+                      }
+                      return updated;
+                    });
+                  }}
                   disabled={readOnly}
                   placeholder="e.g. 5"
                   className="app-control w-full rounded-md px-3 py-2 text-[13px]"
@@ -1790,97 +1822,106 @@ export default function AllPracticePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">
-                  Reminder On (Days Before Due) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={formData.prefundingReminderOn || ""}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, prefundingReminderOn: e.target.value }))}
-                  disabled={readOnly}
-                  placeholder="e.g. 2"
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">
-                  Stripe Account <span className="text-red-500">*</span>
-                </label>
-                <Select
-                  value={formData.prefundingStripeAccountId || ""}
-                  onChange={(val) => setFormData((prev) => ({ ...prev, prefundingStripeAccountId: val }))}
-                  options={stripeAccountOptions}
-                  placeholder="Select Stripe Account"
-                  disabled={readOnly}
-                  className="w-full"
-                />
-              </div>
-            </div>
-
             <div>
               <label className="mb-1 block text-[12px] font-medium text-slate-600">
-                Prefunding Invoice Recipient <span className="text-red-500">*</span>
+                Reminder On (Days Before Due) <span className="text-red-500">*</span>
               </label>
-              {(() => {
-                // Combine practice's assigned persons with globally available persons to ensure options are always available (excluding EMPLOYEE role)
-                const practicePersonsList = selectedPracticeDetail?.persons
-                  ?.filter((p: any) => {
-                    const personObj = p.person || p;
-                    const roles: string[] = Array.isArray(personObj.roles)
-                      ? personObj.roles.map((r: any) => String(r).toUpperCase())
-                      : [];
-                    return !roles.includes("EMPLOYEE");
-                  })
-                  ?.map((p: any) => {
-                    const personObj = p.person || p;
-                    const fullName = personObj.firstName || personObj.lastName
-                      ? `${personObj.firstName || ""} ${personObj.lastName || ""}`.trim()
-                      : (personObj.name || "Contact Person");
-                    return {
-                      label: `${fullName}${personObj.email ? ` (${personObj.email})` : ""}`,
-                      value: personObj.id,
-                    };
-                  }) || [];
-
-                // Deduplicate with availablePersons
-                const map = new Map<string, string>();
-                practicePersonsList.forEach((item: any) => {
-                  if (item.value) map.set(item.value, item.label);
-                });
-                availablePersons.forEach((item: any) => {
-                  if (item.value && !map.has(item.value)) map.set(item.value, item.label);
-                });
-
-                const combinedPersonOptions = Array.from(map.entries()).map(([value, label]) => ({
-                  value,
-                  label,
-                }));
-
-                return (
-                  <Select
-                    value={formData.prefundingInvoiceRecipientId || ""}
-                    onChange={(val) => setFormData((prev) => ({ ...prev, prefundingInvoiceRecipientId: val }))}
-                    options={combinedPersonOptions}
-                    placeholder="Select Recipient Person"
-                    disabled={readOnly}
-                    className="w-full"
-                  />
-                );
-              })()}
+              <input
+                type="number"
+                min={Number(formData.prefundingDueOn) ? Number(formData.prefundingDueOn) + 1 : 1}
+                value={formData.prefundingReminderOn || ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, prefundingReminderOn: e.target.value }))}
+                disabled={readOnly}
+                placeholder="e.g. 6"
+                className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+              />
             </div>
 
             <div>
               <label className="mb-1 block text-[12px] font-medium text-slate-600">
-                Applicable Prefunding Rates <span className="text-red-500">*</span>
+                Stripe Account <span className="text-red-500">*</span>
+              </label>
+              <Select
+                value={formData.prefundingStripeAccountId || ""}
+                onChange={(val) => setFormData((prev) => ({ ...prev, prefundingStripeAccountId: val }))}
+                options={stripeAccountOptions}
+                placeholder="Select Stripe Account"
+                disabled={readOnly}
+                className="w-full"
+              />
+            </div>
+
+            {(() => {
+              // Only include persons related to this practice, strictly excluding role EMPLOYEE
+              const practicePersonsList = (selectedPracticeDetail?.persons || [])
+                .map((p: any) => p.person || p)
+                .filter((personObj: any) => {
+                  const roles: string[] = Array.isArray(personObj.roles)
+                    ? personObj.roles.map((r: any) => String(r).toUpperCase())
+                    : [];
+                  return !roles.includes("EMPLOYEE");
+                })
+                .map((personObj: any) => {
+                  const fullName = personObj.firstName || personObj.lastName
+                    ? `${personObj.firstName || ""} ${personObj.lastName || ""}`.trim()
+                    : (personObj.name || "Contact Person");
+                  return {
+                    label: `${fullName}${personObj.email ? ` (${personObj.email})` : ""}`,
+                    value: personObj.id,
+                  };
+                });
+
+              // If practice persons list is empty, fallback to available non-employee persons
+              const recipientOptions = practicePersonsList.length > 0 ? practicePersonsList : availablePersons;
+
+              return (
+                <>
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                      Prefunding Invoice Recipient <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={formData.prefundingInvoiceRecipientId || ""}
+                      onChange={(val) => setFormData((prev) => ({ ...prev, prefundingInvoiceRecipientId: val }))}
+                      options={recipientOptions}
+                      placeholder="Select Invoice Recipient Person"
+                      disabled={readOnly}
+                      className="w-full"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Receives invoice sending, due date, overdue, and paid receipt emails.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                      Prefunding Reminder Recipient <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={formData.prefundingReminderRecipientId || ""}
+                      onChange={(val) => setFormData((prev) => ({ ...prev, prefundingReminderRecipientId: val }))}
+                      options={recipientOptions}
+                      placeholder="Select Prefunding Reminder Recipient"
+                      disabled={readOnly}
+                      className="w-full"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Receives upcoming cycle schedule reminders with cycle details.
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
+
+            <div>
+              <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                Applicable Prefunding Rates
               </label>
               <MultiSelect
                 options={availableRates}
                 value={formData.prefundingRateIds || []}
                 onChange={(val) => setFormData((prev) => ({ ...prev, prefundingRateIds: val }))}
-                placeholder="Assign Prefunding Rates"
+                placeholder="Assign Prefunding Rates (Optional)"
                 disabled={readOnly}
               />
             </div>

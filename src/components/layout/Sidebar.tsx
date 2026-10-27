@@ -1,4 +1,4 @@
-﻿import {
+import {
   Backpack,
   User,
   Building2,
@@ -42,8 +42,10 @@ import {
   BUSINESS_WRITE_ROLES,
   hasAdminAccess,
   hasAnyRole,
+  hasPrefundingPermission,
   MODULE_ACCESS,
   readStoredUser,
+  type PrefundingPermission,
   type UserRole,
 } from "../../utils/auth";
 
@@ -52,6 +54,7 @@ type SidebarSectionItem = {
   to?: string;
   adminOnly?: boolean;
   requiresPrefundingAccess?: boolean;
+  requiredPrefundingPermission?: PrefundingPermission;
   requiredRoles?: UserRole[];
 };
 
@@ -61,6 +64,7 @@ type SidebarItem = {
   items?: SidebarSectionItem[];
   adminOnly?: boolean;
   requiresPrefundingAccess?: boolean;
+  requiredPrefundingPermission?: PrefundingPermission;
   requiredRoles?: UserRole[];
 };
 
@@ -192,7 +196,11 @@ const sidebarSteps: SidebarItem[] = [
     items: [
       { label: "Dashboard", to: "/prefunding/dashboard" },
       { label: "Prefunding Rates", to: "/prefunding/rates" },
-      { label: "Calculate Prefunding", to: "/prefunding/calculate" },
+      {
+        label: "Calculate Prefunding",
+        to: "/prefunding/calculate",
+        requiredPrefundingPermission: "CALCULATE",
+      },
       { label: "Prefunding Invoices", to: "/prefunding/invoices" },
     ],
   },
@@ -468,7 +476,9 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
   function canRenderItem(item: SidebarSectionItem | SidebarItem) {
     if (item.adminOnly && !isAdmin) return false;
     const user = readStoredUser();
-    if (item.requiresPrefundingAccess && !user?.hasPrefundingAccess)
+    if (item.requiresPrefundingAccess && !(isAdmin || user?.hasPrefundingAccess))
+      return false;
+    if (item.requiredPrefundingPermission && !hasPrefundingPermission(user, item.requiredPrefundingPermission))
       return false;
     if (!item.requiredRoles || item.requiredRoles.length === 0) return true;
     return hasAnyRole(userRole, item.requiredRoles);

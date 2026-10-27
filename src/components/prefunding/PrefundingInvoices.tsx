@@ -49,6 +49,7 @@ import {
   openPrefundingInvoicePdf,
   resendPrefundingInvoice,
 } from "../../services/operations/prefundingInvoices";
+import { readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 import { getAllPractices, type Practice } from "../../services/operations/practices";
 import { getSystemSettingsApi, type SystemSettings } from "../../services/operations/users";
 import {
@@ -145,6 +146,12 @@ function roundMoney(value: number) {
 
 export default function PrefundingInvoices() {
   const navigate = useNavigate();
+  const currentUser = readStoredUser();
+  const canEdit = hasPrefundingPermission(currentUser, "EDIT");
+  const canApprove = hasPrefundingPermission(currentUser, "APPROVE");
+  const canPost = hasPrefundingPermission(currentUser, "POST");
+  const canDelete = hasPrefundingPermission(currentUser, "DELETE");
+
   const [data, setData] = useState<Invoice[]>([]);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
@@ -468,6 +475,8 @@ export default function PrefundingInvoices() {
         cell: ({ row }) => {
           const inv = row.original;
           const { netAmount } = calculateInvoiceFees(inv);
+          const transfers = inv.stripeTransfers;
+          const isTransferCompleted = transfers && transfers.length > 0 && transfers.some((t: any) => t.status === "SENT");
 
           return (
             <div className="flex flex-col">
@@ -475,7 +484,7 @@ export default function PrefundingInvoices() {
                 {netAmount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
               </span>
               <span className="text-[11px] text-slate-400">
-                Transfer Amount
+                {isTransferCompleted ? "Net Amount (Transfer)" : "Net Amount (To Be Transferred)"}
               </span>
             </div>
           );
@@ -718,32 +727,36 @@ export default function PrefundingInvoices() {
               <div className="flex flex-wrap items-center gap-2 border-b border-[#f0ece6] bg-slate-50/60 px-4 py-2.5">
                 {selectedInvoice.status.toLowerCase() === "draft" && (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const cycleParam = selectedInvoice.cycle || selectedInvoice.prefundingCycle || "";
-                        const url = `/prefunding/calculate?invoiceId=${selectedInvoice.id}&practiceId=${selectedInvoice.practiceId}${cycleParam ? `&cycle=${encodeURIComponent(cycleParam)}` : ""}`;
-                        navigate(url);
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-all cursor-pointer"
-                    >
-                      <Edit className="h-3.5 w-3.5 text-slate-500" />
-                      Edit Draft
-                    </button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cycleParam = selectedInvoice.cycle || selectedInvoice.prefundingCycle || "";
+                          const url = `/prefunding/calculate?invoiceId=${selectedInvoice.id}&practiceId=${selectedInvoice.practiceId}${cycleParam ? `&cycle=${encodeURIComponent(cycleParam)}` : ""}`;
+                          navigate(url);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-all cursor-pointer"
+                      >
+                        <Edit className="h-3.5 w-3.5 text-slate-500" />
+                        Edit Draft
+                      </button>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => handleStatusChange("Pending Approval")}
-                      disabled={isUpdatingStatus}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-600 disabled:opacity-50 transition-all cursor-pointer"
-                    >
-                      <Clock className="h-3.5 w-3.5" />
-                      Submit for Approval
-                    </button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange("Pending Approval")}
+                        disabled={isUpdatingStatus}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-600 disabled:opacity-50 transition-all cursor-pointer"
+                      >
+                        <Clock className="h-3.5 w-3.5" />
+                        Submit for Approval
+                      </button>
+                    )}
                   </>
                 )}
 
-                {selectedInvoice.status.toLowerCase().includes("pending") && (
+                {selectedInvoice.status.toLowerCase().includes("pending") && canApprove && (
                   <button
                     type="button"
                     onClick={() => handleStatusChange("Approved")}
@@ -755,7 +768,7 @@ export default function PrefundingInvoices() {
                   </button>
                 )}
 
-                {selectedInvoice.status.toLowerCase() === "approved" && (
+                {selectedInvoice.status.toLowerCase() === "approved" && canPost && (
                   <button
                     type="button"
                     onClick={() => handleStatusChange("Posted")}
@@ -776,7 +789,7 @@ export default function PrefundingInvoices() {
                   </button>
                 )}
 
-                {selectedInvoice.status.toLowerCase() === "posted" && (
+                {selectedInvoice.status.toLowerCase() === "posted" && canPost && (
                   <button
                     type="button"
                     onClick={handleResend}
@@ -813,7 +826,8 @@ export default function PrefundingInvoices() {
                     : "Preview Invoice"}
                 </button>
 
-                {selectedInvoice.status.toLowerCase() !== "approved" &&
+                {canDelete &&
+                  selectedInvoice.status.toLowerCase() !== "approved" &&
                   selectedInvoice.status.toLowerCase() !== "posted" &&
                   selectedInvoice.status.toLowerCase() !== "paid" && (
                     <button
@@ -901,7 +915,7 @@ export default function PrefundingInvoices() {
                             value: selectedInvoice.dueDate || "-",
                           },
                           {
-                            label: "Recipient (Primary Contact)",
+                            label: "Recipient",
                             value: selectedInvoice.recipientName
                               ? `${selectedInvoice.recipientName} (${selectedInvoice.recipientEmail || "No email"})`
                               : selectedInvoice.recipient || "-",
@@ -946,7 +960,13 @@ export default function PrefundingInvoices() {
                           </span>
                         </div>
                         <div className="flex items-center justify-between border-t border-[#eadfcd]/30 pt-2">
-                          <span className="text-slate-600 font-semibold">Net Amount (Transfer)</span>
+                          <span className="text-slate-600 font-semibold">
+                            {selectedInvoice.stripeTransfers &&
+                            selectedInvoice.stripeTransfers.length > 0 &&
+                            selectedInvoice.stripeTransfers.some((t: any) => t.status === "SENT")
+                              ? "Net Amount (Transfer)"
+                              : "Net Amount (To Be Transferred)"}
+                          </span>
                           <span className="font-extrabold text-[15px] text-[#4f63ea]">
                             {formatMoney(
                               selectedInvoice.netAmount !== undefined && selectedInvoice.netAmount !== null

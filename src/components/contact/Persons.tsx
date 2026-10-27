@@ -1379,22 +1379,28 @@ export default function PersonsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
-                <Select value={formData.payType || ""} onChange={(val) => handleFormChange("payType", val)} options={[{label: "Hourly", value: "HOURLY"}, {label: "Monthly", value: "MONTHLY"}, {label: "Annually", value: "ANNUALLY"}]} placeholder="Select Pay Type" className="w-full" />
+                <Select
+                  value={formData.payType || ""}
+                  onChange={(val) => handleFormChange("payType", val)}
+                  options={[
+                    { label: "Hourly", value: "HOURLY" },
+                    { label: "Weekly", value: "WEEKLY" },
+                    { label: "Bi-Weekly", value: "BI_WEEKLY" },
+                    { label: "Monthly", value: "MONTHLY" },
+                    { label: "Annually", value: "ANNUALLY" },
+                  ]}
+                  placeholder="Select Pay Type"
+                  className="w-full"
+                />
               </div>
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
                 <input type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">Budgeted Hours</label>
-                <input type="number" step="0.5" value={formData.budgetedHours} onChange={(e) => handleFormChange("budgetedHours", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0" />
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
-                <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
-              </div>
+            <div>
+              <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
+              <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
             </div>
           </div>
         )}
@@ -2117,22 +2123,28 @@ export default function PersonsPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
-                          <Select value={formData.payType || ""} onChange={(val) => handleFormChange("payType", val)} options={[{label: "Hourly", value: "HOURLY"}, {label: "Monthly", value: "MONTHLY"}, {label: "Annually", value: "ANNUALLY"}]} placeholder="Select Pay Type" className="w-full" />
+                          <Select
+                            value={formData.payType || ""}
+                            onChange={(val) => handleFormChange("payType", val)}
+                            options={[
+                              { label: "Hourly", value: "HOURLY" },
+                              { label: "Weekly", value: "WEEKLY" },
+                              { label: "Bi-Weekly", value: "BI_WEEKLY" },
+                              { label: "Monthly", value: "MONTHLY" },
+                              { label: "Annually", value: "ANNUALLY" },
+                            ]}
+                            placeholder="Select Pay Type"
+                            className="w-full"
+                          />
                         </div>
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
                           <input type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Budgeted Hours</label>
-                          <input type="number" step="0.5" value={formData.budgetedHours} onChange={(e) => handleFormChange("budgetedHours", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0" />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
-                          <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
-                        </div>
+                      <div>
+                        <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
+                        <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
                       </div>
                     </div>
                   )}
