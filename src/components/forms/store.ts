@@ -76,10 +76,11 @@ let loading: Promise<void> | null = null;
 export function loadForms() {
   if (loading) return loading;
   loading = (async () => {
-    const [forms, templates] = await Promise.all([
-      formApi.listForms(),
+    const [listed, templates] = await Promise.all([
+      formApi.listForms({ page: 1, pageSize: 100 }),
       formApi.listTemplates(),
     ]);
+    const forms = listed.forms;
     const detailed = new Map(state.forms.filter((form) => form.detailLoaded).map((form) => [form.id, form]));
     state.forms = forms.map((form) => detailed.get(form.id) || form);
     state.templates = templates;

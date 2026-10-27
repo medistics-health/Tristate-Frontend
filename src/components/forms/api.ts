@@ -90,17 +90,27 @@ export function stubFromList(form: ListForm): FormRecord {
   };
 }
 
-export async function listForms() {
-  const forms: FormRecord[] = [];
-  let page = 1;
-  let total = 0;
-  do {
-    const data = await request<{ forms: ListForm[]; total: number }>("GET", `/forms?page=${page}&pageSize=100`);
-    total = data.total;
-    forms.push(...data.forms.map(stubFromList));
-    page += 1;
-  } while (forms.length < total && page < 20);
-  return forms;
+export async function listForms(query: { page?: number; pageSize?: number; search?: string; status?: string } = {}) {
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? 25;
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (query.search?.trim()) params.set("search", query.search.trim());
+  if (query.status) params.set("status", query.status);
+  const data = await request<{
+    forms: ListForm[];
+    total: number;
+    page: number;
+    pageSize: number;
+    pagination?: { totalRecords: number; totalPages: number; currentPage: number; limit: number };
+  }>("GET", `/forms?${params.toString()}`);
+  const total = data.pagination?.totalRecords ?? data.total;
+  return {
+    forms: data.forms.map(stubFromList),
+    total,
+    page: data.pagination?.currentPage ?? data.page,
+    pageSize: data.pagination?.limit ?? data.pageSize,
+    totalPages: data.pagination?.totalPages ?? Math.ceil(total / pageSize),
+  };
 }
 
 export async function listTemplates() {

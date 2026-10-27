@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { LayoutGrid } from "lucide-react";
@@ -9,39 +9,49 @@ import { createForm, listForms } from "./api";
 import { StatusPill, formatDay } from "./chrome";
 import type { FormRecord, FormStatus } from "./types";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export default function FormsHome() {
   const navigate = useNavigate();
   const [forms, setForms] = useState<FormRecord[]>([]);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
-  function load() {
-    setLoading(true);
-    listForms()
-      .then(setForms)
-      .catch((error: Error) => toast.error(error.message))
-      .finally(() => setLoading(false));
-  }
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    load();
-  }, []);
+    const handle = window.setTimeout(() => setDebouncedQuery(query), 300);
+    return () => window.clearTimeout(handle);
+  }, [query]);
 
-  const filtered = useMemo(() => {
-    return forms.filter((form) => {
-      const matchesQuery = `${form.title} ${form.refCode} ${form.owner}`.toLowerCase().includes(query.toLowerCase());
-      const matchesStatus = !status || form.status === status;
-      return matchesQuery && matchesStatus;
-    });
-  }, [forms, query, status]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    listForms({ page, pageSize, search: debouncedQuery, status })
+      .then((data) => {
+        if (cancelled) return;
+        setForms(data.forms);
+        setTotalRecords(data.total);
+        setTotalPages(Math.max(1, data.totalPages));
+      })
+      .catch((error: Error) => {
+        if (!cancelled) toast.error(error.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, pageSize, debouncedQuery, status, refreshKey]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const rows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <AppLayout
@@ -68,7 +78,10 @@ export default function FormsHome() {
                     key: "status",
                     label: "Status",
                     displayValue: status.charAt(0) + status.slice(1).toLowerCase(),
-                    onClear: () => setStatus(""),
+                    onClear: () => {
+                      setStatus("");
+                      setPage(1);
+                    },
                   }]
                 : []
             }
@@ -103,13 +116,18 @@ export default function FormsHome() {
                 .then((form) => navigate(`/forms/${form.id}`))
                 .catch((error: Error) => toast.error(error.message));
             }}
-            onRefresh={load}
+            onRefresh={() => setRefreshKey((value) => value + 1)}
             isLoading={loading}
             page={currentPage}
-            pageSize={PAGE_SIZE}
-            totalRecords={filtered.length}
+            pageSize={pageSize}
+            totalRecords={totalRecords}
             totalPages={totalPages}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
             onPageChange={setPage}
+            onPageSizeChange={(nextSize) => {
+              setPageSize(nextSize);
+              setPage(1);
+            }}
           >
             <div className="min-h-0 flex-1 overflow-auto">
               <table className="min-w-full border-separate border-spacing-0 text-left text-[13px]">
@@ -123,7 +141,7 @@ export default function FormsHome() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((form) => (
+                  {forms.map((form) => (
                     <tr key={form.id} className="hover:bg-[#fbfaf8]">
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 font-medium text-slate-800">{form.title}</td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-slate-500">{form.refCode}</td>
@@ -151,7 +169,7 @@ export default function FormsHome() {
                       </td>
                     </tr>
                   ))}
-                  {!loading && rows.length === 0 ? (
+                  {!loading && forms.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-14 text-center text-[13px] text-slate-400">
                         No forms match the current filters.
