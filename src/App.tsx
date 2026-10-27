@@ -79,6 +79,11 @@ import FormBuilderPage from "./components/forms/FormBuilderPage";
 import SendFormPage from "./components/forms/SendFormPage";
 import FormResponsesPage from "./components/forms/FormResponsesPage";
 import PublicFormPage from "./components/forms/PublicFormPage";
+import PrefundingDashboard from "./components/prefunding/PrefundingDashboard";
+import PrefundingRates from "./components/prefunding/PrefundingRates";
+import CalculatePrefunding from "./components/prefunding/CalculatePrefunding";
+import PrefundingInvoices from "./components/prefunding/PrefundingInvoices";
+import { hasPrefundingPermission, readStoredUser } from "./utils/auth";
 
 function App() {
   function ModuleRoute({
@@ -97,6 +102,20 @@ function App() {
         </RoleRoute>
       </ProtectedRoute>
     );
+  }
+
+  function PrefundingRoute({
+    children,
+    permission,
+  }: {
+    children: ReactNode;
+    permission?: "VIEW" | "CREATE" | "EDIT" | "CALCULATE" | "APPROVE" | "POST" | "DELETE";
+  }) {
+    const user = readStoredUser();
+    if (!hasPrefundingPermission(user, permission)) {
+      return <Navigate to="/dashboard" replace />;
+    }
+    return <ProtectedRoute>{children as JSX.Element}</ProtectedRoute>;
   }
 
   function UUIDProtectedRoute({ children }: { children: ReactNode }) {
@@ -823,6 +842,38 @@ function App() {
           <ModuleRoute allowedRoles={MODULE_ACCESS.SETTINGS}>
             <SettingsPage />
           </ModuleRoute>
+        }
+      />
+      <Route
+        path="/prefunding/dashboard"
+        element={
+          <PrefundingRoute permission="VIEW">
+            <PrefundingDashboard />
+          </PrefundingRoute>
+        }
+      />
+      <Route
+        path="/prefunding/rates"
+        element={
+          <PrefundingRoute permission="VIEW">
+            <PrefundingRates />
+          </PrefundingRoute>
+        }
+      />
+      <Route
+        path="/prefunding/calculate"
+        element={
+          <PrefundingRoute permission="CALCULATE">
+            <CalculatePrefunding />
+          </PrefundingRoute>
+        }
+      />
+      <Route
+        path="/prefunding/invoices"
+        element={
+          <PrefundingRoute permission="VIEW">
+            <PrefundingInvoices />
+          </PrefundingRoute>
         }
       />
     </Routes>

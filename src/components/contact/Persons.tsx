@@ -1,3 +1,6 @@
+import { AlertCircle } from "lucide-react";
+import type { PersonWithPractices } from "../../services/operations/persons";
+import { checkDuplicatePersonApi } from "../../services/operations/persons";
 import {
   flexRender,
   getCoreRowModel,
@@ -33,6 +36,8 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import DatePicker from "../shared/DatePicker";
+import MultiSelect from "../shared/MultiSelect";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import type { PersonBody, PersonCellValue, PersonRow, PersonViewData } from "./types";
 import PersonCredentialFields, {
@@ -118,7 +123,8 @@ type Company = {
 type PersonFormData = {
   firstName: string;
   lastName: string;
-  role: string;
+  roles: string[];
+  role?: string;
   influence: string;
   email: string;
   phone: string;
@@ -126,6 +132,14 @@ type PersonFormData = {
   companyIds: string[];
   designation: string;
   status: string;
+  jobCategory?: string;
+  workLocation?: string;
+  state?: string;
+  dateOfJoining?: string;
+  payType?: string;
+  payRate?: number;
+  budgetedHours?: number;
+  bufferPercentage?: number;
   individualNpi: string;
   individualPtan: string;
   individualRailroadMedicarePtan: string;
@@ -172,6 +186,7 @@ function credentialPayload(form: PersonFormData): Partial<PersonBody> {
 const initialFormData: PersonFormData = {
   firstName: "",
   lastName: "",
+  roles: ["ADMIN"],
   role: "ADMIN",
   influence: "MEDIUM",
   email: "",
@@ -183,6 +198,34 @@ const initialFormData: PersonFormData = {
   ...emptyCredentialFields,
 };
 
+const usStates = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", 
+  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
+  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
+  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
+  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+];
+
+const usStatesOptions = [
+  { label: "Alabama", value: "AL" }, { label: "Alaska", value: "AK" }, { label: "Arizona", value: "AZ" },
+  { label: "Arkansas", value: "AR" }, { label: "California", value: "CA" }, { label: "Colorado", value: "CO" },
+  { label: "Connecticut", value: "CT" }, { label: "Delaware", value: "DE" }, { label: "Florida", value: "FL" },
+  { label: "Georgia", value: "GA" }, { label: "Hawaii", value: "HI" }, { label: "Idaho", value: "ID" },
+  { label: "Illinois", value: "IL" }, { label: "Indiana", value: "IN" }, { label: "Iowa", value: "IA" },
+  { label: "Kansas", value: "KS" }, { label: "Kentucky", value: "KY" }, { label: "Louisiana", value: "LA" },
+  { label: "Maine", value: "ME" }, { label: "Maryland", value: "MD" }, { label: "Massachusetts", value: "MA" },
+  { label: "Michigan", value: "MI" }, { label: "Minnesota", value: "MN" }, { label: "Mississippi", value: "MS" },
+  { label: "Missouri", value: "MO" }, { label: "Montana", value: "MT" }, { label: "Nebraska", value: "NE" },
+  { label: "Nevada", value: "NV" }, { label: "New Hampshire", value: "NH" }, { label: "New Jersey", value: "NJ" },
+  { label: "New Mexico", value: "NM" }, { label: "New York", value: "NY" }, { label: "North Carolina", value: "NC" },
+  { label: "North Dakota", value: "ND" }, { label: "Ohio", value: "OH" }, { label: "Oklahoma", value: "OK" },
+  { label: "Oregon", value: "OR" }, { label: "Pennsylvania", value: "PA" }, { label: "Rhode Island", value: "RI" },
+  { label: "South Carolina", value: "SC" }, { label: "South Dakota", value: "SD" }, { label: "Tennessee", value: "TN" },
+  { label: "Texas", value: "TX" }, { label: "Utah", value: "UT" }, { label: "Vermont", value: "VT" },
+  { label: "Virginia", value: "VA" }, { label: "Washington", value: "WA" }, { label: "West Virginia", value: "WV" },
+  { label: "Wisconsin", value: "WI" }, { label: "Wyoming", value: "WY" }
+];
+
 const roleOptions = [
   "OWNER",
   "ADMIN",
@@ -191,6 +234,8 @@ const roleOptions = [
   "CLINICAL",
   "PROCUREMENT",
   "OTHER",
+  "EMPLOYEE",
+  "MANAGER",
 ];
 const influenceOptions = ["LOW", "MEDIUM", "HIGH", "DECISION_MAKER"];
 const statusOptions = ["ACTIVE", "INACTIVE"];
@@ -226,6 +271,8 @@ export default function PersonsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState<PersonFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [duplicateFound, setDuplicateFound] = useState<PersonWithPractices | null>(null);
+  const [isDuplicateConfirmed, setIsDuplicateConfirmed] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [practices, setPractices] = useState<Practice[]>([]);
@@ -472,7 +519,7 @@ export default function PersonsPage() {
       setFormData({
         firstName: String(values.firstName || ""),
         lastName: String(values.lastName || ""),
-        role: String(values.role || "ADMIN"),
+        roles: Array.isArray(values.rolesArray) ? (values.rolesArray as string[]) : ["ADMIN"],
         influence: String(values.influence || "MEDIUM"),
         email: String(values.email || ""),
         phone: normalizePhoneInput(String(values.phone || "")),
@@ -480,6 +527,14 @@ export default function PersonsPage() {
         companyIds: companyIdsArray,
         designation: String(values.designation || ""),
         status: String(values.status || "ACTIVE"),
+        jobCategory: String(values.jobCategory || ""),
+        workLocation: String(values.workLocation || ""),
+        state: String(values.state || ""),
+        dateOfJoining: String(values.dateOfJoining || ""),
+        payType: String(values.payType || ""),
+        payRate: values.payRate ? Number(values.payRate) : undefined,
+        budgetedHours: values.budgetedHours ? Number(values.budgetedHours) : undefined,
+        bufferPercentage: values.bufferPercentage ? Number(values.bufferPercentage) : undefined,
         ...(Object.fromEntries(
           personCredentialKeys.map((key) => [key, String(values[key] || "")]),
         ) as typeof emptyCredentialFields),
@@ -543,6 +598,8 @@ export default function PersonsPage() {
                 CLINICAL: "bg-cyan-100 text-cyan-700",
                 PROCUREMENT: "bg-yellow-100 text-yellow-700",
                 OTHER: "bg-gray-100 text-gray-700",
+                EMPLOYEE: "bg-indigo-100 text-indigo-700",
+                MANAGER: "bg-teal-100 text-teal-700",
               };
               return (
                 <span
@@ -785,8 +842,8 @@ export default function PersonsPage() {
     }
   }, [showDetailPanel, isEditing]);
 
-  async function handleCreatePerson(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCreatePerson(e: React.FormEvent, force: boolean = false) {
+    if (e) e.preventDefault();
     if (!canWritePersons) {
       toast.error("You do not have permission to create persons.");
       return;
@@ -797,10 +854,6 @@ export default function PersonsPage() {
       toast.error("First name and last name are required");
       return;
     }
-    // if (formData.practiceIds.length === 0) {
-    //   toast.error("Please select at least one practice");
-    //   return;
-    // }
     if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
       toast.error("Person phone must be exactly 10 digits.");
       return;
@@ -812,11 +865,29 @@ export default function PersonsPage() {
     }
 
     setIsSubmitting(true);
+
+    if (!force) {
+      try {
+        const { isDuplicate, duplicatePerson } = await checkDuplicatePersonApi(
+          formData.firstName.trim(),
+          formData.lastName.trim(),
+          formData.designation
+        );
+        if (isDuplicate && duplicatePerson) {
+          setDuplicateFound(duplicatePerson);
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Duplicate check failed:", err);
+      }
+    }
+
     try {
       const personData: PersonBody = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        role: formData.role as PersonBody["role"],
+        roles: formData.roles,
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: trimmedPhone || undefined,
@@ -824,6 +895,16 @@ export default function PersonsPage() {
         companyIds: formData.companyIds,
         designation: formData.designation.trim() || undefined,
         status: formData.status,
+        ...((formData.roles || []).includes("EMPLOYEE") ? {
+          jobCategory: formData.jobCategory,
+          workLocation: formData.workLocation,
+          state: formData.state,
+          dateOfJoining: formData.dateOfJoining,
+          payType: formData.payType,
+          payRate: Number(formData.payRate) || undefined,
+          budgetedHours: Number(formData.budgetedHours) || undefined,
+          bufferPercentage: Number(formData.bufferPercentage) || undefined,
+        } : { jobCategory: null, workLocation: null, state: null, dateOfJoining: null, payType: null, payRate: null, budgetedHours: null, bufferPercentage: null } as any),
         ...credentialPayload(formData),
       };
 
@@ -847,8 +928,8 @@ export default function PersonsPage() {
     }
   }
 
-  async function handleUpdatePerson(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleUpdatePerson(e: React.FormEvent, force: boolean = false) {
+    if (e) e.preventDefault();
     if (!canWritePersons) {
       toast.error("You do not have permission to update persons.");
       return;
@@ -874,11 +955,30 @@ export default function PersonsPage() {
     }
 
     setIsSubmitting(true);
+
+    if (!force) {
+      try {
+        const { isDuplicate, duplicatePerson } = await checkDuplicatePersonApi(
+          formData.firstName.trim(),
+          formData.lastName.trim(),
+          formData.designation,
+          String(selectedRow.values.id)
+        );
+        if (isDuplicate && duplicatePerson) {
+          setDuplicateFound(duplicatePerson);
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Duplicate check failed:", err);
+      }
+    }
+
     try {
       const personData: Partial<PersonBody> = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        role: formData.role as PersonBody["role"],
+        roles: formData.roles,
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: trimmedPhone || "",
@@ -886,6 +986,16 @@ export default function PersonsPage() {
         practiceIds: formData.practiceIds,
         companyIds: formData.companyIds,
         status: formData.status,
+        ...((formData.roles || []).includes("EMPLOYEE") ? {
+          jobCategory: formData.jobCategory,
+          workLocation: formData.workLocation,
+          state: formData.state,
+          dateOfJoining: formData.dateOfJoining,
+          payType: formData.payType,
+          payRate: Number(formData.payRate) || undefined,
+          budgetedHours: Number(formData.budgetedHours) || undefined,
+          bufferPercentage: Number(formData.bufferPercentage) || undefined,
+        } : { jobCategory: null, workLocation: null, state: null, dateOfJoining: null, payType: null, payRate: null, budgetedHours: null, bufferPercentage: null } as any),
         ...credentialPayload(formData),
       };
 
@@ -1078,8 +1188,39 @@ export default function PersonsPage() {
   const renderDetailEditForm = () => {
     if (!selectedRow) return null;
 
+    if (duplicateFound) {
+      return (
+        <div className="flex-1 overflow-auto p-4 flex flex-col justify-center text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 mb-4">
+            <AlertCircle className="h-6 w-6 text-amber-600" />
+          </div>
+          <h3 className="text-lg font-medium text-slate-900 mb-2">Duplicate Found</h3>
+          <p className="text-sm text-slate-500 mb-6">
+            A person named <strong>{duplicateFound.firstName} {duplicateFound.lastName}</strong> with the title <strong>{duplicateFound.designation || "None"}</strong> already exists.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={(e) => handleUpdatePerson(e, true)}
+              className="w-full rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 focus:outline-none"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Updating..." : "Update Anyway"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDuplicateFound(null)}
+              className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
+            >
+              Go Back & Edit
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <form onSubmit={handleUpdatePerson} className="space-y-4">
+      <form onSubmit={(e) => handleUpdatePerson(e, false)} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
@@ -1112,17 +1253,12 @@ export default function PersonsPage() {
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
               Role
             </label>
-            <select
-              value={formData.role}
-              onChange={(e) => handleFormChange("role", e.target.value)}
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            >
-              {roleOptions.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
+                                  <MultiSelect
+                        value={formData.roles || []}
+                        onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
+                        options={roleOptions.map(r => ({ label: r, value: r }))}
+                        className="w-full"
+                      />
           </div>
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-600">
@@ -1217,6 +1353,58 @@ export default function PersonsPage() {
           </select>
         </div>
 
+        {(formData.roles || []).includes("EMPLOYEE") && (
+          <div className="border border-slate-200 rounded-md p-3 space-y-3 bg-slate-50 mt-4 mb-4">
+            <h3 className="text-[13px] font-semibold text-slate-700">Employee Details</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Job Category</label>
+                <Select value={formData.jobCategory || ""} onChange={(val) => handleFormChange("jobCategory", val)} options={[{label: "Clinical", value: "CLINICAL"}, {label: "Non-Clinical", value: "NON_CLINICAL"}]} placeholder="Select Category" className="w-full" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Work Location</label>
+                <input type="text" value={formData.workLocation} onChange={(e) => handleFormChange("workLocation", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="Location" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
+                <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining</label>
+                <DatePicker value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
+                <Select
+                  value={formData.payType || ""}
+                  onChange={(val) => handleFormChange("payType", val)}
+                  options={[
+                    { label: "Hourly", value: "HOURLY" },
+                    { label: "Weekly", value: "WEEKLY" },
+                    { label: "Bi-Weekly", value: "BI_WEEKLY" },
+                    { label: "Monthly", value: "MONTHLY" },
+                    { label: "Annually", value: "ANNUALLY" },
+                  ]}
+                  placeholder="Select Pay Type"
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
+                <input type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
+              <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
+            </div>
+          </div>
+        )}
+
         <PersonCredentialFields
           values={formData}
           onChange={(key, value) =>
@@ -1285,8 +1473,8 @@ export default function PersonsPage() {
         </div>
 
         {selectedPersonData?.docusealSubmissions?.length > 0 &&
-          (selectedPersonData.role === "OWNER" ||
-            selectedPersonData.role === "ADMIN") && (
+          (selectedPersonData.roles?.includes("OWNER") ||
+            selectedPersonData.roles?.includes("ADMIN")) && (
             <div>
               <label className="mb-1 block text-[12px] font-medium text-slate-600">
                 Signed Agreements
@@ -1667,6 +1855,8 @@ export default function PersonsPage() {
                   CLINICAL: "bg-cyan-100 text-cyan-700",
                   PROCUREMENT: "bg-yellow-100 text-yellow-700",
                   OTHER: "bg-gray-100 text-gray-700",
+                  EMPLOYEE: "bg-indigo-100 text-indigo-700",
+                  MANAGER: "bg-teal-100 text-teal-700",
                 };
                 const role = String(selectedRow.values.role || "");
                 return (
@@ -1733,8 +1923,36 @@ export default function PersonsPage() {
               </button>
             </div>
 
+            {duplicateFound ? (
+              <div className="flex-1 overflow-auto p-4 flex flex-col justify-center text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 mb-4">
+                  <AlertCircle className="h-6 w-6 text-amber-600" />
+                </div>
+                <h3 className="text-lg font-medium text-slate-900 mb-2">Duplicate Found</h3>
+                <p className="text-sm text-slate-500 mb-6">
+                  A person named <strong>{duplicateFound.firstName} {duplicateFound.lastName}</strong> with the title <strong>{duplicateFound.designation || "None"}</strong> already exists.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={(e) => handleCreatePerson(e, true)}
+                    className="w-full rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 focus:outline-none"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Creating..." : "Create Anyway"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDuplicateFound(null)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
+                  >
+                    Go Back & Edit
+                  </button>
+                </div>
+              </div>
+            ) : (
             <form
-              onSubmit={handleCreatePerson}
+              onSubmit={(e) => handleCreatePerson(e, false)}
               className="flex-1 overflow-auto p-4"
             >
               <div className="space-y-4">
@@ -1776,17 +1994,12 @@ export default function PersonsPage() {
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
                       Role
                     </label>
-                    <select
-                      value={formData.role}
-                      onChange={(e) => handleFormChange("role", e.target.value)}
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    >
-                      {roleOptions.map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
+                                          <MultiSelect
+                        value={formData.roles || []}
+                        onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
+                        options={roleOptions.map(r => ({ label: r, value: r }))}
+                        className="w-full"
+                      />
                   </div>
                   <div>
                     <label className="mb-1 block text-[13px] font-medium text-slate-700">
@@ -1884,17 +2097,69 @@ export default function PersonsPage() {
                   </select>
                 </div>
 
-                <PersonCredentialFields
-                  values={formData}
-                  onChange={(key, value) =>
-                    handleFormChange(key as keyof PersonFormData, value)
-                  }
-                />
+                  {(formData.roles || []).includes("EMPLOYEE") && (
+                    <div className="border border-slate-200 rounded-md p-3 space-y-3 bg-slate-50 mt-4 mb-4">
+                      <h3 className="text-[13px] font-semibold text-slate-700">Employee Details</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Job Category</label>
+                          <Select value={formData.jobCategory || ""} onChange={(val) => handleFormChange("jobCategory", val)} options={[{label: "Clinical", value: "CLINICAL"}, {label: "Non-Clinical", value: "NON_CLINICAL"}]} placeholder="Select Category" className="w-full" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Work Location</label>
+                          <input type="text" value={formData.workLocation} onChange={(e) => handleFormChange("workLocation", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="Location" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
+                          <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining</label>
+                          <DatePicker value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
+                          <Select
+                            value={formData.payType || ""}
+                            onChange={(val) => handleFormChange("payType", val)}
+                            options={[
+                              { label: "Hourly", value: "HOURLY" },
+                              { label: "Weekly", value: "WEEKLY" },
+                              { label: "Bi-Weekly", value: "BI_WEEKLY" },
+                              { label: "Monthly", value: "MONTHLY" },
+                              { label: "Annually", value: "ANNUALLY" },
+                            ]}
+                            placeholder="Select Pay Type"
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
+                          <input type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
+                        <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
+                      </div>
+                    </div>
+                  )}
 
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Practices
-                  </label>
+                  <PersonCredentialFields
+                    values={formData}
+                    onChange={(key, value) =>
+                      handleFormChange(key as keyof PersonFormData, value)
+                    }
+                  />
+
+                  <div>
+                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                      Practices
+                    </label>
                   {practicesLoading ? (
                     <div className="app-control flex items-center justify-center rounded-md px-3 py-2 text-[13px] text-slate-400">
                       Loading practices...
@@ -2027,6 +2292,7 @@ export default function PersonsPage() {
                 </button>
               </div>
             </form>
+            )}
           </aside>
         )}
       </div>
