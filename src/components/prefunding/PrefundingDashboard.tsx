@@ -949,7 +949,7 @@ export default function PrefundingDashboard() {
                                 navigate(
                                   `/prefunding/calculate?practiceId=${cycle.practiceId}&cycle=${encodeURIComponent(
                                     cycle.label
-                                  )}`
+                                  )}&startDate=${encodeURIComponent(cycle.startDate || "")}&endDate=${encodeURIComponent(cycle.endDate || "")}`
                                 )
                               }
                               className="block text-[11px] font-semibold text-[#2a6365] hover:underline mt-1 text-right"

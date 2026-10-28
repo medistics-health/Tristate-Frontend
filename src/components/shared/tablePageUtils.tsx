@@ -132,11 +132,13 @@ export function CountPill({ children }: { children: ReactNode }) {
 export function DetailCard({
   title,
   badge,
+  badges,
   infoRows,
   metric,
 }: {
   title: string;
   badge?: { label: string; className: string } | null;
+  badges?: { label: string; className: string }[] | null;
   infoRows?: { label: string; value: string }[];
   metric?: { label: string; value: string } | null;
 }) {
@@ -148,7 +150,18 @@ export function DetailCard({
             {title}
           </h2>
         </div>
-        {badge ? (
+        {badges && badges.length > 0 ? (
+          <div className="flex flex-wrap gap-1 items-center justify-end">
+            {badges.map((b, i) => (
+              <span
+                key={i}
+                className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${b.className}`}
+              >
+                {b.label}
+              </span>
+            ))}
+          </div>
+        ) : badge ? (
           <span
             className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${badge.className}`}
           >

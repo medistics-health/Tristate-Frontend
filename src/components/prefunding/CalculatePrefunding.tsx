@@ -186,6 +186,46 @@ function generatePracticeCycles(startDateStr?: string | null, cycleType?: string
   return cycles;
 }
 
+const MONTH_NAME_MAP: Record<string, string> = {
+  jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+  jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+};
+
+function parseDateStrToISO(str?: string | null): string {
+  if (!str) return "";
+  const s = String(str).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const match = s.match(/^([A-Za-z]{3})\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (match) {
+    const m = MONTH_NAME_MAP[match[1].toLowerCase()];
+    const d = match[2].padStart(2, "0");
+    const y = match[3];
+    if (m) return `${y}-${m}-${d}`;
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  return "";
+}
+
+function calculateDueDateFromStartDate(startDateStr?: string | null, dueDays: number = 5): string {
+  if (!startDateStr) return "";
+  const parts = startDateStr.split("-").map(Number);
+  if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    const sDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    const due = new Date(sDate.getTime() - dueDays * 24 * 60 * 60 * 1000);
+    const y = due.getFullYear();
+    const m = String(due.getMonth() + 1).padStart(2, "0");
+    const day = String(due.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  return "";
+}
+
 function getCycleDefaultWorkingHours(cycleType?: string | null): number {
   const c = String(cycleType || "").trim().toUpperCase();
   if (c === "WEEKLY") return 40;
@@ -365,6 +405,8 @@ export default function CalculatePrefunding() {
     const initData = async () => {
       const qPracticeId = searchParams.get("practiceId");
       const qCycle = searchParams.get("cycle");
+      const qStartDate = searchParams.get("startDate");
+      const qEndDate = searchParams.get("endDate");
 
       if (editingInvoiceId) {
         setLoading(true);
@@ -415,6 +457,8 @@ export default function CalculatePrefunding() {
                     ? p.roles.map((r: any) => String(r).toUpperCase())
                     : [];
                   if (!roles.includes("EMPLOYEE")) return false;
+                  // Exclude inactive employees from prefunding calculation
+                  if (String(p.status || "").toUpperCase() === "INACTIVE") return false;
                   if (p.dateOfJoining && inv.cycleEndDate) {
                     const join = new Date(p.dateOfJoining);
                     const cEnd = new Date(inv.cycleEndDate);
@@ -570,14 +614,34 @@ export default function CalculatePrefunding() {
         }
 
         if (qCycle && qCycle !== "undefined" && qCycle !== "null") {
-          setSelectedCycle(qCycle);
+          const trimmedCycle = qCycle.trim();
+          setSelectedCycle(trimmedCycle);
+
+          let finalStartISO = parseDateStrToISO(qStartDate);
+          let finalEndISO = parseDateStrToISO(qEndDate);
+
+          // Extract cycle start and end dates from cycle string if present (e.g. "Oct 01, 2026 - Oct 14, 2026")
+          if (!finalStartISO && trimmedCycle.includes(" - ")) {
+            const [startPart, endPart] = trimmedCycle.split(" - ").map((s) => s.trim());
+            finalStartISO = parseDateStrToISO(startPart);
+            finalEndISO = parseDateStrToISO(endPart);
+          }
+
+          if (finalStartISO) {
+            setCycleStartDate(finalStartISO);
+            const dueDays = 5;
+            setDueDate(calculateDueDateFromStartDate(finalStartISO, dueDays));
+          }
+          if (finalEndISO) {
+            setCycleEndDate(finalEndISO);
+          }
         } else {
           setSelectedCycle("");
           setCycleStartDate("");
           setCycleEndDate("");
+          setDueDate("");
         }
         setInvoiceDate("");
-        setDueDate("");
       }
     };
 
@@ -638,6 +702,8 @@ export default function CalculatePrefunding() {
             ? p.roles.map((r: any) => String(r).toUpperCase())
             : [];
           if (!roles.includes("EMPLOYEE")) return false;
+          // Exclude inactive employees from prefunding calculation
+          if (String(p.status || "").toUpperCase() === "INACTIVE") return false;
 
           // If employee has a join date and cycle end date is set, exclude if employee has not joined yet
           if (p.dateOfJoining && cycleEndDate) {
@@ -779,24 +845,62 @@ export default function CalculatePrefunding() {
     }
   };
 
+  // Keep cycle dates and calculated due date in sync whenever practice or cycle selection updates
+  useEffect(() => {
+    if (!selectedCycle || editingInvoiceId) return;
+
+    // Check if availableCycles has an exact match
+    const found = availableCycles.find((c) => c.value === selectedCycle);
+    let startISO = found?.startDate;
+    let endISO = found?.endDate;
+
+    // If not found in availableCycles, try parsing from cycle label (e.g. "Oct 01, 2026 - Oct 14, 2026")
+    if (!startISO && selectedCycle.includes(" - ")) {
+      const [startPart, endPart] = selectedCycle.split(" - ").map((s) => s.trim());
+      startISO = parseDateStrToISO(startPart);
+      endISO = parseDateStrToISO(endPart);
+    }
+
+    if (startISO) {
+      setCycleStartDate((prev) => prev || startISO!);
+    }
+    if (endISO) {
+      setCycleEndDate((prev) => prev || endISO!);
+    }
+
+    if (startISO) {
+      const dueDays = selectedPracticeObj?.prefundingDueOn !== undefined && selectedPracticeObj?.prefundingDueOn !== null && selectedPracticeObj?.prefundingDueOn !== ""
+        ? Number(selectedPracticeObj.prefundingDueOn)
+        : 5;
+      const computedDue = calculateDueDateFromStartDate(startISO, dueDays);
+      setDueDate((prev) => (!prev ? computedDue : prev));
+    }
+  }, [selectedCycle, availableCycles, selectedPracticeObj, editingInvoiceId]);
+
   const handleCycleChange = (val: string) => {
     setSelectedCycle(val);
     const found = availableCycles.find((c) => c.value === val);
-    if (found) {
-      setCycleStartDate(found.startDate);
-      setCycleEndDate(found.endDate);
+    let startISO = found?.startDate;
+    let endISO = found?.endDate;
 
-      // Re-calculate Due Date based on Due On (Days before start of cycle)
-      if (found.startDate && selectedPracticeObj) {
-        const sDate = new Date(found.startDate);
-        if (!isNaN(sDate.getTime())) {
-          const dueDays = selectedPracticeObj.prefundingDueOn !== undefined && selectedPracticeObj.prefundingDueOn !== null && selectedPracticeObj.prefundingDueOn !== ""
-            ? Number(selectedPracticeObj.prefundingDueOn)
-            : 5;
-          const calcDue = new Date(sDate.getTime() - dueDays * 24 * 60 * 60 * 1000);
-          setDueDate(calcDue.toISOString().split("T")[0]);
-        }
-      }
+    if (!startISO && val.includes(" - ")) {
+      const [startPart, endPart] = val.split(" - ").map((s) => s.trim());
+      startISO = parseDateStrToISO(startPart);
+      endISO = parseDateStrToISO(endPart);
+    }
+
+    if (startISO) {
+      setCycleStartDate(startISO);
+    }
+    if (endISO) {
+      setCycleEndDate(endISO);
+    }
+
+    if (startISO) {
+      const dueDays = selectedPracticeObj?.prefundingDueOn !== undefined && selectedPracticeObj?.prefundingDueOn !== null && selectedPracticeObj?.prefundingDueOn !== ""
+        ? Number(selectedPracticeObj.prefundingDueOn)
+        : 5;
+      setDueDate(calculateDueDateFromStartDate(startISO, dueDays));
     }
   };
 

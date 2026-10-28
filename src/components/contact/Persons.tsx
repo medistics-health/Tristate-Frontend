@@ -601,12 +601,28 @@ export default function PersonsPage() {
                 EMPLOYEE: "bg-indigo-100 text-indigo-700",
                 MANAGER: "bg-teal-100 text-teal-700",
               };
+              const rolesList = Array.isArray(row.original.values.rolesArray)
+                ? (row.original.values.rolesArray as string[])
+                : String(value || "")
+                    .split(",")
+                    .map((r) => r.trim())
+                    .filter(Boolean);
+              if (rolesList.length === 0) {
+                return <span className="text-slate-400">-</span>;
+              }
               return (
-                <span
-                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${roleColors[String(value)] || ""}`}
-                >
-                  {String(value)}
-                </span>
+                <div className="flex flex-wrap gap-1 items-center">
+                  {rolesList.map((r, idx) => (
+                    <span
+                      key={idx}
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                        roleColors[r.toUpperCase()] || "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {r}
+                    </span>
+                  ))}
+                </div>
               );
             }
             if (field.id === "status") {
@@ -854,6 +870,10 @@ export default function PersonsPage() {
       toast.error("First name and last name are required");
       return;
     }
+    if ((formData.roles || []).includes("EMPLOYEE") && !formData.dateOfJoining?.trim()) {
+      toast.error("Date of Joining is required for Employee role.");
+      return;
+    }
     if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
       toast.error("Person phone must be exactly 10 digits.");
       return;
@@ -942,6 +962,10 @@ export default function PersonsPage() {
       !formData.lastName.trim()
     ) {
       toast.error("First name and last name are required");
+      return;
+    }
+    if ((formData.roles || []).includes("EMPLOYEE") && !formData.dateOfJoining?.trim()) {
+      toast.error("Date of Joining is required for Employee role.");
       return;
     }
     if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
@@ -1248,34 +1272,33 @@ export default function PersonsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Role
-            </label>
-                                  <MultiSelect
-                        value={formData.roles || []}
-                        onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
-                        options={roleOptions.map(r => ({ label: r, value: r }))}
-                        className="w-full"
-                      />
-          </div>
-          <div>
-            <label className="mb-1 block text-[12px] font-medium text-slate-600">
-              Status
-            </label>
-            <select
-              value={formData.status}
-              onChange={(e) => handleFormChange("status", e.target.value)}
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-            >
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            Role
+          </label>
+          <MultiSelect
+            value={formData.roles || []}
+            onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
+            options={roleOptions.map(r => ({ label: r, value: r }))}
+            className="w-full"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-[12px] font-medium text-slate-600">
+            Status
+          </label>
+          <select
+            value={formData.status}
+            onChange={(e) => handleFormChange("status", e.target.value)}
+            className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+          >
+            {statusOptions.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -1372,7 +1395,7 @@ export default function PersonsPage() {
                 <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
               </div>
               <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining</label>
+                <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining <span className="text-red-500">*</span></label>
                 <DatePicker value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
               </div>
             </div>
@@ -1858,19 +1881,20 @@ export default function PersonsPage() {
                   EMPLOYEE: "bg-indigo-100 text-indigo-700",
                   MANAGER: "bg-teal-100 text-teal-700",
                 };
-                const role = String(selectedRow.values.role || "");
+                const rolesList = Array.isArray(selectedRow.values.rolesArray)
+                  ? (selectedRow.values.rolesArray as string[])
+                  : String(selectedRow.values.role || "")
+                      .split(",")
+                      .map((r) => r.trim())
+                      .filter(Boolean);
+                const roleBadges = rolesList.map((r) => ({
+                  label: r,
+                  className: rColors[r.toUpperCase()] || "bg-gray-100 text-gray-700",
+                }));
                 return (
                   <DetailCard
                     title={`${String(selectedRow.values.firstName || "")} ${String(selectedRow.values.lastName || "")}`}
-                    badge={
-                      role
-                        ? {
-                            label: role,
-                            className:
-                              rColors[role] || "bg-gray-100 text-gray-700",
-                          }
-                        : null
-                    }
+                    badges={roleBadges.length > 0 ? roleBadges : null}
                     infoRows={[
                       ...(selectedRow.values.email
                         ? [
@@ -1989,36 +2013,35 @@ export default function PersonsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Role
-                    </label>
-                                          <MultiSelect
-                        value={formData.roles || []}
-                        onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
-                        options={roleOptions.map(r => ({ label: r, value: r }))}
-                        className="w-full"
-                      />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                      Status
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) =>
-                        handleFormChange("status", e.target.value)
-                      }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                    >
-                      {statusOptions.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                    Role
+                  </label>
+                  <MultiSelect
+                    value={formData.roles || []}
+                    onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
+                    options={roleOptions.map(r => ({ label: r, value: r }))}
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[13px] font-medium text-slate-700">
+                    Status
+                  </label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) =>
+                      handleFormChange("status", e.target.value)
+                    }
+                    className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  >
+                    {statusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -2116,7 +2139,7 @@ export default function PersonsPage() {
                           <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
                         </div>
                         <div>
-                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining</label>
+                          <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining <span className="text-red-500">*</span></label>
                           <DatePicker value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
                         </div>
                       </div>
