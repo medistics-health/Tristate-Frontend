@@ -40,6 +40,7 @@ type PrefundingRate = {
   pricingModel: string;
   rate: number;
   notes?: string | null;
+  includeInGrandTotal?: boolean;
   practiceIds: string[];
 };
 
@@ -49,6 +50,7 @@ type RateFormData = {
   pricingModel: string;
   rate: number;
   notes: string;
+  includeInGrandTotal: boolean;
   practiceIds: string[];
 };
 
@@ -112,6 +114,7 @@ export default function PrefundingRates() {
     pricingModel: "Percentage",
     rate: 0,
     notes: "",
+    includeInGrandTotal: true,
     practiceIds: [],
   });
 
@@ -139,6 +142,7 @@ export default function PrefundingRates() {
         ...r,
         practiceIds: r.practiceRates ? r.practiceRates.map((pr: any) => pr.practiceId) : [],
         rate: Number(r.rate),
+        includeInGrandTotal: r.includeInGrandTotal !== false,
       }));
       
       setData(mappedRates);
@@ -308,6 +312,7 @@ export default function PrefundingRates() {
       pricingModel: "Percentage",
       rate: 0,
       notes: "",
+      includeInGrandTotal: true,
       practiceIds: [],
     });
     setShowCreateForm(true);
@@ -325,6 +330,7 @@ export default function PrefundingRates() {
         pricingModel: item.pricingModel,
         rate: item.rate,
         notes: item.notes || "",
+        includeInGrandTotal: item.includeInGrandTotal !== false,
         practiceIds: item.practiceIds,
       });
       setSelectedRowId(id);
@@ -505,6 +511,25 @@ export default function PrefundingRates() {
           placeholder="e.g. Standard rate policy or specific condition note"
           disabled={!showCreateForm && !isEditing}
         />
+      </div>
+      <div className="pt-2 border-t border-slate-200">
+        <label className="flex items-start gap-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            className="rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] mt-0.5"
+            checked={formData.includeInGrandTotal}
+            onChange={(e) => setFormData((prev) => ({ ...prev, includeInGrandTotal: e.target.checked }))}
+            disabled={!showCreateForm && !isEditing}
+          />
+          <div>
+            <span className="font-medium text-slate-700 block text-xs">
+              Include in GMS Projection subtotal (Uncheck to place in Additional Line Items)
+            </span>
+            <span className="text-[11px] text-slate-400 leading-normal block mt-0.5">
+              When checked, this rate is included in the GMS Projection subtotal. When unchecked, it appears after the subtotal under Additional Line Items.
+            </span>
+          </div>
+        </label>
       </div>
     </div>
   );

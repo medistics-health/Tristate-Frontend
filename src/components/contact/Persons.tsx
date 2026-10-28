@@ -137,9 +137,9 @@ type PersonFormData = {
   state?: string;
   dateOfJoining?: string;
   payType?: string;
-  payRate?: number;
-  budgetedHours?: number;
-  bufferPercentage?: number;
+  payRate?: number | string;
+  budgetedHours?: number | string;
+  bufferPercentage?: number | string;
   individualNpi: string;
   individualPtan: string;
   individualRailroadMedicarePtan: string;
@@ -532,9 +532,9 @@ export default function PersonsPage() {
         state: String(values.state || ""),
         dateOfJoining: String(values.dateOfJoining || ""),
         payType: String(values.payType || ""),
-        payRate: values.payRate ? Number(values.payRate) : undefined,
-        budgetedHours: values.budgetedHours ? Number(values.budgetedHours) : undefined,
-        bufferPercentage: values.bufferPercentage ? Number(values.bufferPercentage) : undefined,
+        payRate: values.payRate !== null && values.payRate !== undefined ? values.payRate : "",
+        budgetedHours: values.budgetedHours !== null && values.budgetedHours !== undefined ? values.budgetedHours : "",
+        bufferPercentage: values.bufferPercentage !== null && values.bufferPercentage !== undefined ? values.bufferPercentage : "",
         ...(Object.fromEntries(
           personCredentialKeys.map((key) => [key, String(values[key] || "")]),
         ) as typeof emptyCredentialFields),
@@ -900,10 +900,10 @@ export default function PersonsPage() {
           workLocation: formData.workLocation,
           state: formData.state,
           dateOfJoining: formData.dateOfJoining,
-          payType: formData.payType,
-          payRate: Number(formData.payRate) || undefined,
-          budgetedHours: Number(formData.budgetedHours) || undefined,
-          bufferPercentage: Number(formData.bufferPercentage) || undefined,
+          payType: formData.payType || null,
+          payRate: formData.payRate !== undefined && String(formData.payRate).trim() !== "" ? Number(formData.payRate) : null,
+          budgetedHours: formData.budgetedHours !== undefined && String(formData.budgetedHours).trim() !== "" ? Number(formData.budgetedHours) : null,
+          bufferPercentage: formData.bufferPercentage !== undefined && String(formData.bufferPercentage).trim() !== "" ? Number(formData.bufferPercentage) : null,
         } : { jobCategory: null, workLocation: null, state: null, dateOfJoining: null, payType: null, payRate: null, budgetedHours: null, bufferPercentage: null } as any),
         ...credentialPayload(formData),
       };
@@ -991,10 +991,10 @@ export default function PersonsPage() {
           workLocation: formData.workLocation,
           state: formData.state,
           dateOfJoining: formData.dateOfJoining,
-          payType: formData.payType,
-          payRate: Number(formData.payRate) || undefined,
-          budgetedHours: Number(formData.budgetedHours) || undefined,
-          bufferPercentage: Number(formData.bufferPercentage) || undefined,
+          payType: formData.payType || null,
+          payRate: formData.payRate !== undefined && String(formData.payRate).trim() !== "" ? Number(formData.payRate) : null,
+          budgetedHours: formData.budgetedHours !== undefined && String(formData.budgetedHours).trim() !== "" ? Number(formData.budgetedHours) : null,
+          bufferPercentage: formData.bufferPercentage !== undefined && String(formData.bufferPercentage).trim() !== "" ? Number(formData.bufferPercentage) : null,
         } : { jobCategory: null, workLocation: null, state: null, dateOfJoining: null, payType: null, payRate: null, budgetedHours: null, bufferPercentage: null } as any),
         ...credentialPayload(formData),
       };

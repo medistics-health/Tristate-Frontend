@@ -1672,6 +1672,7 @@ export default function AllPracticePage() {
     );
     const cycleOptions = [
       { label: "Weekly", value: "WEEKLY" },
+      { label: "Bi-Weekly", value: "BI_WEEKLY" },
       { label: "Monthly", value: "MONTHLY" },
       { label: "Quarterly", value: "QUARTERLY" },
       { label: "Semi-Annually", value: "SEMI_ANNUALLY" },

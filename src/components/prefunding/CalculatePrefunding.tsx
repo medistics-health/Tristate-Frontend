@@ -33,7 +33,7 @@ import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
 import { apiConnector } from "../../services/apiConnector";
 import { practiceEndpoints, prefundingEndpoints } from "../../services/apis";
-import { createPrefundingRate } from "../../services/operations/prefundingRates";
+import { createPrefundingRate, updatePrefundingRate } from "../../services/operations/prefundingRates";
 import { openPrefundingInvoicePdf, getPrefundingInvoice, updatePrefundingInvoice, validatePracticeForPrefunding } from "../../services/operations/prefundingInvoices";
 import { readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 
@@ -189,9 +189,11 @@ function generatePracticeCycles(startDateStr?: string | null, cycleType?: string
 function getCycleDefaultWorkingHours(cycleType?: string | null): number {
   const c = String(cycleType || "").trim().toUpperCase();
   if (c === "WEEKLY") return 40;
+  if (c === "BI_WEEKLY" || c === "BIWEEKLY" || c === "BI-WEEKLY") return 80;
   if (c === "QUARTERLY") return 520;
   if (c === "SEMI_ANNUALLY" || c === "SEMIANNUALLY") return 1040;
   if (c === "YEARLY") return 2080;
+  if (c === "MONTHLY") return 160;
   // Default Monthly (4 weeks @ 40 hrs)
   return 160;
 }
@@ -412,7 +414,15 @@ export default function CalculatePrefunding() {
                   const roles: string[] = Array.isArray(p.roles)
                     ? p.roles.map((r: any) => String(r).toUpperCase())
                     : [];
-                  return roles.includes("EMPLOYEE");
+                  if (!roles.includes("EMPLOYEE")) return false;
+                  if (p.dateOfJoining && inv.cycleEndDate) {
+                    const join = new Date(p.dateOfJoining);
+                    const cEnd = new Date(inv.cycleEndDate);
+                    if (!isNaN(join.getTime()) && !isNaN(cEnd.getTime()) && join > cEnd) {
+                      return false;
+                    }
+                  }
+                  return true;
                 });
 
               const grossWagesLineItem = Array.isArray(inv.lineItems)
@@ -441,9 +451,9 @@ export default function CalculatePrefunding() {
                 const budgetedHours = savedEmp?.budgetedHours !== undefined ? Number(savedEmp.budgetedHours) : cycleHours;
                 const bufferPercent = savedEmp?.bufferPercent !== undefined
                   ? Number(savedEmp.bufferPercent)
-                  : ((p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) > 0)
+                  : ((p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) >= 0)
                     ? Number(p.bufferPercentage)
-                    : 10);
+                    : 0);
                 const payType: "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually" = savedEmp?.payType
                   ? normalizePayType(savedEmp.payType)
                   : normalizePayType(p.payType);
@@ -627,7 +637,17 @@ export default function CalculatePrefunding() {
           const roles: string[] = Array.isArray(p.roles)
             ? p.roles.map((r: any) => String(r).toUpperCase())
             : [];
-          return roles.includes("EMPLOYEE");
+          if (!roles.includes("EMPLOYEE")) return false;
+
+          // If employee has a join date and cycle end date is set, exclude if employee has not joined yet
+          if (p.dateOfJoining && cycleEndDate) {
+            const join = new Date(p.dateOfJoining);
+            const cEnd = new Date(cycleEndDate);
+            if (!isNaN(join.getTime()) && !isNaN(cEnd.getTime()) && join > cEnd) {
+              return false;
+            }
+          }
+          return true;
         });
 
       const selectedPracticeObj = practices.find((p) => p.value === selectedPractice || p.id === selectedPractice);
@@ -636,9 +656,9 @@ export default function CalculatePrefunding() {
       const mappedEmployees: EmployeeCalculationItem[] = practicePersons.map((p: any) => {
         const payRate = p.payRate ? Number(p.payRate) : 0;
         const budgetedHours = cycleHours;
-        const bufferPercent = (p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) > 0)
+        const bufferPercent = (p.bufferPercentage !== null && p.bufferPercentage !== undefined && Number(p.bufferPercentage) >= 0)
           ? Number(p.bufferPercentage)
-          : 10;
+          : 0;
         const payType: "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually" = normalizePayType(p.payType);
 
         // Step 4: Calculate applicable Working Period for this cycle
@@ -682,6 +702,8 @@ export default function CalculatePrefunding() {
         pricingModel: r.pricingModel || "Percentage",
         rate: Number(r.rate) || 0,
         amount: 0,
+        notes: r.notes || null,
+        includeInGrandTotal: r.includeInGrandTotal !== false,
         isOneTime: false,
         isExcluded: false,
       }));
@@ -1187,6 +1209,8 @@ export default function CalculatePrefunding() {
           basis: formattedBasis,
           pricingModel: newLineItemPricingModel,
           rate: validRateNum,
+          notes: newLineItemNotes.trim() || undefined,
+          includeInGrandTotal: newLineItemIncludeInGrandTotal,
           practiceIds: [selectedPractice],
         });
 
@@ -1256,7 +1280,7 @@ export default function CalculatePrefunding() {
     setShowEditLineItemModal(true);
   };
 
-  const handleSaveEditedLineItem = () => {
+  const handleSaveEditedLineItem = async () => {
     if (!editingLineItem) return;
     if (!editLineItemName.trim()) {
       toast.error("Name cannot be empty");
@@ -1266,6 +1290,22 @@ export default function CalculatePrefunding() {
     const updatedRateNum = Math.max(0, Number(editLineItemRate) || 0);
     const customAmtNum = editLineItemAmount !== "" ? Math.max(0, Number(editLineItemAmount)) : null;
     const formattedBasis = editLineItemBasis.trim();
+
+    // If it is a template rate, sync changes to template so future cycles preserve inclusion preference
+    if (!editingLineItem.isOneTime && !editingLineItem.id.startsWith("onetime_")) {
+      try {
+        await updatePrefundingRate(editingLineItem.id, {
+          name: editLineItemName.trim(),
+          basis: formattedBasis || editingLineItem.basis,
+          pricingModel: editLineItemPricingModel || editingLineItem.pricingModel,
+          rate: updatedRateNum,
+          notes: editLineItemNotes.trim() || null,
+          includeInGrandTotal: editLineItemIncludeInGrandTotal,
+        });
+      } catch (err) {
+        console.warn("Failed to sync template rate update:", err);
+      }
+    }
 
     setRates((prev) =>
       prev.map((r) => {
@@ -1285,7 +1325,7 @@ export default function CalculatePrefunding() {
 
     setShowEditLineItemModal(false);
     setEditingLineItem(null);
-    toast.success("Line item updated for this calculation");
+    toast.success("Line item updated");
   };
 
   // Section 11: Remove Line Item
