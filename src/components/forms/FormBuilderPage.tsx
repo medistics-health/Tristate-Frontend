@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { BufferedInput, BufferedTextArea, FieldLabel, GhostButton, Panel, PrimaryButton, StatusPill, TextArea, TextInput, formatWhen } from "./chrome";
+import Select from "../shared/Select";
 import { RespondentForm } from "./RespondentForm";
 import {
   addQuestion,
@@ -108,7 +109,7 @@ export default function FormBuilderPage() {
   return (
     <div className="flex h-screen flex-col bg-[#f7f5f1] font-app-sans text-slate-700">
       <header className="flex flex-wrap items-center gap-3 border-b border-[#ece8e1] bg-white px-4 py-3">
-        <button type="button" onClick={leave} className="text-[13px] text-slate-500 hover:text-slate-800">
+        <button type="button" onClick={leave} className="shrink-0 cursor-pointer rounded-lg px-2 py-1 text-[13px] text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-800">
           Forms
         </button>
         <BufferedInput
@@ -116,6 +117,7 @@ export default function FormBuilderPage() {
           onCommit={(title) => updateForm(form.id, { title: title.slice(0, 200) })}
           className="min-w-0 flex-1 border-transparent bg-transparent px-0 text-[16px] font-semibold text-slate-800 shadow-none"
         />
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
         <StatusPill status={form.status} scheduled={form.scheduled} />
         <span className="text-[12px] text-slate-400">
           {unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
@@ -140,6 +142,7 @@ export default function FormBuilderPage() {
             Send
           </PrimaryButton>
         ) : null}
+        </div>
       </header>
       {locked ? (
         <div className="bg-[#fff1bd] px-4 py-2 text-[13px] text-[#8a6800]">
@@ -163,7 +166,7 @@ export default function FormBuilderPage() {
                     const created = addQuestion(form.id, sectionId, item.type);
                     if (created) setSelectedId(created.id);
                   }}
-                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-[#f7f5f1] disabled:opacity-40"
+                  className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-left text-[13px] transition-colors duration-150 hover:bg-[#f4f2fe] active:bg-[#eef0fc] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {item.label}
                   {!item.must ? <span className="text-[10px] text-slate-400">Should</span> : null}
@@ -231,8 +234,8 @@ export default function FormBuilderPage() {
                         setSelectedId(question.id);
                         setTab("question");
                       }}
-                      className={`flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left ${
-                        selectedId === question.id ? "border-[#9cb1f6] bg-[#f7f8ff]" : "border-[#f0ece6] bg-[#fbfaf8]"
+                      className={`flex w-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-left transition-[background-color,border-color,box-shadow] duration-150 ${
+                        selectedId === question.id ? "border-[#9cb1f6] bg-[#f7f8ff] shadow-sm" : "border-[#f0ece6] bg-[#fbfaf8] hover:border-[#e4dfd6] hover:bg-white"
                       }`}
                     >
                       <GripVertical className="mt-0.5 h-4 w-4 text-slate-300" />
@@ -256,7 +259,7 @@ export default function FormBuilderPage() {
                     const created = addQuestion(form.id, section.id, "short_text");
                     if (created) setSelectedId(created.id);
                   }}
-                  className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-[#4f63ea] disabled:opacity-40"
+                  className="mt-3 inline-flex cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1 text-[13px] font-medium text-[#4f63ea] transition-colors duration-150 hover:bg-[#f4f2fe] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add question
                 </button>
@@ -275,7 +278,7 @@ export default function FormBuilderPage() {
                 key={item}
                 type="button"
                 onClick={() => setTab(item)}
-                className={`rounded-full px-3 py-1 capitalize ${tab === item ? "bg-[#eef2ff] text-[#3144c4]" : "text-slate-500"}`}
+                className={`cursor-pointer rounded-full px-3 py-1 capitalize transition-colors duration-150 ${tab === item ? "bg-[#eef2ff] text-[#3144c4]" : "text-slate-500 hover:bg-[#f7f5f1] hover:text-slate-700"}`}
               >
                 {item}
               </button>
@@ -330,28 +333,28 @@ function FormSettings({ formId }: { formId: string }) {
       <FieldLabel>Redirect URL after submit</FieldLabel>
       <BufferedInput value={form.redirectUrl} onCommit={(redirectUrl) => updateForm(form.id, { redirectUrl })} placeholder="https://" />
       <FieldLabel>Display</FieldLabel>
-      <select
+      <Select
         value={form.displayMode}
-        onChange={(event) => updateForm(form.id, { displayMode: event.target.value as typeof form.displayMode })}
-        className="h-10 w-full rounded-lg border border-[#e4dfd6] px-3 text-[13px]"
-      >
-        <option value="SINGLE_PAGE">All sections on one page</option>
-        <option value="MULTI_PAGE">One section per page</option>
-      </select>
+        onChange={(displayMode) => updateForm(form.id, { displayMode: displayMode as typeof form.displayMode })}
+        options={[
+          { label: "All sections on one page", value: "SINGLE_PAGE" },
+          { label: "One section per page", value: "MULTI_PAGE" },
+        ]}
+      />
       <Toggle label="Show progress bar" checked={form.showProgress} onChange={(showProgress) => updateForm(form.id, { showProgress })} />
       <Toggle label="Show question numbers" checked={form.showNumbers} onChange={(showNumbers) => updateForm(form.id, { showNumbers })} />
       <Toggle label="Allow save and resume" checked={form.allowResume} onChange={(allowResume) => updateForm(form.id, { allowResume })} />
       <Toggle label="One response per person" checked={form.oneResponse} disabled={locked} onChange={(oneResponse) => updateForm(form.id, { oneResponse })} />
       <FieldLabel>Response mode</FieldLabel>
-      <select
+      <Select
         disabled={locked || form.status !== "DRAFT"}
         value={form.responseMode}
-        onChange={(event) => updateForm(form.id, { responseMode: event.target.value as typeof form.responseMode })}
-        className="h-10 w-full rounded-lg border border-[#e4dfd6] px-3 text-[13px] disabled:bg-[#f7f5f1]"
-      >
-        <option value="IDENTIFIED">Identified</option>
-        <option value="ANONYMOUS">Anonymous</option>
-      </select>
+        onChange={(responseMode) => updateForm(form.id, { responseMode: responseMode as typeof form.responseMode })}
+        options={[
+          { label: "Identified", value: "IDENTIFIED" },
+          { label: "Anonymous", value: "ANONYMOUS" },
+        ]}
+      />
       {form.responseMode === "ANONYMOUS" ? (
         <div className="rounded-lg bg-[#fff1bd] p-2 text-[12px] text-[#8a6800]">
           Recording the practice can reveal who answered when a practice has very few recipients. Groups under 3 responses stay aggregated.
@@ -413,14 +416,14 @@ function QuestionInspector({
       {question.type === "rating" ? (
         <div className="grid grid-cols-2 gap-2">
           <BufferedInput type="number" value={String(question.config.scale || 5)} onCommit={(scale) => updateQuestion(formId, question.id, { config: { ...question.config, scale: Number(scale) } })} />
-          <select
+          <Select
             value={question.config.style || "stars"}
-            onChange={(event) => updateQuestion(formId, question.id, { config: { ...question.config, style: event.target.value as "stars" | "numbers" } })}
-            className="h-10 rounded-lg border border-[#e4dfd6] px-2 text-[13px]"
-          >
-            <option value="stars">Stars</option>
-            <option value="numbers">Numbers</option>
-          </select>
+            onChange={(style) => updateQuestion(formId, question.id, { config: { ...question.config, style: style as "stars" | "numbers" } })}
+            options={[
+              { label: "Stars", value: "stars" },
+              { label: "Numbers", value: "numbers" },
+            ]}
+          />
           <BufferedInput value={question.config.lowLabel || ""} placeholder="Low label" onCommit={(lowLabel) => updateQuestion(formId, question.id, { config: { ...question.config, lowLabel } })} />
           <BufferedInput value={question.config.highLabel || ""} placeholder="High label" onCommit={(highLabel) => updateQuestion(formId, question.id, { config: { ...question.config, highLabel } })} />
         </div>
@@ -473,7 +476,7 @@ function OptionsEditor({ formId, question, locked }: { formId: string; question:
               type="button"
               disabled={locked}
               onClick={() => updateQuestion(formId, question.id, { options: question.options.filter((item) => item.id !== option.id) })}
-              className="text-slate-400"
+              className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-150 hover:bg-[#fde8e8] hover:text-[#b42318] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -485,7 +488,7 @@ function OptionsEditor({ formId, question, locked }: { formId: string; question:
         <button
           type="button"
           disabled={locked}
-          className="font-medium text-[#4f63ea]"
+          className="cursor-pointer rounded-md px-1.5 py-0.5 font-medium text-[#4f63ea] transition-colors duration-150 hover:bg-[#f4f2fe] disabled:cursor-not-allowed disabled:opacity-40"
           onClick={() => updateQuestion(formId, question.id, { options: [...question.options, { id: `opt-${Date.now()}`, label: `Option ${question.options.length + 1}` }] })}
         >
           Add option
@@ -493,7 +496,7 @@ function OptionsEditor({ formId, question, locked }: { formId: string; question:
         <button
           type="button"
           disabled={locked}
-          className="text-slate-500"
+          className="cursor-pointer rounded-md px-1.5 py-0.5 text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
           onClick={() => {
             const pasted = window.prompt("Paste one option per line");
             if (!pasted) return;
@@ -523,53 +526,47 @@ function LogicEditor({ formId, question, locked }: { formId: string; question: F
   return (
     <div className="space-y-3">
       <p className="text-[13px] text-slate-500">Show or hide this question from earlier answers. One rule, up to 10 conditions.</p>
-      <select
+      <Select
         value={rule.action}
-        onChange={(event) => write({ ...rule, action: event.target.value as LogicRule["action"] })}
-        className="h-10 w-full rounded-lg border border-[#e4dfd6] px-3 text-[13px]"
-      >
-        <option value="SHOW">Show if</option>
-        <option value="HIDE">Hide if</option>
-      </select>
-      <select
+        onChange={(action) => write({ ...rule, action: action as LogicRule["action"] })}
+        options={[
+          { label: "Show if", value: "SHOW" },
+          { label: "Hide if", value: "HIDE" },
+        ]}
+      />
+      <Select
         value={rule.match}
-        onChange={(event) => write({ ...rule, match: event.target.value as LogicRule["match"] })}
-        className="h-10 w-full rounded-lg border border-[#e4dfd6] px-3 text-[13px]"
-      >
-        <option value="ALL">All conditions (AND)</option>
-        <option value="ANY">Any condition (OR)</option>
-      </select>
+        onChange={(match) => write({ ...rule, match: match as LogicRule["match"] })}
+        options={[
+          { label: "All conditions (AND)", value: "ALL" },
+          { label: "Any condition (OR)", value: "ANY" },
+        ]}
+      />
       {rule.conditions.map((condition) => {
         const source = sources.find((item) => item.id === condition.sourceQuestionId) || sources[0];
         const operators = operatorsFor(source?.type || "short_text");
         return (
           <div key={condition.id} className="space-y-2 rounded-xl border border-[#f0ece6] p-2">
-            <select
+            <Select
               value={condition.sourceQuestionId}
-              onChange={(event) => {
-                const nextSource = sources.find((item) => item.id === event.target.value);
+              onChange={(sourceQuestionId) => {
+                const nextSource = sources.find((item) => item.id === sourceQuestionId);
                 write({
                   ...rule,
-                  conditions: rule.conditions.map((item) => item.id === condition.id ? { ...item, sourceQuestionId: event.target.value, operator: operatorsFor(nextSource?.type || "short_text")[0] } : item),
+                  conditions: rule.conditions.map((item) => item.id === condition.id ? { ...item, sourceQuestionId, operator: operatorsFor(nextSource?.type || "short_text")[0] } : item),
                 });
               }}
-              className="h-10 w-full rounded-lg border border-[#e4dfd6] px-2 text-[13px]"
-            >
-              {sources.map((item) => (
-                <option key={item.id} value={item.id}>{item.label || "Untitled"}</option>
-              ))}
-            </select>
-            <select
+              options={sources.map((item) => ({ label: item.label || "Untitled", value: item.id }))}
+            />
+            <Select
               value={condition.operator}
-              onChange={(event) => write({ ...rule, conditions: rule.conditions.map((item) => item.id === condition.id ? { ...item, operator: event.target.value } : item) })}
-              className="h-10 w-full rounded-lg border border-[#e4dfd6] px-2 text-[13px]"
-            >
-              {operators.map((operator) => <option key={operator}>{operator}</option>)}
-            </select>
+              onChange={(operator) => write({ ...rule, conditions: rule.conditions.map((item) => item.id === condition.id ? { ...item, operator } : item) })}
+              options={operators.map((operator) => ({ label: operator, value: operator }))}
+            />
             {questionNeedsValue(condition.operator) ? (
               <BufferedInput value={condition.value} onCommit={(next) => write({ ...rule, conditions: rule.conditions.map((item) => item.id === condition.id ? { ...item, value: next } : item) })} placeholder="Value" />
             ) : null}
-            <button type="button" className="text-[12px] text-[#b42318]" onClick={() => write({ ...rule, conditions: rule.conditions.filter((item) => item.id !== condition.id) })}>Remove</button>
+            <button type="button" className="cursor-pointer rounded-md px-1.5 py-0.5 text-[12px] text-[#b42318] transition-colors duration-150 hover:bg-[#fde8e8]" onClick={() => write({ ...rule, conditions: rule.conditions.filter((item) => item.id !== condition.id) })}>Remove</button>
           </div>
         );
       })}
@@ -586,7 +583,7 @@ function LogicEditor({ formId, question, locked }: { formId: string; question: F
         Add condition
       </GhostButton>
       {rule.conditions.length ? (
-        <button type="button" className="block text-[12px] text-slate-500" onClick={() => write(null)}>Clear rule</button>
+        <button type="button" className="block cursor-pointer rounded-md px-1.5 py-0.5 text-[12px] text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-700" onClick={() => write(null)}>Clear rule</button>
       ) : null}
       {!sources.length ? <p className="text-[12px] text-slate-400">Add an earlier question before creating logic.</p> : null}
     </div>
@@ -622,10 +619,14 @@ function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => vo
         <TextInput value={name} onChange={(event) => setName(event.target.value)} placeholder="Template name" />
         <TextArea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" />
         <TextInput value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Category" />
-        <select value={visibility} onChange={(event) => setVisibility(event.target.value as "PRIVATE" | "SHARED")} className="h-10 w-full rounded-lg border border-[#e4dfd6] px-3 text-[13px]">
-          <option value="PRIVATE">Private</option>
-          <option value="SHARED">Shared with all creators</option>
-        </select>
+        <Select
+          value={visibility}
+          onChange={(next) => setVisibility(next as "PRIVATE" | "SHARED")}
+          options={[
+            { label: "Private", value: "PRIVATE" },
+            { label: "Shared with all creators", value: "SHARED" },
+          ]}
+        />
         <div className="flex justify-end gap-2">
           <GhostButton onClick={onClose}>Cancel</GhostButton>
           <PrimaryButton
@@ -657,9 +658,18 @@ function Toggle({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 py-1 text-[13px]">
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg py-1.5 text-left text-[13px] transition-colors duration-150 hover:bg-[#fbfaf8] disabled:cursor-not-allowed disabled:opacity-50"
+    >
       <span>{label}</span>
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
-    </label>
+      <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${checked ? "bg-[#4f63ea]" : "bg-[#e4dfd6]"}`}>
+        <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${checked ? "translate-x-4" : "translate-x-0"}`} />
+      </span>
+    </button>
   );
 }

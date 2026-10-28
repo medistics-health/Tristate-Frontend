@@ -102,7 +102,7 @@ export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-lg border border-[#e4dfd6] bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-[#9cb1f6] ${props.className || ""}`}
+      className={`w-full rounded-lg border border-[#e4dfd6] bg-white px-3 py-2 text-[13px] text-slate-700 outline-none transition-[border-color,box-shadow] duration-150 focus:border-[#9cb1f6] focus:ring-2 focus:ring-[#4f63ea]/10 ${props.className || ""}`}
     />
   );
 }
@@ -111,7 +111,7 @@ export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`w-full rounded-lg border border-[#e4dfd6] bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-[#9cb1f6] ${props.className || ""}`}
+      className={`w-full rounded-lg border border-[#e4dfd6] bg-white px-3 py-2 text-[13px] text-slate-700 outline-none transition-[border-color,box-shadow] duration-150 focus:border-[#9cb1f6] focus:ring-2 focus:ring-[#4f63ea]/10 ${props.className || ""}`}
     />
   );
 }
@@ -221,7 +221,7 @@ export function PrimaryButton({
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#4254d0] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#4f63ea] px-3.5 py-2 text-[13px] font-medium text-white shadow-sm transition-[background-color,transform,box-shadow] duration-150 ease-out hover:bg-[#4254d0] hover:shadow active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4f63ea]/30 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${className}`}
     >
       {children}
     </button>
@@ -236,7 +236,7 @@ export function GhostButton({
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 hover:bg-[#f7f5f1] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#ece8e1] bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 shadow-sm transition-[background-color,border-color,transform,box-shadow] duration-150 ease-out hover:border-[#e0dbd3] hover:bg-[#f7f5f1] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4f63ea]/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${className}`}
     >
       {children}
     </button>

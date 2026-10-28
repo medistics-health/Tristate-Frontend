@@ -416,7 +416,8 @@ export async function publishForm(id: string, _scheduled: boolean) {
   const errors = publishValidation(latest);
   if (errors.length) return errors;
   try {
-    replaceForm(await formApi.publishForm(id));
+    await formApi.publishForm(id);
+    replaceForm(await formApi.getDocument(id));
     return [];
   } catch (error) {
     return [{ message: error instanceof Error ? error.message : "Unable to publish.", target: "builder" }];
@@ -442,10 +443,19 @@ export async function restoreForm(id: string) {
   replaceForm(await formApi.restoreForm(id));
 }
 
+const defaultSectionTitle = /^Section \d+$/;
+
+function renumberSections(form: FormRecord) {
+  form.sections.forEach((item, index) => {
+    if (defaultSectionTitle.test(item.title.trim())) item.title = `Section ${index + 1}`;
+  });
+}
+
 export function addSection(formId: string) {
   const form = getForm(formId);
   if (!form) return;
-  form.sections.push(section(`Section ${form.sections.length + 1}`, []));
+  form.sections.push(section("Section 1", []));
+  renumberSections(form);
   touch(form);
   emit();
 }
@@ -469,6 +479,7 @@ export function deleteSection(formId: string, sectionId: string, moveToId?: stri
     const target = form.sections.find((item) => item.id === moveToId);
     target?.questions.push(...removed.questions);
   }
+  renumberSections(form);
   touch(form);
   emit();
 }
@@ -588,14 +599,14 @@ export async function setRecipients(
   });
   const previous = new Set(form.recipients.map((recipient) => recipient.email.toLowerCase()));
   const emails = merged.filter((recipient) => !previous.has(recipient.email.toLowerCase()) && !extra.practiceIds?.length && !extra.personIds?.length).map((recipient) => recipient.email);
-  const saved = await formApi.addRecipientEmails(
+  await formApi.addRecipientEmails(
     formId,
     extra.practiceIds?.length || extra.personIds?.length ? merged.filter((recipient) => recipient.source === "NEW_EMAIL").map((recipient) => recipient.email) : emails,
     extra.practiceIds || [],
     extra.personIds || [],
     Boolean(extra.includePracticePersons),
   );
-  replaceForm(saved);
+  replaceForm(await formApi.getDocument(formId));
   return duplicates;
 }
 

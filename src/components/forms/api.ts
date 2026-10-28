@@ -194,9 +194,10 @@ export async function deleteDraft(id: string) {
   await request("DELETE", `/forms/${id}`, {});
 }
 
+type InviteDelivery = { sent?: number; failed?: number; errors?: string[] };
+
 export async function publishForm(id: string) {
-  await request("POST", `/forms/${id}/publish`, {});
-  return getDocument(id);
+  return request<InviteDelivery>("POST", `/forms/${id}/publish`, {});
 }
 
 export async function closeForm(id: string) {
@@ -224,9 +225,12 @@ export async function regenerateLink(id: string) {
   return getDocument(id);
 }
 
+export async function sendFormEmails(id: string, practiceIds: string[] = [], personIds: string[] = []) {
+  return request<InviteDelivery>("POST", `/forms/${id}/send`, { practiceIds, personIds });
+}
+
 export async function addRecipientEmails(id: string, emails: string[], practiceIds: string[] = [], personIds: string[] = [], includePracticePersons = false) {
-  await request("POST", `/forms/${id}/recipients`, { emails, practiceIds, personIds, includePracticePersons });
-  return getDocument(id);
+  return request<InviteDelivery>("POST", `/forms/${id}/recipients`, { emails, practiceIds, personIds, includePracticePersons });
 }
 
 export async function removeRecipient(formId: string, recipientId: string) {
