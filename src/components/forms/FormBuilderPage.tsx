@@ -18,8 +18,12 @@ import {
   deleteQuestion,
   deleteSection,
   duplicateQuestion,
+  beginNewForm,
+  discardLocalForm,
   flushSave,
+  isUnsavedForm,
   loadFormDocument,
+  persistLocalForm,
   moveQuestion,
   publishValidation,
   saveAsTemplate,
@@ -43,11 +47,20 @@ export default function FormBuilderPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const isNew = id === "new";
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const { forms } = useFormStore();
-  const form = forms.find((item) => item.id === id);
+  const formId = isNew ? draftId || "" : id;
+  const form = forms.find((item) => item.id === formId);
   useEffect(() => {
+    if (isNew) {
+      const draft = beginNewForm();
+      setDraftId(draft.id);
+      return () => discardLocalForm(draft.id);
+    }
     if (id) void loadFormDocument(id);
-  }, [id]);
+  }, [id, isNew]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"question" | "settings" | "logic">("question");
   const [errors, setErrors] = useState<{ message: string; target: string }[]>([]);
@@ -59,17 +72,43 @@ export default function FormBuilderPage() {
     return flattenQuestions(form).find((item) => item.question.id === selectedId)?.question ?? null;
   }, [form, selectedId]);
 
-  if (!form?.detailLoaded) {
+  if (!form || !form.detailLoaded) {
     return <div className="p-8 text-sm text-slate-500">Loading form…</div>;
   }
 
-  const locked = form.responses.length > 0;
-  const questions = flattenQuestions(form);
+  const current = form;
+  const locked = current.responses.length > 0;
+  const questions = flattenQuestions(current);
+  const unsaved = isUnsavedForm(current.id);
+
+  function leave() {
+    if (unsaved) discardLocalForm(current.id);
+    navigate("/forms");
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      if (unsaved) {
+        const saved = await persistLocalForm(current.id);
+        if (!saved) return;
+        toast.success("Form saved");
+        navigate(`/forms/${saved.id}`, { replace: true });
+        return;
+      }
+      await flushSave(current.id);
+      toast.success("Form saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to save this form.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="flex h-screen flex-col bg-[#f7f5f1] font-app-sans text-slate-700">
       <header className="flex flex-wrap items-center gap-3 border-b border-[#ece8e1] bg-white px-4 py-3">
-        <button type="button" onClick={() => navigate("/forms")} className="text-[13px] text-slate-500 hover:text-slate-800">
+        <button type="button" onClick={leave} className="text-[13px] text-slate-500 hover:text-slate-800">
           Forms
         </button>
         <BufferedInput
@@ -78,10 +117,21 @@ export default function FormBuilderPage() {
           className="min-w-0 flex-1 border-transparent bg-transparent px-0 text-[16px] font-semibold text-slate-800 shadow-none"
         />
         <StatusPill status={form.status} scheduled={form.scheduled} />
-        <span className="text-[12px] text-slate-400">Last saved {formatWhen(form.updatedAt)}</span>
+        <span className="text-[12px] text-slate-400">
+          {unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
+        </span>
         <GhostButton onClick={() => setPreview(true)}><Eye className="h-4 w-4" /> Preview</GhostButton>
-        <GhostButton onClick={() => setTemplateOpen(true)}>Save as template</GhostButton>
-        {form.status === "DRAFT" || form.status === "PUBLISHED" ? (
+        {unsaved ? (
+          <GhostButton onClick={leave} disabled={saving}>Cancel</GhostButton>
+        ) : (
+          <GhostButton onClick={() => setTemplateOpen(true)}>Save as template</GhostButton>
+        )}
+        {unsaved ? (
+          <PrimaryButton onClick={() => void save()} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </PrimaryButton>
+        ) : null}
+        {!unsaved && (form.status === "DRAFT" || form.status === "PUBLISHED") ? (
           <PrimaryButton
             onClick={() => {
               void flushSave(form.id).then(() => navigate(`/forms/${form.id}/send`));

@@ -5,7 +5,7 @@ import { LayoutGrid } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
 import DataTableToolbar from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
-import { createForm, createFromTemplate, listTemplates } from "./api";
+import { createFromTemplate, listTemplates } from "./api";
 import { formatDay } from "./chrome";
 import type { FormTemplate } from "./types";
 
@@ -105,11 +105,7 @@ export default function TemplatesPage() {
               </label>
             }
             addNewLabel="New template"
-            onAddNew={() => {
-              void createForm("Untitled form")
-                .then((form) => navigate(`/forms/${form.id}`))
-                .catch((error: Error) => toast.error(error.message));
-            }}
+            onAddNew={() => navigate("/forms/new")}
             onRefresh={load}
             isLoading={loading}
             page={currentPage}

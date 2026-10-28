@@ -5,7 +5,7 @@ import { LayoutGrid } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
 import DataTableToolbar from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
-import { createForm, listForms } from "./api";
+import { listForms } from "./api";
 import { StatusPill, formatDay } from "./chrome";
 import type { FormRecord, FormStatus } from "./types";
 
@@ -110,12 +110,8 @@ export default function FormsHome() {
                 />
               </label>
             }
-            addNewLabel="New template"
-            onAddNew={() => {
-              void createForm("Untitled form")
-                .then((form) => navigate(`/forms/${form.id}`))
-                .catch((error: Error) => toast.error(error.message));
-            }}
+            addNewLabel="New form"
+            onAddNew={() => navigate("/forms/new")}
             onRefresh={() => setRefreshKey((value) => value + 1)}
             isLoading={loading}
             page={currentPage}

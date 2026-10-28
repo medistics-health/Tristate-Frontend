@@ -38,6 +38,11 @@ function currentUserName() {
 }
 
 const saveTimers = new Map<string, number>();
+const localDraftIds = new Set<string>();
+
+export function isUnsavedForm(id: string) {
+  return localDraftIds.has(id);
+}
 
 function replaceForm(form: FormRecord) {
   const index = state.forms.findIndex((item) => item.id === form.id);
@@ -47,6 +52,7 @@ function replaceForm(form: FormRecord) {
 }
 
 function scheduleSave(id: string) {
+  if (localDraftIds.has(id)) return;
   window.clearTimeout(saveTimers.get(id));
   saveTimers.set(
     id,
@@ -59,7 +65,7 @@ function scheduleSave(id: string) {
 export async function flushSave(id: string) {
   window.clearTimeout(saveTimers.get(id));
   const form = getForm(id);
-  if (!form?.detailLoaded) return form;
+  if (!form?.detailLoaded || localDraftIds.has(id)) return form;
   const saved = await formApi.saveDocument(form);
   replaceForm(saved);
   return saved;
@@ -81,8 +87,11 @@ export function loadForms() {
       formApi.listTemplates(),
     ]);
     const forms = listed.forms;
-    const detailed = new Map(state.forms.filter((form) => form.detailLoaded).map((form) => [form.id, form]));
-    state.forms = forms.map((form) => detailed.get(form.id) || form);
+    const locals = state.forms.filter((form) => localDraftIds.has(form.id));
+    const detailed = new Map(
+      state.forms.filter((form) => form.detailLoaded && !localDraftIds.has(form.id)).map((form) => [form.id, form]),
+    );
+    state.forms = [...locals, ...forms.map((form) => detailed.get(form.id) || form)];
     state.templates = templates;
     state.audit = [];
     emit();
@@ -242,6 +251,60 @@ export function getForm(id: string) {
   return state.forms.find((form) => form.id === id) ?? null;
 }
 
+export function beginNewForm() {
+  for (const id of [...localDraftIds]) discardLocalForm(id);
+  const form = blankForm("Untitled form");
+  form.detailLoaded = true;
+  localDraftIds.add(form.id);
+  replaceForm(form);
+  return form;
+}
+
+export function discardLocalForm(id: string) {
+  if (!localDraftIds.has(id)) return;
+  localDraftIds.delete(id);
+  window.clearTimeout(saveTimers.get(id));
+  saveTimers.delete(id);
+  state.forms = state.forms.filter((form) => form.id !== id);
+  emit();
+}
+
+export async function persistLocalForm(id: string) {
+  const form = getForm(id);
+  if (!form || !localDraftIds.has(id)) return form;
+  const created = await formApi.createForm(form.title.trim() || "Untitled form");
+  if (!localDraftIds.has(id)) {
+    await formApi.deleteDraft(created.id).catch(() => undefined);
+    return null;
+  }
+  try {
+    const saved = await formApi.saveDocument({
+      ...form,
+      id: created.id,
+      refCode: created.refCode,
+      lockVersion: created.lockVersion,
+      version: created.version,
+      publicToken: created.publicToken,
+      owner: created.owner,
+      createdAt: created.createdAt,
+      status: created.status,
+    });
+    if (!localDraftIds.has(id)) {
+      await formApi.deleteDraft(created.id).catch(() => undefined);
+      return null;
+    }
+    localDraftIds.delete(id);
+    window.clearTimeout(saveTimers.get(id));
+    saveTimers.delete(id);
+    state.forms = state.forms.filter((item) => item.id !== id);
+    replaceForm(saved);
+    return saved;
+  } catch (error) {
+    await formApi.deleteDraft(created.id).catch(() => undefined);
+    throw error;
+  }
+}
+
 export async function createForm(title = "Untitled form") {
   const form = await formApi.createForm(title.trim() || "Untitled form");
   replaceForm(form);
@@ -258,6 +321,14 @@ export async function createFromTemplate(templateId: string) {
 
 export function updateForm(id: string, patch: Partial<FormRecord>) {
   if (patch.publicToken) {
+    if (localDraftIds.has(id)) {
+      const draft = getForm(id);
+      if (!draft) return;
+      draft.publicToken = uid("pub");
+      draft.publicLinkEnabled = true;
+      emit();
+      return;
+    }
     void formApi.regenerateLink(id).then(replaceForm);
     return;
   }
