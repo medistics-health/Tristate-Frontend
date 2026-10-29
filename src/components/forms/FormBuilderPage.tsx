@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -23,6 +23,7 @@ import {
   discardLocalForm,
   flushSave,
   isUnsavedForm,
+  getForm,
   loadFormDocument,
   persistLocalForm,
   moveQuestion,
@@ -68,10 +69,7 @@ export default function FormBuilderPage() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [preview, setPreview] = useState(location.pathname.endsWith("/preview"));
 
-  const selected = useMemo(() => {
-    if (!form) return null;
-    return flattenQuestions(form).find((item) => item.question.id === selectedId)?.question ?? null;
-  }, [form, selectedId]);
+  const selected = form ? flattenQuestions(form).find((item) => item.question.id === selectedId)?.question ?? null : null;
 
   if (!form || !form.detailLoaded) {
     return <div className="p-8 text-sm text-slate-500">Loading form…</div>;
@@ -248,6 +246,15 @@ export default function FormBuilderPage() {
                           {QUESTION_CATALOG.find((item) => item.type === question.type)?.label}
                           {question.logic ? ` · ${logicSummary(question.logic, form)}` : ""}
                         </span>
+                        {isChoiceType(question.type) && question.options.length ? (
+                          <span className="mt-2 flex flex-col gap-1">
+                            {question.options.map((option) => (
+                              <span key={option.id} className="truncate rounded-md border border-[#efeae3] bg-white px-2 py-1 text-[12px] text-slate-600">
+                                {option.label || "Untitled option"}
+                              </span>
+                            ))}
+                          </span>
+                        ) : null}
                       </span>
                     </button>
                   ))}
@@ -489,54 +496,58 @@ function QuestionInspector({
   );
 }
 
+function currentOptions(formId: string, questionId: string) {
+  const form = getForm(formId);
+  return form ? flattenQuestions(form).find((item) => item.question.id === questionId)?.question.options : null;
+}
+
 function OptionsEditor({ formId, question, locked }: { formId: string; question: FormQuestion; locked: boolean }) {
   return (
     <div>
       <FieldLabel>Options</FieldLabel>
       <div className="space-y-2">
-        {question.options.map((option, index) => (
+        {question.options.map((option) => (
           <div key={option.id} className="flex gap-2">
             <BufferedInput
               value={option.label}
               disabled={locked && !option.isOther}
               onCommit={(label) => {
-                const options = question.options.map((item) => item.id === option.id ? { ...item, label } : item);
-                updateQuestion(formId, question.id, { options });
+                const options = currentOptions(formId, question.id);
+                if (!options?.some((item) => item.id === option.id)) return;
+                updateQuestion(formId, question.id, {
+                  options: options.map((item) => item.id === option.id ? { ...item, label } : item),
+                });
               }}
             />
             <button
               type="button"
               disabled={locked}
-              onClick={() => updateQuestion(formId, question.id, { options: question.options.filter((item) => item.id !== option.id) })}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                const options = currentOptions(formId, question.id);
+                if (!options) return;
+                updateQuestion(formId, question.id, { options: options.filter((item) => item.id !== option.id) });
+              }}
               className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-150 hover:bg-[#fde8e8] hover:text-[#b42318] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trash2 className="h-4 w-4" />
             </button>
-            <span className="sr-only">{index}</span>
           </div>
         ))}
       </div>
-      <div className="mt-2 flex gap-3 text-[12px]">
+      <div className="mt-2 text-[12px]">
         <button
           type="button"
           disabled={locked}
           className="cursor-pointer rounded-md px-1.5 py-0.5 font-medium text-[#4f63ea] transition-colors duration-150 hover:bg-[#f4f2fe] disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={() => updateQuestion(formId, question.id, { options: [...question.options, { id: `opt-${Date.now()}`, label: `Option ${question.options.length + 1}` }] })}
-        >
-          Add option
-        </button>
-        <button
-          type="button"
-          disabled={locked}
-          className="cursor-pointer rounded-md px-1.5 py-0.5 text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
           onClick={() => {
-            const pasted = window.prompt("Paste one option per line");
-            if (!pasted) return;
-            const options = pasted.split("\n").map((label) => label.trim()).filter(Boolean).map((label, index) => ({ id: `opt-${Date.now()}-${index}`, label }));
-            if (options.length) updateQuestion(formId, question.id, { options });
+            const options = currentOptions(formId, question.id) ?? question.options;
+            updateQuestion(formId, question.id, {
+              options: [...options, { id: crypto.randomUUID(), label: `Option ${options.length + 1}` }],
+            });
           }}
         >
-          Bulk paste
+          Add option
         </button>
       </div>
     </div>

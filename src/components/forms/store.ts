@@ -39,6 +39,8 @@ function currentUserName() {
 
 const saveTimers = new Map<string, number>();
 const localDraftIds = new Set<string>();
+const formRevision = new Map<string, number>();
+const saveChain = new Map<string, Promise<unknown>>();
 
 export function isUnsavedForm(id: string) {
   return localDraftIds.has(id);
@@ -62,13 +64,29 @@ function scheduleSave(id: string) {
   );
 }
 
-export async function flushSave(id: string) {
-  window.clearTimeout(saveTimers.get(id));
+async function saveLatest(id: string) {
   const form = getForm(id);
-  if (!form?.detailLoaded || localDraftIds.has(id)) return form;
-  const saved = await formApi.saveDocument(form);
+  if (!form?.detailLoaded || localDraftIds.has(id)) return form ?? null;
+  const revision = formRevision.get(id) || 0;
+  const saved = await formApi.saveDocument(structuredClone(form));
+  const current = getForm(id);
+  if (!current) return saved;
+  if ((formRevision.get(id) || 0) !== revision) {
+    current.lockVersion = saved.lockVersion;
+    current.version = saved.version;
+    emit();
+    return current;
+  }
   replaceForm(saved);
   return saved;
+}
+
+export function flushSave(id: string) {
+  window.clearTimeout(saveTimers.get(id));
+  const previous = saveChain.get(id) ?? Promise.resolve();
+  const run = previous.catch(() => undefined).then(() => saveLatest(id));
+  saveChain.set(id, run);
+  return run;
 }
 
 export async function loadFormDocument(id: string) {
@@ -244,6 +262,7 @@ function audit(action: string, form: Pick<FormRecord, "id" | "title">, summary: 
 
 function touch(form: FormRecord) {
   form.updatedAt = nowIso();
+  formRevision.set(form.id, (formRevision.get(form.id) || 0) + 1);
   if (form.detailLoaded) scheduleSave(form.id);
 }
 
@@ -496,6 +515,14 @@ export function addQuestion(formId: string, sectionId: string, type: QuestionTyp
   return created;
 }
 
+const defaultOptionLabel = /^Option \d+$/;
+
+function renumberOptions(options: FormQuestion["options"]) {
+  options.forEach((option, index) => {
+    if (!option.isOther && defaultOptionLabel.test(option.label.trim())) option.label = `Option ${index + 1}`;
+  });
+}
+
 export function updateQuestion(
   formId: string,
   questionId: string,
@@ -504,7 +531,10 @@ export function updateQuestion(
   const form = getForm(formId);
   const found = form ? flattenQuestions(form).find((item) => item.question.id === questionId) : null;
   if (!form || !found) return;
+  if (patch.options) renumberOptions(patch.options);
   Object.assign(found.question, patch);
+  const index = found.section.questions.findIndex((item) => item.id === questionId);
+  if (index >= 0) found.section.questions[index] = { ...found.section.questions[index] };
   touch(form);
   emit();
 }
