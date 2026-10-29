@@ -330,8 +330,8 @@ function FormSettings({ formId }: { formId: string }) {
       <p className="text-[12px] text-slate-400">{form.refCode} · v{form.version}</p>
       <FieldLabel>Confirmation message</FieldLabel>
       <BufferedTextArea value={form.confirmationMessage} onCommit={(confirmationMessage) => updateForm(form.id, { confirmationMessage })} />
-      <FieldLabel>Redirect URL after submit</FieldLabel>
-      <BufferedInput value={form.redirectUrl} onCommit={(redirectUrl) => updateForm(form.id, { redirectUrl })} placeholder="https://" />
+      {/* <FieldLabel>Redirect URL after submit</FieldLabel>
+      <BufferedInput value={form.redirectUrl} onCommit={(redirectUrl) => updateForm(form.id, { redirectUrl })} placeholder="https://" /> */}
       <FieldLabel>Display</FieldLabel>
       <Select
         value={form.displayMode}
@@ -343,7 +343,7 @@ function FormSettings({ formId }: { formId: string }) {
       />
       <Toggle label="Show progress bar" checked={form.showProgress} onChange={(showProgress) => updateForm(form.id, { showProgress })} />
       <Toggle label="Show question numbers" checked={form.showNumbers} onChange={(showNumbers) => updateForm(form.id, { showNumbers })} />
-      <Toggle label="Allow save and resume" checked={form.allowResume} onChange={(allowResume) => updateForm(form.id, { allowResume })} />
+      {/* <Toggle label="Allow save and resume" checked={form.allowResume} onChange={(allowResume) => updateForm(form.id, { allowResume })} /> */}
       <Toggle label="One response per person" checked={form.oneResponse} disabled={locked} onChange={(oneResponse) => updateForm(form.id, { oneResponse })} />
       <FieldLabel>Response mode</FieldLabel>
       <Select
