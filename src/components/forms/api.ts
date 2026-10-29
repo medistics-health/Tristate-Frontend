@@ -271,11 +271,13 @@ export async function getResponse(formId: string, responseId: string) {
       id: string;
       submittedAt: string | null;
       respondent: string | null;
+      email?: string | null;
       practice: string | null;
       answers: Array<{
         questionId: string;
         label: string;
         type: string;
+        display?: string | null;
         value: {
           valueText?: string | null;
           valueNumber?: number | string | null;
