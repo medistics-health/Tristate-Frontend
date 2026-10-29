@@ -372,7 +372,7 @@ export function publishValidation(form: FormRecord) {
       (item.type === "image" && item.config.imageMode === "choice");
     if (choice && item.options.filter((optionItem) => optionItem.label.trim()).length < 2) {
       errors.push({
-        message: `â€œ${item.label || "Untitled"}â€ needs at least two options.`,
+        message: `"${item.label || "Untitled"}" needs at least two options.`,
         target: item.id,
       });
     }
@@ -382,7 +382,7 @@ export function publishValidation(form: FormRecord) {
       );
       if (sourceIndex === -1 || sourceIndex >= index) {
         errors.push({
-          message: `Logic on â€œ${item.label}â€ references a missing or later question.`,
+          message: `Logic on "${item.label}" references a missing or later question.`,
           target: item.id,
         });
       }

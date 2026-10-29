@@ -272,17 +272,20 @@ export default function FormBuilderPage() {
           </div>
         </main>
         <aside className="overflow-y-auto border-l border-[#ece8e1] bg-white p-4">
-          <div className="mb-4 flex gap-2 text-[13px]">
-            {(["question", "logic", "settings"] as const).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setTab(item)}
-                className={`cursor-pointer rounded-full px-3 py-1 capitalize transition-colors duration-150 ${tab === item ? "bg-[#eef2ff] text-[#3144c4]" : "text-slate-500 hover:bg-[#f7f5f1] hover:text-slate-700"}`}
-              >
-                {item}
-              </button>
-            ))}
+          <div className="mb-4 flex gap-1 rounded-xl bg-[#f7f5f1] p-1 text-[13px]">
+            {(["question", "logic", "settings"] as const).map((item) => {
+              const active = (selected ? tab : "settings") === item;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setTab(item)}
+                  className={`flex-1 cursor-pointer rounded-lg px-2 py-1.5 capitalize transition-colors duration-150 ${active ? "bg-white font-medium text-[#3144c4] shadow-xs" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  {item}
+                </button>
+              );
+            })}
           </div>
           {tab === "settings" || !selected ? (
             <FormSettings formId={form.id} />
@@ -325,49 +328,78 @@ function FormSettings({ formId }: { formId: string }) {
   const form = useFormStore().forms.find((item) => item.id === formId);
   if (!form) return null;
   const locked = form.responses.length > 0;
+  const checks = publishValidation(form).filter((item) => item.target !== "distribution");
   return (
-    <div className="space-y-3">
-      <p className="text-[12px] text-slate-400">{form.refCode} · v{form.version}</p>
-      <FieldLabel>Confirmation message</FieldLabel>
-      <BufferedTextArea value={form.confirmationMessage} onCommit={(confirmationMessage) => updateForm(form.id, { confirmationMessage })} />
-      {/* <FieldLabel>Redirect URL after submit</FieldLabel>
-      <BufferedInput value={form.redirectUrl} onCommit={(redirectUrl) => updateForm(form.id, { redirectUrl })} placeholder="https://" /> */}
-      <FieldLabel>Display</FieldLabel>
-      <Select
-        value={form.displayMode}
-        onChange={(displayMode) => updateForm(form.id, { displayMode: displayMode as typeof form.displayMode })}
-        options={[
-          { label: "All sections on one page", value: "SINGLE_PAGE" },
-          { label: "One section per page", value: "MULTI_PAGE" },
-        ]}
-      />
-      <Toggle label="Show progress bar" checked={form.showProgress} onChange={(showProgress) => updateForm(form.id, { showProgress })} />
-      <Toggle label="Show question numbers" checked={form.showNumbers} onChange={(showNumbers) => updateForm(form.id, { showNumbers })} />
-      {/* <Toggle label="Allow save and resume" checked={form.allowResume} onChange={(allowResume) => updateForm(form.id, { allowResume })} /> */}
-      <Toggle label="One response per person" checked={form.oneResponse} disabled={locked} onChange={(oneResponse) => updateForm(form.id, { oneResponse })} />
-      <FieldLabel>Response mode</FieldLabel>
-      <Select
-        disabled={locked || form.status !== "DRAFT"}
-        value={form.responseMode}
-        onChange={(responseMode) => updateForm(form.id, { responseMode: responseMode as typeof form.responseMode })}
-        options={[
-          { label: "Identified", value: "IDENTIFIED" },
-          { label: "Anonymous", value: "ANONYMOUS" },
-        ]}
-      />
-      {form.responseMode === "ANONYMOUS" ? (
-        <div className="rounded-lg bg-[#fff1bd] p-2 text-[12px] text-[#8a6800]">
-          Recording the practice can reveal who answered when a practice has very few recipients. Groups under 3 responses stay aggregated.
-          <Toggle
-            label="Record practice with response"
-            checked={form.recordPracticeWhenAnonymous}
-            onChange={(recordPracticeWhenAnonymous) => updateForm(form.id, { recordPracticeWhenAnonymous })}
-          />
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-[14px] font-semibold text-slate-800">Form settings</h2>
+        <p className="mt-0.5 text-[12px] text-slate-400">{form.refCode} · Version {form.version}</p>
+      </div>
+
+      <section className="space-y-2">
+        <p className="text-[11px] font-semibold tracking-wide text-slate-400 uppercase">After submit</p>
+        <FieldLabel>Confirmation message</FieldLabel>
+        <BufferedTextArea value={form.confirmationMessage} onCommit={(confirmationMessage) => updateForm(form.id, { confirmationMessage })} />
+        <p className="text-[12px] text-slate-400">People see this after they send their answers.</p>
+      </section>
+
+      <section className="space-y-2">
+        <p className="text-[11px] font-semibold tracking-wide text-slate-400 uppercase">Layout</p>
+        <FieldLabel>Display</FieldLabel>
+        <Select
+          value={form.displayMode}
+          onChange={(displayMode) => updateForm(form.id, { displayMode: displayMode as typeof form.displayMode })}
+          options={[
+            { label: "All sections on one page", value: "SINGLE_PAGE" },
+            { label: "One section per page", value: "MULTI_PAGE" },
+          ]}
+        />
+        <div className="divide-y divide-[#f3f0ea] rounded-xl border border-[#f0ece6] px-3">
+          <Toggle label="Show progress bar" checked={form.showProgress} onChange={(showProgress) => updateForm(form.id, { showProgress })} />
+          <Toggle label="Show question numbers" checked={form.showNumbers} onChange={(showNumbers) => updateForm(form.id, { showNumbers })} />
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <p className="text-[11px] font-semibold tracking-wide text-slate-400 uppercase">Responses</p>
+        <div className="rounded-xl border border-[#f0ece6] px-3">
+          <Toggle label="One response per person" checked={form.oneResponse} disabled={locked} onChange={(oneResponse) => updateForm(form.id, { oneResponse })} />
+        </div>
+        <FieldLabel>Response mode</FieldLabel>
+        <Select
+          disabled={locked || form.status !== "DRAFT"}
+          value={form.responseMode}
+          onChange={(responseMode) => updateForm(form.id, { responseMode: responseMode as typeof form.responseMode })}
+          options={[
+            { label: "Identified", value: "IDENTIFIED" },
+            { label: "Anonymous", value: "ANONYMOUS" },
+          ]}
+        />
+        <p className="text-[12px] text-slate-400">
+          {form.responseMode === "ANONYMOUS" ? "Names stay hidden on the responses page." : "Responses include the person's name."}
+        </p>
+        {form.responseMode === "ANONYMOUS" ? (
+          <div className="rounded-xl bg-[#fff8e8] px-3 py-2 text-[12px] text-[#8a6800]">
+            A practice name can still identify someone when that practice has very few replies. Groups under 3 stay combined.
+            <Toggle
+              label="Record practice with response"
+              checked={form.recordPracticeWhenAnonymous}
+              onChange={(recordPracticeWhenAnonymous) => updateForm(form.id, { recordPracticeWhenAnonymous })}
+            />
+          </div>
+        ) : null}
+      </section>
+
+      {checks.length ? (
+        <div className="rounded-xl bg-[#fff8e8] px-3 py-2.5">
+          <p className="text-[12px] font-medium text-[#8a6800]">Still needed</p>
+          <ul className="mt-1 space-y-1 text-[12px] text-[#8a6800]">
+            {checks.map((item) => (
+              <li key={item.message}>{item.message}</li>
+            ))}
+          </ul>
         </div>
       ) : null}
-      <p className="text-[12px] text-slate-400">
-        {publishValidation(form).length} publish checks currently failing.
-      </p>
     </div>
   );
 }
