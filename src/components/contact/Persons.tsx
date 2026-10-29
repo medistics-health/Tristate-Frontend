@@ -56,7 +56,7 @@ import { getAllPractices } from "../../services/operations/practices";
 import { getAllCompanies } from "../../services/operations/companies";
 import type { Practice } from "../practices/types";
 import toast from "react-hot-toast";
-import { canBusinessWrite, readStoredUser } from "../../utils/auth";
+import { canBusinessWrite, readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 
 function getCellDisplayValue(value: PersonCellValue): string {
   if (value === null || value === undefined) return "-";
@@ -255,6 +255,12 @@ function getDesignationLabel(value: string): string {
 export default function PersonsPage() {
   const currentRole = readStoredUser()?.role as string | undefined;
   const canWritePersons = canBusinessWrite(currentRole);
+  const currentUser = readStoredUser();
+  const canViewPrefunding = hasPrefundingPermission(currentUser, "VIEW");
+  const canEditPrefunding = hasPrefundingPermission(currentUser, "EDIT") || hasPrefundingPermission(currentUser, "CREATE");
+  const effectiveRoleOptions = canViewPrefunding
+    ? roleOptions
+    : roleOptions.filter((r) => r.toUpperCase() !== "EMPLOYEE");
   const [viewData, setViewData] = useState<PersonViewData | null>(null);
   const [rows, setRows] = useState<PersonRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -601,12 +607,15 @@ export default function PersonsPage() {
                 EMPLOYEE: "bg-indigo-100 text-indigo-700",
                 MANAGER: "bg-teal-100 text-teal-700",
               };
-              const rolesList = Array.isArray(row.original.values.rolesArray)
+              const rawRolesList = Array.isArray(row.original.values.rolesArray)
                 ? (row.original.values.rolesArray as string[])
                 : String(value || "")
                     .split(",")
                     .map((r) => r.trim())
                     .filter(Boolean);
+              const rolesList = canViewPrefunding
+                ? rawRolesList
+                : rawRolesList.filter((r) => r.toUpperCase() !== "EMPLOYEE");
               if (rolesList.length === 0) {
                 return <span className="text-slate-400">-</span>;
               }
@@ -1287,7 +1296,7 @@ export default function PersonsPage() {
           <MultiSelect
             value={formData.roles || []}
             onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
-            options={roleOptions.map(r => ({ label: r, value: r }))}
+            options={effectiveRoleOptions.map(r => ({ label: r, value: r }))}
             className="w-full"
           />
         </div>
@@ -1384,33 +1393,34 @@ export default function PersonsPage() {
           </select>
         </div>
 
-        {(formData.roles || []).includes("EMPLOYEE") && (
+        {canViewPrefunding && (formData.roles || []).includes("EMPLOYEE") && (
           <div className="border border-slate-200 rounded-md p-3 space-y-3 bg-slate-50 mt-4 mb-4">
             <h3 className="text-[13px] font-semibold text-slate-700">Employee Details</h3>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-slate-600">Job Category</label>
-                <Select value={formData.jobCategory || ""} onChange={(val) => handleFormChange("jobCategory", val)} options={[{label: "Clinical", value: "CLINICAL"}, {label: "Non-Clinical", value: "NON_CLINICAL"}]} placeholder="Select Category" className="w-full" />
+                <Select disabled={!canEditPrefunding} value={formData.jobCategory || ""} onChange={(val) => handleFormChange("jobCategory", val)} options={[{label: "Clinical", value: "CLINICAL"}, {label: "Non-Clinical", value: "NON_CLINICAL"}]} placeholder="Select Category" className="w-full" />
               </div>
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-slate-600">Work Location</label>
-                <input type="text" value={formData.workLocation} onChange={(e) => handleFormChange("workLocation", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="Location" />
+                <input disabled={!canEditPrefunding} type="text" value={formData.workLocation} onChange={(e) => handleFormChange("workLocation", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="Location" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
-                <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
+                <Select disabled={!canEditPrefunding} value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
               </div>
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining <span className="text-red-500">*</span></label>
-                <DatePicker value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
+                <DatePicker disabled={!canEditPrefunding} value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
                 <Select
+                  disabled={!canEditPrefunding}
                   value={formData.payType || ""}
                   onChange={(val) => handleFormChange("payType", val)}
                   options={[
@@ -1426,12 +1436,12 @@ export default function PersonsPage() {
               </div>
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
-                <input type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
+                <input disabled={!canEditPrefunding} type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
               </div>
             </div>
             <div>
               <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
-              <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
+              <input disabled={!canEditPrefunding} type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
             </div>
           </div>
         )}
@@ -1602,7 +1612,7 @@ export default function PersonsPage() {
           }
           options={[
             { label: "All Roles", value: "" },
-            ...roleOptions.map((role) => ({ label: role, value: role })),
+            ...effectiveRoleOptions.map((role) => ({ label: role, value: role })),
           ]}
         />
       </label>
@@ -1889,12 +1899,15 @@ export default function PersonsPage() {
                   EMPLOYEE: "bg-indigo-100 text-indigo-700",
                   MANAGER: "bg-teal-100 text-teal-700",
                 };
-                const rolesList = Array.isArray(selectedRow.values.rolesArray)
+                const rawRolesList = Array.isArray(selectedRow.values.rolesArray)
                   ? (selectedRow.values.rolesArray as string[])
                   : String(selectedRow.values.role || "")
                       .split(",")
                       .map((r) => r.trim())
                       .filter(Boolean);
+                const rolesList = canViewPrefunding
+                  ? rawRolesList
+                  : rawRolesList.filter((r) => r.toUpperCase() !== "EMPLOYEE");
                 const roleBadges = rolesList.map((r) => ({
                   label: r,
                   className: rColors[r.toUpperCase()] || "bg-gray-100 text-gray-700",
@@ -2028,7 +2041,7 @@ export default function PersonsPage() {
                   <MultiSelect
                     value={formData.roles || []}
                     onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
-                    options={roleOptions.map(r => ({ label: r, value: r }))}
+                    options={effectiveRoleOptions.map(r => ({ label: r, value: r }))}
                     className="w-full"
                   />
                 </div>
@@ -2128,33 +2141,34 @@ export default function PersonsPage() {
                   </select>
                 </div>
 
-                  {(formData.roles || []).includes("EMPLOYEE") && (
+                  {canViewPrefunding && (formData.roles || []).includes("EMPLOYEE") && (
                     <div className="border border-slate-200 rounded-md p-3 space-y-3 bg-slate-50 mt-4 mb-4">
                       <h3 className="text-[13px] font-semibold text-slate-700">Employee Details</h3>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">Job Category</label>
-                          <Select value={formData.jobCategory || ""} onChange={(val) => handleFormChange("jobCategory", val)} options={[{label: "Clinical", value: "CLINICAL"}, {label: "Non-Clinical", value: "NON_CLINICAL"}]} placeholder="Select Category" className="w-full" />
+                          <Select disabled={!canEditPrefunding} value={formData.jobCategory || ""} onChange={(val) => handleFormChange("jobCategory", val)} options={[{label: "Clinical", value: "CLINICAL"}, {label: "Non-Clinical", value: "NON_CLINICAL"}]} placeholder="Select Category" className="w-full" />
                         </div>
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">Work Location</label>
-                          <input type="text" value={formData.workLocation} onChange={(e) => handleFormChange("workLocation", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="Location" />
+                          <input disabled={!canEditPrefunding} type="text" value={formData.workLocation} onChange={(e) => handleFormChange("workLocation", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="Location" />
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
-                          <Select value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
+                          <Select disabled={!canEditPrefunding} value={formData.state || ""} onChange={(val) => handleFormChange("state", val)} options={usStatesOptions} placeholder="Select State" className="w-full" />
                         </div>
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">Date of Joining <span className="text-red-500">*</span></label>
-                          <DatePicker value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
+                          <DatePicker disabled={!canEditPrefunding} value={formData.dateOfJoining || ""} onChange={(val) => handleFormChange("dateOfJoining", val)} placeholder="Select Date" className="w-full" />
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
                           <Select
+                            disabled={!canEditPrefunding}
                             value={formData.payType || ""}
                             onChange={(val) => handleFormChange("payType", val)}
                             options={[
@@ -2170,12 +2184,12 @@ export default function PersonsPage() {
                         </div>
                         <div>
                           <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
-                          <input type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
+                          <input disabled={!canEditPrefunding} type="number" step="0.01" value={formData.payRate} onChange={(e) => handleFormChange("payRate", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.00" />
                         </div>
                       </div>
                       <div>
                         <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
-                        <input type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
+                        <input disabled={!canEditPrefunding} type="number" step="0.1" value={formData.bufferPercentage} onChange={(e) => handleFormChange("bufferPercentage", e.target.value)} className="app-control w-full rounded-md px-3 py-2 text-[13px]" placeholder="0.0" />
                       </div>
                     </div>
                   )}

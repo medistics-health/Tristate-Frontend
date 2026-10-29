@@ -230,15 +230,16 @@ function calculateDueDateFromStartDate(startDateStr?: string | null, dueDays: nu
 }
 
 function getCycleDefaultWorkingHours(cycleType?: string | null): number {
+  console.log("Calculating default working hours for cycle type:", cycleType);
   const c = String(cycleType || "").trim().toUpperCase();
-  if (c === "WEEKLY") return 40;
-  if (c === "BI_WEEKLY" || c === "BIWEEKLY" || c === "BI-WEEKLY") return 80;
-  if (c === "QUARTERLY") return 520;
+  if (c === "WEEKLY") return 43.334; // 40 hrs + 8.66 buffer (20% of 40)
+  if (c === "BI_WEEKLY" || c === "BIWEEKLY" || c === "BI-WEEKLY") return 86.667;
+  if (c === "QUARTERLY") return 520; 
   if (c === "SEMI_ANNUALLY" || c === "SEMIANNUALLY") return 1040;
   if (c === "YEARLY") return 2080;
-  if (c === "MONTHLY") return 160;
+  if (c === "MONTHLY") return 173.33;
   // Default Monthly (4 weeks @ 40 hrs)
-  return 160;
+  return 173.33;
 }
 
 function normalizePayType(val?: string | null): "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually" {
@@ -1709,7 +1710,7 @@ export default function CalculatePrefunding() {
 
     if (target.isOneTime) {
       setRates((prev) => prev.filter((r) => r.id !== target.id));
-      toast.success(`One-time line item "${target.name}" removed`);
+      toast.success(`One-time line item "${target.name}" removed from prefunding`);
       setDeleteLineItemTarget(null);
       return;
     }
@@ -1719,7 +1720,7 @@ export default function CalculatePrefunding() {
       try {
         await deletePrefundingRate(target.id);
         setRates((prev) => prev.filter((r) => r.id !== target.id));
-        toast.success(`Rate "${target.name}" deleted permanently from template & database`);
+        toast.success(`Rate "${target.name}" deleted permanently from template`);
         setDeleteLineItemTarget(null);
       } catch (err: any) {
         console.error("Failed to delete prefunding rate permanently:", err);
@@ -1730,7 +1731,7 @@ export default function CalculatePrefunding() {
     } else {
       // One-time removal: exclude from this invoice calculation only
       setRates((prev) => prev.map((r) => (r.id === target.id ? { ...r, isExcluded: true } : r)));
-      toast.success(`"${target.name}" excluded from this calculation (template preserved)`);
+      toast.success(`"${target.name}" excluded from this prefunding (template preserved)`);
       setDeleteLineItemTarget(null);
     }
   };
@@ -2722,7 +2723,7 @@ export default function CalculatePrefunding() {
                                       <button
                                         type="button"
                                         onClick={() => handlePromptDeleteLineItem(rate)}
-                                        title="Remove from current invoice"
+                                        title="Remove line item from prefunding"
                                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -2858,7 +2859,7 @@ export default function CalculatePrefunding() {
                                       <button
                                         type="button"
                                         onClick={() => handlePromptDeleteLineItem(rate)}
-                                        title="Remove from current invoice"
+                                        title="Remove line item from prefunding"
                                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -2903,7 +2904,7 @@ export default function CalculatePrefunding() {
                         <div className="flex items-center gap-2 text-slate-600">
                           <Info className="w-4 h-4 text-slate-500 shrink-0" />
                           <span>
-                            Template rates excluded from this invoice:
+                            Template rates excluded from this prefunding:
                           </span>
                           <div className="flex flex-wrap gap-1.5 ml-2">
                             {excludedRates.map((r) => (
@@ -3777,7 +3778,7 @@ export default function CalculatePrefunding() {
         onConfirm={handleConfirmDeleteLineItem}
         closeOnConfirm={false}
         title="Remove Prefunding Line Item"
-        confirmLabel={isDeletingLineItem ? "Deleting..." : deleteLineItemAction === "permanent" ? "Delete Permanently" : "Remove for this Calculation"}
+        confirmLabel={isDeletingLineItem ? "Deleting..." : deleteLineItemAction === "permanent" ? "Delete Permanently" : "Remove for this Prefunding"}
         cancelLabel="Cancel"
         isConfirming={isDeletingLineItem}
       >
@@ -3788,7 +3789,7 @@ export default function CalculatePrefunding() {
 
           {deleteLineItemTarget?.isOneTime ? (
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs">
-              This is a one-time line item. Removing it will exclude it from this invoice.
+              This is a one-time line item. Removing it will exclude it from this prefunding calculation.
             </div>
           ) : (
             <div className="space-y-3 pt-1">
@@ -3813,11 +3814,11 @@ export default function CalculatePrefunding() {
                     className="text-[#4f63ea]"
                   />
                   <span className="font-bold text-slate-800 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Remove from this invoice only
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Remove from this prefunding only
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                  Excludes this rate from the current invoice. Template prefunding rate remains active for future cycles.
+                  Excludes this rate from the current prefunding calculation. Template prefunding rate remains active for future cycles.
                 </p>
               </label>
 
@@ -3838,11 +3839,11 @@ export default function CalculatePrefunding() {
                     className="text-red-600"
                   />
                   <span className="font-bold text-red-700 flex items-center gap-1">
-                    <Trash2 className="w-3.5 h-3.5 text-red-600" /> Delete permanently from Template & DB
+                    <Trash2 className="w-3.5 h-3.5 text-red-600" /> Delete permanently from Template
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                  Deletes this rate permanently from the practice template and database. It will no longer appear on any future invoices.
+                  Deletes this rate permanently from the practice template. It will no longer appear on any future prefunding calculations.
                 </p>
               </label>
             </div>
