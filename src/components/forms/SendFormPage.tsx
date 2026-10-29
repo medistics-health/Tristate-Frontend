@@ -107,9 +107,11 @@ export default function SendFormPage() {
       if (!sent) {
         throw new Error(delivery.errors?.[0] || "The form email could not be sent.");
       }
-      if (failed) toast.error(`Sent ${sent}. ${failed} could not be delivered.`);
-      else toast.success(`Sent to ${sent}.`);
-      navigate(`/forms/${id}/responses`);
+      const formName = title.trim() || "The form";
+      const recipients = sent === 1 ? "1 recipient" : `${sent} recipients`;
+      if (failed) toast.error(`${formName} was sent to ${recipients}. ${failed === 1 ? "1 email" : `${failed} emails`} could not be delivered.`);
+      else toast.success(`${formName} was sent to ${recipients}.`);
+      navigate("/forms");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to send this form.");
     } finally {
