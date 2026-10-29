@@ -650,7 +650,11 @@ export default function AllPracticePage() {
         prefundingInvoiceRecipientId: String((values as Record<string, unknown>).prefundingInvoiceRecipientId || ""),
         prefundingReminderRecipientId: String((values as Record<string, unknown>).prefundingReminderRecipientId || ""),
         prefundingState: String((values as Record<string, unknown>).prefundingState || ""),
-        prefundingRateIds: Array.isArray((values as Record<string, unknown>).prefundingRates) ? (values as Record<string, unknown>).prefundingRates.map((r: any) => r.prefundingRateId) : [],
+        prefundingRateIds: Array.isArray((values as Record<string, unknown>).prefundingRates)
+          ? ((values as Record<string, unknown>).prefundingRates as any[])
+              .map((r: any) => (typeof r === "string" ? r : r.prefundingRateId || r.id))
+              .filter(Boolean)
+          : [],
       });
       setProfileForm(
         practiceProfileFromRecord(values as Record<string, unknown>),
@@ -1127,7 +1131,7 @@ export default function AllPracticePage() {
         prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
         prefundingReminderRecipientId: formData.prefundingReminderRecipientId || undefined,
         prefundingState: formData.prefundingState || undefined,
-        ...(formData.prefundingRateIds && formData.prefundingRateIds.length > 0 ? { prefundingRateIds: formData.prefundingRateIds } : {}),
+        prefundingRateIds: formData.prefundingRateIds || [],
         ...practiceProfilePayload(profileForm),
       };
 
@@ -1316,7 +1320,7 @@ export default function AllPracticePage() {
           prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
         prefundingReminderRecipientId: formData.prefundingReminderRecipientId || undefined,
           prefundingState: formData.prefundingState || undefined,
-          ...(formData.prefundingRateIds && formData.prefundingRateIds.length > 0 ? { prefundingRateIds: formData.prefundingRateIds } : {}),
+          prefundingRateIds: formData.prefundingRateIds || [],
           ...(selectedPracticeDetail
             ? practiceProfilePayload(profileForm)
             : {}),
@@ -1374,7 +1378,7 @@ export default function AllPracticePage() {
         prefundingInvoiceRecipientId: formData.prefundingInvoiceRecipientId || undefined,
         prefundingReminderRecipientId: formData.prefundingReminderRecipientId || undefined,
         prefundingState: formData.prefundingState || undefined,
-        ...(formData.prefundingRateIds && formData.prefundingRateIds.length > 0 ? { prefundingRateIds: formData.prefundingRateIds } : {}),
+        prefundingRateIds: formData.prefundingRateIds || [],
         ...(selectedPracticeDetail
           ? practiceProfilePayload(profileForm)
           : {}),

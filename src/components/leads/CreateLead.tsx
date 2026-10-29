@@ -84,6 +84,8 @@ import {
 import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import MultiSelect from "../shared/MultiSelect";
+import Select from "../shared/Select";
+import DatePicker from "../shared/DatePicker";
 import AddressAutocomplete, {
   type AddressData,
 } from "../shared/AddressAutocomplete";
@@ -173,6 +175,14 @@ type LeadFormState = {
   primaryContactPhone: string;
   primaryContactDesignation: string;
   primaryContactRole: PersonRole;
+  primaryContactRoles: string[];
+  primaryContactJobCategory: string;
+  primaryContactWorkLocation: string;
+  primaryContactState: string;
+  primaryContactDateOfJoining: string;
+  primaryContactPayType: string;
+  primaryContactPayRate: string;
+  primaryContactBufferPercentage: string;
   contactCredentials: Record<string, string>;
   contactPracticeIds: { id: string; name: string }[];
   contactCompanyIds: { id: string; name: string }[];
@@ -235,6 +245,14 @@ const initialFormState: LeadFormState = {
   primaryContactPhone: "",
   primaryContactDesignation: "",
   primaryContactRole: "ADMIN",
+  primaryContactRoles: ["ADMIN"],
+  primaryContactJobCategory: "CLINICAL",
+  primaryContactWorkLocation: "Main Clinic",
+  primaryContactState: "NY",
+  primaryContactDateOfJoining: "",
+  primaryContactPayType: "HOURLY",
+  primaryContactPayRate: "25",
+  primaryContactBufferPercentage: "10",
   contactCredentials: Object.fromEntries(
     personCredentialKeys.map((key) => [key, ""]),
   ),
@@ -309,6 +327,26 @@ const personRoleOptions: PersonRole[] = [
   "OTHER",
   "EMPLOYEE",
   "MANAGER",
+];
+
+const usStatesOptions = [
+  { label: "Alabama", value: "AL" }, { label: "Alaska", value: "AK" }, { label: "Arizona", value: "AZ" },
+  { label: "Arkansas", value: "AR" }, { label: "California", value: "CA" }, { label: "Colorado", value: "CO" },
+  { label: "Connecticut", value: "CT" }, { label: "Delaware", value: "DE" }, { label: "Florida", value: "FL" },
+  { label: "Georgia", value: "GA" }, { label: "Hawaii", value: "HI" }, { label: "Idaho", value: "ID" },
+  { label: "Illinois", value: "IL" }, { label: "Indiana", value: "IN" }, { label: "Iowa", value: "IA" },
+  { label: "Kansas", value: "KS" }, { label: "Kentucky", value: "KY" }, { label: "Louisiana", value: "LA" },
+  { label: "Maine", value: "ME" }, { label: "Maryland", value: "MD" }, { label: "Massachusetts", value: "MA" },
+  { label: "Michigan", value: "MI" }, { label: "Minnesota", value: "MN" }, { label: "Mississippi", value: "MS" },
+  { label: "Missouri", value: "MO" }, { label: "Montana", value: "MT" }, { label: "Nebraska", value: "NE" },
+  { label: "Nevada", value: "NV" }, { label: "New Hampshire", value: "NH" }, { label: "New Jersey", value: "NJ" },
+  { label: "New Mexico", value: "NM" }, { label: "New York", value: "NY" }, { label: "North Carolina", value: "NC" },
+  { label: "North Dakota", value: "ND" }, { label: "Ohio", value: "OH" }, { label: "Oklahoma", value: "OK" },
+  { label: "Oregon", value: "OR" }, { label: "Pennsylvania", value: "PA" }, { label: "Rhode Island", value: "RI" },
+  { label: "South Carolina", value: "SC" }, { label: "South Dakota", value: "SD" }, { label: "Tennessee", value: "TN" },
+  { label: "Texas", value: "TX" }, { label: "Utah", value: "UT" }, { label: "Vermont", value: "VT" },
+  { label: "Virginia", value: "VA" }, { label: "Washington", value: "WA" }, { label: "West Virginia", value: "WV" },
+  { label: "Wisconsin", value: "WI" }, { label: "Wyoming", value: "WY" }
 ];
 
 const designationOptions = [
@@ -643,13 +681,22 @@ function CreateLeadPage() {
         const personPayload: PersonBody = {
           firstName: form.primaryContactFirstName.trim(),
           lastName: form.primaryContactLastName.trim(),
-          roles: [form.primaryContactRole],
+          roles: (form.primaryContactRoles && form.primaryContactRoles.length > 0 ? form.primaryContactRoles : [form.primaryContactRole]) as PersonRole[],
           influence: "HIGH",
           email: form.primaryContactEmail.trim(),
           phone: stripPhone(form.primaryContactPhone.trim()) || undefined,
           designation: form.primaryContactDesignation.trim() || undefined,
           practiceIds: mergedPracticeIds,
           companyIds: mergedCompanyIds,
+          ...(form.primaryContactRoles || []).includes("EMPLOYEE") ? {
+            jobCategory: form.primaryContactJobCategory || undefined,
+            workLocation: form.primaryContactWorkLocation?.trim() || undefined,
+            state: form.primaryContactState || undefined,
+            dateOfJoining: form.primaryContactDateOfJoining?.trim() || undefined,
+            payType: form.primaryContactPayType || undefined,
+            payRate: form.primaryContactPayRate !== "" && !isNaN(Number(form.primaryContactPayRate)) ? Number(form.primaryContactPayRate) : undefined,
+            bufferPercentage: form.primaryContactBufferPercentage !== "" && !isNaN(Number(form.primaryContactBufferPercentage)) ? Number(form.primaryContactBufferPercentage) : undefined,
+          } : {},
           ...Object.fromEntries(
             personCredentialKeys.map((key) => [
               key,
@@ -1435,8 +1482,12 @@ function CreateLeadPage() {
         toast.error("Contact email is required.");
         return;
       }
-      if (!form.primaryContactRole) {
-        toast.error("Contact role is required.");
+      if (!form.primaryContactRoles || form.primaryContactRoles.length === 0) {
+        toast.error("Contact role is required (at least one role).");
+        return;
+      }
+      if (form.primaryContactRoles.includes("EMPLOYEE") && !form.primaryContactDateOfJoining?.trim()) {
+        toast.error("Date of Joining is required for Employee role.");
         return;
       }
       const credentialError = validatePersonCredentialFields(form.contactCredentials);
@@ -2577,27 +2628,6 @@ function CreateLeadPage() {
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
-                        Role *
-                      </span>
-                      <select
-                        value={form.primaryContactRole}
-                        onChange={(e) =>
-                          updateField(
-                            "primaryContactRole",
-                            e.target.value as PersonRole,
-                          )
-                        }
-                        className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      >
-                        {personRoleOptions.map((role) => (
-                          <option key={role} value={role}>
-                            {role}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-[13px] font-medium text-slate-700">
                         Title
                       </span>
                       <select
@@ -2627,6 +2657,121 @@ function CreateLeadPage() {
                           )}
                       </select>
                     </label>
+                    <div className="md:col-span-2">
+                      <label className="block">
+                        <span className="mb-1 block text-[13px] font-medium text-slate-700">
+                          Role <span className="text-red-500">* (at least one required)</span>
+                        </span>
+                        <MultiSelect
+                          value={Array.isArray(form.primaryContactRoles) ? form.primaryContactRoles : []}
+                          onChange={(val) => {
+                            setForm((prev) => ({
+                              ...prev,
+                              primaryContactRoles: val,
+                              primaryContactRole: (val.length > 0 ? (val[0] as PersonRole) : ("" as PersonRole)),
+                            }));
+                          }}
+                          options={personRoleOptions.map((role) => ({ label: role, value: role }))}
+                          className="w-full"
+                          placeholder="Select roles..."
+                        />
+                      </label>
+                    </div>
+
+                    {(form.primaryContactRoles || []).includes("EMPLOYEE") && (
+                      <div className="md:col-span-2 border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50 mt-1 mb-2 animate-in fade-in duration-200">
+                        <h4 className="text-[13px] font-bold text-slate-700 flex items-center gap-1.5">
+                          Employee Details
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1 block text-[12px] font-medium text-slate-600">Job Category</label>
+                            <Select
+                              value={form.primaryContactJobCategory || ""}
+                              onChange={(val) => updateField("primaryContactJobCategory", val)}
+                              options={[{ label: "Clinical", value: "CLINICAL" }, { label: "Non-Clinical", value: "NON_CLINICAL" }]}
+                              placeholder="Select Category"
+                              className="w-full !text-xs !py-1.5"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[12px] font-medium text-slate-600">Work Location</label>
+                            <input
+                              type="text"
+                              value={form.primaryContactWorkLocation || ""}
+                              onChange={(e) => updateField("primaryContactWorkLocation", e.target.value)}
+                              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                              placeholder="Location"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1 block text-[12px] font-medium text-slate-600">State</label>
+                            <Select
+                              value={form.primaryContactState || ""}
+                              onChange={(val) => updateField("primaryContactState", val)}
+                              options={usStatesOptions}
+                              placeholder="Select State"
+                              className="w-full !text-xs !py-1.5"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[12px] font-medium text-slate-600">
+                              Date of Joining <span className="text-red-500">*</span>
+                            </label>
+                            <DatePicker
+                              value={form.primaryContactDateOfJoining || ""}
+                              onChange={(val) => updateField("primaryContactDateOfJoining", val)}
+                              placeholder="Select Date"
+                              className="w-full !text-xs !py-1.5"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Type</label>
+                            <Select
+                              value={form.primaryContactPayType || "HOURLY"}
+                              onChange={(val) => updateField("primaryContactPayType", val)}
+                              options={[
+                                { label: "Hourly", value: "HOURLY" },
+                                { label: "Weekly", value: "WEEKLY" },
+                                { label: "Bi-Weekly", value: "BI_WEEKLY" },
+                                { label: "Monthly", value: "MONTHLY" },
+                                { label: "Annually", value: "ANNUALLY" },
+                              ]}
+                              placeholder="Select Pay Type"
+                              className="w-full !text-xs !py-1.5"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[12px] font-medium text-slate-600">Pay Rate</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={form.primaryContactPayRate || ""}
+                              onChange={(e) => updateField("primaryContactPayRate", e.target.value)}
+                              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1 block text-[12px] font-medium text-slate-600">Buffer %</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={form.primaryContactBufferPercentage || ""}
+                              onChange={(e) => updateField("primaryContactBufferPercentage", e.target.value)}
+                              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                              placeholder="0.0"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div className="md:col-span-2">
                       <PersonCredentialFields
                         values={form.contactCredentials}
