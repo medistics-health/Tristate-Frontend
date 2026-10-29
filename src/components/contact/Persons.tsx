@@ -870,6 +870,10 @@ export default function PersonsPage() {
       toast.error("First name and last name are required");
       return;
     }
+    if (!formData.roles || formData.roles.length === 0) {
+      toast.error("At least one role is required.");
+      return;
+    }
     if ((formData.roles || []).includes("EMPLOYEE") && !formData.dateOfJoining?.trim()) {
       toast.error("Date of Joining is required for Employee role.");
       return;
@@ -962,6 +966,10 @@ export default function PersonsPage() {
       !formData.lastName.trim()
     ) {
       toast.error("First name and last name are required");
+      return;
+    }
+    if (!formData.roles || formData.roles.length === 0) {
+      toast.error("At least one role is required.");
       return;
     }
     if ((formData.roles || []).includes("EMPLOYEE") && !formData.dateOfJoining?.trim()) {
@@ -1274,7 +1282,7 @@ export default function PersonsPage() {
 
         <div>
           <label className="mb-1 block text-[12px] font-medium text-slate-600">
-            Role
+            Role <span className="text-red-500">* (at least one required)</span>
           </label>
           <MultiSelect
             value={formData.roles || []}
@@ -2015,7 +2023,7 @@ export default function PersonsPage() {
 
                 <div>
                   <label className="mb-1 block text-[13px] font-medium text-slate-700">
-                    Role
+                    Role <span className="text-red-500">* (at least one required)</span>
                   </label>
                   <MultiSelect
                     value={formData.roles || []}

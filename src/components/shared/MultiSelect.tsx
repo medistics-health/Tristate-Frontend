@@ -11,6 +11,7 @@ type MultiSelectProps = {
   className?: string;
   disabled?: boolean;
   placement?: "auto" | "top" | "bottom";
+  clearable?: boolean;
 };
 
 export default function MultiSelect({
@@ -21,6 +22,7 @@ export default function MultiSelect({
   className = "",
   disabled = false,
   placement = "auto",
+  clearable = false,
 }: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -165,7 +167,7 @@ export default function MultiSelect({
           {summary}
         </span>
         <div className="ml-2 flex shrink-0 items-center gap-1">
-          {selectedOptions.length > 0 ? (
+          {clearable && selectedOptions.length > 0 ? (
             <button
               type="button"
               onClick={(event) => {

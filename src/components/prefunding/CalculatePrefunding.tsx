@@ -23,6 +23,7 @@ import {
   Eye,
   Info,
   GripVertical,
+  UserPlus,
 } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
 import { getStandardNavbarActions } from "../shared/PageComponents";
@@ -33,7 +34,8 @@ import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
 import { apiConnector } from "../../services/apiConnector";
 import { practiceEndpoints, prefundingEndpoints } from "../../services/apis";
-import { createPrefundingRate, updatePrefundingRate } from "../../services/operations/prefundingRates";
+import { createPrefundingRate, updatePrefundingRate, deletePrefundingRate } from "../../services/operations/prefundingRates";
+import { createPersonApi, updatePersonApi, deletePersonApi } from "../../services/operations/persons";
 import { openPrefundingInvoicePdf, getPrefundingInvoice, updatePrefundingInvoice, validatePracticeForPrefunding } from "../../services/operations/prefundingInvoices";
 import { readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 
@@ -54,6 +56,7 @@ export type EmployeeCalculationItem = {
   grossWages: number;
   isCustomGrossWages?: boolean;
   isExcluded?: boolean;
+  isOneTime?: boolean;
 };
 
 export type PrefundingRateCalculationItem = {
@@ -351,18 +354,47 @@ export default function CalculatePrefunding() {
   const [editLineItemNotes, setEditLineItemNotes] = useState("");
   const [editLineItemIncludeInGrandTotal, setEditLineItemIncludeInGrandTotal] = useState(true);
 
-  // Add ad-hoc employee modal
+  // Add employee modal
   const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false);
-  const [newEmployeeName, setNewEmployeeName] = useState("");
+  const [newEmployeeFirstName, setNewEmployeeFirstName] = useState("");
+  const [newEmployeeLastName, setNewEmployeeLastName] = useState("");
+  const [newEmployeeEmail, setNewEmployeeEmail] = useState("");
+  const [newEmployeeStorageOption, setNewEmployeeStorageOption] = useState<"permanent" | "onetime">("permanent");
   const [newEmployeeJobCategory, setNewEmployeeJobCategory] = useState("CLINICAL");
   const [newEmployeeLocation, setNewEmployeeLocation] = useState("Main Clinic");
   const [newEmployeeState, setNewEmployeeState] = useState("NY");
   const [newEmployeeDateOfJoining, setNewEmployeeDateOfJoining] = useState(new Date().toISOString().split("T")[0]);
   const [newEmployeePayType, setNewEmployeePayType] = useState<"Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually">("Hourly");
   const [newEmployeePayRate, setNewEmployeePayRate] = useState<number | string>(25);
-  const [newEmployeeBudgetedHours, setNewEmployeeBudgetedHours] = useState<number | string>(160);
   const [newEmployeeBufferPercent, setNewEmployeeBufferPercent] = useState<number | string>(10);
+  const [isSavingEmployee, setIsSavingEmployee] = useState(false);
   const [employeeModalErrors, setEmployeeModalErrors] = useState<Record<string, string>>({});
+
+  // Employee deletion modal state
+  const [deleteEmployeeTarget, setDeleteEmployeeTarget] = useState<EmployeeCalculationItem | null>(null);
+  const [deleteEmployeeAction, setDeleteEmployeeAction] = useState<"onetime" | "permanent">("onetime");
+  const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
+
+  // Line item deletion modal state
+  const [deleteLineItemTarget, setDeleteLineItemTarget] = useState<PrefundingRateCalculationItem | null>(null);
+  const [deleteLineItemAction, setDeleteLineItemAction] = useState<"onetime" | "permanent">("onetime");
+  const [isDeletingLineItem, setIsDeletingLineItem] = useState(false);
+
+  // Edit employee modal state
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeCalculationItem | null>(null);
+  const [editEmployeeFirstName, setEditEmployeeFirstName] = useState("");
+  const [editEmployeeLastName, setEditEmployeeLastName] = useState("");
+  const [editEmployeeEmail, setEditEmployeeEmail] = useState("");
+  const [editEmployeeStorageOption, setEditEmployeeStorageOption] = useState<"permanent" | "onetime">("permanent");
+  const [editEmployeeJobCategory, setEditEmployeeJobCategory] = useState("CLINICAL");
+  const [editEmployeeLocation, setEditEmployeeLocation] = useState("Main Clinic");
+  const [editEmployeeState, setEditEmployeeState] = useState("NY");
+  const [editEmployeeDateOfJoining, setEditEmployeeDateOfJoining] = useState(new Date().toISOString().split("T")[0]);
+  const [editEmployeePayType, setEditEmployeePayType] = useState<"Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually">("Hourly");
+  const [editEmployeePayRate, setEditEmployeePayRate] = useState<number | string>(25);
+  const [editEmployeeBufferPercent, setEditEmployeeBufferPercent] = useState<number | string>(10);
+  const [isUpdatingEmployee, setIsUpdatingEmployee] = useState(false);
+  const [editEmployeeModalErrors, setEditEmployeeModalErrors] = useState<Record<string, string>>({});
 
   // Generated Invoice Result
   const [generatedInvoice, setGeneratedInvoice] = useState<{
@@ -527,6 +559,7 @@ export default function CalculatePrefunding() {
                   grossWages,
                   isCustomGrossWages,
                   isExcluded: Boolean(savedEmp?.isExcluded),
+                  isOneTime: Boolean(savedEmp?.isOneTime),
                 };
               });
 
@@ -750,6 +783,7 @@ export default function CalculatePrefunding() {
           baseWages: Math.round(baseWages * 100) / 100,
           grossWages,
           isExcluded: false,
+          isOneTime: false,
         };
       });
       setEmployees(mappedEmployees);
@@ -950,13 +984,47 @@ export default function CalculatePrefunding() {
     );
   };
 
-  // Employee removal & restoration (Section 9)
-  const handleRemoveEmployee = (id: string) => {
-    const emp = employees.find((e) => e.id === id);
-    setEmployees((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, isExcluded: true } : e))
-    );
-    toast.success(`${emp?.name || "Employee"} excluded from this invoice calculation`);
+  // Employee deletion & removal prompt (Section 9)
+  const handlePromptDeleteEmployee = (emp: EmployeeCalculationItem) => {
+    setDeleteEmployeeTarget(emp);
+    setDeleteEmployeeAction(emp.isOneTime ? "onetime" : "onetime");
+  };
+
+  const handleConfirmDeleteEmployee = async () => {
+    if (!deleteEmployeeTarget) return;
+    const target = deleteEmployeeTarget;
+
+    // If one-time employee, remove completely from calculation
+    if (target.isOneTime) {
+      setEmployees((prev) => prev.filter((e) => e.id !== target.id));
+      toast.success(`One-time employee "${target.name}" removed from calculation`);
+      setDeleteEmployeeTarget(null);
+      return;
+    }
+
+    if (deleteEmployeeAction === "permanent") {
+      setIsDeletingEmployee(true);
+      try {
+        if (!target.id.startsWith("adhoc_")) {
+          await deletePersonApi(target.id);
+        }
+        setEmployees((prev) => prev.filter((e) => e.id !== target.id));
+        toast.success(`Employee "${target.name}" deleted permanently from practice people`);
+        setDeleteEmployeeTarget(null);
+      } catch (err: any) {
+        console.error("Failed to delete employee permanently:", err);
+        toast.error(err?.response?.data?.message || err?.message || "Failed to delete employee permanently");
+      } finally {
+        setIsDeletingEmployee(false);
+      }
+    } else {
+      // One-time removal: exclude from this invoice calculation only
+      setEmployees((prev) =>
+        prev.map((e) => (e.id === target.id ? { ...e, isExcluded: true } : e))
+      );
+      toast.success(`Employee "${target.name}" excluded from this prefunding (practice profile preserved)`);
+      setDeleteEmployeeTarget(null);
+    }
   };
 
   const handleRestoreEmployee = (id: string) => {
@@ -971,22 +1039,35 @@ export default function CalculatePrefunding() {
     toast.success("All employees restored to calculation");
   };
 
-  // Add Ad-Hoc employee for this calculation
-  const handleAddCustomEmployee = () => {
+  // Add Employee for this calculation (One-Time or Permanent)
+  const handleAddCustomEmployee = async () => {
     const errors: Record<string, string> = {};
 
-    if (!newEmployeeName.trim()) {
-      errors.name = "Employee full name is required";
+    if (!newEmployeeFirstName.trim()) {
+      errors.firstName = "First name is required";
+    }
+    if (!newEmployeeLastName.trim()) {
+      errors.lastName = "Last name is required";
+    }
+    if (!newEmployeeEmail.trim()) {
+      errors.email = "Email is required";
+    } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(newEmployeeEmail.trim())) {
+      errors.email = "Invalid email address";
+    }
+
+    if (!newEmployeeDateOfJoining) {
+      errors.dateOfJoining = "Date of joining is required";
+    } else if (cycleEndDate) {
+      const joinDateObj = new Date(newEmployeeDateOfJoining);
+      const cycleEndObj = new Date(cycleEndDate);
+      if (!isNaN(joinDateObj.getTime()) && !isNaN(cycleEndObj.getTime()) && joinDateObj > cycleEndObj) {
+        errors.dateOfJoining = `Date of joining cannot be after cycle end date (${cycleEndDate})`;
+      }
     }
 
     const payRateNum = Number(newEmployeePayRate);
     if (newEmployeePayRate === "" || isNaN(payRateNum) || payRateNum <= 0) {
       errors.payRate = "Pay rate must be greater than 0";
-    }
-
-    const workingHoursNum = Number(newEmployeeBudgetedHours);
-    if (newEmployeeBudgetedHours === "" || isNaN(workingHoursNum) || workingHoursNum <= 0) {
-      errors.budgetedHours = "Working hours must be greater than 0";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -995,42 +1076,226 @@ export default function CalculatePrefunding() {
     }
 
     setEmployeeModalErrors({});
-    const payRate = payRateNum;
-    const workingHours = workingHoursNum;
-    const buffer = Number(newEmployeeBufferPercent) || 0;
-    const base = calculateBaseWagesForPayType(newEmployeePayType, payRate, workingHours, workingHours);
-    const gross = Math.round((base + base * (buffer / 100)) * 100) / 100;
+    setIsSavingEmployee(true);
 
-    const newEmp: EmployeeCalculationItem = {
-      id: `adhoc_${Date.now()}`,
-      name: newEmployeeName.trim(),
-      jobCategory: newEmployeeJobCategory === "CLINICAL" ? "Clinical" : newEmployeeJobCategory === "NON_CLINICAL" ? "Non-Clinical" : (newEmployeeJobCategory.trim() || "Staff"),
-      location: newEmployeeLocation.trim() || "Main Location",
-      state: newEmployeeState.trim() || "NY",
-      joinDate: newEmployeeDateOfJoining ? new Date(newEmployeeDateOfJoining).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-      payType: newEmployeePayType,
-      payRate,
-      budgetedHours: workingHours,
-      bufferPercent: buffer,
-      workingPeriodHours: workingHours,
-      baseWages: Math.round(base * 100) / 100,
-      grossWages: gross,
-      isExcluded: false,
-    };
+    try {
+      const payRate = payRateNum;
+      const cycleHours = getCycleDefaultWorkingHours(selectedPracticeObj?.prefundingCycle || selectedCycle);
+      const workingHours = calculateDefaultWorkingHours(newEmployeeDateOfJoining, cycleHours);
+      const buffer = Number(newEmployeeBufferPercent) || 0;
+      const base = calculateBaseWagesForPayType(newEmployeePayType, payRate, workingHours, workingHours);
+      const gross = Math.round((base + base * (buffer / 100)) * 100) / 100;
 
-    setEmployees((prev) => [...prev, newEmp]);
-    setShowAddEmployeeModal(false);
-    setNewEmployeeName("");
-    setNewEmployeeJobCategory("CLINICAL");
-    setNewEmployeeLocation("Main Clinic");
-    setNewEmployeeState("NY");
-    setNewEmployeeDateOfJoining(new Date().toISOString().split("T")[0]);
-    setNewEmployeePayType("Hourly");
-    setNewEmployeePayRate(25);
-    setNewEmployeeBudgetedHours(160);
-    setNewEmployeeBufferPercent(10);
-    setEmployeeModalErrors({});
-    toast.success("Employee added to this calculation");
+      let employeeId = `adhoc_${Date.now()}`;
+
+      if (newEmployeeStorageOption === "permanent") {
+        if (!selectedPractice) {
+          toast.error("Please select a practice first");
+          setIsSavingEmployee(false);
+          return;
+        }
+
+        const personPayload: any = {
+          firstName: newEmployeeFirstName.trim(),
+          lastName: newEmployeeLastName.trim(),
+          email: newEmployeeEmail.trim().toLowerCase(),
+          roles: ["EMPLOYEE"],
+          influence: "MEDIUM",
+          status: "ACTIVE",
+          practiceIds: [selectedPractice],
+          jobCategory: newEmployeeJobCategory,
+          workLocation: newEmployeeLocation.trim() || "Main Clinic",
+          state: newEmployeeState.trim() || "NY",
+          dateOfJoining: newEmployeeDateOfJoining ? new Date(newEmployeeDateOfJoining).toISOString().split("T")[0] : undefined,
+          payType: newEmployeePayType,
+          payRate: payRate,
+          budgetedHours: cycleHours,
+          bufferPercentage: buffer,
+        };
+
+        const createdPerson = await createPersonApi(personPayload);
+        if (createdPerson && createdPerson.id) {
+          employeeId = createdPerson.id;
+        }
+      }
+
+      const fullName = `${newEmployeeFirstName.trim()} ${newEmployeeLastName.trim()}`;
+      const newEmp: EmployeeCalculationItem = {
+        id: employeeId,
+        name: fullName,
+        jobCategory: newEmployeeJobCategory === "CLINICAL" ? "Clinical" : newEmployeeJobCategory === "NON_CLINICAL" ? "Non-Clinical" : (newEmployeeJobCategory.trim() || "Staff"),
+        location: newEmployeeLocation.trim() || "Main Location",
+        state: newEmployeeState.trim() || "NY",
+        joinDate: newEmployeeDateOfJoining ? new Date(newEmployeeDateOfJoining).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+        payType: newEmployeePayType,
+        payRate,
+        budgetedHours: cycleHours,
+        bufferPercent: buffer,
+        workingPeriodHours: workingHours,
+        baseWages: Math.round(base * 100) / 100,
+        grossWages: gross,
+        isExcluded: false,
+        isOneTime: newEmployeeStorageOption === "onetime",
+      };
+
+      setEmployees((prev) => [...prev, newEmp]);
+      setShowAddEmployeeModal(false);
+      setNewEmployeeFirstName("");
+      setNewEmployeeLastName("");
+      setNewEmployeeEmail("");
+      setNewEmployeeJobCategory("CLINICAL");
+      setNewEmployeeLocation("Main Clinic");
+      setNewEmployeeState("NY");
+      setNewEmployeeDateOfJoining(new Date().toISOString().split("T")[0]);
+      setNewEmployeePayType("Hourly");
+      setNewEmployeePayRate(25);
+      setNewEmployeeBufferPercent(10);
+      setEmployeeModalErrors({});
+
+      if (newEmployeeStorageOption === "permanent") {
+        toast.success(`Employee ${fullName} saved permanently & added to calculation`);
+      } else {
+        toast.success(`Employee ${fullName} added for this calculation`);
+      }
+    } catch (err: any) {
+      console.error("Error adding employee:", err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to add employee");
+    } finally {
+      setIsSavingEmployee(false);
+    }
+  };
+
+  // Open Edit Employee modal
+  const handleOpenEditEmployeeModal = (emp: EmployeeCalculationItem) => {
+    setEditingEmployee(emp);
+    const nameParts = (emp.name || "").trim().split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    setEditEmployeeFirstName(firstName);
+    setEditEmployeeLastName(lastName);
+    setEditEmployeeEmail(""); // adhoc/calc may not have email in row
+    setEditEmployeeStorageOption(emp.isOneTime ? "onetime" : "permanent");
+
+    const matchedCat = JOB_CATEGORY_OPTIONS.find(
+      (opt) => opt.value.toLowerCase() === emp.jobCategory.toLowerCase() || opt.label.toLowerCase() === emp.jobCategory.toLowerCase()
+    );
+    setEditEmployeeJobCategory(matchedCat ? matchedCat.value : (emp.jobCategory === "Non-Clinical" ? "NON_CLINICAL" : "CLINICAL"));
+    setEditEmployeeLocation(emp.location || "Main Clinic");
+    setEditEmployeeState(emp.state || "NY");
+    setEditEmployeeDateOfJoining(emp.joinDate && emp.joinDate !== "N/A" ? emp.joinDate : new Date().toISOString().split("T")[0]);
+    setEditEmployeePayType(emp.payType || "Hourly");
+    setEditEmployeePayRate(emp.payRate || 0);
+    setEditEmployeeBufferPercent(emp.bufferPercent !== undefined ? emp.bufferPercent : 10);
+    setEditEmployeeModalErrors({});
+  };
+
+  // Save edited employee
+  const handleSaveEditedEmployee = async () => {
+    if (!editingEmployee) return;
+
+    const errors: Record<string, string> = {};
+
+    if (!editEmployeeFirstName.trim()) {
+      errors.firstName = "First name is required";
+    }
+    if (!editEmployeeLastName.trim()) {
+      errors.lastName = "Last name is required";
+    }
+
+    if (!editEmployeeDateOfJoining) {
+      errors.dateOfJoining = "Date of joining is required";
+    } else if (cycleEndDate) {
+      const joinDateObj = new Date(editEmployeeDateOfJoining);
+      const cycleEndObj = new Date(cycleEndDate);
+      if (!isNaN(joinDateObj.getTime()) && !isNaN(cycleEndObj.getTime()) && joinDateObj > cycleEndObj) {
+        errors.dateOfJoining = `Date of joining cannot be after cycle end date (${cycleEndDate})`;
+      }
+    }
+
+    const payRateNum = Number(editEmployeePayRate);
+    if (editEmployeePayRate === "" || isNaN(payRateNum) || payRateNum <= 0) {
+      errors.payRate = "Pay rate must be greater than 0";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setEditEmployeeModalErrors(errors);
+      return;
+    }
+
+    setEditEmployeeModalErrors({});
+    setIsUpdatingEmployee(true);
+
+    try {
+      const payRate = payRateNum;
+      const cycleHours = getCycleDefaultWorkingHours(selectedPracticeObj?.prefundingCycle || selectedCycle);
+      const workingHours = calculateDefaultWorkingHours(editEmployeeDateOfJoining, cycleHours);
+      const buffer = Number(editEmployeeBufferPercent) || 0;
+      const base = calculateBaseWagesForPayType(editEmployeePayType, payRate, workingHours, cycleHours);
+      const gross = Math.round((base + base * (buffer / 100)) * 100) / 100;
+      const fullName = `${editEmployeeFirstName.trim()} ${editEmployeeLastName.trim()}`;
+      const isOneTime = editEmployeeStorageOption === "onetime";
+
+      // If permanent and employee exists in DB (not starting with adhoc_)
+      if (editEmployeeStorageOption === "permanent" && !editingEmployee.id.startsWith("adhoc_")) {
+        try {
+          const personPatch: any = {
+            firstName: editEmployeeFirstName.trim(),
+            lastName: editEmployeeLastName.trim(),
+            roles: ["EMPLOYEE"],
+            influence: "MEDIUM",
+            jobCategory: editEmployeeJobCategory,
+            workLocation: editEmployeeLocation.trim() || "Main Clinic",
+            state: editEmployeeState.trim() || "NY",
+            dateOfJoining: editEmployeeDateOfJoining ? new Date(editEmployeeDateOfJoining).toISOString().split("T")[0] : undefined,
+            payType: editEmployeePayType,
+            payRate: payRate,
+            budgetedHours: cycleHours,
+            bufferPercentage: buffer,
+          };
+          if (editEmployeeEmail.trim()) {
+            personPatch.email = editEmployeeEmail.trim().toLowerCase();
+          }
+          await updatePersonApi(editingEmployee.id, personPatch);
+        } catch (dbErr: any) {
+          console.warn("Could not sync employee update to People DB:", dbErr);
+          // Don't abort calculation update if DB patch has non-blocking error
+        }
+      }
+
+      setEmployees((prev) =>
+        prev.map((e) => {
+          if (e.id === editingEmployee.id) {
+            return {
+              ...e,
+              name: fullName,
+              jobCategory: editEmployeeJobCategory === "CLINICAL" ? "Clinical" : editEmployeeJobCategory === "NON_CLINICAL" ? "Non-Clinical" : (editEmployeeJobCategory.trim() || "Staff"),
+              location: editEmployeeLocation.trim() || "Main Location",
+              state: editEmployeeState.trim() || "NY",
+              joinDate: editEmployeeDateOfJoining ? new Date(editEmployeeDateOfJoining).toISOString().split("T")[0] : e.joinDate,
+              payType: editEmployeePayType,
+              payRate,
+              budgetedHours: cycleHours,
+              bufferPercent: buffer,
+              workingPeriodHours: workingHours,
+              baseWages: Math.round(base * 100) / 100,
+              grossWages: gross,
+              isOneTime,
+              isCustomGrossWages: false,
+            };
+          }
+          return e;
+        })
+      );
+
+      setEditingEmployee(null);
+      toast.success(`Employee "${fullName}" updated successfully`);
+    } catch (err: any) {
+      console.error("Error updating employee:", err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to update employee");
+    } finally {
+      setIsUpdatingEmployee(false);
+    }
   };
 
   // Active employees
@@ -1432,17 +1697,41 @@ export default function CalculatePrefunding() {
     toast.success("Line item updated");
   };
 
-  // Section 11: Remove Line Item
-  const handleRemoveLineItem = (id: string) => {
-    const target = rates.find((r) => r.id === id);
-    if (target?.isOneTime) {
-      // One-time item can just be deleted from array
-      setRates((prev) => prev.filter((r) => r.id !== id));
-      toast.success(`"${target.name}" removed from invoice`);
+  // Section 11: Prompt Delete Line Item Dialog
+  const handlePromptDeleteLineItem = (rate: PrefundingRateCalculationItem) => {
+    setDeleteLineItemTarget(rate);
+    setDeleteLineItemAction(rate.isOneTime ? "onetime" : "onetime");
+  };
+
+  const handleConfirmDeleteLineItem = async () => {
+    if (!deleteLineItemTarget) return;
+    const target = deleteLineItemTarget;
+
+    if (target.isOneTime) {
+      setRates((prev) => prev.filter((r) => r.id !== target.id));
+      toast.success(`One-time line item "${target.name}" removed`);
+      setDeleteLineItemTarget(null);
+      return;
+    }
+
+    if (deleteLineItemAction === "permanent") {
+      setIsDeletingLineItem(true);
+      try {
+        await deletePrefundingRate(target.id);
+        setRates((prev) => prev.filter((r) => r.id !== target.id));
+        toast.success(`Rate "${target.name}" deleted permanently from template & database`);
+        setDeleteLineItemTarget(null);
+      } catch (err: any) {
+        console.error("Failed to delete prefunding rate permanently:", err);
+        toast.error(err?.response?.data?.message || err?.message || "Failed to delete rate permanently");
+      } finally {
+        setIsDeletingLineItem(false);
+      }
     } else {
-      // Template rate: exclude from this invoice calculation without deleting from DB
-      setRates((prev) => prev.map((r) => (r.id === id ? { ...r, isExcluded: true } : r)));
-      toast.success(`"${target?.name}" removed from current invoice (template preserved)`);
+      // One-time removal: exclude from this invoice calculation only
+      setRates((prev) => prev.map((r) => (r.id === target.id ? { ...r, isExcluded: true } : r)));
+      toast.success(`"${target.name}" excluded from this calculation (template preserved)`);
+      setDeleteLineItemTarget(null);
     }
   };
 
@@ -1492,6 +1781,7 @@ export default function CalculatePrefunding() {
           grossWages: emp.grossWages,
           isCustomGrossWages: Boolean(emp.isCustomGrossWages),
           isExcluded: Boolean(emp.isExcluded),
+          isOneTime: Boolean(emp.isOneTime),
         };
       });
 
@@ -2062,7 +2352,19 @@ export default function CalculatePrefunding() {
                               return (
                                 <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
                                   <td className="px-5 py-3.5 align-middle">
-                                    <div className="font-medium text-slate-800">{emp.name}</div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-slate-800">{emp.name}</span>
+                                      {emp.isOneTime ? (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-semibold">
+                                          <Sparkles className="w-2.5 h-2.5 text-amber-500" />
+                                          One-Time
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-semibold">
+                                          Permanent
+                                        </span>
+                                      )}
+                                    </div>
                                     <div className="text-slate-500 text-xs flex items-center gap-1.5 mt-0.5">
                                       <span>{emp.jobCategory}</span>
                                       <span>•</span>
@@ -2159,13 +2461,24 @@ export default function CalculatePrefunding() {
                                     )}
                                   </td>
                                   <td className="px-3 py-3.5 align-middle text-center">
-                                    <button
-                                      onClick={() => handleRemoveEmployee(emp.id)}
-                                      title="Exclude from current invoice calculation"
-                                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditEmployeeModal(emp)}
+                                        title="Edit employee details"
+                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                      >
+                                        <Edit3 className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePromptDeleteEmployee(emp)}
+                                        title="Remove employee from prefunding"
+                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -2195,7 +2508,7 @@ export default function CalculatePrefunding() {
                         <div className="flex items-center gap-2 text-amber-800">
                           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                           <span>
-                            <strong>{excludedEmployees.length}</strong> employee(s) excluded from this invoice
+                            <strong>{excludedEmployees.length}</strong> employee(s) excluded from this prefunding
                             (practice profile remains untouched):
                           </span>
                           <div className="flex flex-wrap gap-1.5 ml-2">
@@ -2408,7 +2721,7 @@ export default function CalculatePrefunding() {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => handleRemoveLineItem(rate.id)}
+                                        onClick={() => handlePromptDeleteLineItem(rate)}
                                         title="Remove from current invoice"
                                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                       >
@@ -2544,7 +2857,7 @@ export default function CalculatePrefunding() {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => handleRemoveLineItem(rate.id)}
+                                        onClick={() => handlePromptDeleteLineItem(rate)}
                                         title="Remove from current invoice"
                                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                       >
@@ -2904,6 +3217,62 @@ export default function CalculatePrefunding() {
         isConfirming={isSavingLineItem}
       >
         <div className="space-y-4 text-xs text-slate-700">
+          {/* Scope Selection (Top) */}
+          <div className="pb-3 border-b border-slate-100">
+            <label className="block font-bold text-slate-800 mb-2">Scope & Template Storage</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label
+                onClick={() => setNewLineItemStorageOption("template")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  newLineItemStorageOption === "template"
+                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="scope"
+                    checked={newLineItemStorageOption === "template"}
+                    onChange={() => setNewLineItemStorageOption("template")}
+                    className="text-[#4f63ea]"
+                  />
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-[#4f63ea]" /> Option 1: Template
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  Save to practice template. Appears on this invoice AND all future cycles.
+                </p>
+              </label>
+
+              <label
+                onClick={() => setNewLineItemStorageOption("onetime")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  newLineItemStorageOption === "onetime"
+                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="scope"
+                    checked={newLineItemStorageOption === "onetime"}
+                    onChange={() => setNewLineItemStorageOption("onetime")}
+                    className="text-[#4f63ea]"
+                  />
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Option 2: One-Time
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  Applies to this invoice only. Does not alter the template for future cycles.
+                </p>
+              </label>
+            </div>
+          </div>
+
           <div>
             <label className="block font-semibold text-slate-800 mb-1">
               Line Item Name <span className="text-red-500">*</span>
@@ -2960,11 +3329,12 @@ export default function CalculatePrefunding() {
                 options={PRICING_MODELS}
                 value={newLineItemPricingModel}
                 onChange={setNewLineItemPricingModel}
+                className="w-full !text-xs !py-1.5"
               />
             </div>
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
-                Rate Value <span className="text-red-500">*</span>
+                Rate / Value <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -3014,62 +3384,6 @@ export default function CalculatePrefunding() {
             <label htmlFor="newLineItemIncludeInGrandTotal" className="text-xs text-slate-700 font-medium cursor-pointer">
               Include in GMS Projection subtotal (Uncheck to place in Additional Line Items)
             </label>
-          </div>
-
-          {/* Scope Selection */}
-          <div className="pt-2 border-t border-slate-100">
-            <label className="block font-bold text-slate-800 mb-2">Scope & Template Storage</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label
-                onClick={() => setNewLineItemStorageOption("template")}
-                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
-                  newLineItemStorageOption === "template"
-                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
-                    : "border-slate-200 bg-white hover:bg-slate-50"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="scope"
-                    checked={newLineItemStorageOption === "template"}
-                    onChange={() => setNewLineItemStorageOption("template")}
-                    className="text-[#4f63ea]"
-                  />
-                  <span className="font-bold text-slate-800 flex items-center gap-1">
-                    <Layers className="w-3.5 h-3.5 text-[#4f63ea]" /> Option 1: Template
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                  Save to practice template. Appears on this invoice AND all future cycles.
-                </p>
-              </label>
-
-              <label
-                onClick={() => setNewLineItemStorageOption("onetime")}
-                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
-                  newLineItemStorageOption === "onetime"
-                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
-                    : "border-slate-200 bg-white hover:bg-slate-50"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="scope"
-                    checked={newLineItemStorageOption === "onetime"}
-                    onChange={() => setNewLineItemStorageOption("onetime")}
-                    className="text-[#4f63ea]"
-                  />
-                  <span className="font-bold text-slate-800 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Option 2: One-Time
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                  Applies to this invoice only. Does not alter the template for future cycles.
-                </p>
-              </label>
-            </div>
           </div>
         </div>
       </ConfirmModal>
@@ -3185,7 +3499,7 @@ export default function CalculatePrefunding() {
       </ConfirmModal>
 
       {/* ======================================================== */}
-      {/* MODAL 3: ADD AD-HOC EMPLOYEE (Section 9) */}
+      {/* MODAL 3: ADD EMPLOYEE (One-Time vs Permanent People) */}
       {/* ======================================================== */}
       <ConfirmModal
         isOpen={showAddEmployeeModal}
@@ -3196,35 +3510,146 @@ export default function CalculatePrefunding() {
         onConfirm={handleAddCustomEmployee}
         closeOnConfirm={false}
         title="Add Employee to Calculation"
-        confirmLabel="Add Employee"
+        confirmLabel={isSavingEmployee ? "Saving..." : "Add Employee"}
         cancelLabel="Cancel"
+        isConfirming={isSavingEmployee}
       >
-        <div className="space-y-3.5 text-xs text-slate-700">
+        <div className="space-y-4 text-xs text-slate-700">
+          {/* Employee Addition Type */}
+          <div>
+            <label className="block font-bold text-slate-800 mb-2">Employee Addition Type</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label
+                onClick={() => setNewEmployeeStorageOption("permanent")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  newEmployeeStorageOption === "permanent"
+                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="empStorage"
+                    checked={newEmployeeStorageOption === "permanent"}
+                    onChange={() => setNewEmployeeStorageOption("permanent")}
+                    className="text-[#4f63ea]"
+                  />
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <UserPlus className="w-3.5 h-3.5 text-[#4f63ea]" /> Option 1: Permanent (People)
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  Save permanently to Practice People with EMPLOYEE role. Appears on this invoice AND all future cycles.
+                </p>
+              </label>
+
+              <label
+                onClick={() => setNewEmployeeStorageOption("onetime")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  newEmployeeStorageOption === "onetime"
+                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="empStorage"
+                    checked={newEmployeeStorageOption === "onetime"}
+                    onChange={() => setNewEmployeeStorageOption("onetime")}
+                    className="text-[#4f63ea]"
+                  />
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Option 2: One-Time
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  Add for this calculation only. Does not save to practice people directory.
+                </p>
+              </label>
+            </div>
+          </div>
+
+          {/* First Name & Last Name */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">
+                First Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Jane"
+                className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
+                  employeeModalErrors.firstName
+                    ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                }`}
+                value={newEmployeeFirstName}
+                onChange={(e) => {
+                  setNewEmployeeFirstName(e.target.value);
+                  if (employeeModalErrors.firstName) {
+                    setEmployeeModalErrors((prev) => ({ ...prev, firstName: "" }));
+                  }
+                }}
+              />
+              {employeeModalErrors.firstName && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.firstName}</p>
+              )}
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Last Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Doe"
+                className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
+                  employeeModalErrors.lastName
+                    ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                }`}
+                value={newEmployeeLastName}
+                onChange={(e) => {
+                  setNewEmployeeLastName(e.target.value);
+                  if (employeeModalErrors.lastName) {
+                    setEmployeeModalErrors((prev) => ({ ...prev, lastName: "" }));
+                  }
+                }}
+              />
+              {employeeModalErrors.lastName && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.lastName}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Email */}
           <div>
             <label className="block font-semibold text-slate-800 mb-1">
-              Employee Full Name <span className="text-red-500">*</span>
+              Email Address <span className="text-red-500">*</span>
             </label>
             <input
-              type="text"
-              placeholder="e.g. Jane Doe"
+              type="email"
+              placeholder="e.g. jane.doe@example.com"
               className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
-                employeeModalErrors.name
+                employeeModalErrors.email
                   ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
                   : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
               }`}
-              value={newEmployeeName}
+              value={newEmployeeEmail}
               onChange={(e) => {
-                setNewEmployeeName(e.target.value);
-                if (employeeModalErrors.name) {
-                  setEmployeeModalErrors((prev) => ({ ...prev, name: "" }));
+                setNewEmployeeEmail(e.target.value);
+                if (employeeModalErrors.email) {
+                  setEmployeeModalErrors((prev) => ({ ...prev, email: "" }));
                 }
               }}
             />
-            {employeeModalErrors.name && (
-              <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.name}</p>
+            {employeeModalErrors.email && (
+              <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.email}</p>
             )}
           </div>
 
+          {/* Job Category & Work Location */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Job Category</label>
@@ -3248,6 +3673,7 @@ export default function CalculatePrefunding() {
             </div>
           </div>
 
+          {/* State & Date of Joining */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-800 mb-1">State</label>
@@ -3260,16 +3686,27 @@ export default function CalculatePrefunding() {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">Date of Joining</label>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Date of Joining <span className="text-red-500">*</span>
+              </label>
               <DatePicker
                 value={newEmployeeDateOfJoining}
-                onChange={(val) => setNewEmployeeDateOfJoining(val)}
+                onChange={(val) => {
+                  setNewEmployeeDateOfJoining(val);
+                  if (employeeModalErrors.dateOfJoining) {
+                    setEmployeeModalErrors((prev) => ({ ...prev, dateOfJoining: "" }));
+                  }
+                }}
                 placeholder="Select Date"
-                className="w-full !text-xs !py-1.5"
+                className={`w-full !text-xs !py-1.5 ${employeeModalErrors.dateOfJoining ? "!border-red-400" : ""}`}
               />
+              {employeeModalErrors.dateOfJoining && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.dateOfJoining}</p>
+              )}
             </div>
           </div>
 
+          {/* Pay Type & Pay Rate */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Pay Type</label>
@@ -3312,52 +3749,444 @@ export default function CalculatePrefunding() {
             </div>
           </div>
 
+          {/* Buffer % */}
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              onKeyDown={(e) => {
+                if (e.key === "-" || e.key === "e") e.preventDefault();
+              }}
+              placeholder="0.0"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={newEmployeeBufferPercent}
+              onChange={(e) => setNewEmployeeBufferPercent(e.target.value)}
+            />
+          </div>
+        </div>
+      </ConfirmModal>
+
+      {/* ======================================================== */}
+      {/* MODAL 3B: REMOVE LINE ITEM CONFIRMATION */}
+      {/* ======================================================== */}
+      <ConfirmModal
+        isOpen={Boolean(deleteLineItemTarget)}
+        onClose={() => setDeleteLineItemTarget(null)}
+        onConfirm={handleConfirmDeleteLineItem}
+        closeOnConfirm={false}
+        title="Remove Prefunding Line Item"
+        confirmLabel={isDeletingLineItem ? "Deleting..." : deleteLineItemAction === "permanent" ? "Delete Permanently" : "Remove for this Calculation"}
+        cancelLabel="Cancel"
+        isConfirming={isDeletingLineItem}
+      >
+        <div className="space-y-4 text-xs text-slate-700">
+          <p className="text-slate-600">
+            You are about to remove <span className="font-semibold text-slate-900">"{deleteLineItemTarget?.name}"</span> from the prefunding calculation.
+          </p>
+
+          {deleteLineItemTarget?.isOneTime ? (
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs">
+              This is a one-time line item. Removing it will exclude it from this invoice.
+            </div>
+          ) : (
+            <div className="space-y-3 pt-1">
+              <label className="block font-semibold text-slate-800">
+                Choose deletion scope:
+              </label>
+
+              <label
+                onClick={() => setDeleteLineItemAction("onetime")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  deleteLineItemAction === "onetime"
+                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="delScope"
+                    checked={deleteLineItemAction === "onetime"}
+                    onChange={() => setDeleteLineItemAction("onetime")}
+                    className="text-[#4f63ea]"
+                  />
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Remove from this invoice only
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                  Excludes this rate from the current invoice. Template prefunding rate remains active for future cycles.
+                </p>
+              </label>
+
+              <label
+                onClick={() => setDeleteLineItemAction("permanent")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  deleteLineItemAction === "permanent"
+                    ? "border-red-500 bg-red-50/60 ring-1 ring-red-500"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="delScope"
+                    checked={deleteLineItemAction === "permanent"}
+                    onChange={() => setDeleteLineItemAction("permanent")}
+                    className="text-red-600"
+                  />
+                  <span className="font-bold text-red-700 flex items-center gap-1">
+                    <Trash2 className="w-3.5 h-3.5 text-red-600" /> Delete permanently from Template & DB
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                  Deletes this rate permanently from the practice template and database. It will no longer appear on any future invoices.
+                </p>
+              </label>
+            </div>
+          )}
+        </div>
+      </ConfirmModal>
+
+      {/* ======================================================== */}
+      {/* MODAL 3C: EDIT EMPLOYEE MODAL */}
+      {/* ======================================================== */}
+      <ConfirmModal
+        isOpen={Boolean(editingEmployee)}
+        onClose={() => {
+          setEditingEmployee(null);
+          setEditEmployeeModalErrors({});
+        }}
+        onConfirm={handleSaveEditedEmployee}
+        closeOnConfirm={false}
+        title="Edit Employee Details"
+        confirmLabel={isUpdatingEmployee ? "Saving..." : "Save Changes"}
+        cancelLabel="Cancel"
+        isConfirming={isUpdatingEmployee}
+      >
+        <div className="space-y-4 text-xs text-slate-700">
+          {/* Employee Addition Type */}
+          <div>
+            <label className="block font-bold text-slate-800 mb-2">Employee Storage Type</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label
+                onClick={() => setEditEmployeeStorageOption("permanent")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  editEmployeeStorageOption === "permanent"
+                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="editEmpStorage"
+                    checked={editEmployeeStorageOption === "permanent"}
+                    onChange={() => setEditEmployeeStorageOption("permanent")}
+                    className="text-[#4f63ea]"
+                  />
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <UserPlus className="w-3.5 h-3.5 text-[#4f63ea]" /> Option 1: Permanent (People)
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  Saved permanently in Practice People. Updates apply to this invoice and future cycles.
+                </p>
+              </label>
+
+              <label
+                onClick={() => setEditEmployeeStorageOption("onetime")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  editEmployeeStorageOption === "onetime"
+                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="editEmpStorage"
+                    checked={editEmployeeStorageOption === "onetime"}
+                    onChange={() => setEditEmployeeStorageOption("onetime")}
+                    className="text-[#4f63ea]"
+                  />
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Option 2: One-Time
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  Applies to this calculation only. Does not alter permanent practice people directory.
+                </p>
+              </label>
+            </div>
+          </div>
+
+          {/* First Name & Last Name */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
-                Working Period (Hrs) <span className="text-red-500">*</span>
+                First Name <span className="text-red-500">*</span>
               </label>
               <input
-                type="number"
-                step="0.5"
-                min="0"
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "e") e.preventDefault();
-                }}
-                placeholder="0"
+                type="text"
+                placeholder="e.g. Jane"
                 className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
-                  employeeModalErrors.budgetedHours
+                  editEmployeeModalErrors.firstName
                     ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
                     : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
                 }`}
-                value={newEmployeeBudgetedHours}
+                value={editEmployeeFirstName}
                 onChange={(e) => {
-                  setNewEmployeeBudgetedHours(e.target.value);
-                  if (employeeModalErrors.budgetedHours) {
-                    setEmployeeModalErrors((prev) => ({ ...prev, budgetedHours: "" }));
+                  setEditEmployeeFirstName(e.target.value);
+                  if (editEmployeeModalErrors.firstName) {
+                    setEditEmployeeModalErrors((prev) => ({ ...prev, firstName: "" }));
                   }
                 }}
               />
-              {employeeModalErrors.budgetedHours && (
-                <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.budgetedHours}</p>
+              {editEmployeeModalErrors.firstName && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{editEmployeeModalErrors.firstName}</p>
               )}
             </div>
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Last Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Doe"
+                className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
+                  editEmployeeModalErrors.lastName
+                    ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                }`}
+                value={editEmployeeLastName}
+                onChange={(e) => {
+                  setEditEmployeeLastName(e.target.value);
+                  if (editEmployeeModalErrors.lastName) {
+                    setEditEmployeeModalErrors((prev) => ({ ...prev, lastName: "" }));
+                  }
+                }}
+              />
+              {editEmployeeModalErrors.lastName && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{editEmployeeModalErrors.lastName}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Email (Optional when editing calculation) */}
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">
+              Email Address (Optional)
+            </label>
+            <input
+              type="email"
+              placeholder="e.g. jane.doe@example.com"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={editEmployeeEmail}
+              onChange={(e) => setEditEmployeeEmail(e.target.value)}
+            />
+          </div>
+
+          {/* Job Category & Work Location */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Job Category</label>
+              <Select
+                value={editEmployeeJobCategory}
+                onChange={(val) => setEditEmployeeJobCategory(val)}
+                options={JOB_CATEGORY_OPTIONS}
+                placeholder="Select Category"
+                className="w-full !text-xs !py-1.5"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Work Location</label>
+              <input
+                type="text"
+                placeholder="Location"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={editEmployeeLocation}
+                onChange={(e) => setEditEmployeeLocation(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* State & Date of Joining */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">State</label>
+              <Select
+                value={editEmployeeState}
+                onChange={(val) => setEditEmployeeState(val)}
+                options={US_STATES_OPTIONS}
+                placeholder="Select State"
+                className="w-full !text-xs !py-1.5"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Date of Joining <span className="text-red-500">*</span>
+              </label>
+              <DatePicker
+                value={editEmployeeDateOfJoining}
+                onChange={(val) => {
+                  setEditEmployeeDateOfJoining(val);
+                  if (editEmployeeModalErrors.dateOfJoining) {
+                    setEditEmployeeModalErrors((prev) => ({ ...prev, dateOfJoining: "" }));
+                  }
+                }}
+                placeholder="Select Date"
+                className={`w-full !text-xs !py-1.5 ${editEmployeeModalErrors.dateOfJoining ? "!border-red-400" : ""}`}
+              />
+              {editEmployeeModalErrors.dateOfJoining && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{editEmployeeModalErrors.dateOfJoining}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Pay Type & Pay Rate */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Pay Type</label>
+              <Select
+                options={EMPLOYEE_PAY_TYPE_OPTIONS}
+                value={editEmployeePayType}
+                onChange={(val) => setEditEmployeePayType(val as "Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually")}
+                placeholder="Select Pay Type"
+                className="w-full !text-xs !py-1.5"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Pay Rate ($) <span className="text-red-500">*</span>
+              </label>
               <input
                 type="number"
-                step="0.1"
+                step="0.01"
                 min="0"
                 onKeyDown={(e) => {
                   if (e.key === "-" || e.key === "e") e.preventDefault();
                 }}
-                placeholder="0.0"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={newEmployeeBufferPercent}
-                onChange={(e) => setNewEmployeeBufferPercent(e.target.value)}
+                placeholder="0.00"
+                className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
+                  editEmployeeModalErrors.payRate
+                    ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                }`}
+                value={editEmployeePayRate}
+                onChange={(e) => {
+                  setEditEmployeePayRate(e.target.value);
+                  if (editEmployeeModalErrors.payRate) {
+                    setEditEmployeeModalErrors((prev) => ({ ...prev, payRate: "" }));
+                  }
+                }}
               />
+              {editEmployeeModalErrors.payRate && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{editEmployeeModalErrors.payRate}</p>
+              )}
             </div>
           </div>
+
+          {/* Buffer % */}
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              onKeyDown={(e) => {
+                if (e.key === "-" || e.key === "e") e.preventDefault();
+              }}
+              placeholder="0.0"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={editEmployeeBufferPercent}
+              onChange={(e) => setEditEmployeeBufferPercent(e.target.value)}
+            />
+          </div>
+        </div>
+      </ConfirmModal>
+
+      {/* ======================================================== */}
+      {/* MODAL 3D: REMOVE EMPLOYEE CONFIRMATION */}
+      {/* ======================================================== */}
+      <ConfirmModal
+        isOpen={Boolean(deleteEmployeeTarget)}
+        onClose={() => setDeleteEmployeeTarget(null)}
+        onConfirm={handleConfirmDeleteEmployee}
+        closeOnConfirm={false}
+        title="Remove Employee from Prefunding"
+        confirmLabel={isDeletingEmployee ? "Deleting..." : deleteEmployeeAction === "permanent" ? "Delete Permanently" : "Remove for this Prefunding"}
+        cancelLabel="Cancel"
+        isConfirming={isDeletingEmployee}
+      >
+        <div className="space-y-4 text-xs text-slate-700">
+          <p className="text-slate-600">
+            You are about to remove <span className="font-semibold text-slate-900">"{deleteEmployeeTarget?.name}"</span> from the prefunding calculation.
+          </p>
+
+          {deleteEmployeeTarget?.isOneTime ? (
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs">
+              This is a one-time employee. Removing will delete them from this prefunding calculation.
+            </div>
+          ) : (
+            <div className="space-y-3 pt-1">
+              <label className="block font-semibold text-slate-800">
+                Choose deletion scope:
+              </label>
+
+              <label
+                onClick={() => setDeleteEmployeeAction("onetime")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  deleteEmployeeAction === "onetime"
+                    ? "border-[#4f63ea] bg-[#f0f2fe]/60 ring-1 ring-[#4f63ea]"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="empDelScope"
+                    checked={deleteEmployeeAction === "onetime"}
+                    onChange={() => setDeleteEmployeeAction("onetime")}
+                    className="text-[#4f63ea]"
+                  />
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Remove from this prefunding only
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                  Excludes this employee from the current prefunding calculation. The employee profile remains active in practice people for future cycles.
+                </p>
+              </label>
+
+              <label
+                onClick={() => setDeleteEmployeeAction("permanent")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                  deleteEmployeeAction === "permanent"
+                    ? "border-red-500 bg-red-50/60 ring-1 ring-red-500"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="empDelScope"
+                    checked={deleteEmployeeAction === "permanent"}
+                    onChange={() => setDeleteEmployeeAction("permanent")}
+                    className="text-red-600"
+                  />
+                  <span className="font-bold text-red-700 flex items-center gap-1">
+                    <Trash2 className="w-3.5 h-3.5 text-red-600" /> Delete permanently from Practice People
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                  Permanently deletes this employee record from practice people. They will no longer appear on any future prefunding calculations or people lists.
+                </p>
+              </label>
+            </div>
+          )}
         </div>
       </ConfirmModal>
 
