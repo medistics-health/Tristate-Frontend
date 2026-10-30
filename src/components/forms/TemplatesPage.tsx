@@ -128,7 +128,16 @@ export default function TemplatesPage() {
                 <tbody>
                   {rows.map((template) => (
                     <tr key={template.id} className="hover:bg-[#fbfaf8]">
-                      <td className="border-b border-[#f4f1ec] px-3 py-2.5 font-medium text-slate-800">{template.name}</td>
+                      <td className="border-b border-[#f4f1ec] px-3 py-2.5">
+                        <button
+                          type="button"
+                          disabled={busyId === template.id}
+                          className="cursor-pointer text-left font-medium text-slate-800 transition-colors duration-150 hover:text-[#3144c4] disabled:cursor-wait disabled:opacity-50"
+                          onClick={() => void useTemplate(template)}
+                        >
+                          {template.name}
+                        </button>
+                      </td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5">{template.category || "—"}</td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-slate-500">
                         {template.visibility === "SYSTEM" ? "System" : template.visibility === "SHARED" ? "Shared" : "Private"}

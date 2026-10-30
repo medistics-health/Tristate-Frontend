@@ -121,11 +121,10 @@ export default function FormBuilderPage() {
           {unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
         </span>
         <GhostButton onClick={() => setPreview(true)}><Eye className="h-4 w-4" /> Preview</GhostButton>
+        <GhostButton onClick={() => setTemplateOpen(true)} disabled={saving}>Save as template</GhostButton>
         {unsaved ? (
           <GhostButton onClick={leave} disabled={saving}>Cancel</GhostButton>
-        ) : (
-          <GhostButton onClick={() => setTemplateOpen(true)}>Save as template</GhostButton>
-        )}
+        ) : null}
         {unsaved ? (
           <PrimaryButton onClick={() => void save()} disabled={saving}>
             {saving ? "Saving…" : "Save"}
@@ -651,10 +650,12 @@ function LogicSummary({ formId }: { formId: string }) {
 }
 
 function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => void }) {
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("General");
   const [visibility, setVisibility] = useState<"PRIVATE" | "SHARED">("PRIVATE");
+  const [savingTemplate, setSavingTemplate] = useState(false);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
       <Panel className="w-full max-w-md space-y-3 p-5">
@@ -671,17 +672,29 @@ function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => vo
           ]}
         />
         <div className="flex justify-end gap-2">
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
+          <GhostButton onClick={onClose} disabled={savingTemplate}>Cancel</GhostButton>
           <PrimaryButton
-            disabled={!name.trim()}
+            disabled={!name.trim() || savingTemplate}
             onClick={() => {
-              void saveAsTemplate(formId, { name, description, category, visibility }).then(() => {
+              setSavingTemplate(true);
+              void (async () => {
+                let id = formId;
+                const wasNew = isUnsavedForm(formId);
+                if (wasNew) {
+                  const saved = await persistLocalForm(formId);
+                  if (!saved) return;
+                  id = saved.id;
+                }
+                await saveAsTemplate(id, { name, description, category, visibility });
                 toast.success("Template saved");
                 onClose();
-              });
+                if (wasNew) navigate(`/forms/${id}`, { replace: true });
+              })().catch((error: Error) => {
+                toast.error(error.message || "Unable to save this template.");
+              }).finally(() => setSavingTemplate(false));
             }}
           >
-            Save template
+            {savingTemplate ? "Saving…" : "Save template"}
           </PrimaryButton>
         </div>
       </Panel>
