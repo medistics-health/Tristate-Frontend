@@ -105,7 +105,7 @@ export default function TemplatesPage() {
               </label>
             }
             addNewLabel="New template"
-            onAddNew={() => navigate("/forms/new", { state: { from: "templates" } })}
+            onAddNew={() => navigate("/forms/new", { state: { from: "templates", intent: "template" } })}
             onRefresh={load}
             isLoading={loading}
             page={currentPage}

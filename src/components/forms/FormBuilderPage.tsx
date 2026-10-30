@@ -26,6 +26,7 @@ import {
   getForm,
   loadFormDocument,
   persistLocalForm,
+  saveLocalAsTemplateOnly,
   moveQuestion,
   publishValidation,
   saveAsTemplate,
@@ -57,7 +58,8 @@ export default function FormBuilderPage() {
   const form = forms.find((item) => item.id === formId);
   useEffect(() => {
     if (isNew) {
-      const draft = beginNewForm();
+      const asTemplate = (location.state as { intent?: string } | null)?.intent === "template";
+      const draft = beginNewForm(asTemplate ? "Untitled template" : "Untitled form");
       setDraftId(draft.id);
       return () => discardLocalForm(draft.id);
     }
@@ -80,6 +82,7 @@ export default function FormBuilderPage() {
   const questions = flattenQuestions(current);
   const unsaved = isUnsavedForm(current.id);
   const fromTemplates = (location.state as { from?: string } | null)?.from === "templates";
+  const creatingTemplate = (location.state as { intent?: string } | null)?.intent === "template" && unsaved;
 
   function leave() {
     if (unsaved) discardLocalForm(current.id);
@@ -89,6 +92,13 @@ export default function FormBuilderPage() {
   async function save() {
     setSaving(true);
     try {
+      if (creatingTemplate) {
+        const saved = await saveLocalAsTemplateOnly(current.id);
+        if (!saved) return;
+        toast.success("Template saved");
+        navigate("/forms/templates");
+        return;
+      }
       if (unsaved) {
         const saved = await persistLocalForm(current.id);
         if (!saved) return;
@@ -99,7 +109,7 @@ export default function FormBuilderPage() {
       await flushSave(current.id);
       toast.success("Form saved");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to save this form.");
+      toast.error(error instanceof Error ? error.message : creatingTemplate ? "Unable to save this template." : "Unable to save this form.");
     } finally {
       setSaving(false);
     }
@@ -117,18 +127,24 @@ export default function FormBuilderPage() {
           className="min-w-0 flex-1 border-transparent bg-transparent px-0 text-[16px] font-semibold text-slate-800 shadow-none"
         />
         <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <StatusPill status={form.status} scheduled={form.scheduled} />
+        {creatingTemplate ? (
+          <span className="rounded-full bg-[#eef2ff] px-2 py-0.5 text-[12px] font-medium text-[#3144c4]">Template</span>
+        ) : (
+          <StatusPill status={form.status} scheduled={form.scheduled} />
+        )}
         <span className="text-[12px] text-slate-400">
-          {unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
+          {creatingTemplate ? "Unsaved template" : unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
         </span>
         <GhostButton onClick={() => setPreview(true)}><Eye className="h-4 w-4" /> Preview</GhostButton>
-        <GhostButton onClick={() => setTemplateOpen(true)} disabled={saving}>Save as template</GhostButton>
+        {creatingTemplate ? null : (
+          <GhostButton onClick={() => setTemplateOpen(true)} disabled={saving}>Save as template</GhostButton>
+        )}
         {unsaved ? (
           <GhostButton onClick={leave} disabled={saving}>Cancel</GhostButton>
         ) : null}
         {unsaved ? (
           <PrimaryButton onClick={() => void save()} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
+            {saving ? "Saving…" : creatingTemplate ? "Save template" : "Save"}
           </PrimaryButton>
         ) : null}
         {!unsaved && (form.status === "DRAFT" || form.status === "PUBLISHED") ? (

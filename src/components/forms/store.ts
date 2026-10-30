@@ -270,9 +270,9 @@ export function getForm(id: string) {
   return state.forms.find((form) => form.id === id) ?? null;
 }
 
-export function beginNewForm() {
+export function beginNewForm(title = "Untitled form") {
   for (const id of [...localDraftIds]) discardLocalForm(id);
-  const form = blankForm("Untitled form");
+  const form = blankForm(title);
   form.detailLoaded = true;
   localDraftIds.add(form.id);
   replaceForm(form);
@@ -727,6 +727,33 @@ export async function saveAsTemplate(
   await flushSave(formId);
   await formApi.saveTemplate(formId, meta);
   await loadForms();
+}
+
+export async function saveLocalAsTemplateOnly(localId: string) {
+  const local = getForm(localId);
+  if (!local) return false;
+  const snapshot = JSON.parse(JSON.stringify(local)) as FormRecord;
+  const saved = await persistLocalForm(localId);
+  if (!saved) return false;
+  try {
+    await formApi.saveTemplate(saved.id, {
+      name: saved.title.trim() || "Untitled template",
+      description: saved.description,
+      category: "General",
+      visibility: "PRIVATE",
+    });
+    await formApi.deleteDraft(saved.id);
+  } catch (error) {
+    await formApi.deleteDraft(saved.id).catch(() => undefined);
+    state.forms = state.forms.filter((item) => item.id !== saved.id);
+    localDraftIds.add(localId);
+    replaceForm(snapshot);
+    throw error;
+  }
+  state.forms = state.forms.filter((item) => item.id !== saved.id);
+  emit();
+  await loadForms();
+  return true;
 }
 
 export async function deleteTemplate(id: string) {
