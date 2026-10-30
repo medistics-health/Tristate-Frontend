@@ -79,6 +79,17 @@ export async function deletePrefundingInvoice(id: string) {
   return response.data;
 }
 
+export async function previewPrefundingInvoicePdf(payload: any) {
+  const response = await apiConnector({
+    method: 'POST',
+    url: prefundingEndpoints.PREVIEW_INVOICE_PDF,
+    body: payload,
+    credentials: true,
+    responseType: 'blob',
+  });
+  return response.data;
+}
+
 export function openPrefundingInvoicePdf(id: string) {
   const target = prefundingEndpoints.INVOICE_PDF(id);
   window.open(target, "_blank", "noopener,noreferrer");

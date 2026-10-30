@@ -2672,6 +2672,10 @@ function CreateLeadPage() {
                         <MultiSelect
                           value={Array.isArray(form.primaryContactRoles) ? form.primaryContactRoles : []}
                           onChange={(val) => {
+                            if (canViewPrefunding && !canEditPrefunding && val.includes("EMPLOYEE")) {
+                              toast.error("You do not have permission to assign the Employee role.");
+                              return;
+                            }
                             setForm((prev) => ({
                               ...prev,
                               primaryContactRoles: val,

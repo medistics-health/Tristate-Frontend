@@ -261,6 +261,8 @@ export default function PersonsPage() {
   const effectiveRoleOptions = canViewPrefunding
     ? roleOptions
     : roleOptions.filter((r) => r.toUpperCase() !== "EMPLOYEE");
+
+
   const [viewData, setViewData] = useState<PersonViewData | null>(null);
   const [rows, setRows] = useState<PersonRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -473,7 +475,7 @@ export default function PersonsPage() {
       };
       const data = await getPersonsView(params);
       setViewData(data);
-      setRows(data.rows);
+      setRows((data.rows));
       setPagination(data.pagination);
       const visibility: Record<string, boolean> = {};
       data.fields.forEach((field) => {
@@ -525,7 +527,10 @@ export default function PersonsPage() {
       setFormData({
         firstName: String(values.firstName || ""),
         lastName: String(values.lastName || ""),
-        roles: Array.isArray(values.rolesArray) ? (values.rolesArray as string[]) : ["ADMIN"],
+        roles: (() => {
+          const raw = Array.isArray(values.rolesArray) ? (values.rolesArray as string[]) : ["ADMIN"];
+          return canViewPrefunding ? raw : raw.filter((r) => r.toUpperCase() !== "EMPLOYEE");
+        })(),
         influence: String(values.influence || "MEDIUM"),
         email: String(values.email || ""),
         phone: normalizePhoneInput(String(values.phone || "")),
@@ -920,7 +925,16 @@ export default function PersonsPage() {
       const personData: PersonBody = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        roles: formData.roles,
+        roles: (() => {
+          const originalRoles = Array.isArray(selectedRow.values.rolesArray)
+            ? (selectedRow.values.rolesArray as string[])
+            : [];
+          const hadEmployee = originalRoles.some((r) => r.toUpperCase() === "EMPLOYEE");
+          if (!canViewPrefunding && hadEmployee) {
+            return Array.from(new Set([...formData.roles, "EMPLOYEE"]));
+          }
+          return formData.roles;
+        })(),
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: trimmedPhone || undefined,
@@ -948,7 +962,7 @@ export default function PersonsPage() {
       };
       const allPersonsAfterCreate = await getPersonsView(params);
 
-      setRows(allPersonsAfterCreate.rows);
+      setRows((allPersonsAfterCreate.rows));
       setPagination(allPersonsAfterCreate.pagination);
       closeCreateForm();
       toast.success("Person created successfully");
@@ -1046,7 +1060,7 @@ export default function PersonsPage() {
         limit: pagination.limit,
       };
       const allPersonsAfterUpdate = await getPersonsView(params);
-      setRows(allPersonsAfterUpdate.rows);
+      setRows((allPersonsAfterUpdate.rows));
       setPagination(allPersonsAfterUpdate.pagination);
       setIsEditing(false);
       toast.success("Person updated successfully");
@@ -1083,7 +1097,7 @@ export default function PersonsPage() {
         limit: pagination.limit,
       };
       const data = await getPersonsView(params);
-      setRows(data.rows);
+      setRows((data.rows));
       setPagination(data.pagination);
       closeDetailPanel();
       toast.success("Person Inactivated successfully");
@@ -1295,7 +1309,17 @@ export default function PersonsPage() {
           </label>
           <MultiSelect
             value={formData.roles || []}
-            onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
+            onChange={(val) => {
+              if (canViewPrefunding && !canEditPrefunding) {
+                const hadEmployee = (formData.roles || []).includes("EMPLOYEE");
+                const hasEmployee = val.includes("EMPLOYEE");
+                if (hadEmployee !== hasEmployee) {
+                  toast.error("You do not have permission to add or remove the Employee role.");
+                  return;
+                }
+              }
+              setFormData((prev) => ({ ...prev, roles: val }));
+            }}
             options={effectiveRoleOptions.map(r => ({ label: r, value: r }))}
             className="w-full"
           />
@@ -2040,7 +2064,13 @@ export default function PersonsPage() {
                   </label>
                   <MultiSelect
                     value={formData.roles || []}
-                    onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
+                    onChange={(val) => {
+                      if (canViewPrefunding && !canEditPrefunding && val.includes("EMPLOYEE")) {
+                        toast.error("You do not have permission to assign the Employee role.");
+                        return;
+                      }
+                      setFormData((prev) => ({ ...prev, roles: val }));
+                    }}
                     options={effectiveRoleOptions.map(r => ({ label: r, value: r }))}
                     className="w-full"
                   />

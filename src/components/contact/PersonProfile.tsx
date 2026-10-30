@@ -27,6 +27,7 @@ import { getPerson } from "../../services/operations/persons";
 import { getPractice, type Practice } from "../../services/operations/practices";
 import { getCredentialingRequestsView } from "../../services/operations/credentialing";
 import { formatPayerDisplayLabel } from "../../services/operations/insurance";
+import { readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 import CredentialingModal from "../credentialing/CredentialingModal";
 import { formatDateLabel } from "../credentialing/credentialingStore";
 import type { CredentialingRecord } from "../credentialing/types";
@@ -337,6 +338,8 @@ export default function PersonProfilePage() {
   const [credentialingRecords, setCredentialingRecords] = useState<
     CredentialingRecord[]
   >([]);
+  const currentUser = readStoredUser();
+  const canViewPrefunding = hasPrefundingPermission(currentUser, "VIEW");
   const [selectedCredentialing, setSelectedCredentialing] =
     useState<CredentialingRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -554,7 +557,12 @@ export default function PersonProfilePage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-slate-400">Role</p>
-                  <p className="mt-1 font-semibold">{person.roles ? person.roles.map(formatLabel).join(", ") : "-"}</p>
+                  <p className="mt-1 font-semibold">{
+                    (person.roles || [])
+                      .filter((r) => canViewPrefunding || r.toUpperCase() !== "EMPLOYEE")
+                      .map(formatLabel)
+                      .join(", ") || "-"
+                  }</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">Influence</p>
@@ -615,7 +623,15 @@ export default function PersonProfilePage() {
             <div className="grid gap-3 md:grid-cols-2">
               <InfoRow label="First Name" value={person.firstName} />
               <InfoRow label="Last Name" value={person.lastName} />
-              <InfoRow label="Role" value={person.roles ? person.roles.map(formatLabel).join(", ") : "-"} />
+              <InfoRow
+                label="Role"
+                value={
+                  (person.roles || [])
+                    .filter((r) => canViewPrefunding || r.toUpperCase() !== "EMPLOYEE")
+                    .map(formatLabel)
+                    .join(", ") || "-"
+                }
+              />
               <InfoRow label="Status" value={formatLabel(person.status)} />
               <InfoRow label="Title" value={getDesignationLabel(person.designation)} />
               <InfoRow label="Influence" value={formatLabel(person.influence)} />

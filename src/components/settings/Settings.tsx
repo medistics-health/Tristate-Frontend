@@ -288,13 +288,13 @@ function SecuritySettingsSection() {
 }
 
 const PREFUNDING_ACTION_OPTIONS = [
-  { key: "VIEW", label: "View" },
-  { key: "CREATE", label: "Create" },
-  { key: "EDIT", label: "Edit" },
-  { key: "CALCULATE", label: "Calculate" },
-  { key: "APPROVE", label: "Approve" },
-  { key: "POST", label: "Post" },
-  { key: "DELETE", label: "Delete/Remove" },
+  { key: "VIEW", label: "View", desc: "View prefunding dashboard, rates & invoices" },
+  { key: "CREATE", label: "Create", desc: "Create new prefunding rates & initial invoices" },
+  { key: "EDIT", label: "Edit", desc: "Edit prefunding rates, practice setups & invoice drafts" },
+  { key: "CALCULATE", label: "Calculate", desc: "Calculate wages, edit drafts & generate invoices" },
+  { key: "APPROVE", label: "Approve", desc: "Approve pending prefunding invoices" },
+  { key: "POST", label: "Post", desc: "Post & send approved prefunding invoices" },
+  { key: "DELETE", label: "Delete/Remove", desc: "Delete prefunding rates & invoices" },
 ];
 
 export default function SettingsPage() {
@@ -1518,17 +1518,14 @@ export default function SettingsPage() {
                           </h4>
                         </div>
                         <p className="text-xs text-indigo-700/90 mt-1 leading-relaxed">
-                          {editingUser.role === "ADMIN"
-                            ? "Admin role has full access and all action permissions enabled by default."
-                            : "Grant access to the Prefunding Module and configure action permissions."}
+                          Grant access to the Prefunding Module and configure action permissions.
                         </p>
                       </div>
 
                       <label className="flex items-center gap-2.5 cursor-pointer shrink-0 self-start sm:self-center px-3 py-1.5 rounded-xl bg-white border border-indigo-200/80 shadow-2xs">
                         <input
                           type="checkbox"
-                          disabled={editingUser.role === "ADMIN"}
-                          checked={editingUser.role === "ADMIN" ? true : !!editingUser.hasPrefundingAccess}
+                          checked={editingUser.role === "ADMIN" ? (editingUser.hasPrefundingAccess !== false) : !!editingUser.hasPrefundingAccess}
                           onChange={(e) => {
                             const checked = e.target.checked;
                             setEditingUser({
@@ -1556,27 +1553,30 @@ export default function SettingsPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {PREFUNDING_ACTION_OPTIONS.map((action) => {
-                            const isAdmin = editingUser.role === "ADMIN";
-                            const isChecked = isAdmin || (Array.isArray(editingUser.prefundingPermissions) && editingUser.prefundingPermissions.includes(action.key));
+                            const isChecked = Array.isArray(editingUser.prefundingPermissions) && editingUser.prefundingPermissions.includes(action.key);
 
                             return (
                               <label
                                 key={action.key}
-                                className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl border transition-all ${
-                                  isAdmin
-                                    ? "bg-slate-100/70 border-slate-200 text-slate-500 cursor-not-allowed"
-                                    : isChecked
-                                    ? "bg-white border-indigo-300 text-indigo-950 font-semibold shadow-xs"
+                                className={`flex items-start justify-between text-xs px-3 py-2.5 rounded-xl border transition-all ${
+                                  isChecked
+                                    ? "bg-white border-indigo-300 text-indigo-950 shadow-xs"
                                     : "bg-white/70 border-slate-200/80 text-slate-600 cursor-pointer hover:bg-white hover:border-indigo-200"
                                 }`}
                               >
-                                <span className="flex items-center gap-2">
-                                  <span className={`w-1.5 h-1.5 rounded-full ${isChecked ? "bg-indigo-600" : "bg-slate-300"}`} />
-                                  {action.label}
-                                </span>
+                                <div className="flex flex-col pr-2">
+                                  <span className="flex items-center gap-2 font-semibold">
+                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isChecked ? "bg-indigo-600" : "bg-slate-300"}`} />
+                                    {action.label}
+                                  </span>
+                                  {action.desc && (
+                                    <span className="mt-0.5 text-[10.5px] font-normal text-slate-400 pl-3.5 leading-tight">
+                                      {action.desc}
+                                    </span>
+                                  )}
+                                </div>
                                 <input
                                   type="checkbox"
-                                  disabled={isAdmin}
                                   checked={isChecked}
                                   onChange={(e) => {
                                     const currentPerms: string[] = Array.isArray(editingUser.prefundingPermissions)
@@ -1788,17 +1788,14 @@ export default function SettingsPage() {
                           </h4>
                         </div>
                         <p className="text-xs text-indigo-700/90 mt-1 leading-relaxed">
-                          {newUser.role === "ADMIN"
-                            ? "Admin role has full access and all action permissions enabled by default."
-                            : "Grant access to the Prefunding Module and configure action permissions."}
+                          Grant access to the Prefunding Module and configure action permissions.
                         </p>
                       </div>
 
                       <label className="flex items-center gap-2.5 cursor-pointer shrink-0 self-start sm:self-center px-3 py-1.5 rounded-xl bg-white border border-indigo-200/80 shadow-2xs">
                         <input
                           type="checkbox"
-                          disabled={newUser.role === "ADMIN"}
-                          checked={newUser.role === "ADMIN" ? true : !!newUser.hasPrefundingAccess}
+                          checked={newUser.role === "ADMIN" ? (newUser.hasPrefundingAccess !== false) : !!newUser.hasPrefundingAccess}
                           onChange={(e) => {
                             const checked = e.target.checked;
                             setNewUser({
@@ -1826,27 +1823,30 @@ export default function SettingsPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {PREFUNDING_ACTION_OPTIONS.map((action) => {
-                            const isAdmin = newUser.role === "ADMIN";
-                            const isChecked = isAdmin || (Array.isArray(newUser.prefundingPermissions) && newUser.prefundingPermissions.includes(action.key));
+                            const isChecked = Array.isArray(newUser.prefundingPermissions) && newUser.prefundingPermissions.includes(action.key);
 
                             return (
                               <label
                                 key={action.key}
-                                className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl border transition-all ${
-                                  isAdmin
-                                    ? "bg-slate-100/70 border-slate-200 text-slate-500 cursor-not-allowed"
-                                    : isChecked
-                                    ? "bg-white border-indigo-300 text-indigo-950 font-semibold shadow-xs"
+                                className={`flex items-start justify-between text-xs px-3 py-2.5 rounded-xl border transition-all ${
+                                  isChecked
+                                    ? "bg-white border-indigo-300 text-indigo-950 shadow-xs"
                                     : "bg-white/70 border-slate-200/80 text-slate-600 cursor-pointer hover:bg-white hover:border-indigo-200"
                                 }`}
                               >
-                                <span className="flex items-center gap-2">
-                                  <span className={`w-1.5 h-1.5 rounded-full ${isChecked ? "bg-indigo-600" : "bg-slate-300"}`} />
-                                  {action.label}
-                                </span>
+                                <div className="flex flex-col pr-2">
+                                  <span className="flex items-center gap-2 font-semibold">
+                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isChecked ? "bg-indigo-600" : "bg-slate-300"}`} />
+                                    {action.label}
+                                  </span>
+                                  {action.desc && (
+                                    <span className="mt-0.5 text-[10.5px] font-normal text-slate-400 pl-3.5 leading-tight">
+                                      {action.desc}
+                                    </span>
+                                  )}
+                                </div>
                                 <input
                                   type="checkbox"
-                                  disabled={isAdmin}
                                   checked={isChecked}
                                   onChange={(e) => {
                                     const currentPerms: string[] = Array.isArray(newUser.prefundingPermissions)

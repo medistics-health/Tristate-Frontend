@@ -486,7 +486,7 @@ function Sidebar({ activeModule, activeSubItem, onNavigate }: SidebarProps) {
   function canRenderItem(item: SidebarSectionItem | SidebarItem) {
     if (item.adminOnly && !isAdmin) return false;
     const user = readStoredUser();
-    if (item.requiresPrefundingAccess && !(isAdmin || user?.hasPrefundingAccess))
+    if (item.requiresPrefundingAccess && !hasPrefundingPermission(user, "VIEW"))
       return false;
     if (item.requiredPrefundingPermission && !hasPrefundingPermission(user, item.requiredPrefundingPermission))
       return false;

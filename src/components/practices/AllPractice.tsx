@@ -571,7 +571,11 @@ export default function AllPracticePage() {
       setPagination(data.pagination);
       const visibility: Record<string, boolean> = {};
       data.fields.forEach((field) => {
-        visibility[field.id] = field.visible;
+        if (field.id === "isPrefundingEnabled" && !canViewPrefunding) {
+          visibility[field.id] = false;
+        } else {
+          visibility[field.id] = field.visible;
+        }
       });
       setColumnVisibility(visibility);
     } catch (err) {
@@ -687,8 +691,13 @@ export default function AllPracticePage() {
 
   const visibleFields = useMemo(() => {
     if (!viewData) return [];
-    return viewData.fields.filter((f) => columnVisibility[f.id] !== false);
-  }, [viewData, columnVisibility]);
+    return viewData.fields.filter((f) => {
+      if (f.id === "isPrefundingEnabled" && !canViewPrefunding) {
+        return false;
+      }
+      return columnVisibility[f.id] !== false;
+    });
+  }, [viewData, columnVisibility, canViewPrefunding]);
 
   type GroupedRow = {
     type: "group";
@@ -895,6 +904,13 @@ export default function AllPracticePage() {
           className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${sourceColors[String(value)] || ""}`}
         >
           {displayValue}
+        </span>
+      );
+    }
+    if (field?.id === "isPrefundingEnabled") {
+      return (
+        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${value === "Enabled" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-700"}`}>
+          {String(value)}
         </span>
       );
     }
