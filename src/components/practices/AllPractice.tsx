@@ -83,7 +83,7 @@ import { activatePracticeWithAgreementEmail } from "../../services/operations/pr
 import type { Company } from "../companies/types";
 import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
-import { canBusinessWrite, readStoredUser } from "../../utils/auth";
+import { canBusinessWrite, readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 import {
   getSystemSettingsApi,
   type SystemSettings,
@@ -237,6 +237,9 @@ const sourceOptions = [
 export default function AllPracticePage() {
   const currentRole = readStoredUser()?.role as string | undefined;
   const canWritePractices = canBusinessWrite(currentRole);
+  const currentUser = readStoredUser();
+  const canViewPrefunding = hasPrefundingPermission(currentUser, "VIEW");
+  const canEditPrefunding = hasPrefundingPermission(currentUser, "EDIT") || hasPrefundingPermission(currentUser, "CREATE");
   const [viewData, setViewData] = useState<PracticeViewData | null>(null);
   const [rows, setRows] = useState<PracticeRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1640,6 +1643,8 @@ export default function AllPracticePage() {
   // };
 
   function renderPrefundingSetup(readOnly = false) {
+    if (!canViewPrefunding) return null;
+    const effectiveReadOnly = readOnly || !canEditPrefunding;
     const totals = buildGeneralSettingsTotals(systemSettings);
     const renderAchInput = (
       feeBearer: FeeBearer,
@@ -1653,7 +1658,7 @@ export default function AllPracticePage() {
           max="100"
           step="0.01"
           value={value}
-          readOnly={readOnly}
+          readOnly={effectiveReadOnly}
           onChange={(event) =>
             setFormData((prev) => ({
               ...prev,
@@ -1667,7 +1672,7 @@ export default function AllPracticePage() {
               ),
             }))
           }
-          className={`w-full min-w-0 border-0 bg-transparent px-3 py-2 text-[12px] text-slate-700 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${readOnly ? "bg-slate-50 text-slate-500" : ""}`}
+          className={`w-full min-w-0 border-0 bg-transparent px-3 py-2 text-[12px] text-slate-700 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${effectiveReadOnly ? "bg-slate-50 text-slate-500" : ""}`}
         />
         <span className="flex shrink-0 items-center border-l border-[#ece7df] bg-[#faf9f7] px-2 text-[11px] font-semibold text-slate-400">
           %
@@ -1745,7 +1750,7 @@ export default function AllPracticePage() {
     })
   }));
 }}
-            disabled={readOnly}
+            disabled={effectiveReadOnly}
             className="h-4 w-4 rounded border-[#ece8e1] text-[#4f63ea] focus:ring-[#4f63ea]" 
           />
           <label htmlFor="isPrefundingEnabled" className="text-sm font-medium text-slate-700">Enable Prefunding</label>
@@ -1769,7 +1774,7 @@ export default function AllPracticePage() {
                   onChange={(val) => setFormData((prev) => ({ ...prev, prefundingCycle: val }))}
                   options={cycleOptions}
                   placeholder="Select Cycle"
-                  disabled={readOnly}
+                  disabled={effectiveReadOnly}
                   className="w-full"
                 />
               </div>
@@ -1781,7 +1786,7 @@ export default function AllPracticePage() {
                   value={formData.prefundingStartDate || ""}
                   onChange={(val) => setFormData((prev) => ({ ...prev, prefundingStartDate: val }))}
                   placeholder="Start Date"
-                  disabled={readOnly}
+                  disabled={effectiveReadOnly}
                   className="w-full"
                 />
               </div>
@@ -1808,7 +1813,7 @@ export default function AllPracticePage() {
                       return updated;
                     });
                   }}
-                  disabled={readOnly}
+                  disabled={effectiveReadOnly}
                   placeholder="e.g. 5"
                   className="app-control w-full rounded-md px-3 py-2 text-[13px]"
                 />
@@ -1822,7 +1827,7 @@ export default function AllPracticePage() {
                   onChange={(val) => setFormData((prev) => ({ ...prev, prefundingState: val }))}
                   options={usStates}
                   placeholder="Select State"
-                  disabled={readOnly}
+                  disabled={effectiveReadOnly}
                   className="w-full"
                 />
               </div>
@@ -1837,7 +1842,7 @@ export default function AllPracticePage() {
                 min={Number(formData.prefundingDueOn) ? Number(formData.prefundingDueOn) + 1 : 1}
                 value={formData.prefundingReminderOn || ""}
                 onChange={(e) => setFormData((prev) => ({ ...prev, prefundingReminderOn: e.target.value }))}
-                disabled={readOnly}
+                disabled={effectiveReadOnly}
                 placeholder="e.g. 6"
                 className="app-control w-full rounded-md px-3 py-2 text-[13px]"
               />
@@ -1852,7 +1857,7 @@ export default function AllPracticePage() {
                 onChange={(val) => setFormData((prev) => ({ ...prev, prefundingStripeAccountId: val }))}
                 options={stripeAccountOptions}
                 placeholder="Select Stripe Account"
-                disabled={readOnly}
+                disabled={effectiveReadOnly}
                 className="w-full"
               />
             </div>
@@ -1891,7 +1896,7 @@ export default function AllPracticePage() {
                       onChange={(val) => setFormData((prev) => ({ ...prev, prefundingInvoiceRecipientId: val }))}
                       options={recipientOptions}
                       placeholder="Select Invoice Recipient Person"
-                      disabled={readOnly}
+                      disabled={effectiveReadOnly}
                       className="w-full"
                     />
                     <p className="mt-1 text-[11px] text-slate-400">
@@ -1908,7 +1913,7 @@ export default function AllPracticePage() {
                       onChange={(val) => setFormData((prev) => ({ ...prev, prefundingReminderRecipientId: val }))}
                       options={recipientOptions}
                       placeholder="Select Prefunding Reminder Recipient"
-                      disabled={readOnly}
+                      disabled={effectiveReadOnly}
                       className="w-full"
                     />
                     <p className="mt-1 text-[11px] text-slate-400">
@@ -1928,7 +1933,7 @@ export default function AllPracticePage() {
                 value={formData.prefundingRateIds || []}
                 onChange={(val) => setFormData((prev) => ({ ...prev, prefundingRateIds: val }))}
                 placeholder="Assign Prefunding Rates (Optional)"
-                disabled={readOnly}
+                disabled={effectiveReadOnly}
               />
             </div>
 

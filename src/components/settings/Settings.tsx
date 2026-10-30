@@ -20,6 +20,7 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import ConfirmModal from "../shared/ConfirmModal";
 import { exportAllPagesToCsv, formatUsDateTime } from "../../utils/csvExport";
 import {
   getAllUsers,
@@ -306,6 +307,8 @@ export default function SettingsPage() {
 
   // Modals / Editing state
   const [editingUser, setEditingUser] = useState<any>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<any>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newUser, setNewUser] = useState({
     userName: "",
@@ -612,19 +615,26 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleDeleteUser(id: string) {
+  function handlePromptDeleteUser(user: any) {
     if (!canWriteSettings) {
       toast.error("Only admin users can delete team members.");
       return;
     }
-    if (!window.confirm("Are you sure you want to remove this team member?"))
-      return;
+    setDeleteUserTarget(user);
+  }
+
+  async function handleConfirmDeleteUser() {
+    if (!deleteUserTarget) return;
+    setIsDeletingUser(true);
     try {
-      await deleteUserApi(id);
-      toast.success("Member removed");
+      await deleteUserApi(deleteUserTarget.id);
+      toast.success("Team member removed successfully");
+      setDeleteUserTarget(null);
       loadUsers();
     } catch (e) {
-      toast.error("Failed to remove member");
+      toast.error("Failed to remove team member");
+    } finally {
+      setIsDeletingUser(false);
     }
   }
 
@@ -1310,7 +1320,7 @@ export default function SettingsPage() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => handleDeleteUser(user.id)}
+                                    onClick={() => handlePromptDeleteUser(user)}
                                     className="p-2 rounded-lg text-slate-400 hover:bg-white hover:text-red-500 hover:shadow-sm transition-all"
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -1335,235 +1345,280 @@ export default function SettingsPage() {
       {/* Edit User Modal */}
       {editingUser && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between border-b border-[#f1efeb] px-8 py-6">
-              <h2 className="text-xl font-bold text-slate-800">
-                Edit Team Member
-              </h2>
+          <div className="w-full max-w-4xl rounded-3xl bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-[#f1efeb] px-8 py-5 shrink-0 bg-white">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">
+                  Edit Team Member
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Update member personal profile, system role, and prefunding permissions
+                </p>
+              </div>
               <button
                 onClick={() => setEditingUser(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 rounded-lg p-1 hover:bg-slate-100 transition-colors"
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <form onSubmit={handleUpdateUser} className="p-8 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUser.firstName}
-                    onChange={(e) =>
-                      setEditingUser({
-                        ...editingUser,
-                        firstName: e.target.value,
-                      })
-                    }
-                    className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUser.lastName}
-                    onChange={(e) =>
-                      setEditingUser({
-                        ...editingUser,
-                        lastName: e.target.value,
-                      })
-                    }
-                    className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={editingUser.email}
-                  onChange={(e) =>
-                    setEditingUser({ ...editingUser, email: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Role
-                </label>
-                <select
-                  value={editingUser.role}
-                  onChange={(e) => {
-                    const nextRole = e.target.value;
-                    const isAdmin = nextRole === "ADMIN";
-                    setEditingUser({
-                      ...editingUser,
-                      role: nextRole,
-                      hasPrefundingAccess: isAdmin ? true : false,
-                      prefundingPermissions: isAdmin
-                        ? PREFUNDING_ACTION_OPTIONS.map((o) => o.key)
-                        : [],
-                    });
-                  }}
-                  className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
-                >
-                  <option value="SALES">Sales</option>
-                  <option value="ACCOUNTMANAGER">Account Manager</option>
-                  <option value="OPERATIONS">Operations</option>
-                  <option value="FINANCE">Finance</option>
-                  <option value="VIEWER">Viewer</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-              </div>
 
-              {/* Prefunding Module Access & Action Permissions */}
-              <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-900">
-                      Prefunding Module Access
-                    </h4>
-                    <p className="text-[11px] text-indigo-700">
-                      {editingUser.role === "ADMIN"
-                        ? "Admin role has full access and all permissions enabled by default."
-                        : "Grant access to the Prefunding Module and configure action permissions."}
-                    </p>
+            <form onSubmit={handleUpdateUser} className="flex-1 overflow-y-auto p-8">
+              {/* 2-Column Split Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Column: Personal Information & Role (5 Cols) */}
+                <div className="lg:col-span-5 space-y-5">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Personal Information & Role
+                    </h3>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        First Name
+                      </label>
+                      <input
+                        type="text"
+                        value={editingUser.firstName}
+                        onChange={(e) =>
+                          setEditingUser({
+                            ...editingUser,
+                            firstName: e.target.value,
+                          })
+                        }
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-3.5 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        Last Name
+                      </label>
+                      <input
+                        type="text"
+                        value={editingUser.lastName}
+                        onChange={(e) =>
+                          setEditingUser({
+                            ...editingUser,
+                            lastName: e.target.value,
+                          })
+                        }
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-3.5 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Email Address
+                    </label>
                     <input
-                      type="checkbox"
-                      disabled={editingUser.role === "ADMIN"}
-                      checked={editingUser.role === "ADMIN" ? true : !!editingUser.hasPrefundingAccess}
+                      type="email"
+                      value={editingUser.email}
+                      onChange={(e) =>
+                        setEditingUser({ ...editingUser, email: e.target.value })
+                      }
+                      className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Role
+                    </label>
+                    <select
+                      value={editingUser.role}
                       onChange={(e) => {
-                        const checked = e.target.checked;
+                        const nextRole = e.target.value;
+                        const isAdmin = nextRole === "ADMIN";
                         setEditingUser({
                           ...editingUser,
-                          hasPrefundingAccess: checked,
-                          prefundingPermissions: checked ? (editingUser.prefundingPermissions?.length ? editingUser.prefundingPermissions : ["VIEW"]) : [],
+                          role: nextRole,
+                          hasPrefundingAccess: isAdmin ? true : false,
+                          prefundingPermissions: isAdmin
+                            ? PREFUNDING_ACTION_OPTIONS.map((o) => o.key)
+                            : [],
                         });
                       }}
-                      className="h-4 w-4 rounded border-indigo-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
-                    />
-                    <span className="text-xs font-semibold text-indigo-900">
-                      Enable Prefunding
-                    </span>
-                  </label>
+                      className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
+                    >
+                      <option value="SALES">Sales</option>
+                      <option value="ACCOUNTMANAGER">Account Manager</option>
+                      <option value="OPERATIONS">Operations</option>
+                      <option value="FINANCE">Finance</option>
+                      <option value="VIEWER">Viewer</option>
+                      <option value="ADMIN">Admin</option>
+                    </select>
+                  </div>
+
+                  {canWriteSettings && (
+                    <div
+                      className={`rounded-xl border p-3.5 text-xs ${
+                        editingUser.twoFactorEnabled
+                          ? "border-amber-200 bg-amber-50/60 text-amber-900"
+                          : "border-slate-200 bg-slate-50/60 text-slate-400 opacity-60"
+                      }`}
+                    >
+                      <label
+                        className={`flex items-center gap-2.5 font-semibold ${
+                          editingUser.twoFactorEnabled
+                            ? "cursor-pointer"
+                            : "cursor-not-allowed"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={!editingUser.twoFactorEnabled}
+                          checked={!!editingUser.reset2FA}
+                          onChange={(e) =>
+                            setEditingUser({
+                              ...editingUser,
+                              reset2FA: e.target.checked,
+                            })
+                          }
+                          className="h-4 w-4 rounded border-amber-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
+                        />
+                        Reset 2FA Authentication
+                      </label>
+                      <p
+                        className={`mt-1 text-[11px] leading-relaxed ${
+                          editingUser.twoFactorEnabled
+                            ? "text-amber-700"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {editingUser.twoFactorEnabled
+                          ? "Check this to disable 2FA and clear secret key for this member if they lost access to Microsoft Authenticator."
+                          : "2FA is currently disabled for this user."}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
-                {(editingUser.role === "ADMIN" || editingUser.hasPrefundingAccess) && (
-                  <div className="pt-2 border-t border-indigo-100">
-                    <div className="mb-2 text-[11px] font-semibold text-indigo-900">
-                      Action Permissions:
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {PREFUNDING_ACTION_OPTIONS.map((action) => {
-                        const isAdmin = editingUser.role === "ADMIN";
-                        const isChecked = isAdmin || (Array.isArray(editingUser.prefundingPermissions) && editingUser.prefundingPermissions.includes(action.key));
-
-                        return (
-                          <label
-                            key={action.key}
-                            className={`flex items-center gap-2 text-xs p-1.5 rounded-lg border transition-all ${
-                              isAdmin
-                                ? "bg-slate-100/70 border-slate-200 text-slate-500 cursor-not-allowed"
-                                : isChecked
-                                ? "bg-white border-indigo-200 text-indigo-950 font-medium cursor-pointer shadow-sm"
-                                : "bg-white/60 border-slate-200 text-slate-600 cursor-pointer hover:bg-white"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              disabled={isAdmin}
-                              checked={isChecked}
-                              onChange={(e) => {
-                                const currentPerms: string[] = Array.isArray(editingUser.prefundingPermissions)
-                                  ? [...editingUser.prefundingPermissions]
-                                  : [];
-                                if (e.target.checked) {
-                                  if (!currentPerms.includes(action.key)) {
-                                    currentPerms.push(action.key);
-                                  }
-                                } else {
-                                  const idx = currentPerms.indexOf(action.key);
-                                  if (idx >= 0) currentPerms.splice(idx, 1);
-                                }
-                                setEditingUser({
-                                  ...editingUser,
-                                  prefundingPermissions: currentPerms,
-                                });
-                              }}
-                              className="h-3.5 w-3.5 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
-                            />
-                            <span>{action.label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                {/* Right Column: Permissions & Access (7 Cols) */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Module Permissions
+                    </h3>
                   </div>
-                )}
+
+                  {/* Prefunding Module Access Row Container */}
+                  <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-white p-5 space-y-4 shadow-xs">
+                    {/* Module Header & Switch in a clean row */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-100/70">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-600 text-white text-xs font-bold">
+                            P
+                          </span>
+                          <h4 className="text-sm font-bold text-indigo-950">
+                            Prefunding Module
+                          </h4>
+                        </div>
+                        <p className="text-xs text-indigo-700/90 mt-1 leading-relaxed">
+                          {editingUser.role === "ADMIN"
+                            ? "Admin role has full access and all action permissions enabled by default."
+                            : "Grant access to the Prefunding Module and configure action permissions."}
+                        </p>
+                      </div>
+
+                      <label className="flex items-center gap-2.5 cursor-pointer shrink-0 self-start sm:self-center px-3 py-1.5 rounded-xl bg-white border border-indigo-200/80 shadow-2xs">
+                        <input
+                          type="checkbox"
+                          disabled={editingUser.role === "ADMIN"}
+                          checked={editingUser.role === "ADMIN" ? true : !!editingUser.hasPrefundingAccess}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setEditingUser({
+                              ...editingUser,
+                              hasPrefundingAccess: checked,
+                              prefundingPermissions: checked
+                                ? (editingUser.prefundingPermissions?.length ? editingUser.prefundingPermissions : ["VIEW"])
+                                : [],
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-indigo-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
+                        />
+                        <span className="text-xs font-bold text-indigo-900">
+                          Enable Access
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Permissions displayed in a row-wise card list */}
+                    {(editingUser.role === "ADMIN" || editingUser.hasPrefundingAccess) && (
+                      <div className="space-y-2.5">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-900">
+                          Action Permissions
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {PREFUNDING_ACTION_OPTIONS.map((action) => {
+                            const isAdmin = editingUser.role === "ADMIN";
+                            const isChecked = isAdmin || (Array.isArray(editingUser.prefundingPermissions) && editingUser.prefundingPermissions.includes(action.key));
+
+                            return (
+                              <label
+                                key={action.key}
+                                className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl border transition-all ${
+                                  isAdmin
+                                    ? "bg-slate-100/70 border-slate-200 text-slate-500 cursor-not-allowed"
+                                    : isChecked
+                                    ? "bg-white border-indigo-300 text-indigo-950 font-semibold shadow-xs"
+                                    : "bg-white/70 border-slate-200/80 text-slate-600 cursor-pointer hover:bg-white hover:border-indigo-200"
+                                }`}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isChecked ? "bg-indigo-600" : "bg-slate-300"}`} />
+                                  {action.label}
+                                </span>
+                                <input
+                                  type="checkbox"
+                                  disabled={isAdmin}
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    const currentPerms: string[] = Array.isArray(editingUser.prefundingPermissions)
+                                      ? [...editingUser.prefundingPermissions]
+                                      : [];
+                                    if (e.target.checked) {
+                                      if (!currentPerms.includes(action.key)) {
+                                        currentPerms.push(action.key);
+                                      }
+                                    } else {
+                                      const idx = currentPerms.indexOf(action.key);
+                                      if (idx >= 0) currentPerms.splice(idx, 1);
+                                    }
+                                    setEditingUser({
+                                      ...editingUser,
+                                      prefundingPermissions: currentPerms,
+                                    });
+                                  }}
+                                  className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
+                                />
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {canWriteSettings && (
-                <div
-                  className={`rounded-xl border p-3.5 text-xs ${
-                    editingUser.twoFactorEnabled
-                      ? "border-amber-200 bg-amber-50/60 text-amber-900"
-                      : "border-slate-200 bg-slate-50/60 text-slate-400 opacity-60"
-                  }`}
-                >
-                  <label
-                    className={`flex items-center gap-2.5 font-semibold ${
-                      editingUser.twoFactorEnabled
-                        ? "cursor-pointer"
-                        : "cursor-not-allowed"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      disabled={!editingUser.twoFactorEnabled}
-                      checked={!!editingUser.reset2FA}
-                      onChange={(e) =>
-                        setEditingUser({
-                          ...editingUser,
-                          reset2FA: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4 rounded border-amber-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
-                    />
-                    Reset 2FA Authentication
-                  </label>
-                  <p
-                    className={`mt-1 text-[11px] leading-relaxed ${
-                      editingUser.twoFactorEnabled
-                        ? "text-amber-700"
-                        : "text-slate-400"
-                    }`}
-                  >
-                    {editingUser.twoFactorEnabled
-                      ? "Check this to disable 2FA and clear secret key for this member if they lost access to Microsoft Authenticator."
-                      : "2FA is currently disabled for this user."}
-                  </p>
-                </div>
-              )}
-              <div className="flex gap-3 pt-4">
+              {/* Modal Footer */}
+              <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setEditingUser(null)}
-                  className="flex-1 rounded-xl border border-[#ece8e1] py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  className="px-6 py-2.5 rounded-xl border border-[#ece8e1] text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-[#4f63ea] py-3 text-sm font-bold text-white hover:bg-[#3d4ed1] transition-all shadow-lg shadow-blue-500/20"
+                  className="px-7 py-2.5 rounded-xl bg-[#4f63ea] text-sm font-bold text-white hover:bg-[#3d4ed1] transition-all shadow-md shadow-blue-500/20"
                 >
                   Update User
                 </button>
@@ -1576,218 +1631,264 @@ export default function SettingsPage() {
       {/* Add User Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between border-b border-[#f1efeb] px-8 py-6">
-              <h2 className="text-xl font-bold text-slate-800">
-                Add Team Member
-              </h2>
+          <div className="w-full max-w-4xl rounded-3xl bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-[#f1efeb] px-8 py-5 shrink-0 bg-white">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">
+                  Add Team Member
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Create a new team member and configure their roles & module permissions
+                </p>
+              </div>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 rounded-lg p-1 hover:bg-slate-100 transition-colors"
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <form onSubmit={handleCreateUser} className="p-8 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={newUser.userName}
-                  onChange={(e) =>
-                    setNewUser({ ...newUser, userName: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newUser.firstName}
-                    onChange={(e) =>
-                      setNewUser({ ...newUser, firstName: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newUser.lastName}
-                    onChange={(e) =>
-                      setNewUser({ ...newUser, lastName: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) =>
-                    setNewUser({ ...newUser, email: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) =>
-                    setNewUser({ ...newUser, password: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Role
-                </label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) => {
-                    const nextRole = e.target.value;
-                    const isAdmin = nextRole === "ADMIN";
-                    setNewUser({
-                      ...newUser,
-                      role: nextRole,
-                      hasPrefundingAccess: isAdmin ? true : false,
-                      prefundingPermissions: isAdmin
-                        ? PREFUNDING_ACTION_OPTIONS.map((o) => o.key)
-                        : [],
-                    });
-                  }}
-                  className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
-                >
-                  <option value="SALES">Sales</option>
-                  <option value="ACCOUNTMANAGER">Account Manager</option>
-                  <option value="OPERATIONS">Operations</option>
-                  <option value="FINANCE">Finance</option>
-                  <option value="VIEWER">Viewer</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-              </div>
 
-              {/* Prefunding Module Access & Action Permissions */}
-              <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-900">
-                      Prefunding Module Access
-                    </h4>
-                    <p className="text-[11px] text-indigo-700">
-                      {newUser.role === "ADMIN"
-                        ? "Admin role has full access and all permissions enabled by default."
-                        : "Grant access to the Prefunding Module and configure action permissions."}
-                    </p>
+            <form onSubmit={handleCreateUser} className="flex-1 overflow-y-auto p-8">
+              {/* 2-Column Split Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Column: Personal Information & Role (5 Cols) */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Personal Information & Role
+                    </h3>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Username
+                    </label>
                     <input
-                      type="checkbox"
-                      disabled={newUser.role === "ADMIN"}
-                      checked={newUser.role === "ADMIN" ? true : !!newUser.hasPrefundingAccess}
+                      type="text"
+                      value={newUser.userName}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, userName: e.target.value })
+                      }
+                      className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        First Name
+                      </label>
+                      <input
+                        type="text"
+                        value={newUser.firstName}
+                        onChange={(e) =>
+                          setNewUser({ ...newUser, firstName: e.target.value })
+                        }
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-3.5 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        Last Name
+                      </label>
+                      <input
+                        type="text"
+                        value={newUser.lastName}
+                        onChange={(e) =>
+                          setNewUser({ ...newUser, lastName: e.target.value })
+                        }
+                        className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-3.5 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={newUser.email}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, email: e.target.value })
+                      }
+                      className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, password: e.target.value })
+                      }
+                      className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Role
+                    </label>
+                    <select
+                      value={newUser.role}
                       onChange={(e) => {
-                        const checked = e.target.checked;
+                        const nextRole = e.target.value;
+                        const isAdmin = nextRole === "ADMIN";
                         setNewUser({
                           ...newUser,
-                          hasPrefundingAccess: checked,
-                          prefundingPermissions: checked ? (newUser.prefundingPermissions?.length ? newUser.prefundingPermissions : ["VIEW"]) : [],
+                          role: nextRole,
+                          hasPrefundingAccess: isAdmin ? true : false,
+                          prefundingPermissions: isAdmin
+                            ? PREFUNDING_ACTION_OPTIONS.map((o) => o.key)
+                            : [],
                         });
                       }}
-                      className="h-4 w-4 rounded border-indigo-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
-                    />
-                    <span className="text-xs font-semibold text-indigo-900">
-                      Enable Prefunding
-                    </span>
-                  </label>
+                      className="w-full rounded-xl border border-[#ece8e1] bg-[#fbfaf8] px-4 py-2.5 text-sm outline-none focus:border-[#4f63ea]"
+                    >
+                      <option value="SALES">Sales</option>
+                      <option value="ACCOUNTMANAGER">Account Manager</option>
+                      <option value="OPERATIONS">Operations</option>
+                      <option value="FINANCE">Finance</option>
+                      <option value="VIEWER">Viewer</option>
+                      <option value="ADMIN">Admin</option>
+                    </select>
+                  </div>
                 </div>
 
-                {(newUser.role === "ADMIN" || newUser.hasPrefundingAccess) && (
-                  <div className="pt-2 border-t border-indigo-100">
-                    <div className="mb-2 text-[11px] font-semibold text-indigo-900">
-                      Action Permissions:
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {PREFUNDING_ACTION_OPTIONS.map((action) => {
-                        const isAdmin = newUser.role === "ADMIN";
-                        const isChecked = isAdmin || (Array.isArray(newUser.prefundingPermissions) && newUser.prefundingPermissions.includes(action.key));
-
-                        return (
-                          <label
-                            key={action.key}
-                            className={`flex items-center gap-2 text-xs p-1.5 rounded-lg border transition-all ${
-                              isAdmin
-                                ? "bg-slate-100/70 border-slate-200 text-slate-500 cursor-not-allowed"
-                                : isChecked
-                                ? "bg-white border-indigo-200 text-indigo-950 font-medium cursor-pointer shadow-sm"
-                                : "bg-white/60 border-slate-200 text-slate-600 cursor-pointer hover:bg-white"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              disabled={isAdmin}
-                              checked={isChecked}
-                              onChange={(e) => {
-                                const currentPerms: string[] = Array.isArray(newUser.prefundingPermissions)
-                                  ? [...newUser.prefundingPermissions]
-                                  : [];
-                                if (e.target.checked) {
-                                  if (!currentPerms.includes(action.key)) {
-                                    currentPerms.push(action.key);
-                                  }
-                                } else {
-                                  const idx = currentPerms.indexOf(action.key);
-                                  if (idx >= 0) currentPerms.splice(idx, 1);
-                                }
-                                setNewUser({
-                                  ...newUser,
-                                  prefundingPermissions: currentPerms,
-                                });
-                              }}
-                              className="h-3.5 w-3.5 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
-                            />
-                            <span>{action.label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                {/* Right Column: Permissions & Access (7 Cols) */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Module Permissions
+                    </h3>
                   </div>
-                )}
+
+                  {/* Prefunding Module Access Row Container */}
+                  <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-white p-5 space-y-4 shadow-xs">
+                    {/* Module Header & Switch in a clean row */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-100/70">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-600 text-white text-xs font-bold">
+                            P
+                          </span>
+                          <h4 className="text-sm font-bold text-indigo-950">
+                            Prefunding Module
+                          </h4>
+                        </div>
+                        <p className="text-xs text-indigo-700/90 mt-1 leading-relaxed">
+                          {newUser.role === "ADMIN"
+                            ? "Admin role has full access and all action permissions enabled by default."
+                            : "Grant access to the Prefunding Module and configure action permissions."}
+                        </p>
+                      </div>
+
+                      <label className="flex items-center gap-2.5 cursor-pointer shrink-0 self-start sm:self-center px-3 py-1.5 rounded-xl bg-white border border-indigo-200/80 shadow-2xs">
+                        <input
+                          type="checkbox"
+                          disabled={newUser.role === "ADMIN"}
+                          checked={newUser.role === "ADMIN" ? true : !!newUser.hasPrefundingAccess}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setNewUser({
+                              ...newUser,
+                              hasPrefundingAccess: checked,
+                              prefundingPermissions: checked
+                                ? (newUser.prefundingPermissions?.length ? newUser.prefundingPermissions : ["VIEW"])
+                                : [],
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-indigo-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
+                        />
+                        <span className="text-xs font-bold text-indigo-900">
+                          Enable Access
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Permissions displayed in a row-wise card list */}
+                    {(newUser.role === "ADMIN" || newUser.hasPrefundingAccess) && (
+                      <div className="space-y-2.5">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-900">
+                          Action Permissions
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {PREFUNDING_ACTION_OPTIONS.map((action) => {
+                            const isAdmin = newUser.role === "ADMIN";
+                            const isChecked = isAdmin || (Array.isArray(newUser.prefundingPermissions) && newUser.prefundingPermissions.includes(action.key));
+
+                            return (
+                              <label
+                                key={action.key}
+                                className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl border transition-all ${
+                                  isAdmin
+                                    ? "bg-slate-100/70 border-slate-200 text-slate-500 cursor-not-allowed"
+                                    : isChecked
+                                    ? "bg-white border-indigo-300 text-indigo-950 font-semibold shadow-xs"
+                                    : "bg-white/70 border-slate-200/80 text-slate-600 cursor-pointer hover:bg-white hover:border-indigo-200"
+                                }`}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isChecked ? "bg-indigo-600" : "bg-slate-300"}`} />
+                                  {action.label}
+                                </span>
+                                <input
+                                  type="checkbox"
+                                  disabled={isAdmin}
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    const currentPerms: string[] = Array.isArray(newUser.prefundingPermissions)
+                                      ? [...newUser.prefundingPermissions]
+                                      : [];
+                                    if (e.target.checked) {
+                                      if (!currentPerms.includes(action.key)) {
+                                        currentPerms.push(action.key);
+                                      }
+                                    } else {
+                                      const idx = currentPerms.indexOf(action.key);
+                                      if (idx >= 0) currentPerms.splice(idx, 1);
+                                    }
+                                    setNewUser({
+                                      ...newUser,
+                                      prefundingPermissions: currentPerms,
+                                    });
+                                  }}
+                                  className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
+                                />
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              {/* Modal Footer */}
+              <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 rounded-xl border border-[#ece8e1] py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  className="px-6 py-2.5 rounded-xl border border-[#ece8e1] text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-[#4f63ea] py-3 text-sm font-bold text-white hover:bg-[#3d4ed1] transition-all shadow-lg shadow-blue-500/20"
+                  className="px-7 py-2.5 rounded-xl bg-[#4f63ea] text-sm font-bold text-white hover:bg-[#3d4ed1] transition-all shadow-md shadow-blue-500/20"
                 >
                   Add Member
                 </button>
@@ -1796,6 +1897,32 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Custom Delete Team Member Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(deleteUserTarget)}
+        onClose={() => setDeleteUserTarget(null)}
+        onConfirm={handleConfirmDeleteUser}
+        closeOnConfirm={false}
+        title="Remove Team Member"
+        type="danger"
+        confirmLabel={isDeletingUser ? "Removing..." : "Remove Member"}
+        cancelLabel="Cancel"
+        isConfirming={isDeletingUser}
+      >
+        <div className="space-y-3 text-xs text-slate-600">
+          <p className="text-sm text-slate-700">
+            Are you sure you want to remove team member{" "}
+            <span className="font-bold text-slate-900">
+              {deleteUserTarget?.firstName} {deleteUserTarget?.lastName}
+            </span>{" "}
+            ({deleteUserTarget?.email || deleteUserTarget?.userName})?
+          </p>
+          <div className="rounded-xl border border-red-100 bg-red-50/70 p-3.5 text-red-800 leading-relaxed">
+            This action will permanently revoke their access to the system and all assigned module permissions.
+          </div>
+        </div>
+      </ConfirmModal>
     </AppLayout>
   );
 }

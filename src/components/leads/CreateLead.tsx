@@ -94,6 +94,7 @@ import {
   canManageSettings,
   hasAdminAccess,
   readStoredUser,
+  hasPrefundingPermission,
 } from "../../utils/auth";
 import {
   buildTemplateFieldValues,
@@ -455,6 +456,12 @@ function CreateLeadPage() {
   const currentRole = readStoredUser()?.role as string | undefined;
   const isAdmin = hasAdminAccess(currentRole);
   const canReadUsers = canManageSettings(currentRole);
+  const currentUser = readStoredUser();
+  const canViewPrefunding = hasPrefundingPermission(currentUser, "VIEW");
+  const canEditPrefunding = hasPrefundingPermission(currentUser, "EDIT") || hasPrefundingPermission(currentUser, "CREATE");
+  const effectivePersonRoleOptions = canViewPrefunding
+    ? personRoleOptions
+    : personRoleOptions.filter((r) => r !== "EMPLOYEE");
   const [form, setForm] = useState<LeadFormState>(initialFormState);
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -2671,14 +2678,14 @@ function CreateLeadPage() {
                               primaryContactRole: (val.length > 0 ? (val[0] as PersonRole) : ("" as PersonRole)),
                             }));
                           }}
-                          options={personRoleOptions.map((role) => ({ label: role, value: role }))}
+                          options={effectivePersonRoleOptions.map((role) => ({ label: role, value: role }))}
                           className="w-full"
                           placeholder="Select roles..."
                         />
                       </label>
                     </div>
 
-                    {(form.primaryContactRoles || []).includes("EMPLOYEE") && (
+                    {canViewPrefunding && (form.primaryContactRoles || []).includes("EMPLOYEE") && (
                       <div className="md:col-span-2 border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50 mt-1 mb-2 animate-in fade-in duration-200">
                         <h4 className="text-[13px] font-bold text-slate-700 flex items-center gap-1.5">
                           Employee Details
@@ -2690,6 +2697,7 @@ function CreateLeadPage() {
                               value={form.primaryContactJobCategory || ""}
                               onChange={(val) => updateField("primaryContactJobCategory", val)}
                               options={[{ label: "Clinical", value: "CLINICAL" }, { label: "Non-Clinical", value: "NON_CLINICAL" }]}
+                              disabled={!canEditPrefunding}
                               placeholder="Select Category"
                               className="w-full !text-xs !py-1.5"
                             />
@@ -2701,6 +2709,7 @@ function CreateLeadPage() {
                               value={form.primaryContactWorkLocation || ""}
                               onChange={(e) => updateField("primaryContactWorkLocation", e.target.value)}
                               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                              disabled={!canEditPrefunding}
                               placeholder="Location"
                             />
                           </div>
@@ -2712,6 +2721,7 @@ function CreateLeadPage() {
                               value={form.primaryContactState || ""}
                               onChange={(val) => updateField("primaryContactState", val)}
                               options={usStatesOptions}
+                              disabled={!canEditPrefunding}
                               placeholder="Select State"
                               className="w-full !text-xs !py-1.5"
                             />
@@ -2723,6 +2733,7 @@ function CreateLeadPage() {
                             <DatePicker
                               value={form.primaryContactDateOfJoining || ""}
                               onChange={(val) => updateField("primaryContactDateOfJoining", val)}
+                              disabled={!canEditPrefunding}
                               placeholder="Select Date"
                               className="w-full !text-xs !py-1.5"
                             />
@@ -2741,6 +2752,7 @@ function CreateLeadPage() {
                                 { label: "Monthly", value: "MONTHLY" },
                                 { label: "Annually", value: "ANNUALLY" },
                               ]}
+                              disabled={!canEditPrefunding}
                               placeholder="Select Pay Type"
                               className="w-full !text-xs !py-1.5"
                             />
@@ -2753,6 +2765,7 @@ function CreateLeadPage() {
                               value={form.primaryContactPayRate || ""}
                               onChange={(e) => updateField("primaryContactPayRate", e.target.value)}
                               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                              disabled={!canEditPrefunding}
                               placeholder="0.00"
                             />
                           </div>
