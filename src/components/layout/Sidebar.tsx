@@ -15,6 +15,7 @@ import {
   Briefcase,
   Share2,
   ClipboardCheck,
+  ClipboardList,
   BarChart3,
   Calculator,
   CreditCard,
@@ -132,6 +133,14 @@ const sidebarSteps: SidebarItem[] = [
         adminOnly: true,
       },
       { label: "Pending Signatures", to: "/agreements/pending-signatures" },
+    ],
+  },
+  {
+    label: "Forms",
+    requiredRoles: [...MODULE_ACCESS.CRM],
+    items: [
+      { label: "All Forms", to: "/forms" },
+      { label: "Templates", to: "/forms/templates" },
     ],
   },
   {
@@ -426,6 +435,7 @@ function getIconForLabel(label: string) {
   if (l.includes("practice")) return <Stethoscope className="h-4 w-4" />;
   if (l.includes("document")) return <FolderOpen className="h-4 w-4" />;
   if (l.includes("credential")) return <ListChecks className="h-4 w-4" />;
+  if (l.includes("form")) return <ClipboardList className="h-4 w-4" />;
   if (l.includes("onboarding")) return <FileText className="h-4 w-4" />;
   if (l.includes("service")) return <Briefcase className="h-4 w-4" />;
   if (l.includes("assessment")) return <BarChart3 className="h-4 w-4" />;
