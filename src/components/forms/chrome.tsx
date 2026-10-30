@@ -118,11 +118,11 @@ export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
 
 type BufferedCommit = {
   value: string;
-  onCommit: (value: string) => void;
+  onCommit: (value: string) => void | false;
   delay?: number;
 };
 
-function useBufferedDraft(value: string, onCommit: (value: string) => void, delay = 120) {
+function useBufferedDraft(value: string, onCommit: (value: string) => void | false, delay = 120) {
   const [draft, setDraft] = useState(value);
   const focused = useRef(false);
   const commitRef = useRef(onCommit);
@@ -136,7 +136,9 @@ function useBufferedDraft(value: string, onCommit: (value: string) => void, dela
 
   useEffect(() => {
     if (draft === valueRef.current) return;
-    const timer = window.setTimeout(() => commitRef.current(draft), delay);
+    const timer = window.setTimeout(() => {
+      if (commitRef.current(draft) === false) setDraft(valueRef.current);
+    }, delay);
     return () => window.clearTimeout(timer);
   }, [draft, delay]);
 
@@ -148,7 +150,7 @@ function useBufferedDraft(value: string, onCommit: (value: string) => void, dela
     },
     onBlur() {
       focused.current = false;
-      if (draft !== valueRef.current) commitRef.current(draft);
+      if (draft !== valueRef.current && commitRef.current(draft) === false) setDraft(valueRef.current);
     },
   };
 }

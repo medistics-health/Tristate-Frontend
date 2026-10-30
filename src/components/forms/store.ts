@@ -1,4 +1,5 @@
 ﻿import { useSyncExternalStore } from "react";
+import toast from "react-hot-toast";
 import { readStoredUser } from "../../utils/auth";
 import * as formApi from "./api";
 import {
@@ -39,6 +40,8 @@ function currentUserName() {
 
 const saveTimers = new Map<string, number>();
 const localDraftIds = new Set<string>();
+const templateDraftIds = new Set<string>();
+const savedTitles = new Map<string, string>();
 const formRevision = new Map<string, number>();
 const saveChain = new Map<string, Promise<unknown>>();
 
@@ -50,6 +53,7 @@ function replaceForm(form: FormRecord) {
   const index = state.forms.findIndex((item) => item.id === form.id);
   if (index >= 0) state.forms[index] = form;
   else state.forms.unshift(form);
+  if (!localDraftIds.has(form.id)) savedTitles.set(form.id, form.title);
   emit();
 }
 
@@ -59,7 +63,9 @@ function scheduleSave(id: string) {
   saveTimers.set(
     id,
     window.setTimeout(() => {
-      void flushSave(id);
+      void flushSave(id).catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : "Unable to save this form.");
+      });
     }, 600),
   );
 }
@@ -75,7 +81,18 @@ async function saveLatest(id: string) {
   if (!form?.detailLoaded || localDraftIds.has(id)) return form ?? null;
   const revision = formRevision.get(id) || 0;
   const emptyIds = new Set(form.sections.filter((item) => item.questions.length === 0).map((item) => item.id));
-  const saved = await formApi.saveDocument(withoutEmptySections(form));
+  let saved;
+  try {
+    saved = await formApi.saveDocument(withoutEmptySections(form));
+  } catch (error) {
+    const current = getForm(id);
+    const previous = savedTitles.get(id);
+    if (current && previous && error instanceof Error && /already exists/i.test(error.message)) {
+      current.title = previous;
+      emit();
+    }
+    throw error;
+  }
   const current = getForm(id);
   if (!current) return saved;
   if ((formRevision.get(id) || 0) !== revision) {
@@ -278,9 +295,10 @@ export function getForm(id: string) {
   return state.forms.find((form) => form.id === id) ?? null;
 }
 
-export function beginNewForm(title = "Untitled form") {
+export function beginNewForm(title = "Untitled form", asTemplate = false) {
   for (const id of [...localDraftIds]) discardLocalForm(id);
   const form = blankForm(title);
+  if (asTemplate) templateDraftIds.add(form.id);
   form.detailLoaded = true;
   localDraftIds.add(form.id);
   replaceForm(form);
@@ -290,6 +308,7 @@ export function beginNewForm(title = "Untitled form") {
 export function discardLocalForm(id: string) {
   if (!localDraftIds.has(id)) return;
   localDraftIds.delete(id);
+  templateDraftIds.delete(id);
   window.clearTimeout(saveTimers.get(id));
   saveTimers.delete(id);
   state.forms = state.forms.filter((form) => form.id !== id);
@@ -361,6 +380,17 @@ export function updateForm(id: string, patch: Partial<FormRecord>) {
   }
   const form = getForm(id);
   if (!form) return;
+  if (typeof patch.title === "string") {
+    const title = patch.title.trim().toLowerCase();
+    const asTemplate = templateDraftIds.has(id);
+    const taken = asTemplate
+      ? state.templates.some((item) => item.name.trim().toLowerCase() === title)
+      : state.forms.some((item) => item.id !== id && item.title.trim().toLowerCase() === title);
+    if (title && taken) {
+      toast.error(asTemplate ? "A template with this name already exists." : "A form with this name already exists.");
+      return false;
+    }
+  }
   Object.assign(form, patch, { updatedAt: nowIso() });
   emit();
   if (form.detailLoaded) scheduleSave(id);
@@ -739,13 +769,18 @@ export async function saveAsTemplate(
 export async function saveLocalAsTemplateOnly(localId: string) {
   const local = getForm(localId);
   if (!local) return false;
+  const name = local.title.trim() || "Untitled template";
+  if (state.templates.some((item) => item.name.trim().toLowerCase() === name.toLowerCase())) {
+    throw new Error("A template with this name already exists.");
+  }
   const snapshot = JSON.parse(JSON.stringify(local)) as FormRecord;
+  local.title = `Draft ${crypto.randomUUID()}`;
   const saved = await persistLocalForm(localId);
   if (!saved) return false;
   try {
     await formApi.saveTemplate(saved.id, {
-      name: saved.title.trim() || "Untitled template",
-      description: saved.description,
+      name,
+      description: local.description || snapshot.description,
       category: "General",
       visibility: "PRIVATE",
     });

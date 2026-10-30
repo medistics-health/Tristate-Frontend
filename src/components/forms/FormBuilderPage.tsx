@@ -59,7 +59,7 @@ export default function FormBuilderPage() {
   useEffect(() => {
     if (isNew) {
       const asTemplate = (location.state as { intent?: string } | null)?.intent === "template";
-      const draft = beginNewForm(asTemplate ? "Untitled template" : "Untitled form");
+      const draft = beginNewForm(asTemplate ? "Untitled template" : "Untitled form", asTemplate);
       setDraftId(draft.id);
       return () => discardLocalForm(draft.id);
     }
