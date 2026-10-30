@@ -64,16 +64,24 @@ function scheduleSave(id: string) {
   );
 }
 
+function withoutEmptySections(form: FormRecord) {
+  const copy = structuredClone(form);
+  copy.sections = copy.sections.filter((item) => item.questions.length > 0);
+  return copy;
+}
+
 async function saveLatest(id: string) {
   const form = getForm(id);
   if (!form?.detailLoaded || localDraftIds.has(id)) return form ?? null;
   const revision = formRevision.get(id) || 0;
-  const saved = await formApi.saveDocument(structuredClone(form));
+  const emptyIds = new Set(form.sections.filter((item) => item.questions.length === 0).map((item) => item.id));
+  const saved = await formApi.saveDocument(withoutEmptySections(form));
   const current = getForm(id);
   if (!current) return saved;
   if ((formRevision.get(id) || 0) !== revision) {
     current.lockVersion = saved.lockVersion;
     current.version = saved.version;
+    current.sections = current.sections.filter((item) => item.questions.length > 0 || !emptyIds.has(item.id));
     emit();
     return current;
   }
@@ -297,7 +305,7 @@ export async function persistLocalForm(id: string) {
     return null;
   }
   try {
-    const saved = await formApi.saveDocument({
+    const saved = await formApi.saveDocument(withoutEmptySections({
       ...form,
       id: created.id,
       refCode: created.refCode,
@@ -307,7 +315,7 @@ export async function persistLocalForm(id: string) {
       owner: created.owner,
       createdAt: created.createdAt,
       status: created.status,
-    });
+    }));
     if (!localDraftIds.has(id)) {
       await formApi.deleteDraft(created.id).catch(() => undefined);
       return null;
@@ -475,7 +483,6 @@ export function addSection(formId: string) {
   if (!form) return;
   form.sections.push(section("Section 1", []));
   renumberSections(form);
-  touch(form);
   emit();
 }
 
@@ -484,8 +491,8 @@ export function updateSection(formId: string, sectionId: string, patch: Partial<
   const target = form?.sections.find((item) => item.id === sectionId);
   if (!form || !target) return;
   Object.assign(target, patch);
-  touch(form);
-  emit();
+  if (target.questions.length > 0) touch(form);
+  else emit();
 }
 
 export function deleteSection(formId: string, sectionId: string, moveToId?: string) {

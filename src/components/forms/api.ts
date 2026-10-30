@@ -165,14 +165,18 @@ export async function listAudit() {
   return data.audit;
 }
 
+function withoutEmptySections(form: FormRecord) {
+  return { ...form, sections: form.sections.filter((section) => section.questions.length > 0) };
+}
+
 export async function getDocument(id: string) {
   const data = await request<{ form: FormRecord }>("GET", `/forms/${id}/document`);
-  return { ...data.form, detailLoaded: true };
+  return { ...withoutEmptySections(data.form), detailLoaded: true as const };
 }
 
 export async function saveDocument(form: FormRecord) {
-  const data = await request<{ form: FormRecord }>("PUT", `/forms/${form.id}/document`, form);
-  return { ...data.form, detailLoaded: true };
+  const data = await request<{ form: FormRecord }>("PUT", `/forms/${form.id}/document`, withoutEmptySections(form));
+  return { ...withoutEmptySections(data.form), detailLoaded: true as const };
 }
 
 export async function createForm(title: string) {
