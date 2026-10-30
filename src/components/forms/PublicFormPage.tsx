@@ -74,24 +74,26 @@ export default function PublicFormPage() {
             </div>
           ) : null
         }
-        onSubmit={(answers) => {
+        uploadImage={(file) => uploadFormImage(token, file)}
+        onSubmit={async (answers) => {
           const root = (import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ?? "") + "/api/v1";
-          void apiConnector({
-            method: "POST",
-            url: `${root}/f/${token}/submit`,
-            body: {
-              answers: toApiAnswers(form, answers),
-              captchaToken: captcha?.token,
-              captchaAnswer: captcha?.answer,
-            },
-          })
-            .then((response) => setNotice((response.data as { message?: string }).message || form.confirmationMessage))
-            .catch((error: unknown) => {
-              const message = axios.isAxiosError(error)
-                ? (error.response?.data as { message?: string } | undefined)?.message
-                : "This form is no longer accepting responses.";
-              setNotice(message || "This form is no longer accepting responses.");
+          try {
+            const response = await apiConnector({
+              method: "POST",
+              url: `${root}/f/${token}/submit`,
+              body: {
+                answers: toApiAnswers(form, answers),
+                captchaToken: captcha?.token,
+                captchaAnswer: captcha?.answer,
+              },
             });
+            setNotice((response.data as { message?: string }).message || form.confirmationMessage);
+          } catch (error: unknown) {
+            const data = axios.isAxiosError(error)
+              ? (error.response?.data as { message?: string; errors?: string[] } | undefined)
+              : undefined;
+            throw new Error(data?.errors?.[0] || data?.message || "This form is no longer accepting responses.");
+          }
         }}
       />
     </main>
@@ -254,9 +256,42 @@ function toApiAnswers(form: FormRecord, answers: Record<string, string | string[
       payload[question.id] = { amount: Number(amount), frequency };
       return;
     }
+    if (question.type === "image" && question.config.imageMode !== "choice") {
+      const text = Array.isArray(raw) ? raw[0] : String(raw || "");
+      if (text.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(text) as { files?: unknown[] };
+          if (Array.isArray(parsed.files)) {
+            payload[question.id] = { files: parsed.files };
+            return;
+          }
+        } catch {
+          // A plain file name is sent below.
+        }
+      }
+      payload[question.id] = { files: [{ name: text }] };
+      return;
+    }
     payload[question.id] = raw;
   });
   return payload;
+}
+
+async function uploadFormImage(token: string, file: File) {
+  const root = (import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ?? "") + "/api/v1";
+  const body = new FormData();
+  body.append("file", file);
+  try {
+    const response = await axios.post(`${root}/f/${token}/upload`, body);
+    const saved = (response.data as { file?: { url: string; id?: string; contentType?: string; blobName?: string } }).file;
+    if (!saved?.url) throw new Error("Unable to upload this image.");
+    return saved;
+  } catch (error: unknown) {
+    const data = axios.isAxiosError(error)
+      ? (error.response?.data as { message?: string } | undefined)
+      : undefined;
+    throw new Error(data?.message || "Unable to upload this image.");
+  }
 }
 
 function Status({ title, body }: { title: string; body: string }) {

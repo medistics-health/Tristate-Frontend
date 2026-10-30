@@ -142,6 +142,7 @@ const QuestionField = memo(function QuestionField({
   value,
   error,
   onChange,
+  uploadImage,
 }: {
   form: FormRecord;
   question: FormQuestion;
@@ -149,9 +150,12 @@ const QuestionField = memo(function QuestionField({
   value: string | string[] | undefined;
   error?: string;
   onChange: (value: string | string[]) => void;
+  uploadImage?: (file: File) => Promise<{ url: string; name?: string; id?: string; contentType?: string; blobName?: string }>;
 }) {
   const text = Array.isArray(value) ? "" : value || "";
   const list = Array.isArray(value) ? value : [];
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const label = (
     <div className="mb-2">
       <p className="text-[15px] font-medium text-slate-800">
@@ -341,15 +345,37 @@ const QuestionField = memo(function QuestionField({
         </div>
       );
     }
+    const savedName = imageAnswerName(text);
     return (
-      <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#d9d3c8] bg-[#fbfaf8] text-[13px] text-slate-500">
-        <span>Upload jpg, png, or webp · max {question.config.maxSizeMb || 5} MB</span>
+      <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#d9d3c8] bg-[#fbfaf8] px-4 text-center text-[13px] text-slate-500">
+        <span>{uploading ? "Uploading image…" : savedName || `Upload jpg, png, or webp · max ${question.config.maxSizeMb || 5} MB`}</span>
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          className="mt-2 text-[12px]"
-          onChange={(event) => onChange(event.target.files?.[0]?.name || "")}
+          disabled={uploading}
+          className="mt-2 text-[12px] disabled:opacity-50"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) {
+              onChange("");
+              return;
+            }
+            if (!uploadImage) {
+              onChange(file.name);
+              return;
+            }
+            setUploading(true);
+            setUploadError("");
+            void uploadImage(file)
+              .then((saved) => onChange(JSON.stringify({ files: [{ ...saved, name: file.name }] })))
+              .catch((uploadFailure: Error) => {
+                onChange("");
+                setUploadError(uploadFailure.message || "Unable to upload this image.");
+              })
+              .finally(() => setUploading(false));
+          }}
         />
+        {uploadError ? <span className="mt-2 text-[#b42318]">{uploadError}</span> : null}
       </label>
     );
   })();
@@ -363,6 +389,16 @@ const QuestionField = memo(function QuestionField({
   );
 });
 
+function imageAnswerName(value: string) {
+  if (!value.startsWith("{")) return value;
+  try {
+    const parsed = JSON.parse(value) as { files?: Array<{ name?: string }> };
+    return parsed.files?.[0]?.name || "";
+  } catch {
+    return "";
+  }
+}
+
 function answersFrequency(value: string | string[] | undefined) {
   if (typeof value !== "string" || !value.includes("|")) return "";
   return value.split("|")[1] || "";
@@ -373,17 +409,21 @@ export function RespondentForm({
   preview = false,
   onSubmit,
   footer,
+  uploadImage,
 }: {
   form: FormRecord;
   preview?: boolean;
-  onSubmit?: (answers: AnswerMap) => void;
+  onSubmit?: (answers: AnswerMap) => void | Promise<void>;
   footer?: ReactNode;
+  uploadImage?: (file: File) => Promise<{ url: string; name?: string; id?: string; contentType?: string; blobName?: string }>;
 }) {
   const [answers, setAnswers] = useState<AnswerMap>({});
   const answersRef = useRef<AnswerMap>({});
   const [page, setPage] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [width, setWidth] = useState<"desktop" | "tablet" | "mobile">("desktop");
 
   const pages = useMemo(() => {
@@ -414,7 +454,12 @@ export function RespondentForm({
       setDone(true);
       return;
     }
-    onSubmit?.(latest);
+    setSubmitting(true);
+    setSubmitError("");
+    void Promise.resolve(onSubmit?.(latest))
+      .then(() => setDone(true))
+      .catch((error: Error) => setSubmitError(error.message || "Unable to submit this form."))
+      .finally(() => setSubmitting(false));
   }
 
   const frame =
@@ -495,6 +540,7 @@ export function RespondentForm({
                       value={answers[question.id]}
                       error={errors[question.id]}
                       onChange={(value) => setAnswer(question.id, value)}
+                      uploadImage={uploadImage}
                     />
                   ))}
                 </div>
@@ -508,6 +554,7 @@ export function RespondentForm({
                   value={answers[question.id]}
                   error={errors[question.id]}
                   onChange={(value) => setAnswer(question.id, value)}
+                  uploadImage={uploadImage}
                 />
               ))}
         </div>
@@ -531,13 +578,17 @@ export function RespondentForm({
               Next
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={submit}
-              className="rounded-xl bg-[#4f63ea] px-4 py-2.5 text-[14px] font-medium text-white"
-            >
-              {preview ? "Submit preview" : "Submit"}
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              {submitError ? <p className="text-[13px] text-[#b42318]">{submitError}</p> : null}
+              <button
+                type="button"
+                onClick={submit}
+                disabled={submitting}
+                className="rounded-xl bg-[#4f63ea] px-4 py-2.5 text-[14px] font-medium text-white disabled:opacity-60"
+              >
+                {submitting ? "Submitting…" : preview ? "Submit preview" : "Submit"}
+              </button>
+            </div>
           )}
         </div>
       </div>
