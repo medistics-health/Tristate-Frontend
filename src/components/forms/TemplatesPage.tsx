@@ -53,7 +53,7 @@ export default function TemplatesPage() {
     setBusyId(template.id);
     try {
       const form = await createFromTemplate(template.id);
-      navigate(`/forms/${form.id}`);
+      navigate(`/forms/${form.id}`, { state: { from: "templates" } });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to use this template.");
     } finally {
@@ -105,7 +105,7 @@ export default function TemplatesPage() {
               </label>
             }
             addNewLabel="New template"
-            onAddNew={() => navigate("/forms/new")}
+            onAddNew={() => navigate("/forms/new", { state: { from: "templates" } })}
             onRefresh={load}
             isLoading={loading}
             page={currentPage}

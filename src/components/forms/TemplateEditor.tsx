@@ -102,8 +102,15 @@ export default function TemplateEditor() {
   }
 
   return (
-    <FormsLayout title="New template" activeSubItem="All Forms">
+    <FormsLayout title="New template" activeSubItem="Templates">
       <div className="mx-auto max-w-2xl space-y-4 font-app-sans">
+        <button
+          type="button"
+          onClick={() => navigate("/forms/templates")}
+          className="cursor-pointer rounded-lg px-1 py-0.5 text-[13px] text-slate-500 transition-colors duration-150 hover:bg-white hover:text-slate-800"
+        >
+          Templates
+        </button>
         <Panel className="space-y-3 p-4">
           <div>
             <FieldLabel>Template name</FieldLabel>

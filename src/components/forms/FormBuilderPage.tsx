@@ -79,10 +79,11 @@ export default function FormBuilderPage() {
   const locked = current.responses.length > 0;
   const questions = flattenQuestions(current);
   const unsaved = isUnsavedForm(current.id);
+  const fromTemplates = (location.state as { from?: string } | null)?.from === "templates";
 
   function leave() {
     if (unsaved) discardLocalForm(current.id);
-    navigate("/forms");
+    navigate(fromTemplates ? "/forms/templates" : "/forms");
   }
 
   async function save() {
@@ -92,7 +93,7 @@ export default function FormBuilderPage() {
         const saved = await persistLocalForm(current.id);
         if (!saved) return;
         toast.success("Form saved");
-        navigate(`/forms/${saved.id}`, { replace: true });
+        navigate(`/forms/${saved.id}`, { replace: true, state: location.state });
         return;
       }
       await flushSave(current.id);
@@ -108,7 +109,7 @@ export default function FormBuilderPage() {
     <div className="flex h-screen flex-col bg-[#f7f5f1] font-app-sans text-slate-700">
       <header className="flex flex-wrap items-center gap-3 border-b border-[#ece8e1] bg-white px-4 py-3">
         <button type="button" onClick={leave} className="shrink-0 cursor-pointer rounded-lg px-2 py-1 text-[13px] text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-800">
-          Forms
+          {fromTemplates ? "Templates" : "Forms"}
         </button>
         <BufferedInput
           value={form.title}
@@ -651,6 +652,7 @@ function LogicSummary({ formId }: { formId: string }) {
 
 function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => void }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("General");
@@ -688,7 +690,7 @@ function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => vo
                 await saveAsTemplate(id, { name, description, category, visibility });
                 toast.success("Template saved");
                 onClose();
-                if (wasNew) navigate(`/forms/${id}`, { replace: true });
+                if (wasNew) navigate(`/forms/${id}`, { replace: true, state: location.state });
               })().catch((error: Error) => {
                 toast.error(error.message || "Unable to save this template.");
               }).finally(() => setSavingTemplate(false));
