@@ -226,6 +226,14 @@ const usStatesOptions = [
   { label: "Wisconsin", value: "WI" }, { label: "Wyoming", value: "WY" }
 ];
 
+function getTodayFormattedDate(): string {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 const roleOptions = [
   "OWNER",
   "ADMIN",
@@ -258,9 +266,9 @@ export default function PersonsPage() {
   const currentUser = readStoredUser();
   const canViewPrefunding = hasPrefundingPermission(currentUser, "VIEW");
   const canEditPrefunding = hasPrefundingPermission(currentUser, "EDIT") || hasPrefundingPermission(currentUser, "CREATE");
-  const effectiveRoleOptions = canViewPrefunding
-    ? roleOptions
-    : roleOptions.filter((r) => r.toUpperCase() !== "EMPLOYEE");
+  const effectiveRoleOptions = roleOptions;
+
+
   const [viewData, setViewData] = useState<PersonViewData | null>(null);
   const [rows, setRows] = useState<PersonRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -473,7 +481,7 @@ export default function PersonsPage() {
       };
       const data = await getPersonsView(params);
       setViewData(data);
-      setRows(data.rows);
+      setRows((data.rows));
       setPagination(data.pagination);
       const visibility: Record<string, boolean> = {};
       data.fields.forEach((field) => {
@@ -536,7 +544,7 @@ export default function PersonsPage() {
         jobCategory: String(values.jobCategory || ""),
         workLocation: String(values.workLocation || ""),
         state: String(values.state || ""),
-        dateOfJoining: String(values.dateOfJoining || ""),
+        dateOfJoining: String(values.dateOfJoining || (Array.isArray(values.rolesArray) && values.rolesArray.includes("EMPLOYEE") ? getTodayFormattedDate() : "")),
         payType: String(values.payType || ""),
         payRate: values.payRate !== null && values.payRate !== undefined ? values.payRate : "",
         budgetedHours: values.budgetedHours !== null && values.budgetedHours !== undefined ? values.budgetedHours : "",
@@ -613,9 +621,7 @@ export default function PersonsPage() {
                     .split(",")
                     .map((r) => r.trim())
                     .filter(Boolean);
-              const rolesList = canViewPrefunding
-                ? rawRolesList
-                : rawRolesList.filter((r) => r.toUpperCase() !== "EMPLOYEE");
+              const rolesList = rawRolesList;
               if (rolesList.length === 0) {
                 return <span className="text-slate-400">-</span>;
               }
@@ -883,10 +889,10 @@ export default function PersonsPage() {
       toast.error("At least one role is required.");
       return;
     }
-    if ((formData.roles || []).includes("EMPLOYEE") && !formData.dateOfJoining?.trim()) {
-      toast.error("Date of Joining is required for Employee role.");
-      return;
-    }
+    const isCreateEmployee = (formData.roles || []).includes("EMPLOYEE");
+    const effectiveCreateDateOfJoining = isCreateEmployee
+      ? (formData.dateOfJoining?.trim() || getTodayFormattedDate())
+      : "";
     if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
       toast.error("Person phone must be exactly 10 digits.");
       return;
@@ -920,7 +926,16 @@ export default function PersonsPage() {
       const personData: PersonBody = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        roles: formData.roles,
+        roles: (() => {
+          const originalRoles = Array.isArray(selectedRow.values.rolesArray)
+            ? (selectedRow.values.rolesArray as string[])
+            : [];
+          const hadEmployee = originalRoles.some((r) => r.toUpperCase() === "EMPLOYEE");
+          if (!canViewPrefunding && hadEmployee) {
+            return Array.from(new Set([...formData.roles, "EMPLOYEE"]));
+          }
+          return formData.roles;
+        })(),
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: trimmedPhone || undefined,
@@ -932,7 +947,7 @@ export default function PersonsPage() {
           jobCategory: formData.jobCategory,
           workLocation: formData.workLocation,
           state: formData.state,
-          dateOfJoining: formData.dateOfJoining,
+          dateOfJoining: effectiveCreateDateOfJoining,
           payType: formData.payType || null,
           payRate: formData.payRate !== undefined && String(formData.payRate).trim() !== "" ? Number(formData.payRate) : null,
           budgetedHours: formData.budgetedHours !== undefined && String(formData.budgetedHours).trim() !== "" ? Number(formData.budgetedHours) : null,
@@ -948,7 +963,7 @@ export default function PersonsPage() {
       };
       const allPersonsAfterCreate = await getPersonsView(params);
 
-      setRows(allPersonsAfterCreate.rows);
+      setRows((allPersonsAfterCreate.rows));
       setPagination(allPersonsAfterCreate.pagination);
       closeCreateForm();
       toast.success("Person created successfully");
@@ -981,10 +996,10 @@ export default function PersonsPage() {
       toast.error("At least one role is required.");
       return;
     }
-    if ((formData.roles || []).includes("EMPLOYEE") && !formData.dateOfJoining?.trim()) {
-      toast.error("Date of Joining is required for Employee role.");
-      return;
-    }
+    const isUpdateEmployee = (formData.roles || []).includes("EMPLOYEE");
+    const effectiveUpdateDateOfJoining = isUpdateEmployee
+      ? (formData.dateOfJoining?.trim() || (selectedRow.values.dateOfJoining ? String(selectedRow.values.dateOfJoining) : getTodayFormattedDate()))
+      : "";
     if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
       toast.error("Person phone must be exactly 10 digits.");
       return;
@@ -1031,7 +1046,7 @@ export default function PersonsPage() {
           jobCategory: formData.jobCategory,
           workLocation: formData.workLocation,
           state: formData.state,
-          dateOfJoining: formData.dateOfJoining,
+          dateOfJoining: effectiveUpdateDateOfJoining,
           payType: formData.payType || null,
           payRate: formData.payRate !== undefined && String(formData.payRate).trim() !== "" ? Number(formData.payRate) : null,
           budgetedHours: formData.budgetedHours !== undefined && String(formData.budgetedHours).trim() !== "" ? Number(formData.budgetedHours) : null,
@@ -1046,7 +1061,7 @@ export default function PersonsPage() {
         limit: pagination.limit,
       };
       const allPersonsAfterUpdate = await getPersonsView(params);
-      setRows(allPersonsAfterUpdate.rows);
+      setRows((allPersonsAfterUpdate.rows));
       setPagination(allPersonsAfterUpdate.pagination);
       setIsEditing(false);
       toast.success("Person updated successfully");
@@ -1083,7 +1098,7 @@ export default function PersonsPage() {
         limit: pagination.limit,
       };
       const data = await getPersonsView(params);
-      setRows(data.rows);
+      setRows((data.rows));
       setPagination(data.pagination);
       closeDetailPanel();
       toast.success("Person Inactivated successfully");
@@ -1295,7 +1310,30 @@ export default function PersonsPage() {
           </label>
           <MultiSelect
             value={formData.roles || []}
-            onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
+            onChange={(val) => {
+              const hasEmployee = val.includes("EMPLOYEE");
+              setFormData((prev) => {
+                if (!hasEmployee) {
+                  return {
+                    ...prev,
+                    roles: val,
+                    jobCategory: "",
+                    workLocation: "",
+                    state: "",
+                    dateOfJoining: "",
+                    payType: "",
+                    payRate: "",
+                    budgetedHours: "",
+                    bufferPercentage: "",
+                  };
+                }
+                return {
+                  ...prev,
+                  roles: val,
+                  dateOfJoining: prev.dateOfJoining || getTodayFormattedDate(),
+                };
+              });
+            }}
             options={effectiveRoleOptions.map(r => ({ label: r, value: r }))}
             className="w-full"
           />
@@ -1905,9 +1943,7 @@ export default function PersonsPage() {
                       .split(",")
                       .map((r) => r.trim())
                       .filter(Boolean);
-                const rolesList = canViewPrefunding
-                  ? rawRolesList
-                  : rawRolesList.filter((r) => r.toUpperCase() !== "EMPLOYEE");
+                const rolesList = rawRolesList;
                 const roleBadges = rolesList.map((r) => ({
                   label: r,
                   className: rColors[r.toUpperCase()] || "bg-gray-100 text-gray-700",
@@ -2040,7 +2076,30 @@ export default function PersonsPage() {
                   </label>
                   <MultiSelect
                     value={formData.roles || []}
-                    onChange={(val) => setFormData((prev) => ({ ...prev, roles: val }))}
+                    onChange={(val) => {
+                      const hasEmployee = val.includes("EMPLOYEE");
+                      setFormData((prev) => {
+                        if (!hasEmployee) {
+                          return {
+                            ...prev,
+                            roles: val,
+                            jobCategory: "",
+                            workLocation: "",
+                            state: "",
+                            dateOfJoining: "",
+                            payType: "",
+                            payRate: "",
+                            budgetedHours: "",
+                            bufferPercentage: "",
+                          };
+                        }
+                        return {
+                          ...prev,
+                          roles: val,
+                          dateOfJoining: prev.dateOfJoining || getTodayFormattedDate(),
+                        };
+                      });
+                    }}
                     options={effectiveRoleOptions.map(r => ({ label: r, value: r }))}
                     className="w-full"
                   />

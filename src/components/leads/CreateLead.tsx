@@ -1,4 +1,4 @@
-﻿import {
+import {
   Building2,
   Globe,
   LayoutGrid,
@@ -78,9 +78,11 @@ import type {
 } from "../practices/types";
 import {
   PRACTICE_SERVICE_LINE_OPTIONS,
+  formatPracticeServiceLine,
   parsePracticeServiceLines,
   type PracticeServiceLine,
 } from "../practices/serviceLines";
+import { getTemplatesApi } from "../../services/operations/onboardingProjects";
 import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import MultiSelect from "../shared/MultiSelect";
@@ -161,6 +163,7 @@ type LeadFormState = {
   practiceSource: PracticeSource;
   practiceBucket: string;
   practiceServiceLines: PracticeServiceLine[];
+  practiceBlueprintIds?: string[];
   practiceTaxIdKey: string;
   billingPaymentMethod: "ACH" | "CREDIT_CARD" | "";
   credentialingChargeAmount: string;
@@ -232,6 +235,7 @@ const initialFormState: LeadFormState = {
   practiceSource: "DIRECT",
   practiceBucket: "",
   practiceServiceLines: [],
+  practiceBlueprintIds: [],
   practiceTaxIdKey: "",
   billingPaymentMethod: "",
   credentialingChargeAmount: "",
@@ -459,12 +463,13 @@ function CreateLeadPage() {
   const currentUser = readStoredUser();
   const canViewPrefunding = hasPrefundingPermission(currentUser, "VIEW");
   const canEditPrefunding = hasPrefundingPermission(currentUser, "EDIT") || hasPrefundingPermission(currentUser, "CREATE");
-  const effectivePersonRoleOptions = canViewPrefunding
-    ? personRoleOptions
-    : personRoleOptions.filter((r) => r !== "EMPLOYEE");
+  const effectivePersonRoleOptions = personRoleOptions;
   const [form, setForm] = useState<LeadFormState>(initialFormState);
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [taskTemplates, setTaskTemplates] = useState<
+    Array<{ id: string; name: string; serviceLine: string; taskCount: number }>
+  >([]);
   const [systemSettings, setSystemSettings] = useState<SystemSettings>({});
   const [templates, setTemplates] = useState<DocusealTemplate[]>([]);
   const [existingAgreements, setExistingAgreements] = useState<Agreement[]>([]);
@@ -643,6 +648,7 @@ function CreateLeadPage() {
             .map((item) => item.trim())
             .filter(Boolean),
           serviceLines: form.practiceServiceLines,
+          templateBlueprintIds: form.practiceBlueprintIds || undefined,
           companyId: companyId || undefined,
           ...(validGroupNpis.length > 0 && {
             groupNpis: validGroupNpis.map((g) => ({
@@ -906,14 +912,25 @@ function CreateLeadPage() {
     async function loadInitialData() {
       try {
         setIsLoadingServices(true);
-        const [serviceList, templateRes] = await Promise.all([
+        const [serviceList, templateRes, taskTpls] = await Promise.all([
           getAllServices(),
           getDocusealTemplates(),
+          getTemplatesApi().catch(() => []),
         ]);
 
         const userList = canReadUsers ? await getAllUsers() : [];
         setServices(serviceList.filter((service) => service.isActive));
         setUsers(userList);
+        if (Array.isArray(taskTpls)) {
+          setTaskTemplates(
+            taskTpls.map((t: any) => ({
+              id: t.id,
+              name: t.name,
+              serviceLine: t.serviceLine,
+              taskCount: t.taskCount || t.tasks?.length || 0,
+            }))
+          );
+        }
         setTemplates(
           templateRes.templates.data.filter((t) => !isHiddenTemplate(t.name) && t.folder_id === 314364),
         );
@@ -1493,10 +1510,13 @@ function CreateLeadPage() {
         toast.error("Contact role is required (at least one role).");
         return;
       }
-      if (form.primaryContactRoles.includes("EMPLOYEE") && !form.primaryContactDateOfJoining?.trim()) {
-        toast.error("Date of Joining is required for Employee role.");
-        return;
-      }
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      const todayStr = `${yyyy}-${mm}-${dd}`;
+      const isLeadEmployee = form.primaryContactRoles.includes("EMPLOYEE");
+      const effectiveLeadJoiningDate = isLeadEmployee ? (form.primaryContactDateOfJoining?.trim() || todayStr) : undefined;
       const credentialError = validatePersonCredentialFields(form.contactCredentials);
       if (credentialError) {
         toast.error(credentialError);
@@ -2425,17 +2445,41 @@ function CreateLeadPage() {
                       <span className="mb-1 block text-[13px] font-medium text-slate-700">
                         Service Line
                       </span>
-                      <MultiSelect
-                        value={form.practiceServiceLines}
-                        onChange={(selected) =>
-                          updateField(
-                            "practiceServiceLines",
-                            parsePracticeServiceLines(selected),
-                          )
-                        }
-                        options={[...PRACTICE_SERVICE_LINE_OPTIONS]}
-                        placeholder="Select service lines"
-                      />
+                      {taskTemplates.length > 0 ? (
+                        <MultiSelect
+                          value={form.practiceBlueprintIds || []}
+                          onChange={(selectedIds) => {
+                            // Extract distinct serviceLines for the selected blueprint IDs
+                            const matchedServiceLines = parsePracticeServiceLines(
+                              selectedIds.map(
+                                (id) => taskTemplates.find((t) => t.id === id)?.serviceLine
+                              ).filter(Boolean)
+                            );
+                            setForm((prev) => ({
+                              ...prev,
+                              practiceBlueprintIds: selectedIds,
+                              practiceServiceLines: matchedServiceLines,
+                            }));
+                          }}
+                          options={taskTemplates.map((t) => ({
+                            label: `${formatPracticeServiceLine(t.serviceLine)} - ${t.name} (${t.taskCount} tasks)`,
+                            value: t.id,
+                          }))}
+                          placeholder="Select service lines"
+                        />
+                      ) : (
+                        <MultiSelect
+                          value={form.practiceServiceLines}
+                          onChange={(selected) =>
+                            updateField(
+                              "practiceServiceLines",
+                              parsePracticeServiceLines(selected),
+                            )
+                          }
+                          options={[...PRACTICE_SERVICE_LINE_OPTIONS]}
+                          placeholder="Select service lines"
+                        />
+                      )}
                     </div>
                     <div className="md:col-span-2 border-t border-[#e8e4dc] pt-3">
                       <div className="mb-2 flex items-center justify-between">
@@ -2672,6 +2716,10 @@ function CreateLeadPage() {
                         <MultiSelect
                           value={Array.isArray(form.primaryContactRoles) ? form.primaryContactRoles : []}
                           onChange={(val) => {
+                            if (canViewPrefunding && !canEditPrefunding && val.includes("EMPLOYEE")) {
+                              toast.error("You do not have permission to assign the Employee role.");
+                              return;
+                            }
                             setForm((prev) => ({
                               ...prev,
                               primaryContactRoles: val,

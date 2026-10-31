@@ -990,22 +990,44 @@ export default function PracticeProfilePage() {
               />
               <InfoRow
                 label="Service Line"
-                value={
-                  practice.serviceLines?.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {practice.serviceLines.map((line) => (
-                        <span
-                          key={line}
-                          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
-                        >
-                          {formatPracticeServiceLine(line)}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    "-"
-                  )
-                }
+                value={(() => {
+                  const workstreams = practice.onboardingProjects?.[0]?.workstreams || [];
+                  if (workstreams.length > 0) {
+                    return (
+                      <div className="flex flex-wrap gap-2">
+                        {workstreams.map((ws, idx) => {
+                          const lineLabel = formatPracticeServiceLine(ws.serviceLine);
+                          const match = ws.notes?.match(/^Blueprint:\s*(.+)$/i);
+                          const bpName = match ? match[1].trim() : (ws.notes?.trim() || "");
+                          const display = bpName ? `${lineLabel} - ${bpName}` : lineLabel;
+                          return (
+                            <span
+                              key={ws.id || idx}
+                              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                            >
+                              {display}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                  if (practice.serviceLines?.length) {
+                    return (
+                      <div className="flex flex-wrap gap-2">
+                        {practice.serviceLines.map((line) => (
+                          <span
+                            key={line}
+                            className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                          >
+                            {formatPracticeServiceLine(line)}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return "-";
+                })()}
               />
               <InfoRow label="Bucket" value={practice.bucket?.join(", ")} />
               <InfoRow

@@ -8,6 +8,7 @@ import Select from "../shared/Select";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import { getAllPractices } from "../../services/operations/practices";
 import { getAllUsers } from "../../services/operations/users";
+import { getTemplatesApi } from "../../services/operations/onboardingProjects";
 import {
   PRACTICE_SERVICE_LINE_OPTIONS,
   formatPracticeServiceLine,
@@ -37,10 +38,12 @@ import {
 
 type PracticeOption = { id: string; name: string };
 type UserOption = { id: string; firstName: string; lastName: string; email: string };
+type TemplateOption = { id: string; name: string; serviceLine: string; taskCount: number };
 
 const emptyForm = {
   practiceId: "",
   serviceLine: "",
+  templateBlueprintId: "",
   status: "PENDING",
   ownerUserId: "",
   targetDate: "",
@@ -94,6 +97,7 @@ export default function OnboardingWorkstreamsPage() {
   const [draftFilters, setDraftFilters] = useState(filters);
   const [practices, setPractices] = useState<PracticeOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -110,6 +114,21 @@ export default function OnboardingWorkstreamsPage() {
     getAllUsers({ limit: 1000 })
       .then((data) => setUsers(data.users || []))
       .catch((err) => console.error("Failed to load users:", err));
+
+    getTemplatesApi()
+      .then((tpls) => {
+        if (Array.isArray(tpls)) {
+          setTemplates(
+            tpls.map((t: any) => ({
+              id: t.id,
+              name: t.name,
+              serviceLine: t.serviceLine,
+              taskCount: t.taskCount || t.tasks?.length || 0,
+            }))
+          );
+        }
+      })
+      .catch((err) => console.error("Failed to load templates:", err));
   }, []);
 
   async function refreshRows(targetPage = pagination.page) {
@@ -187,9 +206,14 @@ export default function OnboardingWorkstreamsPage() {
     try {
       const workstream = await getWorkstream(rowId);
       setSelectedWorkstream(workstream);
+      const matchedBlueprint = templates.find(
+        (t) => t.serviceLine === workstream.serviceLine && workstream.notes?.includes(t.name)
+      ) || templates.find((t) => t.serviceLine === workstream.serviceLine);
+
       setEditForm({
         practiceId: workstream.practiceId,
         serviceLine: String(workstream.serviceLine),
+        templateBlueprintId: matchedBlueprint ? matchedBlueprint.id : "",
         status: String(workstream.status),
         ownerUserId: workstream.ownerUserId || "",
         targetDate: toDateInput(workstream.targetDate),
@@ -219,8 +243,13 @@ export default function OnboardingWorkstreamsPage() {
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
-    if (!createForm.practiceId || !createForm.serviceLine) {
-      toast.error("Practice and service line are required.");
+    if (!createForm.practiceId) {
+      toast.error("Please select a practice.");
+      return;
+    }
+
+    if (!createForm.templateBlueprintId || !createForm.serviceLine) {
+      toast.error("Please select a Service Line blueprint.");
       return;
     }
 
@@ -229,6 +258,7 @@ export default function OnboardingWorkstreamsPage() {
       const created = await createWorkstreamApi({
         practiceId: createForm.practiceId,
         serviceLine: createForm.serviceLine,
+        templateBlueprintId: createForm.templateBlueprintId || null,
         status: createForm.status,
         ownerUserId: createForm.ownerUserId || null,
         targetDate: createForm.targetDate || null,
@@ -388,8 +418,16 @@ export default function OnboardingWorkstreamsPage() {
   function renderFormFields(
     form: typeof emptyForm,
     setForm: React.Dispatch<React.SetStateAction<typeof emptyForm>>,
-    options?: { includePractice?: boolean },
+    options?: { includePractice?: boolean; isCreate?: boolean },
   ) {
+    const isCreate = Boolean(options?.isCreate);
+
+    // If creating, the Service Line dropdown options are dynamic templates: Service Line - Blueprint Name (Task Count tasks)
+    const serviceLineTemplateOptions = templates.map((t) => ({
+      label: `${formatPracticeServiceLine(t.serviceLine)} - ${t.name} (${t.taskCount} tasks)`,
+      value: t.id, // Store template ID as value
+    }));
+
     return (
       <div className="space-y-4">
         {options?.includePractice !== false ? (
@@ -410,15 +448,58 @@ export default function OnboardingWorkstreamsPage() {
         ) : null}
 
         <div>
-          <label className="mb-1 block text-[13px] font-medium text-slate-700">
-            Service Line <span className="text-red-500">*</span>
-          </label>
-          <Select
-            value={form.serviceLine}
-            onChange={(value) => setForm((prev) => ({ ...prev, serviceLine: value }))}
-            options={[...PRACTICE_SERVICE_LINE_OPTIONS]}
-            placeholder="Select service line"
-          />
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-[13px] font-medium text-slate-700">
+              Service Line <span className="text-red-500">*</span>
+            </label>
+            <span className="text-[11px] text-slate-400">
+              {templates.length > 0
+                ? `${templates.length} blueprint${templates.length > 1 ? "s" : ""} available`
+                : "No blueprints found"}
+            </span>
+          </div>
+          {templates.length > 0 ? (
+            <Select
+              value={
+                form.templateBlueprintId ||
+                templates.find((t) => t.serviceLine === form.serviceLine)?.id ||
+                ""
+              }
+              disabled={!isCreate}
+              onChange={(value) => {
+                const selectedTpl = templates.find((t) => t.id === value);
+                setForm((prev) => ({
+                  ...prev,
+                  templateBlueprintId: value,
+                  serviceLine: selectedTpl ? selectedTpl.serviceLine : "",
+                }));
+              }}
+              options={serviceLineTemplateOptions}
+              placeholder="Select Service Line Blueprint"
+            />
+          ) : (
+            <Select
+              value={form.serviceLine}
+              disabled={!isCreate}
+              onChange={(value) =>
+                setForm((prev) => ({
+                  ...prev,
+                  serviceLine: value,
+                }))
+              }
+              options={[...PRACTICE_SERVICE_LINE_OPTIONS]}
+              placeholder="Select service line"
+            />
+          )}
+          {form.templateBlueprintId || templates.find((t) => t.serviceLine === form.serviceLine) ? (
+            <p className="mt-1 text-[11px] text-indigo-600">
+              Selected:{" "}
+              <strong>
+                {formatPracticeServiceLine(form.serviceLine)} -{" "}
+                {templates.find((t) => t.id === (form.templateBlueprintId || templates.find((tpl) => tpl.serviceLine === form.serviceLine)?.id))?.name}
+              </strong>
+            </p>
+          ) : null}
         </div>
 
         <div>
@@ -492,7 +573,7 @@ export default function OnboardingWorkstreamsPage() {
       </div>
       <form onSubmit={handleCreate} className="flex flex-1 flex-col overflow-hidden">
         <div className="flex-1 overflow-auto p-4">
-          {renderFormFields(createForm, setCreateForm)}
+          {renderFormFields(createForm, setCreateForm, { isCreate: true })}
         </div>
         <div className="flex items-center justify-end gap-3 border-t border-[#f0ece6] px-4 py-3">
           <button
@@ -841,7 +922,7 @@ export default function OnboardingWorkstreamsPage() {
                             {String(row.values.practiceName || "-")}
                           </td>
                           <td className="border-b border-r border-[#f4f1ec] px-4 py-3">
-                            {formatPracticeServiceLine(String(row.values.serviceLine || ""))}
+                            {String(row.values.serviceLine || "-")}
                           </td>
                           <td className="border-b border-r border-[#f4f1ec] px-4 py-3">
                             <span

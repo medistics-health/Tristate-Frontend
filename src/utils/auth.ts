@@ -143,13 +143,16 @@ export function hasPrefundingPermission(
   permission?: PrefundingPermission,
 ): boolean {
   if (!user) return false;
-  if (hasAdminAccess(user.role)) return true;
   if (!user.hasPrefundingAccess) return false;
-  if (!permission) return true;
 
   const perms = Array.isArray(user.prefundingPermissions)
     ? user.prefundingPermissions.map((p) => String(p).toUpperCase())
     : [];
+
+  // If user has no Action Permissions assigned at all, they cannot view or perform any prefunding action
+  if (perms.length === 0) return false;
+
+  if (!permission) return true;
 
   return perms.includes(permission.toUpperCase());
 }
