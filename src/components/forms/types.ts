@@ -245,7 +245,6 @@ export const CHOICE_TYPES: QuestionType[] = [
   "single_choice",
   "multiple_choice",
   "dropdown",
-  "image",
 ];
 
 export function isChoiceType(type: QuestionType) {

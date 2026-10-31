@@ -175,8 +175,7 @@ function question(
   const choice =
     type === "single_choice" ||
     type === "multiple_choice" ||
-    type === "dropdown" ||
-    type === "image";
+    type === "dropdown";
   return {
     id: uid("q"),
     key: uid("key"),

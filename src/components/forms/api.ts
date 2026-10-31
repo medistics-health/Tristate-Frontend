@@ -166,7 +166,17 @@ export async function listAudit() {
 }
 
 function withoutEmptySections(form: FormRecord) {
-  return { ...form, sections: form.sections.filter((section) => section.questions.length > 0) };
+  return {
+    ...form,
+    sections: form.sections
+      .filter((section) => section.questions.length > 0)
+      .map((section) => ({
+        ...section,
+        questions: section.questions.map((question) =>
+          question.type === "image" ? { ...question, options: [] } : question,
+        ),
+      })),
+  };
 }
 
 export async function getDocument(id: string) {
