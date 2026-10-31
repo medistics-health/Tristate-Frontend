@@ -331,14 +331,15 @@ const QuestionField = memo(function QuestionField({
     }
     if (question.type === "rating") {
       const scale = question.config.scale || 5;
+      const low = question.config.lowLabel;
+      const high = question.config.highLabel;
       return (
-        <div>
-          <div className="flex flex-wrap gap-2">
-            {Array.from({ length: scale }, (_, index) => {
-              const score = String(index + 1);
-              return (
+        <div className={`flex flex-wrap gap-2 ${low || high ? "pb-5" : ""}`}>
+          {Array.from({ length: scale }, (_, index) => {
+            const score = String(index + 1);
+            return (
+              <div key={score} className="relative w-11">
                 <button
-                  key={score}
                   type="button"
                   onClick={() => onChange(score)}
                   className={`h-11 w-11 rounded-xl border text-[14px] font-semibold ${
@@ -349,13 +350,15 @@ const QuestionField = memo(function QuestionField({
                 >
                   {question.config.style === "stars" ? "★" : score}
                 </button>
-              );
-            })}
-          </div>
-          <div className="mt-2 flex justify-between text-[12px] text-slate-400">
-            <span>{question.config.lowLabel}</span>
-            <span>{question.config.highLabel}</span>
-          </div>
+                {index === 0 && low ? (
+                  <span className="absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-[12px] text-slate-400">{low}</span>
+                ) : null}
+                {index === scale - 1 && high ? (
+                  <span className="absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-[12px] text-slate-400">{high}</span>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       );
     }
