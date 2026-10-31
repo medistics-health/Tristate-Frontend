@@ -483,6 +483,13 @@ function QuestionInspector({
       {question.type !== "content" ? (
         <Toggle label="Required" checked={question.required} onChange={(required) => updateQuestion(formId, question.id, { required })} />
       ) : null}
+      {question.type === "dropdown" ? (
+        <Toggle
+          label="Allow multiple selection"
+          checked={Boolean(question.config.multi)}
+          onChange={(multi) => updateQuestion(formId, question.id, { config: { ...question.config, multi } })}
+        />
+      ) : null}
       {isChoiceType(question.type) ? (
         <OptionsEditor formId={formId} question={question} locked={locked} />
       ) : null}
@@ -621,7 +628,7 @@ function LogicEditor({ formId, question, locked }: { formId: string; question: F
       />
       {rule.conditions.map((condition) => {
         const source = sources.find((item) => item.id === condition.sourceQuestionId) || sources[0];
-        const operators = operatorsFor(source?.type || "short_text");
+        const operators = operatorsFor(source?.type || "short_text", source?.config);
         return (
           <div key={condition.id} className="space-y-2 rounded-xl border border-[#f0ece6] p-2">
             <Select
@@ -630,7 +637,7 @@ function LogicEditor({ formId, question, locked }: { formId: string; question: F
                 const nextSource = sources.find((item) => item.id === sourceQuestionId);
                 write({
                   ...rule,
-                  conditions: rule.conditions.map((item) => item.id === condition.id ? { ...item, sourceQuestionId, operator: operatorsFor(nextSource?.type || "short_text")[0] } : item),
+                  conditions: rule.conditions.map((item) => item.id === condition.id ? { ...item, sourceQuestionId, operator: operatorsFor(nextSource?.type || "short_text", nextSource?.config)[0] } : item),
                 });
               }}
               options={sources.map((item) => ({ label: item.label || "Untitled", value: item.id }))}
@@ -653,7 +660,7 @@ function LogicEditor({ formId, question, locked }: { formId: string; question: F
           const source = sources[0];
           write({
             ...rule,
-            conditions: [...rule.conditions, { id: `cnd-${Date.now()}`, sourceQuestionId: source.id, operator: operatorsFor(source.type)[0], value: "" }],
+            conditions: [...rule.conditions, { id: `cnd-${Date.now()}`, sourceQuestionId: source.id, operator: operatorsFor(source.type, source.config)[0], value: "" }],
           });
         }}
       >

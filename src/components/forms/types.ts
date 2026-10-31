@@ -252,7 +252,10 @@ export function isChoiceType(type: QuestionType) {
   return CHOICE_TYPES.includes(type);
 }
 
-export function operatorsFor(type: QuestionType): string[] {
+export function operatorsFor(type: QuestionType, config?: { multi?: boolean }): string[] {
+  if (type === "dropdown" && config?.multi) {
+    return ["contains", "does not contain", "contains any of", "contains all of"];
+  }
   if (type === "single_choice" || type === "dropdown" || type === "yes_no") {
     return ["is", "is not", "is any of"];
   }

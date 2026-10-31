@@ -231,6 +231,11 @@ function toApiAnswers(form: FormRecord, answers: Record<string, string | string[
   flattenQuestions(form).forEach(({ question }) => {
     const raw = answers[question.id];
     if (raw === undefined || raw === "" || (Array.isArray(raw) && raw.length === 0)) return;
+    if (question.type === "dropdown" && question.config.multi) {
+      const labels = Array.isArray(raw) ? raw : [raw];
+      payload[question.id] = { optionIds: labels.map((label) => question.options.find((option) => option.label === label)?.id || label) };
+      return;
+    }
     if (question.type === "single_choice" || question.type === "dropdown" || (question.type === "image" && question.config.imageMode === "choice")) {
       const label = Array.isArray(raw) ? raw[0] : raw;
       payload[question.id] = question.options.find((option) => option.label === label)?.id || label;

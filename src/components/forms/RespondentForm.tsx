@@ -135,6 +135,60 @@ function SmoothText({
   );
 }
 
+function MultiSelectDropdown({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[];
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function close(event: MouseEvent) {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const summary = value.length ? value.join(", ") : "Select options";
+
+  return (
+    <div ref={root} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-[#e4dfd6] bg-white px-3 text-left text-[15px] outline-none focus:border-[#9cb1f6]"
+      >
+        <span className={`min-w-0 flex-1 truncate ${value.length ? "text-slate-800" : "text-slate-400"}`}>{summary}</span>
+        <span className={`text-[10px] text-slate-400 ${open ? "rotate-180" : ""}`}>▼</span>
+      </button>
+      {open ? (
+        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[#e4dfd6] bg-white p-1 shadow-sm">
+          {options.map((option) => {
+            const checked = value.includes(option);
+            return (
+              <label key={option} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-[14px] text-slate-700 hover:bg-[#f7f5f1]">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onChange(checked ? value.filter((item) => item !== option) : [...value, option])}
+                />
+                {option}
+              </label>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const QuestionField = memo(function QuestionField({
   form,
   question,
@@ -257,6 +311,9 @@ const QuestionField = memo(function QuestionField({
       );
     }
     if (question.type === "dropdown") {
+      if (question.config.multi) {
+        return <MultiSelectDropdown options={question.options.map((option) => option.label)} value={list} onChange={onChange} />;
+      }
       return (
         <select
           value={text}
