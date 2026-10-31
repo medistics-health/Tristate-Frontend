@@ -35,7 +35,7 @@ import toast from "react-hot-toast";
 import { apiConnector } from "../../services/apiConnector";
 import { practiceEndpoints, prefundingEndpoints } from "../../services/apis";
 import { createPrefundingRate, updatePrefundingRate, deletePrefundingRate } from "../../services/operations/prefundingRates";
-import { createPersonApi, updatePersonApi, deletePersonApi } from "../../services/operations/persons";
+import { createPersonApi, updatePersonApi, deletePersonApi, getPerson } from "../../services/operations/persons";
 import { openPrefundingInvoicePdf, getPrefundingInvoice, updatePrefundingInvoice, validatePracticeForPrefunding } from "../../services/operations/prefundingInvoices";
 import { readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 
@@ -1007,10 +1007,28 @@ export default function CalculatePrefunding() {
       setIsDeletingEmployee(true);
       try {
         if (!target.id.startsWith("adhoc_")) {
-          await deletePersonApi(target.id);
+          // Check if person has multiple roles
+          const personDetails = await getPerson(target.id);
+          const currentRoles = Array.isArray(personDetails?.roles)
+            ? personDetails.roles.map((r: any) => String(r).toUpperCase())
+            : [];
+          const remainingRoles = currentRoles.filter((r: string) => r !== "EMPLOYEE");
+
+          if (remainingRoles.length > 0) {
+            // Keep active and keep other roles (e.g. ADMIN), only remove EMPLOYEE role
+            await updatePersonApi(target.id, {
+              roles: remainingRoles as any,
+            });
+            toast.success(`Employee role removed for "${target.name}". Person remains active with role(s): ${remainingRoles.join(", ")}`);
+          } else {
+            // Only role was EMPLOYEE, delete/inactivate person permanently
+            await deletePersonApi(target.id);
+            toast.success(`Employee "${target.name}" deleted permanently from practice people`);
+          }
+        } else {
+          toast.success(`Employee "${target.name}" removed from calculation`);
         }
         setEmployees((prev) => prev.filter((e) => e.id !== target.id));
-        toast.success(`Employee "${target.name}" deleted permanently from practice people`);
         setDeleteEmployeeTarget(null);
       } catch (err: any) {
         console.error("Failed to delete employee permanently:", err);
@@ -1569,6 +1587,10 @@ export default function CalculatePrefunding() {
     setLineItemModalErrors({});
     const validRateNum = Math.max(0, rateNum);
     const formattedBasis = newLineItemBasis.trim();
+    const isFlatFee = formattedBasis.toLowerCase() === "flat fee";
+    const isGms = formattedBasis.toLowerCase() === "gms projection";
+    const effectivePricingModel = isFlatFee ? "Flat Fee" : newLineItemPricingModel;
+    const effectiveIncludeInGrandTotal = isGms ? false : newLineItemIncludeInGrandTotal;
     setIsSavingLineItem(true);
 
     try {
@@ -1577,10 +1599,10 @@ export default function CalculatePrefunding() {
         const createRes = await createPrefundingRate({
           name: newLineItemName.trim(),
           basis: formattedBasis,
-          pricingModel: newLineItemPricingModel,
+          pricingModel: effectivePricingModel,
           rate: validRateNum,
           notes: newLineItemNotes.trim() || undefined,
-          includeInGrandTotal: newLineItemIncludeInGrandTotal,
+          includeInGrandTotal: effectiveIncludeInGrandTotal,
           practiceIds: [selectedPractice],
         });
 
@@ -1589,11 +1611,11 @@ export default function CalculatePrefunding() {
           id: createdRate?.id || `template_${Date.now()}`,
           name: newLineItemName.trim(),
           basis: formattedBasis,
-          pricingModel: newLineItemPricingModel,
+          pricingModel: effectivePricingModel,
           rate: validRateNum,
           amount: 0,
           notes: newLineItemNotes.trim() || null,
-          includeInGrandTotal: newLineItemIncludeInGrandTotal,
+          includeInGrandTotal: effectiveIncludeInGrandTotal,
           isOneTime: false,
           isExcluded: false,
         };
@@ -1641,12 +1663,15 @@ export default function CalculatePrefunding() {
   const handleOpenEditLineItem = (rate: PrefundingRateCalculationItem) => {
     setEditingLineItem(rate);
     setEditLineItemName(rate.name);
-    setEditLineItemBasis(rate.basis ? rate.basis.trim() : "Gross Wages");
-    setEditLineItemPricingModel(rate.pricingModel);
+    const basisVal = rate.basis ? rate.basis.trim() : "Gross Wages";
+    const isFlatFee = basisVal.toLowerCase() === "flat fee";
+    const isGms = basisVal.toLowerCase() === "gms projection";
+    setEditLineItemBasis(basisVal);
+    setEditLineItemPricingModel(isFlatFee ? "Flat Fee" : rate.pricingModel);
     setEditLineItemRate(rate.rate);
     setEditLineItemAmount(rate.amount);
     setEditLineItemNotes(rate.notes || "");
-    setEditLineItemIncludeInGrandTotal(rate.includeInGrandTotal !== false);
+    setEditLineItemIncludeInGrandTotal(isGms ? false : (rate.includeInGrandTotal !== false));
     setShowEditLineItemModal(true);
   };
 
@@ -1660,6 +1685,10 @@ export default function CalculatePrefunding() {
     const updatedRateNum = Math.max(0, Number(editLineItemRate) || 0);
     const customAmtNum = editLineItemAmount !== "" ? Math.max(0, Number(editLineItemAmount)) : null;
     const formattedBasis = editLineItemBasis.trim();
+    const isFlatFee = formattedBasis.toLowerCase() === "flat fee";
+    const isGms = formattedBasis.toLowerCase() === "gms projection";
+    const effectivePricingModel = isFlatFee ? "Flat Fee" : (editLineItemPricingModel || editingLineItem.pricingModel);
+    const effectiveIncludeInGrandTotal = isGms ? false : editLineItemIncludeInGrandTotal;
 
     // If it is a template rate, sync changes to template so future cycles preserve inclusion preference
     if (!editingLineItem.isOneTime && !editingLineItem.id.startsWith("onetime_")) {
@@ -1667,10 +1696,10 @@ export default function CalculatePrefunding() {
         await updatePrefundingRate(editingLineItem.id, {
           name: editLineItemName.trim(),
           basis: formattedBasis || editingLineItem.basis,
-          pricingModel: editLineItemPricingModel || editingLineItem.pricingModel,
+          pricingModel: effectivePricingModel,
           rate: updatedRateNum,
           notes: editLineItemNotes.trim() || null,
-          includeInGrandTotal: editLineItemIncludeInGrandTotal,
+          includeInGrandTotal: effectiveIncludeInGrandTotal,
         });
       } catch (err) {
         console.warn("Failed to sync template rate update:", err);
@@ -3300,6 +3329,14 @@ export default function CalculatePrefunding() {
               value={newLineItemBasis}
               onChange={(val) => {
                 setNewLineItemBasis(val);
+                const isFlatFee = val.trim().toLowerCase() === "flat fee";
+                const isGms = val.trim().toLowerCase() === "gms projection";
+                if (isFlatFee) {
+                  setNewLineItemPricingModel("Flat Fee");
+                }
+                if (isGms) {
+                  setNewLineItemIncludeInGrandTotal(false);
+                }
                 if (lineItemModalErrors.basis) {
                   setLineItemModalErrors((prev) => ({ ...prev, basis: "" }));
                 }
@@ -3318,12 +3355,22 @@ export default function CalculatePrefunding() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Pricing Model</label>
-              <Select
-                options={PRICING_MODELS}
-                value={newLineItemPricingModel}
-                onChange={setNewLineItemPricingModel}
-                className="w-full !text-xs !py-1.5"
-              />
+              {(() => {
+                const isFlatFeeBasis = newLineItemBasis.trim().toLowerCase() === "flat fee";
+                const pricingModelOptions = PRICING_MODELS.map((opt) => ({
+                  ...opt,
+                  disabled: isFlatFeeBasis && opt.value !== "Flat Fee",
+                }));
+                return (
+                  <Select
+                    options={pricingModelOptions}
+                    value={isFlatFeeBasis ? "Flat Fee" : newLineItemPricingModel}
+                    onChange={setNewLineItemPricingModel}
+                    className="w-full !text-xs !py-1.5"
+                    disabled={isFlatFeeBasis}
+                  />
+                );
+              })()}
             </div>
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
@@ -3367,16 +3414,30 @@ export default function CalculatePrefunding() {
           </div>
 
           <div className="flex items-center gap-2 pt-1">
-            <input
-              type="checkbox"
-              id="newLineItemIncludeInGrandTotal"
-              checked={newLineItemIncludeInGrandTotal}
-              onChange={(e) => setNewLineItemIncludeInGrandTotal(e.target.checked)}
-              className="rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea]"
-            />
-            <label htmlFor="newLineItemIncludeInGrandTotal" className="text-xs text-slate-700 font-medium cursor-pointer">
-              Include in GMS Projection subtotal (Uncheck to place in Additional Line Items)
-            </label>
+            {(() => {
+              const isGmsProjectionBasis = newLineItemBasis.trim().toLowerCase() === "gms projection";
+              return (
+                <>
+                  <input
+                    type="checkbox"
+                    id="newLineItemIncludeInGrandTotal"
+                    checked={isGmsProjectionBasis ? false : newLineItemIncludeInGrandTotal}
+                    onChange={(e) => {
+                      if (isGmsProjectionBasis) return;
+                      setNewLineItemIncludeInGrandTotal(e.target.checked);
+                    }}
+                    disabled={isGmsProjectionBasis}
+                    className="rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <label
+                    htmlFor="newLineItemIncludeInGrandTotal"
+                    className={`text-xs font-medium `}
+                  >
+                    Include in GMS Projection subtotal (Uncheck to place in Additional Line Items)
+                  </label>
+                </>
+              );
+            })()}
           </div>
         </div>
       </ConfirmModal>
@@ -3408,7 +3469,17 @@ export default function CalculatePrefunding() {
             <Select
               options={dynamicBasisOptions}
               value={editLineItemBasis}
-              onChange={setEditLineItemBasis}
+              onChange={(val) => {
+                setEditLineItemBasis(val);
+                const isFlatFee = val.trim().toLowerCase() === "flat fee";
+                const isGms = val.trim().toLowerCase() === "gms projection";
+                if (isFlatFee) {
+                  setEditLineItemPricingModel("Flat Fee");
+                }
+                if (isGms) {
+                  setEditLineItemIncludeInGrandTotal(false);
+                }
+              }}
               placeholder="Select basis..."
             />
           </div>
@@ -3416,11 +3487,21 @@ export default function CalculatePrefunding() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Pricing Model</label>
-              <Select
-                options={PRICING_MODELS}
-                value={editLineItemPricingModel}
-                onChange={setEditLineItemPricingModel}
-              />
+              {(() => {
+                const isFlatFeeBasis = editLineItemBasis.trim().toLowerCase() === "flat fee";
+                const pricingModelOptions = PRICING_MODELS.map((opt) => ({
+                  ...opt,
+                  disabled: isFlatFeeBasis && opt.value !== "Flat Fee",
+                }));
+                return (
+                  <Select
+                    options={pricingModelOptions}
+                    value={isFlatFeeBasis ? "Flat Fee" : editLineItemPricingModel}
+                    onChange={setEditLineItemPricingModel}
+                    disabled={isFlatFeeBasis}
+                  />
+                );
+              })()}
             </div>
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Rate Value</label>
@@ -3471,22 +3552,31 @@ export default function CalculatePrefunding() {
           </div>
 
           <div className="pt-2 border-t border-slate-200">
-            <label className="flex items-start gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                className="rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] mt-0.5"
-                checked={editLineItemIncludeInGrandTotal}
-                onChange={(e) => setEditLineItemIncludeInGrandTotal(e.target.checked)}
-              />
-              <div>
-                <span className="font-semibold text-slate-800 block text-xs">
-                  Include in GMS Projection subtotal (Checked section)
-                </span>
-                <span className="text-[11px] text-slate-500 leading-normal block">
-                  Checked items are included in the GMS Projection (Wages + Taxes) subtotal. Unchecked items appear after the subtotal and add to the Total Grand Total.
-                </span>
-              </div>
-            </label>
+            {(() => {
+              const isGmsProjectionBasis = editLineItemBasis.trim().toLowerCase() === "gms projection";
+              return (
+                <label className={`flex items-start gap-2.5 `}>
+                  <input
+                    type="checkbox"
+                    className="rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] mt-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    checked={isGmsProjectionBasis ? false : editLineItemIncludeInGrandTotal}
+                    onChange={(e) => {
+                      if (isGmsProjectionBasis) return;
+                      setEditLineItemIncludeInGrandTotal(e.target.checked);
+                    }}
+                    disabled={isGmsProjectionBasis}
+                  />
+                  <div>
+                    <span className="font-semibold text-slate-800 block text-xs">
+                      Include in GMS Projection subtotal (Checked section)
+                    </span>
+                    <span className="text-[11px] text-slate-500 leading-normal block">
+                      Checked items are included in the GMS Projection (Wages + Taxes) subtotal. Unchecked items appear after the subtotal and add to the Total Grand Total.
+                    </span>
+                  </div>
+                </label>
+              );
+            })()}
           </div>
         </div>
       </ConfirmModal>
@@ -3496,6 +3586,7 @@ export default function CalculatePrefunding() {
       {/* ======================================================== */}
       <ConfirmModal
         isOpen={showAddEmployeeModal}
+        maxWidth="max-w-4xl"
         onClose={() => {
           setShowAddEmployeeModal(false);
           setEmployeeModalErrors({});
@@ -3564,8 +3655,9 @@ export default function CalculatePrefunding() {
             </div>
           </div>
 
-          {/* First Name & Last Name */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Form Fields: 3-Column Responsive Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {/* First Name */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
                 First Name <span className="text-red-500">*</span>
@@ -3590,6 +3682,8 @@ export default function CalculatePrefunding() {
                 <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.firstName}</p>
               )}
             </div>
+
+            {/* Last Name */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
                 Last Name <span className="text-red-500">*</span>
@@ -3614,36 +3708,34 @@ export default function CalculatePrefunding() {
                 <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.lastName}</p>
               )}
             </div>
-          </div>
 
-          {/* Email */}
-          <div>
-            <label className="block font-semibold text-slate-800 mb-1">
-              Email Address <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="email"
-              placeholder="e.g. jane.doe@example.com"
-              className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
-                employeeModalErrors.email
-                  ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
-                  : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
-              }`}
-              value={newEmployeeEmail}
-              onChange={(e) => {
-                setNewEmployeeEmail(e.target.value);
-                if (employeeModalErrors.email) {
-                  setEmployeeModalErrors((prev) => ({ ...prev, email: "" }));
-                }
-              }}
-            />
-            {employeeModalErrors.email && (
-              <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.email}</p>
-            )}
-          </div>
+            {/* Email */}
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Email Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. jane.doe@example.com"
+                className={`w-full rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-1 ${
+                  employeeModalErrors.email
+                    ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-red-500"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                }`}
+                value={newEmployeeEmail}
+                onChange={(e) => {
+                  setNewEmployeeEmail(e.target.value);
+                  if (employeeModalErrors.email) {
+                    setEmployeeModalErrors((prev) => ({ ...prev, email: "" }));
+                  }
+                }}
+              />
+              {employeeModalErrors.email && (
+                <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.email}</p>
+              )}
+            </div>
 
-          {/* Job Category & Work Location */}
-          <div className="grid grid-cols-2 gap-3">
+            {/* Job Category */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Job Category</label>
               <Select
@@ -3654,6 +3746,8 @@ export default function CalculatePrefunding() {
                 className="w-full !text-xs !py-1.5"
               />
             </div>
+
+            {/* Work Location */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Work Location</label>
               <input
@@ -3664,10 +3758,8 @@ export default function CalculatePrefunding() {
                 onChange={(e) => setNewEmployeeLocation(e.target.value)}
               />
             </div>
-          </div>
 
-          {/* State & Date of Joining */}
-          <div className="grid grid-cols-2 gap-3">
+            {/* State */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">State</label>
               <Select
@@ -3678,6 +3770,8 @@ export default function CalculatePrefunding() {
                 className="w-full !text-xs !py-1.5"
               />
             </div>
+
+            {/* Date of Joining */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
                 Date of Joining <span className="text-red-500">*</span>
@@ -3697,10 +3791,8 @@ export default function CalculatePrefunding() {
                 <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.dateOfJoining}</p>
               )}
             </div>
-          </div>
 
-          {/* Pay Type & Pay Rate */}
-          <div className="grid grid-cols-2 gap-3">
+            {/* Pay Type */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Pay Type</label>
               <Select
@@ -3711,6 +3803,8 @@ export default function CalculatePrefunding() {
                 className="w-full !text-xs !py-1.5"
               />
             </div>
+
+            {/* Pay Rate */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
                 Pay Rate ($) <span className="text-red-500">*</span>
@@ -3740,23 +3834,23 @@ export default function CalculatePrefunding() {
                 <p className="text-[11px] text-red-500 mt-1 font-medium">{employeeModalErrors.payRate}</p>
               )}
             </div>
-          </div>
 
-          {/* Buffer % */}
-          <div>
-            <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              onKeyDown={(e) => {
-                if (e.key === "-" || e.key === "e") e.preventDefault();
-              }}
-              placeholder="0.0"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              value={newEmployeeBufferPercent}
-              onChange={(e) => setNewEmployeeBufferPercent(e.target.value)}
-            />
+            {/* Buffer % */}
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                onKeyDown={(e) => {
+                  if (e.key === "-" || e.key === "e") e.preventDefault();
+                }}
+                placeholder="0.0"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={newEmployeeBufferPercent}
+                onChange={(e) => setNewEmployeeBufferPercent(e.target.value)}
+              />
+            </div>
           </div>
         </div>
       </ConfirmModal>
@@ -3848,6 +3942,7 @@ export default function CalculatePrefunding() {
       {/* ======================================================== */}
       <ConfirmModal
         isOpen={Boolean(editingEmployee)}
+        maxWidth="max-w-4xl"
         onClose={() => {
           setEditingEmployee(null);
           setEditEmployeeModalErrors({});
@@ -3916,8 +4011,9 @@ export default function CalculatePrefunding() {
             </div>
           </div>
 
-          {/* First Name & Last Name */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Form Fields: 3-Column Responsive Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {/* First Name */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
                 First Name <span className="text-red-500">*</span>
@@ -3942,6 +4038,8 @@ export default function CalculatePrefunding() {
                 <p className="text-[11px] text-red-500 mt-1 font-medium">{editEmployeeModalErrors.firstName}</p>
               )}
             </div>
+
+            {/* Last Name */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
                 Last Name <span className="text-red-500">*</span>
@@ -3966,24 +4064,22 @@ export default function CalculatePrefunding() {
                 <p className="text-[11px] text-red-500 mt-1 font-medium">{editEmployeeModalErrors.lastName}</p>
               )}
             </div>
-          </div>
 
-          {/* Email (Optional when editing calculation) */}
-          <div>
-            <label className="block font-semibold text-slate-800 mb-1">
-              Email Address (Optional)
-            </label>
-            <input
-              type="email"
-              placeholder="e.g. jane.doe@example.com"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              value={editEmployeeEmail}
-              onChange={(e) => setEditEmployeeEmail(e.target.value)}
-            />
-          </div>
+            {/* Email (Optional when editing calculation) */}
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Email Address (Optional)
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. jane.doe@example.com"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={editEmployeeEmail}
+                onChange={(e) => setEditEmployeeEmail(e.target.value)}
+              />
+            </div>
 
-          {/* Job Category & Work Location */}
-          <div className="grid grid-cols-2 gap-3">
+            {/* Job Category */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Job Category</label>
               <Select
@@ -3994,6 +4090,8 @@ export default function CalculatePrefunding() {
                 className="w-full !text-xs !py-1.5"
               />
             </div>
+
+            {/* Work Location */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Work Location</label>
               <input
@@ -4004,10 +4102,8 @@ export default function CalculatePrefunding() {
                 onChange={(e) => setEditEmployeeLocation(e.target.value)}
               />
             </div>
-          </div>
 
-          {/* State & Date of Joining */}
-          <div className="grid grid-cols-2 gap-3">
+            {/* State */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">State</label>
               <Select
@@ -4018,6 +4114,8 @@ export default function CalculatePrefunding() {
                 className="w-full !text-xs !py-1.5"
               />
             </div>
+
+            {/* Date of Joining */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
                 Date of Joining <span className="text-red-500">*</span>
@@ -4037,10 +4135,8 @@ export default function CalculatePrefunding() {
                 <p className="text-[11px] text-red-500 mt-1 font-medium">{editEmployeeModalErrors.dateOfJoining}</p>
               )}
             </div>
-          </div>
 
-          {/* Pay Type & Pay Rate */}
-          <div className="grid grid-cols-2 gap-3">
+            {/* Pay Type */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">Pay Type</label>
               <Select
@@ -4051,6 +4147,8 @@ export default function CalculatePrefunding() {
                 className="w-full !text-xs !py-1.5"
               />
             </div>
+
+            {/* Pay Rate */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
                 Pay Rate ($) <span className="text-red-500">*</span>
@@ -4080,23 +4178,23 @@ export default function CalculatePrefunding() {
                 <p className="text-[11px] text-red-500 mt-1 font-medium">{editEmployeeModalErrors.payRate}</p>
               )}
             </div>
-          </div>
 
-          {/* Buffer % */}
-          <div>
-            <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              onKeyDown={(e) => {
-                if (e.key === "-" || e.key === "e") e.preventDefault();
-              }}
-              placeholder="0.0"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              value={editEmployeeBufferPercent}
-              onChange={(e) => setEditEmployeeBufferPercent(e.target.value)}
-            />
+            {/* Buffer % */}
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                onKeyDown={(e) => {
+                  if (e.key === "-" || e.key === "e") e.preventDefault();
+                }}
+                placeholder="0.0"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={editEmployeeBufferPercent}
+                onChange={(e) => setEditEmployeeBufferPercent(e.target.value)}
+              />
+            </div>
           </div>
         </div>
       </ConfirmModal>

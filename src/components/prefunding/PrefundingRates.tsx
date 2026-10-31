@@ -324,13 +324,16 @@ export default function PrefundingRates() {
   const handleRowClick = (id: string) => {
     const item = data.find((d) => d.id === id);
     if (item) {
+      const basisVal = item.basis || "Gross Wages";
+      const isFlatFee = basisVal.trim().toLowerCase() === "flat fee";
+      const isGms = basisVal.trim().toLowerCase() === "gms projection";
       setFormData({
         name: item.name,
-        basis: item.basis || "Gross Wages",
-        pricingModel: item.pricingModel,
+        basis: basisVal,
+        pricingModel: isFlatFee ? "Flat Fee" : item.pricingModel,
         rate: item.rate,
         notes: item.notes || "",
-        includeInGrandTotal: item.includeInGrandTotal !== false,
+        includeInGrandTotal: isGms ? false : (item.includeInGrandTotal !== false),
         practiceIds: item.practiceIds,
       });
       setSelectedRowId(id);
@@ -350,9 +353,13 @@ export default function PrefundingRates() {
       return;
     }
     try {
+      const isFlatFee = (formData.basis || "").trim().toLowerCase() === "flat fee";
+      const isGms = (formData.basis || "").trim().toLowerCase() === "gms projection";
       const payload = {
         ...formData,
         basis: formData.basis,
+        pricingModel: isFlatFee ? "Flat Fee" : formData.pricingModel,
+        includeInGrandTotal: isGms ? false : formData.includeInGrandTotal,
       };
       if (showCreateForm) {
         await createPrefundingRate(payload);
@@ -438,7 +445,16 @@ export default function PrefundingRates() {
         <Select
           placeholder="Select calculation basis"
           value={formData.basis}
-          onChange={(val) => setFormData((prev) => ({ ...prev, basis: val }))}
+          onChange={(val) => {
+            const isFlatFee = val.trim().toLowerCase() === "flat fee";
+            const isGms = val.trim().toLowerCase() === "gms projection";
+            setFormData((prev) => ({
+              ...prev,
+              basis: val,
+              ...(isFlatFee ? { pricingModel: "Flat Fee" } : {}),
+              ...(isGms ? { includeInGrandTotal: false } : {}),
+            }));
+          }}
           options={basisOptions}
           disabled={!showCreateForm && !isEditing}
         />
@@ -448,13 +464,22 @@ export default function PrefundingRates() {
       </div>
       <div>
         <label className="mb-1 block text-[13px] font-medium text-slate-700">Pricing Model</label>
-        <Select
-          placeholder="Select pricing model"
-          value={formData.pricingModel}
-          onChange={(val) => setFormData((prev) => ({ ...prev, pricingModel: val }))}
-          options={PRICING_MODELS}
-          disabled={!showCreateForm && !isEditing}
-        />
+        {(() => {
+          const isFlatFeeBasis = (formData.basis || "").trim().toLowerCase() === "flat fee";
+          const pricingModelOptions = PRICING_MODELS.map((opt) => ({
+            ...opt,
+            disabled: isFlatFeeBasis && opt.value !== "Flat Fee",
+          }));
+          return (
+            <Select
+              placeholder="Select pricing model"
+              value={isFlatFeeBasis ? "Flat Fee" : formData.pricingModel}
+              onChange={(val) => setFormData((prev) => ({ ...prev, pricingModel: val }))}
+              options={pricingModelOptions}
+              disabled={(!showCreateForm && !isEditing) || isFlatFeeBasis}
+            />
+          );
+        })()}
       </div>
       <div>
         <label className="mb-1 block text-[13px] font-medium text-slate-700">Rate <span className="text-red-500">*</span></label>
@@ -513,23 +538,31 @@ export default function PrefundingRates() {
         />
       </div>
       <div className="pt-2 border-t border-slate-200">
-        <label className="flex items-start gap-2.5 cursor-pointer">
-          <input
-            type="checkbox"
-            className="rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] mt-0.5"
-            checked={formData.includeInGrandTotal}
-            onChange={(e) => setFormData((prev) => ({ ...prev, includeInGrandTotal: e.target.checked }))}
-            disabled={!showCreateForm && !isEditing}
-          />
-          <div>
-            <span className="font-medium text-slate-700 block text-xs">
-              Include in GMS Projection subtotal (Uncheck to place in Additional Line Items)
-            </span>
-            <span className="text-[11px] text-slate-400 leading-normal block mt-0.5">
-              When checked, this rate is included in the GMS Projection subtotal. When unchecked, it appears after the subtotal under Additional Line Items.
-            </span>
-          </div>
-        </label>
+        {(() => {
+          const isGmsProjectionBasis = (formData.basis || "").trim().toLowerCase() === "gms projection";
+          return (
+            <label className={`flex items-start gap-2.5 `}>
+              <input
+                type="checkbox"
+                className="rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] mt-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                checked={isGmsProjectionBasis ? false : formData.includeInGrandTotal}
+                onChange={(e) => {
+                  if (isGmsProjectionBasis) return;
+                  setFormData((prev) => ({ ...prev, includeInGrandTotal: e.target.checked }));
+                }}
+                disabled={(!showCreateForm && !isEditing) || isGmsProjectionBasis}
+              />
+              <div>
+                <span className="font-medium text-slate-700 block text-xs">
+                  Include in GMS Projection subtotal (Uncheck to place in Additional Line Items)
+                </span>
+                <span className="text-[11px] text-slate-400 leading-normal block mt-0.5">
+                  When checked, this rate is included in the GMS Projection subtotal. When unchecked, it appears after the subtotal under Additional Line Items.
+                </span>
+              </div>
+            </label>
+          );
+        })()}
       </div>
     </div>
   );
