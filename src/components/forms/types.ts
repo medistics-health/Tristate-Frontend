@@ -194,6 +194,7 @@ export type FormTemplate = {
   content: Pick<
     FormRecord,
     | "title"
+    | "displayTitle"
     | "description"
     | "instructions"
     | "confirmationMessage"

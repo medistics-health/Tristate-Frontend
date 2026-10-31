@@ -789,6 +789,14 @@ function App() {
         }
       />
       <Route
+        path="/forms/templates/:templateId"
+        element={
+          <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>
+            <FormBuilderPage />
+          </ModuleRoute>
+        }
+      />
+      <Route
         path="/forms/:id"
         element={
           <ModuleRoute allowedRoles={MODULE_ACCESS.CRM}>

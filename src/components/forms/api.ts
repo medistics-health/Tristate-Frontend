@@ -310,6 +310,42 @@ export async function saveTemplate(formId: string, meta: { name: string; descrip
   await request("POST", `/forms/${formId}/save-as-template`, meta);
 }
 
+export type TemplateDocument = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  visibility: "PRIVATE" | "SHARED" | "SYSTEM";
+  isSystem: boolean;
+  content: Record<string, unknown>;
+};
+
+export async function getTemplate(id: string) {
+  const data = await request<{ template: {
+    id: string;
+    name: string;
+    description: string | null;
+    category: string;
+    visibility: string;
+    isSystem: boolean;
+    contentJson: Record<string, unknown>;
+  } }>("GET", `/forms/templates/${id}`);
+  const template = data.template;
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description || "",
+    category: template.category,
+    visibility: template.isSystem ? "SYSTEM" : template.visibility === "SHARED" ? "SHARED" : "PRIVATE",
+    isSystem: Boolean(template.isSystem),
+    content: template.contentJson || {},
+  } satisfies TemplateDocument;
+}
+
+export async function updateTemplate(id: string, body: { name: string; description?: string; content: unknown }) {
+  await request("PUT", `/forms/templates/${id}`, body);
+}
+
 export async function deleteTemplate(id: string) {
   await request("DELETE", `/forms/templates/${id}`, {});
 }

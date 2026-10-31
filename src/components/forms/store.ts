@@ -41,6 +41,7 @@ function currentUserName() {
 const saveTimers = new Map<string, number>();
 const localDraftIds = new Set<string>();
 const templateDraftIds = new Set<string>();
+const editingTemplateIds = new Map<string, { id: string; isSystem: boolean }>();
 const savedTitles = new Map<string, string>();
 const formRevision = new Map<string, number>();
 const saveChain = new Map<string, Promise<unknown>>();
@@ -298,6 +299,233 @@ export function getForm(id: string) {
   return state.forms.find((form) => form.id === id) ?? null;
 }
 
+const TYPE_TO_UI: Record<string, QuestionType> = {
+  SINGLE_CHOICE: "single_choice",
+  MULTIPLE_CHOICE: "multiple_choice",
+  DROPDOWN: "dropdown",
+  SHORT_TEXT: "short_text",
+  LONG_TEXT: "long_text",
+  RATING: "rating",
+  DATE: "date",
+  NUMBER: "number",
+  PRICE: "price",
+  FEES: "fees",
+  YES_NO: "yes_no",
+  IMAGE_UPLOAD: "image",
+  IMAGE_CHOICE: "image",
+  EMAIL: "email",
+  PHONE: "phone",
+  CONTENT: "content",
+};
+
+const UI_OPERATOR: Record<string, string> = {
+  is_not: "is not",
+  is_any_of: "is any of",
+  does_not_contain: "does not contain",
+  contains_any_of: "contains any of",
+  contains_all_of: "contains all of",
+  does_not_equal: "does not equal",
+  is_empty: "is empty",
+  is_not_empty: "is not empty",
+  eq: "=",
+  neq: "≠",
+  gt: ">",
+  gte: "≥",
+  lt: "<",
+  lte: "≤",
+  is_on: "is on",
+  is_before: "is before",
+  is_after: "is after",
+  is_between: "is between",
+  is_answered: "is answered",
+  is_not_answered: "is not answered",
+};
+
+const API_OPERATOR = Object.fromEntries(Object.entries(UI_OPERATOR).map(([api, ui]) => [ui, api]));
+
+function apiQuestionType(type: QuestionType, config: FormQuestion["config"]) {
+  if (type === "image") return config.imageMode === "choice" ? "IMAGE_CHOICE" : "IMAGE_UPLOAD";
+  return type.toUpperCase();
+}
+
+function formFromTemplate(template: formApi.TemplateDocument) {
+  const content = template.content as {
+    displayTitle?: string;
+    description?: string;
+    instructions?: string;
+    confirmationMessage?: string;
+    responseMode?: FormRecord["responseMode"];
+    allowMultipleResponses?: boolean;
+    displayMode?: FormRecord["displayMode"];
+    showProgressBar?: boolean;
+    showQuestionNumbers?: boolean;
+    sections?: Array<{
+      title?: string;
+      description?: string;
+      questions?: Array<{
+        type?: string;
+        label?: string;
+        helpText?: string;
+        isRequired?: boolean;
+        key?: string;
+        config?: FormQuestion["config"];
+        options?: Array<{ label: string; isOther?: boolean }>;
+      }>;
+    }>;
+    logic?: Array<{
+      targetKey: string;
+      action?: string;
+      matchType?: string;
+      conditions?: Array<{ sourceKey: string; operator: string; value?: unknown }>;
+    }>;
+    reminder?: Partial<FormRecord["reminder"]>;
+  };
+  const form = blankForm(template.name);
+  form.displayTitle = content.displayTitle || "";
+  form.description = content.description || template.description || "";
+  form.instructions = content.instructions || "";
+  form.confirmationMessage = content.confirmationMessage || form.confirmationMessage;
+  form.responseMode = content.responseMode === "ANONYMOUS" ? "ANONYMOUS" : "IDENTIFIED";
+  form.oneResponse = !content.allowMultipleResponses;
+  form.displayMode = content.displayMode === "MULTI_PAGE" ? "MULTI_PAGE" : "SINGLE_PAGE";
+  form.showProgress = content.showProgressBar !== false;
+  form.showNumbers = content.showQuestionNumbers !== false;
+  if (content.reminder) Object.assign(form.reminder, content.reminder);
+  const idByKey = new Map<string, string>();
+  const sections = (content.sections || []).map((item) => {
+    const questions = (item.questions || []).map((itemQuestion) => {
+      const type = TYPE_TO_UI[itemQuestion.type || ""] || "short_text";
+      const created = question(type, itemQuestion.label || "", {
+        key: itemQuestion.key || uid("key"),
+        helpText: itemQuestion.helpText || "",
+        required: Boolean(itemQuestion.isRequired),
+        config: {
+          ...(itemQuestion.config || {}),
+          ...(type === "image" ? { imageMode: itemQuestion.type === "IMAGE_CHOICE" ? "choice" as const : "upload" as const } : {}),
+        },
+        options: (itemQuestion.options || []).map((optionItem) => ({
+          id: uid("opt"),
+          label: optionItem.label,
+          isOther: Boolean(optionItem.isOther),
+        })),
+      });
+      idByKey.set(created.key, created.id);
+      return created;
+    });
+    return section(item.title || "Section", questions, item.description || "");
+  }).filter((item) => item.questions.length > 0);
+  form.sections = sections.length ? sections : [section("Section 1", [])];
+  for (const rule of content.logic || []) {
+    const targetId = idByKey.get(rule.targetKey);
+    const target = form.sections.flatMap((item) => item.questions).find((item) => item.id === targetId);
+    if (!target) continue;
+    target.logic = {
+      action: rule.action === "hide" ? "HIDE" : "SHOW",
+      match: rule.matchType === "any" ? "ANY" : "ALL",
+      conditions: (rule.conditions || []).flatMap((condition) => {
+        const sourceQuestionId = idByKey.get(condition.sourceKey);
+        if (!sourceQuestionId) return [];
+        return [{
+          id: uid("cond"),
+          sourceQuestionId,
+          operator: UI_OPERATOR[condition.operator] || condition.operator,
+          value: condition.value == null ? "" : String(condition.value),
+        }];
+      }),
+    };
+  }
+  return form;
+}
+
+function templateContent(form: FormRecord) {
+  const keyById = new Map(form.sections.flatMap((item) => item.questions.map((questionItem) => [questionItem.id, questionItem.key])));
+  return {
+    displayTitle: form.displayTitle.trim() || undefined,
+    description: form.description || undefined,
+    instructions: form.instructions || undefined,
+    confirmationMessage: form.confirmationMessage || undefined,
+    responseMode: form.responseMode,
+    allowMultipleResponses: !form.oneResponse,
+    displayMode: form.displayMode,
+    showProgressBar: form.showProgress,
+    showQuestionNumbers: form.showNumbers,
+    sections: form.sections
+      .filter((item) => item.questions.length > 0)
+      .map((item) => ({
+        title: item.title,
+        description: item.description || undefined,
+        questions: item.questions.map((questionItem) => ({
+          key: questionItem.key,
+          type: apiQuestionType(questionItem.type, questionItem.config),
+          label: questionItem.label,
+          helpText: questionItem.helpText || undefined,
+          isRequired: questionItem.required,
+          config: questionItem.type === "image" ? { ...questionItem.config, imageMode: questionItem.config.imageMode || "upload" } : questionItem.config,
+          options: questionItem.type === "image" ? [] : questionItem.options.map((optionItem) => ({ label: optionItem.label, isOther: optionItem.isOther })),
+        })),
+      })),
+    logic: form.sections.flatMap((item) => item.questions).flatMap((questionItem) => {
+      if (!questionItem.logic?.conditions.length) return [];
+      return [{
+        targetKey: questionItem.key,
+        action: questionItem.logic.action === "HIDE" ? "hide" : "show",
+        matchType: questionItem.logic.match === "ANY" ? "any" : "all",
+        conditions: questionItem.logic.conditions.flatMap((condition) => {
+          const sourceKey = keyById.get(condition.sourceQuestionId);
+          if (!sourceKey) return [];
+          return [{
+            sourceKey,
+            operator: API_OPERATOR[condition.operator] || condition.operator,
+            value: condition.value,
+          }];
+        }),
+      }];
+    }),
+    reminder: {
+      enabled: form.reminder.enabled,
+      firstAfterDays: form.reminder.firstAfterDays,
+      repeatEveryDays: form.reminder.repeatEveryDays,
+      maxCount: form.reminder.maxCount,
+      subject: form.reminder.subject,
+      body: form.reminder.body,
+    },
+  };
+}
+
+export function beginEditingTemplate(template: formApi.TemplateDocument) {
+  for (const id of [...localDraftIds]) discardLocalForm(id);
+  const form = formFromTemplate(template);
+  form.detailLoaded = true;
+  localDraftIds.add(form.id);
+  templateDraftIds.add(form.id);
+  editingTemplateIds.set(form.id, { id: template.id, isSystem: template.isSystem });
+  replaceForm(form);
+  return form;
+}
+
+export function editingTemplateOf(localId: string) {
+  return editingTemplateIds.get(localId) ?? null;
+}
+
+export async function saveEditedTemplate(localId: string, name?: string) {
+  const meta = editingTemplateIds.get(localId);
+  const form = getForm(localId);
+  if (!meta || !form) throw new Error("This template is no longer open.");
+  if (meta.isSystem) throw new Error("System templates can only be used to create a form.");
+  if (flattenQuestions(form).length === 0) throw new Error("Add at least one question before saving this template.");
+  const title = (name ?? form.title).trim();
+  if (!title) throw new Error("Template name is required.");
+  await formApi.updateTemplate(meta.id, {
+    name: title,
+    description: form.description,
+    content: templateContent(form),
+  });
+  form.title = title;
+  emit();
+  await loadForms();
+  return form;
+}
+
 export function beginNewForm(title = "Untitled form", asTemplate = false) {
   for (const id of [...localDraftIds]) discardLocalForm(id);
   const form = blankForm(title);
@@ -312,6 +540,7 @@ export function discardLocalForm(id: string) {
   if (!localDraftIds.has(id)) return;
   localDraftIds.delete(id);
   templateDraftIds.delete(id);
+  editingTemplateIds.delete(id);
   window.clearTimeout(saveTimers.get(id));
   saveTimers.delete(id);
   state.forms = state.forms.filter((form) => form.id !== id);
@@ -363,9 +592,9 @@ export async function createForm(title = "Untitled form") {
   return form;
 }
 
-export async function createFromTemplate(templateId: string) {
+export async function createFromTemplate(templateId: string, title?: string) {
   const template = state.templates.find((item) => item.id === templateId);
-  const form = await formApi.createFromTemplate(templateId, template?.name);
+  const form = await formApi.createFromTemplate(templateId, title || template?.name);
   replaceForm(form);
   await loadForms();
   return form;
@@ -375,8 +604,9 @@ export function nameTakenMessage(id: string, title: string) {
   const name = title.trim().toLowerCase();
   if (!name) return "Name is required.";
   const asTemplate = templateDraftIds.has(id);
+  const editingId = editingTemplateIds.get(id)?.id;
   const taken = asTemplate
-    ? state.templates.some((item) => item.name.trim().toLowerCase() === name)
+    ? state.templates.some((item) => item.id !== editingId && item.name.trim().toLowerCase() === name)
     : state.forms.some((item) => item.id !== id && item.title.trim().toLowerCase() === name);
   if (!taken) return "";
   return asTemplate ? "A template with this name already exists." : "A form with this name already exists.";

@@ -19,14 +19,18 @@ import {
   deleteQuestion,
   deleteSection,
   duplicateQuestion,
+  beginEditingTemplate,
   beginNewForm,
+  createFromTemplate,
   discardLocalForm,
+  editingTemplateOf,
   flushSave,
   isUnsavedForm,
   getForm,
   loadFormDocument,
   nameTakenMessage,
   persistLocalForm,
+  saveEditedTemplate,
   saveLocalAsTemplateOnly,
   moveQuestion,
   publishValidation,
@@ -46,18 +50,39 @@ import {
   type FormQuestion,
   type LogicRule,
 } from "./types";
+import { getTemplate, listForms } from "./api";
 
 export default function FormBuilderPage() {
-  const { id = "" } = useParams();
+  const { id = "", templateId = "" } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const isNew = id === "new";
+  const editingTemplate = Boolean(templateId);
+  const isNew = !editingTemplate && id === "new";
   const [draftId, setDraftId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const { forms } = useFormStore();
-  const formId = isNew ? draftId || "" : id;
+  const formId = isNew || editingTemplate ? draftId || "" : id;
   const form = forms.find((item) => item.id === formId);
   useEffect(() => {
+    if (editingTemplate) {
+      let active = true;
+      let localId = "";
+      getTemplate(templateId)
+        .then((template) => {
+          if (!active) return;
+          const draft = beginEditingTemplate(template);
+          localId = draft.id;
+          setDraftId(draft.id);
+        })
+        .catch((error: Error) => {
+          toast.error(error.message || "Unable to open this template.");
+          navigate("/forms/templates");
+        });
+      return () => {
+        active = false;
+        if (localId) discardLocalForm(localId);
+      };
+    }
     if (isNew) {
       const asTemplate = (location.state as { intent?: string } | null)?.intent === "template";
       const draft = beginNewForm(asTemplate ? "Untitled template" : "Untitled form", asTemplate);
@@ -65,12 +90,14 @@ export default function FormBuilderPage() {
       return () => discardLocalForm(draft.id);
     }
     if (id) void loadFormDocument(id);
-  }, [id, isNew]);
+  }, [id, isNew, editingTemplate, templateId, navigate]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"question" | "settings" | "logic">("question");
   const [errors, setErrors] = useState<{ message: string; target: string }[]>([]);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
+  const [formNameOpen, setFormNameOpen] = useState(false);
+  const [formName, setFormName] = useState("");
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [preview, setPreview] = useState(location.pathname.endsWith("/preview"));
 
@@ -86,9 +113,11 @@ export default function FormBuilderPage() {
   const unsaved = isUnsavedForm(current.id);
   const fromTemplates = (location.state as { from?: string } | null)?.from === "templates";
   const creatingTemplate = (location.state as { intent?: string } | null)?.intent === "template" && unsaved;
+  const templateMeta = editingTemplateOf(current.id);
+  const systemTemplate = Boolean(templateMeta?.isSystem);
   const missingQuestions = flattenQuestions(current).length === 0;
   const saveError = saveAttempted && missingQuestions
-    ? creatingTemplate
+    ? creatingTemplate || editingTemplate
       ? "Add at least one question before saving this template."
       : "Add at least one question before saving this form."
     : "";
@@ -101,22 +130,46 @@ export default function FormBuilderPage() {
 
   function leave() {
     if (unsaved) discardLocalForm(current.id);
-    navigate(fromTemplates ? "/forms/templates" : "/forms");
+    navigate(fromTemplates || editingTemplate ? "/forms/templates" : "/forms");
+  }
+
+  async function createFormOfTemplate(name: string) {
+    const formName = name.trim();
+    if (!formName) return "Form name is required.";
+    setSaving(true);
+    try {
+      if (!systemTemplate) await saveEditedTemplate(current.id);
+      const created = await createFromTemplate(templateId, formName);
+      discardLocalForm(current.id);
+      setFormNameOpen(false);
+      navigate(`/forms/${created.id}`, { state: { from: "templates" } });
+      return "";
+    } catch (error) {
+      return error instanceof Error ? error.message : "Unable to create a form from this template.";
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function save(name: string) {
     if (flattenQuestions(current).length === 0) {
-      return creatingTemplate
+      return creatingTemplate || editingTemplate
         ? "Add at least one question before saving this template."
         : "Add at least one question before saving this form.";
     }
     const conflict = nameTakenMessage(current.id, name);
     if (conflict) return conflict;
     if (updateForm(current.id, { title: name.slice(0, 200) }) === false) {
-      return nameTakenMessage(current.id, name) || "A form with this name already exists.";
+      return nameTakenMessage(current.id, name) || (editingTemplate || creatingTemplate ? "A template with this name already exists." : "A form with this name already exists.");
     }
     setSaving(true);
     try {
+      if (editingTemplate) {
+        await saveEditedTemplate(current.id, name);
+        toast.success("Template saved");
+        setNameOpen(false);
+        return "";
+      }
       if (creatingTemplate) {
         const saved = await saveLocalAsTemplateOnly(current.id);
         if (!saved) return "Unable to save this template.";
@@ -138,7 +191,7 @@ export default function FormBuilderPage() {
       setNameOpen(false);
       return "";
     } catch (error) {
-      return error instanceof Error ? error.message : creatingTemplate ? "Unable to save this template." : "Unable to save this form.";
+      return error instanceof Error ? error.message : editingTemplate || creatingTemplate ? "Unable to save this template." : "Unable to save this form.";
     } finally {
       setSaving(false);
     }
@@ -151,25 +204,41 @@ export default function FormBuilderPage() {
           {fromTemplates ? "Templates" : "Forms"}
         </button>
         <h1 className="min-w-0 flex-1 truncate text-[16px] font-semibold text-slate-800">
-          {unsaved ? (creatingTemplate ? "New template" : "New form") : form.title}
+          {editingTemplate ? form.title : unsaved ? (creatingTemplate ? "New template" : "New form") : form.title}
         </h1>
         <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-        {creatingTemplate ? (
+        {creatingTemplate || editingTemplate ? (
           <span className="rounded-full bg-[#eef2ff] px-2 py-0.5 text-[12px] font-medium text-[#3144c4]">Template</span>
         ) : (
           <StatusPill status={form.status} scheduled={form.scheduled} />
         )}
         <span className="text-[12px] text-slate-400">
-          {creatingTemplate ? "Unsaved template" : unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
+          {editingTemplate ? "Editing template" : creatingTemplate ? "Unsaved template" : unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
         </span>
         <GhostButton onClick={() => setPreview(true)}><Eye className="h-4 w-4" /> Preview</GhostButton>
-        {creatingTemplate ? null : (
+        {creatingTemplate || editingTemplate ? null : (
           <GhostButton onClick={() => requestSave(() => setTemplateOpen(true))} disabled={saving}>Save as template</GhostButton>
         )}
-        {unsaved ? (
+        {unsaved && !editingTemplate ? (
           <GhostButton onClick={leave} disabled={saving}>Cancel</GhostButton>
         ) : null}
-        {unsaved ? (
+        {editingTemplate && !systemTemplate ? (
+          <GhostButton onClick={() => requestSave(() => setNameOpen(true))} disabled={saving}>Save template</GhostButton>
+        ) : null}
+        {editingTemplate ? (
+          <PrimaryButton
+            disabled={saving}
+            onClick={() => requestSave(() => {
+              void listForms({ page: 1, pageSize: 100 }).then((listed) => {
+                setFormName(nextFormName(current.title, listed.forms.map((item) => item.title)));
+                setFormNameOpen(true);
+              }).catch((error: Error) => toast.error(error.message || "Unable to create a form from this template."));
+            })}
+          >
+            Create form of this template
+          </PrimaryButton>
+        ) : null}
+        {unsaved && !editingTemplate ? (
           <PrimaryButton onClick={() => requestSave(() => setNameOpen(true))} disabled={saving}>
             {creatingTemplate ? "Save template" : "Save"}
           </PrimaryButton>
@@ -374,11 +443,23 @@ export default function FormBuilderPage() {
       ) : null}
       {nameOpen ? (
         <NameModal
-          title={creatingTemplate ? "Save template" : "Save form"}
-          label={creatingTemplate ? "Template name" : "Form name"}
+          title={creatingTemplate || editingTemplate ? "Save template" : "Save form"}
+          label={creatingTemplate || editingTemplate ? "Template name" : "Form name"}
+          initial={editingTemplate ? current.title : ""}
           saving={saving}
           onClose={() => { if (!saving) setNameOpen(false); }}
           onSave={save}
+        />
+      ) : null}
+      {formNameOpen ? (
+        <NameModal
+          title="Create form of this template"
+          label="Form name"
+          initial={formName}
+          submitLabel="Create form"
+          saving={saving}
+          onClose={() => { if (!saving) setFormNameOpen(false); }}
+          onSave={createFormOfTemplate}
         />
       ) : null}
       {templateOpen ? <TemplateDialog formId={form.id} onClose={() => setTemplateOpen(false)} /> : null}
@@ -800,20 +881,33 @@ function LogicSummary({ formId }: { formId: string }) {
   );
 }
 
+function nextFormName(base: string, titles: string[]) {
+  const used = new Set(titles.map((title) => title.trim().toLowerCase()));
+  const stem = base.replace(/\s+v\d+$/i, "").trim() || base.trim();
+  if (!used.has(stem.toLowerCase())) return stem.slice(0, 200);
+  let version = 2;
+  while (used.has(`${stem} v${version}`.toLowerCase())) version += 1;
+  return `${stem} v${version}`.slice(0, 200);
+}
+
 function NameModal({
   title,
   label,
+  initial = "",
+  submitLabel = "Save",
   saving,
   onClose,
   onSave,
 }: {
   title: string;
   label: string;
+  initial?: string;
+  submitLabel?: string;
   saving: boolean;
   onClose: () => void;
   onSave: (name: string) => Promise<string>;
 }) {
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initial);
   const [error, setError] = useState("");
 
   return (
@@ -843,7 +937,7 @@ function NameModal({
               });
             }}
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? "Saving…" : submitLabel}
           </PrimaryButton>
         </div>
       </Panel>
