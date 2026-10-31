@@ -475,7 +475,7 @@ function QuestionInspector({
           <Trash2 className="h-3.5 w-3.5" />
         </GhostButton>
       </div>
-      <p className="text-[12px] text-slate-400">Key {question.key} · Q{index + 1}</p>
+      <p className="text-[12px] text-slate-400">Question {index + 1}</p>
       <FieldLabel>Label</FieldLabel>
       <BufferedTextArea value={question.label} maxLength={500} onCommit={(label) => updateQuestion(formId, question.id, { label })} />
       <FieldLabel>Help text</FieldLabel>
