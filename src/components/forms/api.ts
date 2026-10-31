@@ -48,6 +48,7 @@ export function stubFromList(form: ListForm): FormRecord {
     id: form.id,
     refCode: form.refCode,
     title: form.title,
+    displayTitle: "",
     description: "",
     instructions: "",
     status: form.status,
@@ -138,6 +139,7 @@ export async function listTemplates() {
     lastUsedAt: template.lastUsedAt,
     content: {
       title: template.name,
+      displayTitle: "",
       description: template.description || "",
       instructions: "",
       confirmationMessage: "",
@@ -165,14 +167,28 @@ export async function listAudit() {
   return data.audit;
 }
 
+function withoutEmptySections(form: FormRecord) {
+  return {
+    ...form,
+    sections: form.sections
+      .filter((section) => section.questions.length > 0)
+      .map((section) => ({
+        ...section,
+        questions: section.questions.map((question) =>
+          question.type === "image" ? { ...question, options: [] } : question,
+        ),
+      })),
+  };
+}
+
 export async function getDocument(id: string) {
   const data = await request<{ form: FormRecord }>("GET", `/forms/${id}/document`);
-  return { ...data.form, detailLoaded: true };
+  return { ...withoutEmptySections(data.form), detailLoaded: true as const };
 }
 
 export async function saveDocument(form: FormRecord) {
-  const data = await request<{ form: FormRecord }>("PUT", `/forms/${form.id}/document`, form);
-  return { ...data.form, detailLoaded: true };
+  const data = await request<{ form: FormRecord }>("PUT", `/forms/${form.id}/document`, withoutEmptySections(form));
+  return { ...withoutEmptySections(data.form), detailLoaded: true as const };
 }
 
 export async function createForm(title: string) {
@@ -292,6 +308,42 @@ export async function getResponse(formId: string, responseId: string) {
 
 export async function saveTemplate(formId: string, meta: { name: string; description: string; category: string; visibility: "PRIVATE" | "SHARED" }) {
   await request("POST", `/forms/${formId}/save-as-template`, meta);
+}
+
+export type TemplateDocument = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  visibility: "PRIVATE" | "SHARED" | "SYSTEM";
+  isSystem: boolean;
+  content: Record<string, unknown>;
+};
+
+export async function getTemplate(id: string) {
+  const data = await request<{ template: {
+    id: string;
+    name: string;
+    description: string | null;
+    category: string;
+    visibility: string;
+    isSystem: boolean;
+    contentJson: Record<string, unknown>;
+  } }>("GET", `/forms/templates/${id}`);
+  const template = data.template;
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description || "",
+    category: template.category,
+    visibility: template.isSystem ? "SYSTEM" : template.visibility === "SHARED" ? "SHARED" : "PRIVATE",
+    isSystem: Boolean(template.isSystem),
+    content: template.contentJson || {},
+  } satisfies TemplateDocument;
+}
+
+export async function updateTemplate(id: string, body: { name: string; description?: string; content: unknown }) {
+  await request("PUT", `/forms/templates/${id}`, body);
 }
 
 export async function deleteTemplate(id: string) {

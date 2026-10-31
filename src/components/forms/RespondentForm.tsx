@@ -135,6 +135,60 @@ function SmoothText({
   );
 }
 
+function MultiSelectDropdown({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[];
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function close(event: MouseEvent) {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const summary = value.length ? value.join(", ") : "Select options";
+
+  return (
+    <div ref={root} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-[#e4dfd6] bg-white px-3 text-left text-[15px] outline-none focus:border-[#9cb1f6]"
+      >
+        <span className={`min-w-0 flex-1 truncate ${value.length ? "text-slate-800" : "text-slate-400"}`}>{summary}</span>
+        <span className={`text-[10px] text-slate-400 ${open ? "rotate-180" : ""}`}>▼</span>
+      </button>
+      {open ? (
+        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[#e4dfd6] bg-white p-1 shadow-sm">
+          {options.map((option) => {
+            const checked = value.includes(option);
+            return (
+              <label key={option} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-[14px] text-slate-700 hover:bg-[#f7f5f1]">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onChange(checked ? value.filter((item) => item !== option) : [...value, option])}
+                />
+                {option}
+              </label>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const QuestionField = memo(function QuestionField({
   form,
   question,
@@ -142,6 +196,7 @@ const QuestionField = memo(function QuestionField({
   value,
   error,
   onChange,
+  uploadImage,
 }: {
   form: FormRecord;
   question: FormQuestion;
@@ -149,24 +204,32 @@ const QuestionField = memo(function QuestionField({
   value: string | string[] | undefined;
   error?: string;
   onChange: (value: string | string[]) => void;
+  uploadImage?: (file: File) => Promise<{ url: string; name?: string; id?: string; contentType?: string; blobName?: string }>;
 }) {
   const text = Array.isArray(value) ? "" : value || "";
   const list = Array.isArray(value) ? value : [];
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const label = (
     <div className="mb-2">
-      <p className="text-[15px] font-medium text-slate-800">
+      <p className="whitespace-pre-wrap text-[15px] font-medium leading-6 text-slate-800">
         {form.showNumbers && number ? <span className="mr-2 text-slate-400">{number}.</span> : null}
         {question.label || "Untitled question"}
         {question.required && question.type !== "content" ? <span className="ml-1 text-[#b42318]">*</span> : null}
       </p>
-      {question.helpText ? <p className="mt-1 text-[13px] text-slate-500">{question.helpText}</p> : null}
+      {question.helpText ? <p className="mt-1 whitespace-pre-wrap text-[13px] leading-5 text-slate-500">{question.helpText}</p> : null}
     </div>
   );
 
   if (question.type === "content") {
     return (
-      <div className="rounded-xl bg-[#f7f5f1] px-4 py-3 text-[14px] text-slate-600">
-        {question.config.contentHtml || question.label}
+      <div>
+        {label}
+        {question.config.contentHtml ? (
+          <div className="whitespace-pre-wrap rounded-xl bg-[#f7f5f1] px-4 py-3 text-[14px] leading-6 text-slate-600">
+            {question.config.contentHtml}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -253,6 +316,9 @@ const QuestionField = memo(function QuestionField({
       );
     }
     if (question.type === "dropdown") {
+      if (question.config.multi) {
+        return <MultiSelectDropdown options={question.options.map((option) => option.label)} value={list} onChange={onChange} />;
+      }
       return (
         <select
           value={text}
@@ -270,14 +336,15 @@ const QuestionField = memo(function QuestionField({
     }
     if (question.type === "rating") {
       const scale = question.config.scale || 5;
+      const low = question.config.lowLabel;
+      const high = question.config.highLabel;
       return (
-        <div>
-          <div className="flex flex-wrap gap-2">
-            {Array.from({ length: scale }, (_, index) => {
-              const score = String(index + 1);
-              return (
+        <div className={`flex flex-wrap gap-2 ${low || high ? "pb-5" : ""}`}>
+          {Array.from({ length: scale }, (_, index) => {
+            const score = String(index + 1);
+            return (
+              <div key={score} className="relative w-11">
                 <button
-                  key={score}
                   type="button"
                   onClick={() => onChange(score)}
                   className={`h-11 w-11 rounded-xl border text-[14px] font-semibold ${
@@ -288,13 +355,15 @@ const QuestionField = memo(function QuestionField({
                 >
                   {question.config.style === "stars" ? "★" : score}
                 </button>
-              );
-            })}
-          </div>
-          <div className="mt-2 flex justify-between text-[12px] text-slate-400">
-            <span>{question.config.lowLabel}</span>
-            <span>{question.config.highLabel}</span>
-          </div>
+                {index === 0 && low ? (
+                  <span className="absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-[12px] text-slate-400">{low}</span>
+                ) : null}
+                {index === scale - 1 && high ? (
+                  <span className="absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-[12px] text-slate-400">{high}</span>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -341,15 +410,37 @@ const QuestionField = memo(function QuestionField({
         </div>
       );
     }
+    const savedName = imageAnswerName(text);
     return (
-      <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#d9d3c8] bg-[#fbfaf8] text-[13px] text-slate-500">
-        <span>Upload jpg, png, or webp · max {question.config.maxSizeMb || 5} MB</span>
+      <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#d9d3c8] bg-[#fbfaf8] px-4 text-center text-[13px] text-slate-500">
+        <span>{uploading ? "Uploading image…" : savedName || `Upload jpg, png, or webp · max ${question.config.maxSizeMb || 5} MB`}</span>
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          className="mt-2 text-[12px]"
-          onChange={(event) => onChange(event.target.files?.[0]?.name || "")}
+          disabled={uploading}
+          className="mt-2 text-[12px] disabled:opacity-50"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) {
+              onChange("");
+              return;
+            }
+            if (!uploadImage) {
+              onChange(file.name);
+              return;
+            }
+            setUploading(true);
+            setUploadError("");
+            void uploadImage(file)
+              .then((saved) => onChange(JSON.stringify({ files: [{ ...saved, name: file.name }] })))
+              .catch((uploadFailure: Error) => {
+                onChange("");
+                setUploadError(uploadFailure.message || "Unable to upload this image.");
+              })
+              .finally(() => setUploading(false));
+          }}
         />
+        {uploadError ? <span className="mt-2 text-[#b42318]">{uploadError}</span> : null}
       </label>
     );
   })();
@@ -363,6 +454,16 @@ const QuestionField = memo(function QuestionField({
   );
 });
 
+function imageAnswerName(value: string) {
+  if (!value.startsWith("{")) return value;
+  try {
+    const parsed = JSON.parse(value) as { files?: Array<{ name?: string }> };
+    return parsed.files?.[0]?.name || "";
+  } catch {
+    return "";
+  }
+}
+
 function answersFrequency(value: string | string[] | undefined) {
   if (typeof value !== "string" || !value.includes("|")) return "";
   return value.split("|")[1] || "";
@@ -373,17 +474,21 @@ export function RespondentForm({
   preview = false,
   onSubmit,
   footer,
+  uploadImage,
 }: {
   form: FormRecord;
   preview?: boolean;
-  onSubmit?: (answers: AnswerMap) => void;
+  onSubmit?: (answers: AnswerMap) => void | Promise<void>;
   footer?: ReactNode;
+  uploadImage?: (file: File) => Promise<{ url: string; name?: string; id?: string; contentType?: string; blobName?: string }>;
 }) {
   const [answers, setAnswers] = useState<AnswerMap>({});
   const answersRef = useRef<AnswerMap>({});
   const [page, setPage] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [width, setWidth] = useState<"desktop" | "tablet" | "mobile">("desktop");
 
   const pages = useMemo(() => {
@@ -414,7 +519,12 @@ export function RespondentForm({
       setDone(true);
       return;
     }
-    onSubmit?.(latest);
+    setSubmitting(true);
+    setSubmitError("");
+    void Promise.resolve(onSubmit?.(latest))
+      .then(() => setDone(true))
+      .catch((error: Error) => setSubmitError(error.message || "Unable to submit this form."))
+      .finally(() => setSubmitting(false));
   }
 
   const frame =
@@ -457,7 +567,11 @@ export function RespondentForm({
       <div className={`mx-auto ${frame} overflow-hidden rounded-3xl border border-[#ece8e1] bg-white shadow-sm`}>
         <div className="border-b border-[#f0ece6] bg-[#fbfaf8] px-6 py-6 sm:px-8">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-[#8a6800]">Tristate</p>
-          <h1 className="mt-2 text-[26px] font-semibold text-slate-800">{form.title}</h1>
+          {form.displayTitle?.trim() ? (
+            <h1 className="mt-2 text-[26px] font-semibold text-slate-800">{form.displayTitle}</h1>
+          ) : preview ? (
+            <h1 className="mt-2 text-[26px] font-semibold text-slate-300">Title shown to clients</h1>
+          ) : null}
           {form.description ? <p className="mt-2 text-[14px] text-slate-500">{form.description}</p> : null}
           {form.instructions ? <p className="mt-3 text-[14px] text-slate-600">{form.instructions}</p> : null}
           {form.responseMode === "ANONYMOUS" ? (
@@ -495,6 +609,7 @@ export function RespondentForm({
                       value={answers[question.id]}
                       error={errors[question.id]}
                       onChange={(value) => setAnswer(question.id, value)}
+                      uploadImage={uploadImage}
                     />
                   ))}
                 </div>
@@ -508,6 +623,7 @@ export function RespondentForm({
                   value={answers[question.id]}
                   error={errors[question.id]}
                   onChange={(value) => setAnswer(question.id, value)}
+                  uploadImage={uploadImage}
                 />
               ))}
         </div>
@@ -531,13 +647,17 @@ export function RespondentForm({
               Next
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={submit}
-              className="rounded-xl bg-[#4f63ea] px-4 py-2.5 text-[14px] font-medium text-white"
-            >
-              {preview ? "Submit preview" : "Submit"}
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              {submitError ? <p className="text-[13px] text-[#b42318]">{submitError}</p> : null}
+              <button
+                type="button"
+                onClick={submit}
+                disabled={submitting}
+                className="rounded-xl bg-[#4f63ea] px-4 py-2.5 text-[14px] font-medium text-white disabled:opacity-60"
+              >
+                {submitting ? "Submitting…" : preview ? "Submit preview" : "Submit"}
+              </button>
+            </div>
           )}
         </div>
       </div>
