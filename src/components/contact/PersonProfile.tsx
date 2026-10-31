@@ -559,7 +559,7 @@ export default function PersonProfilePage() {
                   <p className="text-xs text-slate-400">Role</p>
                   <p className="mt-1 font-semibold">{
                     (person.roles || [])
-                      .filter((r) => canViewPrefunding || r.toUpperCase() !== "EMPLOYEE")
+                      
                       .map(formatLabel)
                       .join(", ") || "-"
                   }</p>
@@ -627,7 +627,7 @@ export default function PersonProfilePage() {
                 label="Role"
                 value={
                   (person.roles || [])
-                    .filter((r) => canViewPrefunding || r.toUpperCase() !== "EMPLOYEE")
+                    
                     .map(formatLabel)
                     .join(", ") || "-"
                 }

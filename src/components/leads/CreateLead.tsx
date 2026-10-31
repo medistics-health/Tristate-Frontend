@@ -463,9 +463,7 @@ function CreateLeadPage() {
   const currentUser = readStoredUser();
   const canViewPrefunding = hasPrefundingPermission(currentUser, "VIEW");
   const canEditPrefunding = hasPrefundingPermission(currentUser, "EDIT") || hasPrefundingPermission(currentUser, "CREATE");
-  const effectivePersonRoleOptions = canViewPrefunding
-    ? personRoleOptions
-    : personRoleOptions.filter((r) => r !== "EMPLOYEE");
+  const effectivePersonRoleOptions = personRoleOptions;
   const [form, setForm] = useState<LeadFormState>(initialFormState);
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -1512,10 +1510,13 @@ function CreateLeadPage() {
         toast.error("Contact role is required (at least one role).");
         return;
       }
-      if (form.primaryContactRoles.includes("EMPLOYEE") && !form.primaryContactDateOfJoining?.trim()) {
-        toast.error("Date of Joining is required for Employee role.");
-        return;
-      }
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      const todayStr = `${yyyy}-${mm}-${dd}`;
+      const isLeadEmployee = form.primaryContactRoles.includes("EMPLOYEE");
+      const effectiveLeadJoiningDate = isLeadEmployee ? (form.primaryContactDateOfJoining?.trim() || todayStr) : undefined;
       const credentialError = validatePersonCredentialFields(form.contactCredentials);
       if (credentialError) {
         toast.error(credentialError);

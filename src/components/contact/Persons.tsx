@@ -226,6 +226,14 @@ const usStatesOptions = [
   { label: "Wisconsin", value: "WI" }, { label: "Wyoming", value: "WY" }
 ];
 
+function getTodayFormattedDate(): string {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 const roleOptions = [
   "OWNER",
   "ADMIN",
@@ -258,9 +266,7 @@ export default function PersonsPage() {
   const currentUser = readStoredUser();
   const canViewPrefunding = hasPrefundingPermission(currentUser, "VIEW");
   const canEditPrefunding = hasPrefundingPermission(currentUser, "EDIT") || hasPrefundingPermission(currentUser, "CREATE");
-  const effectiveRoleOptions = canViewPrefunding
-    ? roleOptions
-    : roleOptions.filter((r) => r.toUpperCase() !== "EMPLOYEE");
+  const effectiveRoleOptions = roleOptions;
 
 
   const [viewData, setViewData] = useState<PersonViewData | null>(null);
@@ -527,10 +533,7 @@ export default function PersonsPage() {
       setFormData({
         firstName: String(values.firstName || ""),
         lastName: String(values.lastName || ""),
-        roles: (() => {
-          const raw = Array.isArray(values.rolesArray) ? (values.rolesArray as string[]) : ["ADMIN"];
-          return canViewPrefunding ? raw : raw.filter((r) => r.toUpperCase() !== "EMPLOYEE");
-        })(),
+        roles: Array.isArray(values.rolesArray) ? (values.rolesArray as string[]) : ["ADMIN"],
         influence: String(values.influence || "MEDIUM"),
         email: String(values.email || ""),
         phone: normalizePhoneInput(String(values.phone || "")),
@@ -541,7 +544,7 @@ export default function PersonsPage() {
         jobCategory: String(values.jobCategory || ""),
         workLocation: String(values.workLocation || ""),
         state: String(values.state || ""),
-        dateOfJoining: String(values.dateOfJoining || ""),
+        dateOfJoining: String(values.dateOfJoining || (Array.isArray(values.rolesArray) && values.rolesArray.includes("EMPLOYEE") ? getTodayFormattedDate() : "")),
         payType: String(values.payType || ""),
         payRate: values.payRate !== null && values.payRate !== undefined ? values.payRate : "",
         budgetedHours: values.budgetedHours !== null && values.budgetedHours !== undefined ? values.budgetedHours : "",
@@ -618,9 +621,7 @@ export default function PersonsPage() {
                     .split(",")
                     .map((r) => r.trim())
                     .filter(Boolean);
-              const rolesList = canViewPrefunding
-                ? rawRolesList
-                : rawRolesList.filter((r) => r.toUpperCase() !== "EMPLOYEE");
+              const rolesList = rawRolesList;
               if (rolesList.length === 0) {
                 return <span className="text-slate-400">-</span>;
               }
@@ -888,10 +889,10 @@ export default function PersonsPage() {
       toast.error("At least one role is required.");
       return;
     }
-    if ((formData.roles || []).includes("EMPLOYEE") && !formData.dateOfJoining?.trim()) {
-      toast.error("Date of Joining is required for Employee role.");
-      return;
-    }
+    const isCreateEmployee = (formData.roles || []).includes("EMPLOYEE");
+    const effectiveCreateDateOfJoining = isCreateEmployee
+      ? (formData.dateOfJoining?.trim() || getTodayFormattedDate())
+      : "";
     if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
       toast.error("Person phone must be exactly 10 digits.");
       return;
@@ -946,7 +947,7 @@ export default function PersonsPage() {
           jobCategory: formData.jobCategory,
           workLocation: formData.workLocation,
           state: formData.state,
-          dateOfJoining: formData.dateOfJoining,
+          dateOfJoining: effectiveCreateDateOfJoining,
           payType: formData.payType || null,
           payRate: formData.payRate !== undefined && String(formData.payRate).trim() !== "" ? Number(formData.payRate) : null,
           budgetedHours: formData.budgetedHours !== undefined && String(formData.budgetedHours).trim() !== "" ? Number(formData.budgetedHours) : null,
@@ -995,10 +996,10 @@ export default function PersonsPage() {
       toast.error("At least one role is required.");
       return;
     }
-    if ((formData.roles || []).includes("EMPLOYEE") && !formData.dateOfJoining?.trim()) {
-      toast.error("Date of Joining is required for Employee role.");
-      return;
-    }
+    const isUpdateEmployee = (formData.roles || []).includes("EMPLOYEE");
+    const effectiveUpdateDateOfJoining = isUpdateEmployee
+      ? (formData.dateOfJoining?.trim() || (selectedRow.values.dateOfJoining ? String(selectedRow.values.dateOfJoining) : getTodayFormattedDate()))
+      : "";
     if (trimmedPhone && !isValidPersonPhone(trimmedPhone)) {
       toast.error("Person phone must be exactly 10 digits.");
       return;
@@ -1045,7 +1046,7 @@ export default function PersonsPage() {
           jobCategory: formData.jobCategory,
           workLocation: formData.workLocation,
           state: formData.state,
-          dateOfJoining: formData.dateOfJoining,
+          dateOfJoining: effectiveUpdateDateOfJoining,
           payType: formData.payType || null,
           payRate: formData.payRate !== undefined && String(formData.payRate).trim() !== "" ? Number(formData.payRate) : null,
           budgetedHours: formData.budgetedHours !== undefined && String(formData.budgetedHours).trim() !== "" ? Number(formData.budgetedHours) : null,
@@ -1310,15 +1311,28 @@ export default function PersonsPage() {
           <MultiSelect
             value={formData.roles || []}
             onChange={(val) => {
-              if (canViewPrefunding && !canEditPrefunding) {
-                const hadEmployee = (formData.roles || []).includes("EMPLOYEE");
-                const hasEmployee = val.includes("EMPLOYEE");
-                if (hadEmployee !== hasEmployee) {
-                  toast.error("You do not have permission to add or remove the Employee role.");
-                  return;
+              const hasEmployee = val.includes("EMPLOYEE");
+              setFormData((prev) => {
+                if (!hasEmployee) {
+                  return {
+                    ...prev,
+                    roles: val,
+                    jobCategory: "",
+                    workLocation: "",
+                    state: "",
+                    dateOfJoining: "",
+                    payType: "",
+                    payRate: "",
+                    budgetedHours: "",
+                    bufferPercentage: "",
+                  };
                 }
-              }
-              setFormData((prev) => ({ ...prev, roles: val }));
+                return {
+                  ...prev,
+                  roles: val,
+                  dateOfJoining: prev.dateOfJoining || getTodayFormattedDate(),
+                };
+              });
             }}
             options={effectiveRoleOptions.map(r => ({ label: r, value: r }))}
             className="w-full"
@@ -1929,9 +1943,7 @@ export default function PersonsPage() {
                       .split(",")
                       .map((r) => r.trim())
                       .filter(Boolean);
-                const rolesList = canViewPrefunding
-                  ? rawRolesList
-                  : rawRolesList.filter((r) => r.toUpperCase() !== "EMPLOYEE");
+                const rolesList = rawRolesList;
                 const roleBadges = rolesList.map((r) => ({
                   label: r,
                   className: rColors[r.toUpperCase()] || "bg-gray-100 text-gray-700",
@@ -2065,11 +2077,28 @@ export default function PersonsPage() {
                   <MultiSelect
                     value={formData.roles || []}
                     onChange={(val) => {
-                      if (canViewPrefunding && !canEditPrefunding && val.includes("EMPLOYEE")) {
-                        toast.error("You do not have permission to assign the Employee role.");
-                        return;
-                      }
-                      setFormData((prev) => ({ ...prev, roles: val }));
+                      const hasEmployee = val.includes("EMPLOYEE");
+                      setFormData((prev) => {
+                        if (!hasEmployee) {
+                          return {
+                            ...prev,
+                            roles: val,
+                            jobCategory: "",
+                            workLocation: "",
+                            state: "",
+                            dateOfJoining: "",
+                            payType: "",
+                            payRate: "",
+                            budgetedHours: "",
+                            bufferPercentage: "",
+                          };
+                        }
+                        return {
+                          ...prev,
+                          roles: val,
+                          dateOfJoining: prev.dateOfJoining || getTodayFormattedDate(),
+                        };
+                      });
                     }}
                     options={effectiveRoleOptions.map(r => ({ label: r, value: r }))}
                     className="w-full"
