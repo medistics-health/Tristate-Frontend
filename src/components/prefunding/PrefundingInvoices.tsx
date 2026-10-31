@@ -148,6 +148,7 @@ export default function PrefundingInvoices() {
   const navigate = useNavigate();
   const currentUser = readStoredUser();
   const canEdit = hasPrefundingPermission(currentUser, "EDIT");
+  const canCalculate = hasPrefundingPermission(currentUser, "CALCULATE");
   const canApprove = hasPrefundingPermission(currentUser, "APPROVE");
   const canPost = hasPrefundingPermission(currentUser, "POST");
   const canDelete = hasPrefundingPermission(currentUser, "DELETE");
@@ -742,7 +743,7 @@ export default function PrefundingInvoices() {
                       </button>
                     )}
 
-                    {canEdit && (
+                    {(canEdit || canCalculate) && (
                       <button
                         type="button"
                         onClick={() => handleStatusChange("Pending Approval")}

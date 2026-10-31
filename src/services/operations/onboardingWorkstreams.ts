@@ -105,6 +105,7 @@ export type WorkstreamBody = {
   practiceId?: string;
   onboardingProjectId?: string;
   serviceLine: string;
+  templateBlueprintId?: string | null;
   status?: string;
   ownerUserId?: string | null;
   targetDate?: string | null;
@@ -147,11 +148,18 @@ function ownerName(owner?: WorkstreamOwner | null) {
 }
 
 function workstreamToRow(workstream: OnboardingWorkstream): WorkstreamRow {
+  const lineLabel = formatPracticeServiceLine(String(workstream.serviceLine));
+  const blueprintMatch = workstream.notes?.match(/^Blueprint:\s*(.+)$/i);
+  const blueprintName = blueprintMatch ? blueprintMatch[1].trim() : (workstream.notes?.trim() || "");
+  const displayServiceLine = blueprintName ? `${lineLabel} - ${blueprintName}` : lineLabel;
+
   return {
     id: workstream.id,
     values: {
       practiceName: workstream.practice?.name || "",
-      serviceLine: formatPracticeServiceLine(String(workstream.serviceLine)),
+      serviceLine: displayServiceLine,
+      rawServiceLine: String(workstream.serviceLine),
+      blueprintName: blueprintName,
       status: String(workstream.status),
       statusLabel: formatWorkstreamStatus(String(workstream.status)),
       owner: ownerName(workstream.owner) || "-",

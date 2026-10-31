@@ -22,6 +22,7 @@ export type PracticeBody = {
   source: PracticeSource;
   bucket: string[];
   serviceLines?: PracticeServiceLine[];
+  templateBlueprintIds?: string[];
   companyId?: string;
   taxIdId?: string;
   billingPaymentMethod?: "ACH" | "CREDIT_CARD";
@@ -89,6 +90,11 @@ export type Practice = {
   groupNpis?: { id: string; groupNpiNumber: string; groupName: string }[];
   goLiveTarget?: string | null;
   hubDocuments?: HubLinkedDocument[];
+  onboardingProjects?: Array<{
+    id: string;
+    goLiveTarget?: string | null;
+    workstreams?: Array<{ id: string; serviceLine: string; notes?: string | null }>;
+  }>;
   _count?: { persons: number; deals: number; agreements: number };
 };
 
