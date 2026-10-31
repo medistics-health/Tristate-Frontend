@@ -25,6 +25,7 @@ import {
   isUnsavedForm,
   getForm,
   loadFormDocument,
+  nameTakenMessage,
   persistLocalForm,
   saveLocalAsTemplateOnly,
   moveQuestion,
@@ -69,6 +70,7 @@ export default function FormBuilderPage() {
   const [tab, setTab] = useState<"question" | "settings" | "logic">("question");
   const [errors, setErrors] = useState<{ message: string; target: string }[]>([]);
   const [templateOpen, setTemplateOpen] = useState(false);
+  const [nameOpen, setNameOpen] = useState(false);
   const [preview, setPreview] = useState(location.pathname.endsWith("/preview"));
 
   const selected = form ? flattenQuestions(form).find((item) => item.question.id === selectedId)?.question ?? null : null;
@@ -89,27 +91,36 @@ export default function FormBuilderPage() {
     navigate(fromTemplates ? "/forms/templates" : "/forms");
   }
 
-  async function save() {
+  async function save(name: string) {
+    const conflict = nameTakenMessage(current.id, name);
+    if (conflict) return conflict;
+    if (updateForm(current.id, { title: name.slice(0, 200) }) === false) {
+      return nameTakenMessage(current.id, name) || "A form with this name already exists.";
+    }
     setSaving(true);
     try {
       if (creatingTemplate) {
         const saved = await saveLocalAsTemplateOnly(current.id);
-        if (!saved) return;
+        if (!saved) return "Unable to save this template.";
         toast.success("Template saved");
+        setNameOpen(false);
         navigate("/forms/templates");
-        return;
+        return "";
       }
       if (unsaved) {
         const saved = await persistLocalForm(current.id);
-        if (!saved) return;
+        if (!saved) return "Unable to save this form.";
         toast.success("Form saved");
+        setNameOpen(false);
         navigate(`/forms/${saved.id}`, { replace: true, state: location.state });
-        return;
+        return "";
       }
       await flushSave(current.id);
       toast.success("Form saved");
+      setNameOpen(false);
+      return "";
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : creatingTemplate ? "Unable to save this template." : "Unable to save this form.");
+      return error instanceof Error ? error.message : creatingTemplate ? "Unable to save this template." : "Unable to save this form.";
     } finally {
       setSaving(false);
     }
@@ -121,11 +132,9 @@ export default function FormBuilderPage() {
         <button type="button" onClick={leave} className="shrink-0 cursor-pointer rounded-lg px-2 py-1 text-[13px] text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-800">
           {fromTemplates ? "Templates" : "Forms"}
         </button>
-        <BufferedInput
-          value={form.title}
-          onCommit={(title) => updateForm(form.id, { title: title.slice(0, 200) })}
-          className="min-w-0 flex-1 border-transparent bg-transparent px-0 text-[16px] font-semibold text-slate-800 shadow-none"
-        />
+        <h1 className="min-w-0 flex-1 truncate text-[16px] font-semibold text-slate-800">
+          {unsaved ? (creatingTemplate ? "New template" : "New form") : form.title}
+        </h1>
         <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
         {creatingTemplate ? (
           <span className="rounded-full bg-[#eef2ff] px-2 py-0.5 text-[12px] font-medium text-[#3144c4]">Template</span>
@@ -143,8 +152,8 @@ export default function FormBuilderPage() {
           <GhostButton onClick={leave} disabled={saving}>Cancel</GhostButton>
         ) : null}
         {unsaved ? (
-          <PrimaryButton onClick={() => void save()} disabled={saving}>
-            {saving ? "Saving…" : creatingTemplate ? "Save template" : "Save"}
+          <PrimaryButton onClick={() => setNameOpen(true)} disabled={saving}>
+            {creatingTemplate ? "Save template" : "Save"}
           </PrimaryButton>
         ) : null}
         {!unsaved && (form.status === "DRAFT" || form.status === "PUBLISHED") ? (
@@ -333,6 +342,15 @@ export default function FormBuilderPage() {
             </div>
           </Panel>
         </div>
+      ) : null}
+      {nameOpen ? (
+        <NameModal
+          title={creatingTemplate ? "Save template" : "Save form"}
+          label={creatingTemplate ? "Template name" : "Form name"}
+          saving={saving}
+          onClose={() => { if (!saving) setNameOpen(false); }}
+          onSave={save}
+        />
       ) : null}
       {templateOpen ? <TemplateDialog formId={form.id} onClose={() => setTemplateOpen(false)} /> : null}
       {preview ? (
@@ -666,6 +684,57 @@ function LogicSummary({ formId }: { formId: string }) {
   );
 }
 
+function NameModal({
+  title,
+  label,
+  saving,
+  onClose,
+  onSave,
+}: {
+  title: string;
+  label: string;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (name: string) => Promise<string>;
+}) {
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
+      <Panel className="w-full max-w-md space-y-3 p-5">
+        <h2 className="text-[16px] font-semibold">{title}</h2>
+        <div>
+          <FieldLabel>{label}</FieldLabel>
+          <TextInput
+            autoFocus
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              setError("");
+            }}
+            placeholder={label}
+          />
+          {error ? <p className="mt-1 text-[12px] text-[#b42318]">{error}</p> : null}
+        </div>
+        <div className="flex justify-end gap-2">
+          <GhostButton onClick={onClose} disabled={saving}>Cancel</GhostButton>
+          <PrimaryButton
+            disabled={!name.trim() || saving}
+            onClick={() => {
+              void onSave(name.trim()).then((message) => {
+                if (message) setError(message);
+              });
+            }}
+          >
+            {saving ? "Saving…" : "Save"}
+          </PrimaryButton>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -674,11 +743,20 @@ function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => vo
   const [category, setCategory] = useState("General");
   const [visibility, setVisibility] = useState<"PRIVATE" | "SHARED">("PRIVATE");
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [error, setError] = useState("");
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
       <Panel className="w-full max-w-md space-y-3 p-5">
         <h2 className="text-[16px] font-semibold">Save as template</h2>
-        <TextInput value={name} onChange={(event) => setName(event.target.value)} placeholder="Template name" />
+        <TextInput
+          value={name}
+          onChange={(event) => {
+            setName(event.target.value);
+            setError("");
+          }}
+          placeholder="Template name"
+        />
+        {error ? <p className="text-[12px] text-[#b42318]">{error}</p> : null}
         <TextArea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" />
         <TextInput value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Category" />
         <Select
@@ -708,7 +786,7 @@ function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => vo
                 onClose();
                 if (wasNew) navigate(`/forms/${id}`, { replace: true, state: location.state });
               })().catch((error: Error) => {
-                toast.error(error.message || "Unable to save this template.");
+                setError(error.message || "Unable to save this template.");
               }).finally(() => setSavingTemplate(false));
             }}
           >

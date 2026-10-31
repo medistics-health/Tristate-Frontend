@@ -365,6 +365,17 @@ export async function createFromTemplate(templateId: string) {
   return form;
 }
 
+export function nameTakenMessage(id: string, title: string) {
+  const name = title.trim().toLowerCase();
+  if (!name) return "Name is required.";
+  const asTemplate = templateDraftIds.has(id);
+  const taken = asTemplate
+    ? state.templates.some((item) => item.name.trim().toLowerCase() === name)
+    : state.forms.some((item) => item.id !== id && item.title.trim().toLowerCase() === name);
+  if (!taken) return "";
+  return asTemplate ? "A template with this name already exists." : "A form with this name already exists.";
+}
+
 export function updateForm(id: string, patch: Partial<FormRecord>) {
   if (patch.publicToken) {
     if (localDraftIds.has(id)) {
@@ -380,17 +391,7 @@ export function updateForm(id: string, patch: Partial<FormRecord>) {
   }
   const form = getForm(id);
   if (!form) return;
-  if (typeof patch.title === "string") {
-    const title = patch.title.trim().toLowerCase();
-    const asTemplate = templateDraftIds.has(id);
-    const taken = asTemplate
-      ? state.templates.some((item) => item.name.trim().toLowerCase() === title)
-      : state.forms.some((item) => item.id !== id && item.title.trim().toLowerCase() === title);
-    if (title && taken) {
-      toast.error(asTemplate ? "A template with this name already exists." : "A form with this name already exists.");
-      return false;
-    }
-  }
+  if (typeof patch.title === "string" && nameTakenMessage(id, patch.title)) return false;
   Object.assign(form, patch, { updatedAt: nowIso() });
   emit();
   if (form.detailLoaded) scheduleSave(id);
