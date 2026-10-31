@@ -72,6 +72,7 @@ import { getPrefundingRates } from "../../services/operations/prefundingRates";
 import { getPersonsView, getAllPersons } from "../../services/operations/persons";
 import DatePicker from "../shared/DatePicker";
 import { getAllCompanies } from "../../services/operations/companies";
+import { getTemplatesApi } from "../../services/operations/onboardingProjects";
 import {
   getAgreementsByPractice,
   type Agreement,
@@ -200,6 +201,7 @@ type PracticeFormData = {
   source: string;
   bucket: string;
   serviceLines: PracticeServiceLine[];
+  templateBlueprintIds?: string[];
   companyId: string;
   taxIdId: string;
   billingPaymentMethod: "ACH" | "CREDIT_CARD" | "";
@@ -216,6 +218,7 @@ const initialFormData: PracticeFormData = {
   source: "DIRECT",
   bucket: "",
   serviceLines: [],
+  templateBlueprintIds: [],
   companyId: "",
   taxIdId: "",
   billingPaymentMethod: "",
@@ -265,7 +268,10 @@ export default function AllPracticePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-      const [companies, setCompanies] = useState<Company[]>([]);
+  const [taskTemplates, setTaskTemplates] = useState<
+    Array<{ id: string; name: string; serviceLine: string; taskCount: number }>
+  >([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
     const [stripeAccounts, setStripeAccounts] = useState<StripeConnectedAccount[]>([]);
     const [stripeAccountsLoading, setStripeAccountsLoading] = useState(false);
     const [availableRates, setAvailableRates] = useState<{ label: string; value: string }[]>([]);
@@ -486,6 +492,21 @@ export default function AllPracticePage() {
     }
     loadSystemSettings();
 
+    getTemplatesApi()
+      .then((tpls) => {
+        if (Array.isArray(tpls)) {
+          setTaskTemplates(
+            tpls.map((t: any) => ({
+              id: t.id,
+              name: t.name,
+              serviceLine: t.serviceLine,
+              taskCount: t.taskCount || t.tasks?.length || 0,
+            }))
+          );
+        }
+      })
+      .catch((err) => console.error("Failed to load task templates in AllPractice:", err));
+
     async function loadPrefundingDropdowns() {
       try {
         const [ratesRes, personsList, personsViewRes] = await Promise.all([
@@ -611,6 +632,12 @@ export default function AllPracticePage() {
     if (selectedRow && !showCreateForm) {
       const values = selectedPracticeDetail ?? selectedRow.values;
       const existingGroupNpis = normalizeGroupNpiEntries(values.groupNpis);
+      const parsedLines = parsePracticeServiceLines(
+        (values as Record<string, unknown>).serviceLineValues ?? values.serviceLines
+      );
+      const matchingBlueprintIds = taskTemplates
+        .filter((t) => parsedLines.includes(t.serviceLine as any))
+        .map((t) => t.id);
 
       setFormData({
         name: String(values.name || ""),
@@ -620,10 +647,8 @@ export default function AllPracticePage() {
         bucket: Array.isArray(values.bucket)
           ? values.bucket.join(", ")
           : String(values.bucket || ""),
-        serviceLines: parsePracticeServiceLines(
-          (values as Record<string, unknown>).serviceLineValues ??
-            values.serviceLines,
-        ),
+        serviceLines: parsedLines,
+        templateBlueprintIds: matchingBlueprintIds,
         companyId: String(values.companyId || ""),
         taxIdId: String(values.taxIdId || ""),
         billingPaymentMethod:
@@ -1043,35 +1068,93 @@ export default function AllPracticePage() {
         <label className="mb-1 block text-[13px] font-medium text-slate-700">
           Service Line
         </label>
-        <MultiSelect
-          value={formData.serviceLines}
-          onChange={(selected) =>
-            setFormData((prev) => ({
-              ...prev,
-              serviceLines: parsePracticeServiceLines(selected),
-            }))
-          }
-          options={[...PRACTICE_SERVICE_LINE_OPTIONS]}
-          placeholder="Select service lines"
-        />
+        {taskTemplates.length > 0 ? (
+          <MultiSelect
+            value={
+              formData.templateBlueprintIds && formData.templateBlueprintIds.length > 0
+                ? formData.templateBlueprintIds
+                : taskTemplates
+                    .filter((t) => formData.serviceLines.includes(t.serviceLine as any))
+                    .map((t) => t.id)
+            }
+            onChange={(selectedIds) => {
+              const matchedServiceLines = parsePracticeServiceLines(
+                selectedIds
+                  .map((id) => taskTemplates.find((t) => t.id === id)?.serviceLine)
+                  .filter(Boolean)
+              );
+              setFormData((prev) => ({
+                ...prev,
+                templateBlueprintIds: selectedIds,
+                serviceLines: matchedServiceLines,
+              }));
+            }}
+            options={taskTemplates.map((t) => ({
+              label: `${formatPracticeServiceLine(t.serviceLine)} - ${t.name} (${t.taskCount} tasks)`,
+              value: t.id,
+            }))}
+            placeholder="Select service lines"
+          />
+        ) : (
+          <MultiSelect
+            value={formData.serviceLines}
+            onChange={(selected) =>
+              setFormData((prev) => ({
+                ...prev,
+                serviceLines: parsePracticeServiceLines(selected),
+              }))
+            }
+            options={[...PRACTICE_SERVICE_LINE_OPTIONS]}
+            placeholder="Select service lines"
+          />
+        )}
       </div>
     );
   }
 
   function renderServiceLineReadOnly() {
+    const workstreams = selectedPracticeDetail?.onboardingProjects?.[0]?.workstreams || [];
+
+    // If workstreams exist with blueprint info, display {Service Line} - {Blueprint Name}
+    const displayItems: string[] = [];
+    if (workstreams.length > 0) {
+      workstreams.forEach((ws) => {
+        const lineLabel = formatPracticeServiceLine(ws.serviceLine);
+        const match = ws.notes?.match(/^Blueprint:\s*(.+)$/i);
+        const bpName = match ? match[1].trim() : (ws.notes?.trim() || "");
+        displayItems.push(bpName ? `${lineLabel} - ${bpName}` : lineLabel);
+      });
+    } else if (formData.templateBlueprintIds && formData.templateBlueprintIds.length > 0) {
+      formData.templateBlueprintIds.forEach((id) => {
+        const tpl = taskTemplates.find((t) => t.id === id);
+        if (tpl) {
+          displayItems.push(`${formatPracticeServiceLine(tpl.serviceLine)} - ${tpl.name}`);
+        }
+      });
+    } else if (formData.serviceLines.length > 0) {
+      formData.serviceLines.forEach((line) => {
+        const tpls = taskTemplates.filter((t) => t.serviceLine === line);
+        if (tpls.length > 0) {
+          tpls.forEach((t) => displayItems.push(`${formatPracticeServiceLine(line)} - ${t.name}`));
+        } else {
+          displayItems.push(formatPracticeServiceLine(line));
+        }
+      });
+    }
+
     return (
       <div>
         <label className="mb-1 block text-[12px] font-medium text-slate-600">
           Service Line
         </label>
-        {formData.serviceLines.length > 0 ? (
+        {displayItems.length > 0 ? (
           <div className="flex flex-wrap gap-1.5 rounded-md border border-[#ece8e1] bg-[#fbfaf8] px-3 py-2">
-            {formData.serviceLines.map((line) => (
+            {displayItems.map((item, idx) => (
               <span
-                key={line}
+                key={idx}
                 className="rounded-full bg-slate-100 px-2.5 py-1 text-[12px] font-medium text-slate-700"
               >
-                {formatPracticeServiceLine(line)}
+                {item}
               </span>
             ))}
           </div>
@@ -1132,6 +1215,7 @@ export default function AllPracticePage() {
               .filter(Boolean)
           : [],
         serviceLines: formData.serviceLines,
+        templateBlueprintIds: formData.templateBlueprintIds,
         companyId: formData.companyId?.trim() || undefined,
         taxIdId: formData.taxIdId?.trim() || undefined,
         billingPaymentMethod: formData.billingPaymentMethod,
@@ -1321,6 +1405,8 @@ export default function AllPracticePage() {
                 .map((s) => s.trim())
                 .filter(Boolean)
             : [],
+          serviceLines: formData.serviceLines,
+          templateBlueprintIds: formData.templateBlueprintIds,
           companyId: formData.companyId?.trim() || undefined,
           taxIdId: formData.taxIdId?.trim() || undefined,
           billingPaymentMethod: formData.billingPaymentMethod,
@@ -1379,6 +1465,8 @@ export default function AllPracticePage() {
               .map((s) => s.trim())
               .filter(Boolean)
           : [],
+        serviceLines: formData.serviceLines,
+        templateBlueprintIds: formData.templateBlueprintIds,
         companyId: formData.companyId?.trim() || undefined,
         taxIdId: formData.taxIdId?.trim() || undefined,
         billingPaymentMethod: formData.billingPaymentMethod,

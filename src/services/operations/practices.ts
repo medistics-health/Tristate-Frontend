@@ -93,7 +93,6 @@ const fields = [
   { id: "status", label: "Status", type: "text" as const, visible: true },
   { id: "source", label: "Source", type: "text" as const, visible: true },
   { id: "isPrefundingEnabled", label: "Prefunding", type: "text" as const, visible: true },
-  { id: "serviceLines", label: "Service Line", type: "text" as const, visible: true },
   { id: "bucket", label: "Bucket", type: "text" as const, visible: false },
   { id: "companyName", label: "Company", type: "text" as const, visible: true },
   { id: "taxIdNumber", label: "Tax ID", type: "text" as const, visible: false },

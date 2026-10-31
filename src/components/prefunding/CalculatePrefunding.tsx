@@ -3174,7 +3174,7 @@ export default function CalculatePrefunding() {
                         </button>
                         <button
                           onClick={generateInvoice}
-                          disabled={submitting || (editingInvoiceId ? !canEdit : !canCreate)}
+                          disabled={submitting || (editingInvoiceId ? (!canEdit && !canCalculate) : (!canCreate && !canCalculate))}
                           className="flex items-center gap-2 px-6 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-xs disabled:opacity-50"
                         >
                           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="h-4 w-4" />}

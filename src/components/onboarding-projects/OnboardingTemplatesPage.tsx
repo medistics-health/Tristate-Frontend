@@ -495,13 +495,25 @@ export default function OnboardingTemplatesPage() {
 
   const handleCreateTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTemplateName.trim()) return;
+    const trimmedName = newTemplateName.trim();
+    if (!trimmedName) return;
+
+    // Check frontend side for existing combination of Service Line + Blueprint Name
+    const isDuplicate = templates.some(
+      (t) =>
+        t.serviceLine === newServiceName &&
+        t.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (isDuplicate) {
+      toast.error(`A template blueprint with the name "${trimmedName}" already exists for service line ${newServiceName}.`);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       const created = await createTemplateApi({
         serviceLine: newServiceName,
-        name: newTemplateName,
+        name: trimmedName,
         description: newDescription,
         defaultOwnerId: newDefaultOwnerId || undefined,
         defaultOwnerName: newDefaultOwnerName || undefined,
@@ -534,13 +546,26 @@ export default function OnboardingTemplatesPage() {
 
   const handleUpdateTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTemplate || !editTemplateName.trim()) return;
+    const trimmedName = editTemplateName.trim();
+    if (!editingTemplate || !trimmedName) return;
+
+    // Check frontend side for existing duplicate (excluding current editing template)
+    const isDuplicate = templates.some(
+      (t) =>
+        t.id !== editingTemplate.id &&
+        t.serviceLine === editServiceName &&
+        t.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (isDuplicate) {
+      toast.error(`A template blueprint with the name "${trimmedName}" already exists for service line ${editServiceName}.`);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       const updated = await updateTemplateApi(editingTemplate.id, {
         serviceLine: editServiceName,
-        name: editTemplateName,
+        name: trimmedName,
         description: editDescription,
         defaultOwnerId: editDefaultOwnerId || undefined,
         defaultOwnerName: editDefaultOwnerName || undefined,
