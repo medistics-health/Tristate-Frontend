@@ -457,6 +457,16 @@ function QuestionInspector({
   questionsBefore: { question: FormQuestion }[];
 }) {
   const index = questionsBefore.findIndex((item) => item.question.id === question.id);
+  const [rangeError, setRangeError] = useState("");
+  const bounded = question.type === "number" || question.type === "price" || question.type === "fees";
+
+  function rangeIsInvalid(min: string, max: string) {
+    if (!min.trim() || !max.trim()) return false;
+    const low = Number(min);
+    const high = Number(max);
+    return Number.isFinite(low) && Number.isFinite(high) && high < low;
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex gap-1">
@@ -528,9 +538,38 @@ function QuestionInspector({
         />
       ) : null}
       {(question.type === "number" || question.type === "price" || question.type === "fees" || question.type === "date") ? (
-        <div className="grid grid-cols-2 gap-2">
-          <BufferedInput placeholder="Min" value={question.config.min || ""} onCommit={(min) => updateQuestion(formId, question.id, { config: { ...question.config, min } })} />
-          <BufferedInput placeholder="Max" value={question.config.max || ""} onCommit={(max) => updateQuestion(formId, question.id, { config: { ...question.config, max } })} />
+        <div>
+          <div className="grid grid-cols-2 gap-2">
+            <BufferedInput
+              placeholder="Min"
+              commitOnBlur
+              value={question.config.min || ""}
+              onChange={() => setRangeError("")}
+              onCommit={(min) => {
+                if (bounded && rangeIsInvalid(min, question.config.max || "")) {
+                  setRangeError("Maximum cannot be less than minimum.");
+                  return false;
+                }
+                setRangeError("");
+                updateQuestion(formId, question.id, { config: { ...question.config, min } });
+              }}
+            />
+            <BufferedInput
+              placeholder="Max"
+              commitOnBlur
+              value={question.config.max || ""}
+              onChange={() => setRangeError("")}
+              onCommit={(max) => {
+                if (bounded && rangeIsInvalid(question.config.min || "", max)) {
+                  setRangeError("Maximum cannot be less than minimum.");
+                  return false;
+                }
+                setRangeError("");
+                updateQuestion(formId, question.id, { config: { ...question.config, max } });
+              }}
+            />
+          </div>
+          {rangeError ? <p className="mt-1 text-[12px] text-[#b42318]">{rangeError}</p> : null}
         </div>
       ) : null}
     </div>

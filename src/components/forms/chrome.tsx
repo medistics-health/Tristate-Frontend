@@ -120,9 +120,10 @@ type BufferedCommit = {
   value: string;
   onCommit: (value: string) => void | false;
   delay?: number;
+  commitOnBlur?: boolean;
 };
 
-function useBufferedDraft(value: string, onCommit: (value: string) => void | false, delay = 120) {
+function useBufferedDraft(value: string, onCommit: (value: string) => void | false, delay = 120, commitOnBlur = false) {
   const [draft, setDraft] = useState(value);
   const focused = useRef(false);
   const commitRef = useRef(onCommit);
@@ -135,12 +136,12 @@ function useBufferedDraft(value: string, onCommit: (value: string) => void | fal
   }, [value]);
 
   useEffect(() => {
-    if (draft === valueRef.current) return;
+    if (commitOnBlur || draft === valueRef.current) return;
     const timer = window.setTimeout(() => {
       if (commitRef.current(draft) === false) setDraft(valueRef.current);
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [draft, delay]);
+  }, [draft, delay, commitOnBlur]);
 
   return {
     draft,
@@ -159,12 +160,13 @@ export function BufferedInput({
   value,
   onCommit,
   delay,
+  commitOnBlur,
   onFocus,
   onBlur,
   onChange,
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & BufferedCommit) {
-  const field = useBufferedDraft(value, onCommit, delay);
+  const field = useBufferedDraft(value, onCommit, delay, commitOnBlur);
   return (
     <TextInput
       {...props}
