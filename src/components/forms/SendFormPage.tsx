@@ -35,11 +35,12 @@ export default function SendFormPage() {
     getAllPractices()
       .then((rows) => setPractices(rows.map((practice) => {
         const email = practiceEmails(practice);
+        const allowed = canReceiveForm(practice.status);
         return {
           id: practice.id,
           label: practice.name,
-          detail: email || "No email",
-          selectable: Boolean(email),
+          detail: !allowed ? statusLabel(practice.status) : email || "No email",
+          selectable: allowed && Boolean(email),
         };
       })))
       .catch((error: Error) => toast.error(error.message));
@@ -53,11 +54,13 @@ export default function SendFormPage() {
           const next = view.rows
             .map((row) => {
               const email = String(row.values.email || "").trim();
+              const status = String(row.values.status || "");
+              const allowed = canReceiveForm(status);
               return {
                 id: String(row.values.id || ""),
                 label: String(row.values.fullName || ""),
-                detail: email || "No email",
-                selectable: Boolean(email),
+                detail: !allowed ? statusLabel(status) : email || "No email",
+                selectable: allowed && Boolean(email),
               };
             })
             .filter((person) => person.id);
@@ -133,7 +136,7 @@ export default function SendFormPage() {
               Back to form
             </button>
             <h1 className="truncate text-[22px] font-semibold tracking-tight text-slate-900">{title || "Send form"}</h1>
-            <p className="mt-1 text-[13px] text-slate-500">Choose practices, people, or both. Anyone without an email cannot be selected.</p>
+            <p className="mt-1 text-[13px] text-slate-500">Choose active or lead practices and people who have an email. Other statuses stay unavailable.</p>
           </div>
           <div className="flex items-center gap-2">
             <GhostButton onClick={() => navigate("/forms")} disabled={sending}>Cancel</GhostButton>
@@ -306,6 +309,17 @@ function Picker({
       </div>
     </section>
   );
+}
+
+function canReceiveForm(status: string | null | undefined) {
+  const value = String(status || "").toUpperCase();
+  return value === "ACTIVE" || value === "LEAD";
+}
+
+function statusLabel(status: string | null | undefined) {
+  const value = String(status || "").toLowerCase();
+  if (!value) return "Unavailable";
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function practiceEmails(practice: { emails?: string[] | null; company?: { email?: string | null } | null }) {

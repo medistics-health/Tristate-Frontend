@@ -19,13 +19,19 @@ import {
   deleteQuestion,
   deleteSection,
   duplicateQuestion,
+  beginEditingTemplate,
   beginNewForm,
+  createFromTemplate,
   discardLocalForm,
+  editingTemplateOf,
   flushSave,
   isUnsavedForm,
   getForm,
   loadFormDocument,
+  nameTakenMessage,
   persistLocalForm,
+  saveEditedTemplate,
+  saveLocalAsTemplateOnly,
   moveQuestion,
   publishValidation,
   saveAsTemplate,
@@ -44,29 +50,55 @@ import {
   type FormQuestion,
   type LogicRule,
 } from "./types";
+import { getTemplate, listForms } from "./api";
 
 export default function FormBuilderPage() {
-  const { id = "" } = useParams();
+  const { id = "", templateId = "" } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const isNew = id === "new";
+  const editingTemplate = Boolean(templateId);
+  const isNew = !editingTemplate && id === "new";
   const [draftId, setDraftId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const { forms } = useFormStore();
-  const formId = isNew ? draftId || "" : id;
+  const formId = isNew || editingTemplate ? draftId || "" : id;
   const form = forms.find((item) => item.id === formId);
   useEffect(() => {
+    if (editingTemplate) {
+      let active = true;
+      let localId = "";
+      getTemplate(templateId)
+        .then((template) => {
+          if (!active) return;
+          const draft = beginEditingTemplate(template);
+          localId = draft.id;
+          setDraftId(draft.id);
+        })
+        .catch((error: Error) => {
+          toast.error(error.message || "Unable to open this template.");
+          navigate("/forms/templates");
+        });
+      return () => {
+        active = false;
+        if (localId) discardLocalForm(localId);
+      };
+    }
     if (isNew) {
-      const draft = beginNewForm();
+      const asTemplate = (location.state as { intent?: string } | null)?.intent === "template";
+      const draft = beginNewForm(asTemplate ? "Untitled template" : "Untitled form", asTemplate);
       setDraftId(draft.id);
       return () => discardLocalForm(draft.id);
     }
     if (id) void loadFormDocument(id);
-  }, [id, isNew]);
+  }, [id, isNew, editingTemplate, templateId, navigate]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"question" | "settings" | "logic">("question");
   const [errors, setErrors] = useState<{ message: string; target: string }[]>([]);
   const [templateOpen, setTemplateOpen] = useState(false);
+  const [nameOpen, setNameOpen] = useState(false);
+  const [formNameOpen, setFormNameOpen] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const [preview, setPreview] = useState(location.pathname.endsWith("/preview"));
 
   const selected = form ? flattenQuestions(form).find((item) => item.question.id === selectedId)?.question ?? null : null;
@@ -79,26 +111,87 @@ export default function FormBuilderPage() {
   const locked = current.responses.length > 0;
   const questions = flattenQuestions(current);
   const unsaved = isUnsavedForm(current.id);
+  const fromTemplates = (location.state as { from?: string } | null)?.from === "templates";
+  const creatingTemplate = (location.state as { intent?: string } | null)?.intent === "template" && unsaved;
+  const templateMeta = editingTemplateOf(current.id);
+  const systemTemplate = Boolean(templateMeta?.isSystem);
+  const missingQuestions = flattenQuestions(current).length === 0;
+  const saveError = saveAttempted && missingQuestions
+    ? creatingTemplate || editingTemplate
+      ? "Add at least one question before saving this template."
+      : "Add at least one question before saving this form."
+    : "";
+
+  function requestSave(next: () => void) {
+    setSaveAttempted(true);
+    if (missingQuestions) return;
+    next();
+  }
 
   function leave() {
     if (unsaved) discardLocalForm(current.id);
-    navigate("/forms");
+    navigate(fromTemplates || editingTemplate ? "/forms/templates" : "/forms");
   }
 
-  async function save() {
+  async function createFormOfTemplate(name: string) {
+    const formName = name.trim();
+    if (!formName) return "Form name is required.";
     setSaving(true);
     try {
+      if (!systemTemplate) await saveEditedTemplate(current.id);
+      const created = await createFromTemplate(templateId, formName);
+      discardLocalForm(current.id);
+      setFormNameOpen(false);
+      navigate(`/forms/${created.id}`, { state: { from: "templates" } });
+      return "";
+    } catch (error) {
+      return error instanceof Error ? error.message : "Unable to create a form from this template.";
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function save(name: string) {
+    if (flattenQuestions(current).length === 0) {
+      return creatingTemplate || editingTemplate
+        ? "Add at least one question before saving this template."
+        : "Add at least one question before saving this form.";
+    }
+    const conflict = nameTakenMessage(current.id, name);
+    if (conflict) return conflict;
+    if (updateForm(current.id, { title: name.slice(0, 200) }) === false) {
+      return nameTakenMessage(current.id, name) || (editingTemplate || creatingTemplate ? "A template with this name already exists." : "A form with this name already exists.");
+    }
+    setSaving(true);
+    try {
+      if (editingTemplate) {
+        await saveEditedTemplate(current.id, name);
+        toast.success("Template saved");
+        setNameOpen(false);
+        return "";
+      }
+      if (creatingTemplate) {
+        const saved = await saveLocalAsTemplateOnly(current.id);
+        if (!saved) return "Unable to save this template.";
+        toast.success("Template saved");
+        setNameOpen(false);
+        navigate("/forms/templates");
+        return "";
+      }
       if (unsaved) {
         const saved = await persistLocalForm(current.id);
-        if (!saved) return;
+        if (!saved) return "Unable to save this form.";
         toast.success("Form saved");
-        navigate(`/forms/${saved.id}`, { replace: true });
-        return;
+        setNameOpen(false);
+        navigate(`/forms/${saved.id}`, { replace: true, state: location.state });
+        return "";
       }
       await flushSave(current.id);
       toast.success("Form saved");
+      setNameOpen(false);
+      return "";
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to save this form.");
+      return error instanceof Error ? error.message : editingTemplate || creatingTemplate ? "Unable to save this template." : "Unable to save this form.";
     } finally {
       setSaving(false);
     }
@@ -108,27 +201,46 @@ export default function FormBuilderPage() {
     <div className="flex h-screen flex-col bg-[#f7f5f1] font-app-sans text-slate-700">
       <header className="flex flex-wrap items-center gap-3 border-b border-[#ece8e1] bg-white px-4 py-3">
         <button type="button" onClick={leave} className="shrink-0 cursor-pointer rounded-lg px-2 py-1 text-[13px] text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-800">
-          Forms
+          {fromTemplates ? "Templates" : "Forms"}
         </button>
-        <BufferedInput
-          value={form.title}
-          onCommit={(title) => updateForm(form.id, { title: title.slice(0, 200) })}
-          className="min-w-0 flex-1 border-transparent bg-transparent px-0 text-[16px] font-semibold text-slate-800 shadow-none"
-        />
+        <h1 className="min-w-0 flex-1 truncate text-[16px] font-semibold text-slate-800">
+          {editingTemplate ? form.title : unsaved ? (creatingTemplate ? "New template" : "New form") : form.title}
+        </h1>
         <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <StatusPill status={form.status} scheduled={form.scheduled} />
+        {creatingTemplate || editingTemplate ? (
+          <span className="rounded-full bg-[#eef2ff] px-2 py-0.5 text-[12px] font-medium text-[#3144c4]">Template</span>
+        ) : (
+          <StatusPill status={form.status} scheduled={form.scheduled} />
+        )}
         <span className="text-[12px] text-slate-400">
-          {unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
+          {editingTemplate ? "Editing template" : creatingTemplate ? "Unsaved template" : unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
         </span>
         <GhostButton onClick={() => setPreview(true)}><Eye className="h-4 w-4" /> Preview</GhostButton>
-        {unsaved ? (
-          <GhostButton onClick={leave} disabled={saving}>Cancel</GhostButton>
-        ) : (
-          <GhostButton onClick={() => setTemplateOpen(true)}>Save as template</GhostButton>
+        {creatingTemplate || editingTemplate ? null : (
+          <GhostButton onClick={() => requestSave(() => setTemplateOpen(true))} disabled={saving}>Save as template</GhostButton>
         )}
-        {unsaved ? (
-          <PrimaryButton onClick={() => void save()} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
+        {unsaved && !editingTemplate ? (
+          <GhostButton onClick={leave} disabled={saving}>Cancel</GhostButton>
+        ) : null}
+        {editingTemplate && !systemTemplate ? (
+          <GhostButton onClick={() => requestSave(() => setNameOpen(true))} disabled={saving}>Save template</GhostButton>
+        ) : null}
+        {editingTemplate ? (
+          <PrimaryButton
+            disabled={saving}
+            onClick={() => requestSave(() => {
+              void listForms({ page: 1, pageSize: 100 }).then((listed) => {
+                setFormName(nextFormName(current.title, listed.forms.map((item) => item.title)));
+                setFormNameOpen(true);
+              }).catch((error: Error) => toast.error(error.message || "Unable to create a form from this template."));
+            })}
+          >
+            Create form of this template
+          </PrimaryButton>
+        ) : null}
+        {unsaved && !editingTemplate ? (
+          <PrimaryButton onClick={() => requestSave(() => setNameOpen(true))} disabled={saving}>
+            {creatingTemplate ? "Save template" : "Save"}
           </PrimaryButton>
         ) : null}
         {!unsaved && (form.status === "DRAFT" || form.status === "PUBLISHED") ? (
@@ -142,6 +254,9 @@ export default function FormBuilderPage() {
         ) : null}
         </div>
       </header>
+      {saveError ? (
+        <div className="bg-[#fde8e8] px-4 py-2 text-[13px] text-[#b42318]">{saveError}</div>
+      ) : null}
       {locked ? (
         <div className="bg-[#fff1bd] px-4 py-2 text-[13px] text-[#8a6800]">
           Responses exist, so question types, deletions, response mode, and the one-response setting are locked. You can still fix wording and add an optional question at the end.
@@ -176,6 +291,14 @@ export default function FormBuilderPage() {
         <main className="overflow-y-auto p-4 lg:p-6">
           <div className="mx-auto max-w-3xl space-y-4">
             <Panel className="p-4">
+              <FieldLabel>Title</FieldLabel>
+              <BufferedInput
+                value={form.displayTitle || ""}
+                maxLength={200}
+                onCommit={(displayTitle) => updateForm(form.id, { displayTitle })}
+                placeholder="Shown to clients and in preview"
+              />
+              <p className="mb-3 text-[12px] text-slate-400">Clients and the preview see this title. The name is only for people using the app.</p>
               <FieldLabel>Description</FieldLabel>
               <BufferedTextArea
                 value={form.description}
@@ -318,6 +441,27 @@ export default function FormBuilderPage() {
           </Panel>
         </div>
       ) : null}
+      {nameOpen ? (
+        <NameModal
+          title={creatingTemplate || editingTemplate ? "Save template" : "Save form"}
+          label={creatingTemplate || editingTemplate ? "Template name" : "Form name"}
+          initial={editingTemplate ? current.title : ""}
+          saving={saving}
+          onClose={() => { if (!saving) setNameOpen(false); }}
+          onSave={save}
+        />
+      ) : null}
+      {formNameOpen ? (
+        <NameModal
+          title="Create form of this template"
+          label="Form name"
+          initial={formName}
+          submitLabel="Create form"
+          saving={saving}
+          onClose={() => { if (!saving) setFormNameOpen(false); }}
+          onSave={createFormOfTemplate}
+        />
+      ) : null}
       {templateOpen ? <TemplateDialog formId={form.id} onClose={() => setTemplateOpen(false)} /> : null}
       {preview ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-[#f7f5f1] p-4">
@@ -423,6 +567,16 @@ function QuestionInspector({
   questionsBefore: { question: FormQuestion }[];
 }) {
   const index = questionsBefore.findIndex((item) => item.question.id === question.id);
+  const [rangeError, setRangeError] = useState("");
+  const bounded = question.type === "number" || question.type === "price" || question.type === "fees";
+
+  function rangeIsInvalid(min: string, max: string) {
+    if (!min.trim() || !max.trim()) return false;
+    const low = Number(min);
+    const high = Number(max);
+    return Number.isFinite(low) && Number.isFinite(high) && high < low;
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex gap-1">
@@ -441,13 +595,20 @@ function QuestionInspector({
           <Trash2 className="h-3.5 w-3.5" />
         </GhostButton>
       </div>
-      <p className="text-[12px] text-slate-400">Key {question.key} · Q{index + 1}</p>
+      <p className="text-[12px] text-slate-400">Question {index + 1}</p>
       <FieldLabel>Label</FieldLabel>
       <BufferedTextArea value={question.label} maxLength={500} onCommit={(label) => updateQuestion(formId, question.id, { label })} />
       <FieldLabel>Help text</FieldLabel>
       <BufferedInput value={question.helpText} onCommit={(helpText) => updateQuestion(formId, question.id, { helpText })} />
       {question.type !== "content" ? (
         <Toggle label="Required" checked={question.required} onChange={(required) => updateQuestion(formId, question.id, { required })} />
+      ) : null}
+      {question.type === "dropdown" ? (
+        <Toggle
+          label="Allow multiple selection"
+          checked={Boolean(question.config.multi)}
+          onChange={(multi) => updateQuestion(formId, question.id, { config: { ...question.config, multi } })}
+        />
       ) : null}
       {isChoiceType(question.type) ? (
         <OptionsEditor formId={formId} question={question} locked={locked} />
@@ -486,10 +647,80 @@ function QuestionInspector({
           placeholder="Heading, note, or divider text"
         />
       ) : null}
-      {(question.type === "number" || question.type === "price" || question.type === "fees" || question.type === "date") ? (
-        <div className="grid grid-cols-2 gap-2">
-          <BufferedInput placeholder="Min" value={question.config.min || ""} onCommit={(min) => updateQuestion(formId, question.id, { config: { ...question.config, min } })} />
-          <BufferedInput placeholder="Max" value={question.config.max || ""} onCommit={(max) => updateQuestion(formId, question.id, { config: { ...question.config, max } })} />
+      {question.type === "date" ? (
+        <div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <FieldLabel>Min</FieldLabel>
+              <TextInput
+                type="date"
+                value={question.config.min || ""}
+                max={question.config.max || undefined}
+                onChange={(event) => {
+                  const min = event.target.value;
+                  if (min && question.config.max && min > question.config.max) {
+                    setRangeError("Minimum cannot be later than maximum.");
+                    return;
+                  }
+                  setRangeError("");
+                  updateQuestion(formId, question.id, { config: { ...question.config, min } });
+                }}
+              />
+            </div>
+            <div>
+              <FieldLabel>Max</FieldLabel>
+              <TextInput
+                type="date"
+                min={question.config.min || undefined}
+                value={question.config.max || ""}
+                onChange={(event) => {
+                  const max = event.target.value;
+                  if (max && question.config.min && question.config.min > max) {
+                    setRangeError("Minimum cannot be later than maximum.");
+                    return;
+                  }
+                  setRangeError("");
+                  updateQuestion(formId, question.id, { config: { ...question.config, max } });
+                }}
+              />
+            </div>
+          </div>
+          {rangeError ? <p className="mt-1 text-[12px] text-[#b42318]">{rangeError}</p> : null}
+        </div>
+      ) : null}
+      {(question.type === "number" || question.type === "price" || question.type === "fees") ? (
+        <div>
+          <div className="grid grid-cols-2 gap-2">
+            <BufferedInput
+              placeholder="Min"
+              commitOnBlur
+              value={question.config.min || ""}
+              onChange={() => setRangeError("")}
+              onCommit={(min) => {
+                if (bounded && rangeIsInvalid(min, question.config.max || "")) {
+                  setRangeError("Maximum cannot be less than minimum.");
+                  return false;
+                }
+                setRangeError("");
+                updateQuestion(formId, question.id, { config: { ...question.config, min } });
+              }}
+            />
+            <BufferedInput
+              placeholder="Max"
+              commitOnBlur
+              value={question.config.max || ""}
+              onChange={() => setRangeError("")}
+              onCommit={(max) => {
+                if (bounded && rangeIsInvalid(question.config.min || "", max)) {
+                  setRangeError("Maximum cannot be less than minimum.");
+                  return false;
+                }
+                setRangeError("");
+                updateQuestion(formId, question.id, { config: { ...question.config, max } });
+              }}
+            />
+          </div>
+          {rangeError ? <p className="mt-1 text-[12px] text-[#b42318]">{rangeError}</p> : null}
         </div>
       ) : null}
     </div>
@@ -587,7 +818,7 @@ function LogicEditor({ formId, question, locked }: { formId: string; question: F
       />
       {rule.conditions.map((condition) => {
         const source = sources.find((item) => item.id === condition.sourceQuestionId) || sources[0];
-        const operators = operatorsFor(source?.type || "short_text");
+        const operators = operatorsFor(source?.type || "short_text", source?.config);
         return (
           <div key={condition.id} className="space-y-2 rounded-xl border border-[#f0ece6] p-2">
             <Select
@@ -596,7 +827,7 @@ function LogicEditor({ formId, question, locked }: { formId: string; question: F
                 const nextSource = sources.find((item) => item.id === sourceQuestionId);
                 write({
                   ...rule,
-                  conditions: rule.conditions.map((item) => item.id === condition.id ? { ...item, sourceQuestionId, operator: operatorsFor(nextSource?.type || "short_text")[0] } : item),
+                  conditions: rule.conditions.map((item) => item.id === condition.id ? { ...item, sourceQuestionId, operator: operatorsFor(nextSource?.type || "short_text", nextSource?.config)[0] } : item),
                 });
               }}
               options={sources.map((item) => ({ label: item.label || "Untitled", value: item.id }))}
@@ -619,7 +850,7 @@ function LogicEditor({ formId, question, locked }: { formId: string; question: F
           const source = sources[0];
           write({
             ...rule,
-            conditions: [...rule.conditions, { id: `cnd-${Date.now()}`, sourceQuestionId: source.id, operator: operatorsFor(source.type)[0], value: "" }],
+            conditions: [...rule.conditions, { id: `cnd-${Date.now()}`, sourceQuestionId: source.id, operator: operatorsFor(source.type, source.config)[0], value: "" }],
           });
         }}
       >
@@ -650,16 +881,92 @@ function LogicSummary({ formId }: { formId: string }) {
   );
 }
 
+function nextFormName(base: string, titles: string[]) {
+  const used = new Set(titles.map((title) => title.trim().toLowerCase()));
+  const stem = base.replace(/\s+v\d+$/i, "").trim() || base.trim();
+  if (!used.has(stem.toLowerCase())) return stem.slice(0, 200);
+  let version = 2;
+  while (used.has(`${stem} v${version}`.toLowerCase())) version += 1;
+  return `${stem} v${version}`.slice(0, 200);
+}
+
+function NameModal({
+  title,
+  label,
+  initial = "",
+  submitLabel = "Save",
+  saving,
+  onClose,
+  onSave,
+}: {
+  title: string;
+  label: string;
+  initial?: string;
+  submitLabel?: string;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (name: string) => Promise<string>;
+}) {
+  const [name, setName] = useState(initial);
+  const [error, setError] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
+      <Panel className="w-full max-w-md space-y-3 p-5">
+        <h2 className="text-[16px] font-semibold">{title}</h2>
+        <div>
+          <FieldLabel>{label}</FieldLabel>
+          <TextInput
+            autoFocus
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              setError("");
+            }}
+            placeholder={label}
+          />
+          {error ? <p className="mt-1 text-[12px] text-[#b42318]">{error}</p> : null}
+        </div>
+        <div className="flex justify-end gap-2">
+          <GhostButton onClick={onClose} disabled={saving}>Cancel</GhostButton>
+          <PrimaryButton
+            disabled={!name.trim() || saving}
+            onClick={() => {
+              void onSave(name.trim()).then((message) => {
+                if (message) setError(message);
+              });
+            }}
+          >
+            {saving ? "Saving…" : submitLabel}
+          </PrimaryButton>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => void }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("General");
   const [visibility, setVisibility] = useState<"PRIVATE" | "SHARED">("PRIVATE");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [error, setError] = useState("");
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
       <Panel className="w-full max-w-md space-y-3 p-5">
         <h2 className="text-[16px] font-semibold">Save as template</h2>
-        <TextInput value={name} onChange={(event) => setName(event.target.value)} placeholder="Template name" />
+        <TextInput
+          value={name}
+          onChange={(event) => {
+            setName(event.target.value);
+            setError("");
+          }}
+          placeholder="Template name"
+        />
+        {error ? <p className="text-[12px] text-[#b42318]">{error}</p> : null}
         <TextArea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" />
         <TextInput value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Category" />
         <Select
@@ -671,17 +978,34 @@ function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => vo
           ]}
         />
         <div className="flex justify-end gap-2">
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
+          <GhostButton onClick={onClose} disabled={savingTemplate}>Cancel</GhostButton>
           <PrimaryButton
-            disabled={!name.trim()}
+            disabled={!name.trim() || savingTemplate}
             onClick={() => {
-              void saveAsTemplate(formId, { name, description, category, visibility }).then(() => {
+              setSavingTemplate(true);
+              void (async () => {
+                const current = getForm(formId);
+                if (!current || flattenQuestions(current).length === 0) {
+                  setError("Add at least one question before saving this template.");
+                  return;
+                }
+                let id = formId;
+                const wasNew = isUnsavedForm(formId);
+                if (wasNew) {
+                  const saved = await persistLocalForm(formId);
+                  if (!saved) return;
+                  id = saved.id;
+                }
+                await saveAsTemplate(id, { name, description, category, visibility });
                 toast.success("Template saved");
                 onClose();
-              });
+                if (wasNew) navigate(`/forms/${id}`, { replace: true, state: location.state });
+              })().catch((error: Error) => {
+                setError(error.message || "Unable to save this template.");
+              }).finally(() => setSavingTemplate(false));
             }}
           >
-            Save template
+            {savingTemplate ? "Saving…" : "Save template"}
           </PrimaryButton>
         </div>
       </Panel>

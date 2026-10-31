@@ -5,11 +5,20 @@ import { LayoutGrid } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
 import DataTableToolbar from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
-import { createFromTemplate, listTemplates } from "./api";
-import { formatDay } from "./chrome";
+import { createFromTemplate, listForms, listTemplates } from "./api";
+import { FieldLabel, GhostButton, Panel, PrimaryButton, TextInput, formatDay } from "./chrome";
 import type { FormTemplate } from "./types";
 
 const PAGE_SIZE = 25;
+
+function nextFormName(base: string, titles: string[]) {
+  const used = new Set(titles.map((title) => title.trim().toLowerCase()));
+  const stem = base.replace(/\s+v\d+$/i, "").trim() || base.trim();
+  if (!used.has(stem.toLowerCase())) return stem.slice(0, 200);
+  let version = 2;
+  while (used.has(`${stem} v${version}`.toLowerCase())) version += 1;
+  return `${stem} v${version}`.slice(0, 200);
+}
 
 export default function TemplatesPage() {
   const navigate = useNavigate();
@@ -19,6 +28,8 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [page, setPage] = useState(1);
+  const [draft, setDraft] = useState<{ id: string; name: string } | null>(null);
+  const [nameError, setNameError] = useState("");
 
   function load() {
     setLoading(true);
@@ -49,13 +60,33 @@ export default function TemplatesPage() {
   const currentPage = Math.min(page, totalPages);
   const rows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  async function useTemplate(template: FormTemplate) {
+  async function openUse(template: FormTemplate) {
+    setNameError("");
     setBusyId(template.id);
     try {
-      const form = await createFromTemplate(template.id);
-      navigate(`/forms/${form.id}`);
+      const listed = await listForms({ page: 1, pageSize: 100 });
+      setDraft({ id: template.id, name: nextFormName(template.name, listed.forms.map((form) => form.title)) });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to use this template.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function useTemplate() {
+    if (!draft) return;
+    const name = draft.name.trim();
+    if (!name) {
+      setNameError("Form name is required.");
+      return;
+    }
+    setBusyId(draft.id);
+    try {
+      const form = await createFromTemplate(draft.id, name);
+      setDraft(null);
+      navigate(`/forms/${form.id}`, { state: { from: "templates" } });
+    } catch (error) {
+      setNameError(error instanceof Error ? error.message : "Unable to use this template.");
     } finally {
       setBusyId("");
     }
@@ -105,7 +136,7 @@ export default function TemplatesPage() {
               </label>
             }
             addNewLabel="New template"
-            onAddNew={() => navigate("/forms/new")}
+            onAddNew={() => navigate("/forms/new", { state: { from: "templates", intent: "template" } })}
             onRefresh={load}
             isLoading={loading}
             page={currentPage}
@@ -128,7 +159,16 @@ export default function TemplatesPage() {
                 <tbody>
                   {rows.map((template) => (
                     <tr key={template.id} className="hover:bg-[#fbfaf8]">
-                      <td className="border-b border-[#f4f1ec] px-3 py-2.5 font-medium text-slate-800">{template.name}</td>
+                      <td className="border-b border-[#f4f1ec] px-3 py-2.5">
+                        <button
+                          type="button"
+                          disabled={busyId === template.id}
+                          className="cursor-pointer text-left font-medium text-slate-800 transition-colors duration-150 hover:text-[#3144c4] disabled:cursor-wait disabled:opacity-50"
+                          onClick={() => navigate(`/forms/templates/${template.id}`, { state: { from: "templates" } })}
+                        >
+                          {template.name}
+                        </button>
+                      </td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5">{template.category || "—"}</td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-slate-500">
                         {template.visibility === "SYSTEM" ? "System" : template.visibility === "SHARED" ? "Shared" : "Private"}
@@ -138,9 +178,16 @@ export default function TemplatesPage() {
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-right">
                         <button
                           type="button"
+                          className="mr-3 font-medium text-slate-600"
+                          onClick={() => navigate(`/forms/templates/${template.id}`, { state: { from: "templates" } })}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
                           disabled={busyId === template.id}
                           className="font-medium text-[#4f63ea] disabled:opacity-50"
-                          onClick={() => useTemplate(template)}
+                          onClick={() => void openUse(template)}
                         >
                           Use template
                         </button>
@@ -160,6 +207,33 @@ export default function TemplatesPage() {
           </DataTableToolbar>
         </section>
       </div>
+      {draft ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
+          <Panel className="w-full max-w-md space-y-3 p-5">
+            <h2 className="text-[16px] font-semibold">Use template</h2>
+            <p className="text-[13px] text-slate-500">Choose a form name. If this template was already used, the next version is filled in.</p>
+            <div>
+              <FieldLabel>Form name</FieldLabel>
+              <TextInput
+                autoFocus
+                value={draft.name}
+                onChange={(event) => {
+                  setDraft({ ...draft, name: event.target.value });
+                  setNameError("");
+                }}
+                placeholder="Form name"
+              />
+              {nameError ? <p className="mt-1 text-[12px] text-[#b42318]">{nameError}</p> : null}
+            </div>
+            <div className="flex justify-end gap-2">
+              <GhostButton onClick={() => setDraft(null)} disabled={busyId === draft.id}>Cancel</GhostButton>
+              <PrimaryButton disabled={!draft.name.trim() || busyId === draft.id} onClick={() => void useTemplate()}>
+                {busyId === draft.id ? "Creating…" : "Create form"}
+              </PrimaryButton>
+            </div>
+          </Panel>
+        </div>
+      ) : null}
     </AppLayout>
   );
 }

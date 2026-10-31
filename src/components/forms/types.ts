@@ -147,6 +147,7 @@ export type FormRecord = {
   id: string;
   refCode: string;
   title: string;
+  displayTitle: string;
   description: string;
   instructions: string;
   status: FormStatus;
@@ -193,6 +194,7 @@ export type FormTemplate = {
   content: Pick<
     FormRecord,
     | "title"
+    | "displayTitle"
     | "description"
     | "instructions"
     | "confirmationMessage"
@@ -245,14 +247,16 @@ export const CHOICE_TYPES: QuestionType[] = [
   "single_choice",
   "multiple_choice",
   "dropdown",
-  "image",
 ];
 
 export function isChoiceType(type: QuestionType) {
   return CHOICE_TYPES.includes(type);
 }
 
-export function operatorsFor(type: QuestionType): string[] {
+export function operatorsFor(type: QuestionType, config?: { multi?: boolean }): string[] {
+  if (type === "dropdown" && config?.multi) {
+    return ["contains", "does not contain", "contains any of", "contains all of"];
+  }
   if (type === "single_choice" || type === "dropdown" || type === "yes_no") {
     return ["is", "is not", "is any of"];
   }

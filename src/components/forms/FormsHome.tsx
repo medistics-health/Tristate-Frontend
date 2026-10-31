@@ -139,7 +139,15 @@ export default function FormsHome() {
                 <tbody>
                   {forms.map((form) => (
                     <tr key={form.id} className="hover:bg-[#fbfaf8]">
-                      <td className="border-b border-[#f4f1ec] px-3 py-2.5 font-medium text-slate-800">{form.title}</td>
+                      <td className="border-b border-[#f4f1ec] px-3 py-2.5">
+                        <button
+                          type="button"
+                          className="cursor-pointer text-left font-medium text-slate-800 transition-colors duration-150 hover:text-[#3144c4]"
+                          onClick={() => navigate(`/forms/${form.id}`)}
+                        >
+                          {form.title}
+                        </button>
+                      </td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-slate-500">{form.refCode}</td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5">
                         <StatusPill status={form.status as FormStatus} scheduled={form.scheduled} />
