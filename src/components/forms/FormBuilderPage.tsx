@@ -71,6 +71,7 @@ export default function FormBuilderPage() {
   const [errors, setErrors] = useState<{ message: string; target: string }[]>([]);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const [preview, setPreview] = useState(location.pathname.endsWith("/preview"));
 
   const selected = form ? flattenQuestions(form).find((item) => item.question.id === selectedId)?.question ?? null : null;
@@ -85,6 +86,18 @@ export default function FormBuilderPage() {
   const unsaved = isUnsavedForm(current.id);
   const fromTemplates = (location.state as { from?: string } | null)?.from === "templates";
   const creatingTemplate = (location.state as { intent?: string } | null)?.intent === "template" && unsaved;
+  const missingQuestions = flattenQuestions(current).length === 0;
+  const saveError = saveAttempted && missingQuestions
+    ? creatingTemplate
+      ? "Add at least one question before saving this template."
+      : "Add at least one question before saving this form."
+    : "";
+
+  function requestSave(next: () => void) {
+    setSaveAttempted(true);
+    if (missingQuestions) return;
+    next();
+  }
 
   function leave() {
     if (unsaved) discardLocalForm(current.id);
@@ -92,6 +105,11 @@ export default function FormBuilderPage() {
   }
 
   async function save(name: string) {
+    if (flattenQuestions(current).length === 0) {
+      return creatingTemplate
+        ? "Add at least one question before saving this template."
+        : "Add at least one question before saving this form.";
+    }
     const conflict = nameTakenMessage(current.id, name);
     if (conflict) return conflict;
     if (updateForm(current.id, { title: name.slice(0, 200) }) === false) {
@@ -146,13 +164,13 @@ export default function FormBuilderPage() {
         </span>
         <GhostButton onClick={() => setPreview(true)}><Eye className="h-4 w-4" /> Preview</GhostButton>
         {creatingTemplate ? null : (
-          <GhostButton onClick={() => setTemplateOpen(true)} disabled={saving}>Save as template</GhostButton>
+          <GhostButton onClick={() => requestSave(() => setTemplateOpen(true))} disabled={saving}>Save as template</GhostButton>
         )}
         {unsaved ? (
           <GhostButton onClick={leave} disabled={saving}>Cancel</GhostButton>
         ) : null}
         {unsaved ? (
-          <PrimaryButton onClick={() => setNameOpen(true)} disabled={saving}>
+          <PrimaryButton onClick={() => requestSave(() => setNameOpen(true))} disabled={saving}>
             {creatingTemplate ? "Save template" : "Save"}
           </PrimaryButton>
         ) : null}
@@ -167,6 +185,9 @@ export default function FormBuilderPage() {
         ) : null}
         </div>
       </header>
+      {saveError ? (
+        <div className="bg-[#fde8e8] px-4 py-2 text-[13px] text-[#b42318]">{saveError}</div>
+      ) : null}
       {locked ? (
         <div className="bg-[#fff1bd] px-4 py-2 text-[13px] text-[#8a6800]">
           Responses exist, so question types, deletions, response mode, and the one-response setting are locked. You can still fix wording and add an optional question at the end.
@@ -861,6 +882,11 @@ function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => vo
             onClick={() => {
               setSavingTemplate(true);
               void (async () => {
+                const current = getForm(formId);
+                if (!current || flattenQuestions(current).length === 0) {
+                  setError("Add at least one question before saving this template.");
+                  return;
+                }
                 let id = formId;
                 const wasNew = isUnsavedForm(formId);
                 if (wasNew) {

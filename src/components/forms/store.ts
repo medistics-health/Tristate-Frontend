@@ -79,6 +79,9 @@ function withoutEmptySections(form: FormRecord) {
 async function saveLatest(id: string) {
   const form = getForm(id);
   if (!form?.detailLoaded || localDraftIds.has(id)) return form ?? null;
+  if (flattenQuestions(form).length === 0) {
+    throw new Error("Add at least one question before saving this form.");
+  }
   const revision = formRevision.get(id) || 0;
   const emptyIds = new Set(form.sections.filter((item) => item.questions.length === 0).map((item) => item.id));
   let saved;
@@ -317,6 +320,9 @@ export function discardLocalForm(id: string) {
 export async function persistLocalForm(id: string) {
   const form = getForm(id);
   if (!form || !localDraftIds.has(id)) return form;
+  if (flattenQuestions(form).length === 0) {
+    throw new Error("Add at least one question before saving this form.");
+  }
   const created = await formApi.createForm(form.title.trim() || "Untitled form");
   if (!localDraftIds.has(id)) {
     await formApi.deleteDraft(created.id).catch(() => undefined);
@@ -761,6 +767,10 @@ export async function saveAsTemplate(
   formId: string,
   meta: { name: string; description: string; category: string; visibility: "PRIVATE" | "SHARED" },
 ) {
+  const form = getForm(formId);
+  if (!form || flattenQuestions(form).length === 0) {
+    throw new Error("Add at least one question before saving this template.");
+  }
   await flushSave(formId);
   await formApi.saveTemplate(formId, meta);
   await loadForms();
@@ -769,6 +779,9 @@ export async function saveAsTemplate(
 export async function saveLocalAsTemplateOnly(localId: string) {
   const local = getForm(localId);
   if (!local) return false;
+  if (flattenQuestions(local).length === 0) {
+    throw new Error("Add at least one question before saving this template.");
+  }
   const name = local.title.trim() || "Untitled template";
   if (state.templates.some((item) => item.name.trim().toLowerCase() === name.toLowerCase())) {
     throw new Error("A template with this name already exists.");
