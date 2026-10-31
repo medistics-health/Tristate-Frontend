@@ -212,19 +212,24 @@ const QuestionField = memo(function QuestionField({
   const [uploadError, setUploadError] = useState("");
   const label = (
     <div className="mb-2">
-      <p className="text-[15px] font-medium text-slate-800">
+      <p className="whitespace-pre-wrap text-[15px] font-medium leading-6 text-slate-800">
         {form.showNumbers && number ? <span className="mr-2 text-slate-400">{number}.</span> : null}
         {question.label || "Untitled question"}
         {question.required && question.type !== "content" ? <span className="ml-1 text-[#b42318]">*</span> : null}
       </p>
-      {question.helpText ? <p className="mt-1 text-[13px] text-slate-500">{question.helpText}</p> : null}
+      {question.helpText ? <p className="mt-1 whitespace-pre-wrap text-[13px] leading-5 text-slate-500">{question.helpText}</p> : null}
     </div>
   );
 
   if (question.type === "content") {
     return (
-      <div className="rounded-xl bg-[#f7f5f1] px-4 py-3 text-[14px] text-slate-600">
-        {question.config.contentHtml || question.label}
+      <div>
+        {label}
+        {question.config.contentHtml ? (
+          <div className="whitespace-pre-wrap rounded-xl bg-[#f7f5f1] px-4 py-3 text-[14px] leading-6 text-slate-600">
+            {question.config.contentHtml}
+          </div>
+        ) : null}
       </div>
     );
   }
