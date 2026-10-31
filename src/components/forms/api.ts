@@ -48,6 +48,7 @@ export function stubFromList(form: ListForm): FormRecord {
     id: form.id,
     refCode: form.refCode,
     title: form.title,
+    displayTitle: "",
     description: "",
     instructions: "",
     status: form.status,
@@ -138,6 +139,7 @@ export async function listTemplates() {
     lastUsedAt: template.lastUsedAt,
     content: {
       title: template.name,
+      displayTitle: "",
       description: template.description || "",
       instructions: "",
       confirmationMessage: "",

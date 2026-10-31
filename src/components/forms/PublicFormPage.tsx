@@ -127,6 +127,7 @@ type Snapshot = {
   id: string;
   refCode: string;
   title: string;
+  displayTitle?: string;
   description?: string;
   instructions?: string;
   displayMode: FormRecord["displayMode"];
@@ -177,6 +178,7 @@ function snapshotToForm(snapshot: Snapshot): FormRecord {
     id: snapshot.id,
     refCode: snapshot.refCode,
     title: snapshot.title,
+    displayTitle: snapshot.displayTitle !== undefined ? snapshot.displayTitle : snapshot.title,
     description: snapshot.description || "",
     instructions: snapshot.instructions || "",
     status: "PUBLISHED",

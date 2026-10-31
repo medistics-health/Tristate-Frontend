@@ -222,6 +222,14 @@ export default function FormBuilderPage() {
         <main className="overflow-y-auto p-4 lg:p-6">
           <div className="mx-auto max-w-3xl space-y-4">
             <Panel className="p-4">
+              <FieldLabel>Title</FieldLabel>
+              <BufferedInput
+                value={form.displayTitle || ""}
+                maxLength={200}
+                onCommit={(displayTitle) => updateForm(form.id, { displayTitle })}
+                placeholder="Shown to clients and in preview"
+              />
+              <p className="mb-3 text-[12px] text-slate-400">Clients and the preview see this title. The name is only for people using the app.</p>
               <FieldLabel>Description</FieldLabel>
               <BufferedTextArea
                 value={form.description}

@@ -239,6 +239,7 @@ function blankForm(title: string): FormRecord {
     id: uid("frm"),
     refCode: nextRef(),
     title,
+    displayTitle: "",
     description: "",
     instructions: "",
     status: "DRAFT",

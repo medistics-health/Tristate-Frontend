@@ -147,6 +147,7 @@ export type FormRecord = {
   id: string;
   refCode: string;
   title: string;
+  displayTitle: string;
   description: string;
   instructions: string;
   status: FormStatus;

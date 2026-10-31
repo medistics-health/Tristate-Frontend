@@ -567,7 +567,11 @@ export function RespondentForm({
       <div className={`mx-auto ${frame} overflow-hidden rounded-3xl border border-[#ece8e1] bg-white shadow-sm`}>
         <div className="border-b border-[#f0ece6] bg-[#fbfaf8] px-6 py-6 sm:px-8">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-[#8a6800]">Tristate</p>
-          <h1 className="mt-2 text-[26px] font-semibold text-slate-800">{form.title}</h1>
+          {form.displayTitle?.trim() ? (
+            <h1 className="mt-2 text-[26px] font-semibold text-slate-800">{form.displayTitle}</h1>
+          ) : preview ? (
+            <h1 className="mt-2 text-[26px] font-semibold text-slate-300">Title shown to clients</h1>
+          ) : null}
           {form.description ? <p className="mt-2 text-[14px] text-slate-500">{form.description}</p> : null}
           {form.instructions ? <p className="mt-3 text-[14px] text-slate-600">{form.instructions}</p> : null}
           {form.responseMode === "ANONYMOUS" ? (
