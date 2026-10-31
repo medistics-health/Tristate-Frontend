@@ -537,7 +537,48 @@ function QuestionInspector({
           placeholder="Heading, note, or divider text"
         />
       ) : null}
-      {(question.type === "number" || question.type === "price" || question.type === "fees" || question.type === "date") ? (
+      {question.type === "date" ? (
+        <div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <FieldLabel>Min</FieldLabel>
+              <TextInput
+                type="date"
+                value={question.config.min || ""}
+                max={question.config.max || undefined}
+                onChange={(event) => {
+                  const min = event.target.value;
+                  if (min && question.config.max && min > question.config.max) {
+                    setRangeError("Minimum cannot be later than maximum.");
+                    return;
+                  }
+                  setRangeError("");
+                  updateQuestion(formId, question.id, { config: { ...question.config, min } });
+                }}
+              />
+            </div>
+            <div>
+              <FieldLabel>Max</FieldLabel>
+              <TextInput
+                type="date"
+                min={question.config.min || undefined}
+                value={question.config.max || ""}
+                onChange={(event) => {
+                  const max = event.target.value;
+                  if (max && question.config.min && question.config.min > max) {
+                    setRangeError("Minimum cannot be later than maximum.");
+                    return;
+                  }
+                  setRangeError("");
+                  updateQuestion(formId, question.id, { config: { ...question.config, max } });
+                }}
+              />
+            </div>
+          </div>
+          {rangeError ? <p className="mt-1 text-[12px] text-[#b42318]">{rangeError}</p> : null}
+        </div>
+      ) : null}
+      {(question.type === "number" || question.type === "price" || question.type === "fees") ? (
         <div>
           <div className="grid grid-cols-2 gap-2">
             <BufferedInput
