@@ -25,6 +25,29 @@ function initials(name: string) {
   return letters || "?";
 }
 
+type ImageFile = { name: string; url: string };
+
+function fileUrl(url: string) {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  const root = (import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ?? "");
+  return `${root}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
+function imageFiles(answer: ResponseDetail["answers"][number]): ImageFile[] {
+  if (answer.files?.length) {
+    return answer.files.filter((file) => file.name || file.url);
+  }
+  const json = answer.value?.valueJson as { files?: Array<{ name?: string; url?: string; blobName?: string }> } | null;
+  const refs = (answer.value as { fileRefs?: Array<{ name?: string; url?: string; blobName?: string }> } | null)?.fileRefs;
+  const raw = Array.isArray(json?.files) && json.files.length ? json.files : Array.isArray(refs) ? refs : [];
+  return raw.map((file) => {
+    const source = file.blobName || file.url || "";
+    const fallback = source.split("?")[0].split("/").pop()?.replace(/^\d+-/, "") || "Image";
+    return { name: file.name?.trim() || fallback, url: file.url || "" };
+  });
+}
+
 function answerText(value: AnswerValue, display: string | null | undefined, options: { id: string; label: string }[]) {
   if (display) return display;
   if (!value) return "";
@@ -230,14 +253,35 @@ export default function FormResponsesPage() {
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                   <div className="mx-auto max-w-3xl space-y-3">
                     {orderedAnswers.map((answer, index) => {
-                      const raw = answerText(answer.value, answer.display, optionsByQuestion[answer.questionId] || []);
+                      const files = answer.type === "IMAGE_UPLOAD" || answer.type === "image" ? imageFiles(answer) : [];
+                      const raw = files.length ? "" : answerText(answer.value, answer.display === "file" ? "" : answer.display, optionsByQuestion[answer.questionId] || []);
                       const text = (answer.type === "DATE" || answer.type === "date") && raw ? formatWhen(raw) : raw;
                       return (
                         <div key={answer.questionId} className="rounded-xl border border-[#f0ece6] bg-[#fbfaf8] px-4 py-3">
                           <p className="text-[12px] text-slate-400">{questionNumber.get(answer.questionId) ?? index + 1}. {answer.label}</p>
-                          <p className={`mt-1 text-[14px] leading-6 ${text ? "text-slate-800" : "text-slate-400"}`}>
-                            {text || "Not answered"}
-                          </p>
+                          {files.length ? (
+                            <ul className="mt-2 space-y-2">
+                              {files.map((file) => (
+                                <li key={`${file.name}-${file.url}`} className="flex items-center justify-between gap-3">
+                                  <span className="min-w-0 truncate text-[14px] text-slate-800">{file.name}</span>
+                                  {file.url ? (
+                                    <a
+                                      href={fileUrl(file.url)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="shrink-0 text-[13px] font-medium text-[#4f63ea]"
+                                    >
+                                      View
+                                    </a>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className={`mt-1 text-[14px] leading-6 ${text ? "text-slate-800" : "text-slate-400"}`}>
+                              {text || "Not answered"}
+                            </p>
+                          )}
                         </div>
                       );
                     })}

@@ -294,6 +294,7 @@ export async function getResponse(formId: string, responseId: string) {
         label: string;
         type: string;
         display?: string | null;
+        files?: Array<{ name: string; url: string }>;
         value: {
           valueText?: string | null;
           valueNumber?: number | string | null;
