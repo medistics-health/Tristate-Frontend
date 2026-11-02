@@ -134,7 +134,7 @@ export default function ResultsPage() {
                   </div>
                 </div>
                 <div className="space-y-4">
-                  {flattenQuestions(form).map(({ question }, index) => (
+                  {flattenQuestions(form).filter(({ question }) => question.type !== "content").map(({ question }, index) => (
                     <div key={question.id}>
                       <p className="text-[12px] text-slate-400">{index + 1}. {question.label}</p>
                       <p className="text-[14px] text-slate-800">{displayAnswer(responses[selected].answers[question.id]) || "Not answered"}</p>

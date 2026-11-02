@@ -57,6 +57,7 @@ export default function FormResponsesPage() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [optionsByQuestion, setOptionsByQuestion] = useState<Record<string, { id: string; label: string }[]>>({});
+  const [questionOrder, setQuestionOrder] = useState<string[]>([]);
   const [rows, setRows] = useState<ResponseRow[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<ResponseDetail | null>(null);
@@ -70,12 +71,15 @@ export default function FormResponsesPage() {
         if (cancelled) return;
         setTitle(form.title);
         const next: Record<string, { id: string; label: string }[]> = {};
+        const order: string[] = [];
         form.sections.forEach((section) => {
           section.questions.forEach((question: FormQuestion) => {
             next[question.id] = question.options || [];
+            if (question.type !== "content") order.push(question.id);
           });
         });
         setOptionsByQuestion(next);
+        setQuestionOrder(order);
       })
       .catch((error: Error) => {
         if (!cancelled) toast.error(error.message);
@@ -116,6 +120,14 @@ export default function FormResponsesPage() {
   }, [id, selectedId]);
 
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId]);
+  const orderedAnswers = useMemo(() => {
+    if (!detail) return [];
+    const rank = new Map(questionOrder.map((id, index) => [id, index]));
+    return [...detail.answers].sort(
+      (a, b) => (rank.get(a.questionId) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.questionId) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [detail, questionOrder]);
+  const questionNumber = useMemo(() => new Map(questionOrder.map((id, index) => [id, index + 1])), [questionOrder]);
   const respondent = detail?.respondent || selectedRow?.respondent || "Anonymous";
   const practice = detail?.practice || selectedRow?.practice || "";
   const email = detail?.email || selectedRow?.email || "";
@@ -199,12 +211,12 @@ export default function FormResponsesPage() {
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                   <div className="mx-auto max-w-3xl space-y-3">
-                    {detail.answers.map((answer, index) => {
+                    {orderedAnswers.map((answer, index) => {
                       const raw = answerText(answer.value, answer.display, optionsByQuestion[answer.questionId] || []);
                       const text = (answer.type === "DATE" || answer.type === "date") && raw ? formatWhen(raw) : raw;
                       return (
                         <div key={answer.questionId} className="rounded-xl border border-[#f0ece6] bg-[#fbfaf8] px-4 py-3">
-                          <p className="text-[12px] text-slate-400">{index + 1}. {answer.label}</p>
+                          <p className="text-[12px] text-slate-400">{questionNumber.get(answer.questionId) ?? index + 1}. {answer.label}</p>
                           <p className={`mt-1 text-[14px] leading-6 ${text ? "text-slate-800" : "text-slate-400"}`}>
                             {text || "Not answered"}
                           </p>

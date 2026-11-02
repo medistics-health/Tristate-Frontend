@@ -1,6 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState, startTransition, type ReactNode } from "react";
 import {
-  flattenQuestions,
   isTargetVisible,
   type AnswerMap,
   type FormQuestion,
@@ -503,7 +502,19 @@ export function RespondentForm({
   }, [answers, form]);
 
   const current = pages[Math.min(page, Math.max(pages.length - 1, 0))];
-  const numbers = new Map(flattenQuestions(form).map((item, index) => [item.question.id, index + 1]));
+  const numbers = useMemo(() => {
+    const map = new Map<string, number>();
+    let next = 1;
+    for (const item of pages) {
+      const questions = "grouped" in item ? item.grouped.flatMap((group) => group.questions) : item.questions;
+      for (const question of questions) {
+        if (question.type === "content") continue;
+        map.set(question.id, next);
+        next += 1;
+      }
+    }
+    return map;
+  }, [pages]);
 
   function setAnswer(id: string, value: string | string[]) {
     answersRef.current = { ...answersRef.current, [id]: value };

@@ -259,7 +259,7 @@ export default function FormBuilderPage() {
       ) : null}
       {locked ? (
         <div className="bg-[#fff1bd] px-4 py-2 text-[13px] text-[#8a6800]">
-          Responses exist, so question types, deletions, response mode, and the one-response setting are locked. You can still fix wording and add an optional question at the end.
+          Responses exist, so question types, deletions, response mode, and the one-response setting are locked. You can still fix wording.
         </div>
       ) : null}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
