@@ -566,7 +566,7 @@ function QuestionInspector({
   locked: boolean;
   questionsBefore: { question: FormQuestion }[];
 }) {
-  const index = questionsBefore.findIndex((item) => item.question.id === question.id);
+  const index = questionsBefore.filter((item) => item.question.type !== "content").findIndex((item) => item.question.id === question.id);
   const [rangeError, setRangeError] = useState("");
   const bounded = question.type === "number" || question.type === "price" || question.type === "fees";
 
@@ -595,7 +595,11 @@ function QuestionInspector({
           <Trash2 className="h-3.5 w-3.5" />
         </GhostButton>
       </div>
-      <p className="text-[12px] text-slate-400">Question {index + 1}</p>
+      {question.type === "content" ? (
+        <p className="text-[12px] text-slate-400">Content</p>
+      ) : (
+        <p className="text-[12px] text-slate-400">Question {index + 1}</p>
+      )}
       <FieldLabel>Label</FieldLabel>
       <BufferedTextArea value={question.label} maxLength={500} onCommit={(label) => updateQuestion(formId, question.id, { label })} />
       <FieldLabel>Help text</FieldLabel>

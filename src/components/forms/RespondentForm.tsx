@@ -221,7 +221,7 @@ const QuestionField = memo(function QuestionField({
   const label = (
     <div className="mb-2">
       <p className="whitespace-pre-wrap text-[15px] font-medium leading-6 text-slate-800">
-        {form.showNumbers && number ? <span className="mr-2 text-slate-400">{number}.</span> : null}
+        {form.showNumbers && question.type !== "content" && number ? <span className="mr-2 text-slate-400">{number}.</span> : null}
         {question.label || "Untitled question"}
         {question.required && question.type !== "content" ? <span className="ml-1 text-[#b42318]">*</span> : null}
       </p>
