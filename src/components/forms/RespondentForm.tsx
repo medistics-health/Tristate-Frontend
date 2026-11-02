@@ -1,4 +1,5 @@
-import { memo, useEffect, useMemo, useRef, useState, startTransition, type ReactNode } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, startTransition, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   isTargetVisible,
   type AnswerMap,
@@ -154,14 +155,50 @@ function MultiSelectDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [panel, setPanel] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+
+  function place() {
+    const button = root.current?.querySelector("button");
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    const gap = 4;
+    const margin = 8;
+    const below = window.innerHeight - rect.bottom - gap - margin;
+    const above = rect.top - gap - margin;
+    const openUp = below < 180 && above > below;
+    const maxHeight = Math.max(96, Math.min(224, openUp ? above : below));
+    setPanel({
+      left: rect.left,
+      width: rect.width,
+      maxHeight,
+      top: openUp ? Math.max(margin, rect.top - gap - maxHeight) : rect.bottom + gap,
+    });
+  }
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+  }, [open, options.length]);
 
   useEffect(() => {
     if (!open) return;
     function close(event: MouseEvent) {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (root.current?.contains(target) || menu.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function reposition() {
+      place();
     }
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
   }, [open]);
 
   const summary = value.length ? value.join(", ") : "Select options";
@@ -176,23 +213,30 @@ function MultiSelectDropdown({
         <span className={`min-w-0 flex-1 truncate ${value.length ? "text-slate-800" : "text-slate-400"}`}>{summary}</span>
         <span className={`text-[10px] text-slate-400 ${open ? "rotate-180" : ""}`}>▼</span>
       </button>
-      {open ? (
-        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[#e4dfd6] bg-white p-1 shadow-sm">
-          {options.map((option) => {
-            const checked = value.includes(option);
-            return (
-              <label key={option} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-[14px] text-slate-700 hover:bg-[#f7f5f1]">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => onChange(checked ? value.filter((item) => item !== option) : [...value, option])}
-                />
-                {option}
-              </label>
-            );
-          })}
-        </div>
-      ) : null}
+      {open && panel
+        ? createPortal(
+            <div
+              ref={menu}
+              style={{ top: panel.top, left: panel.left, width: panel.width, maxHeight: panel.maxHeight }}
+              className="fixed z-50 overflow-y-auto rounded-xl border border-[#e4dfd6] bg-white p-1 shadow-sm"
+            >
+              {options.map((option) => {
+                const checked = value.includes(option);
+                return (
+                  <label key={option} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-[14px] text-slate-700 hover:bg-[#f7f5f1]">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onChange(checked ? value.filter((item) => item !== option) : [...value, option])}
+                    />
+                    {option}
+                  </label>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
