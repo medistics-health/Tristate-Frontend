@@ -289,8 +289,8 @@ function SecuritySettingsSection() {
 
 const PREFUNDING_ACTION_OPTIONS = [
   { key: "VIEW", label: "View", desc: "View prefunding dashboard, rates & invoices" },
-  { key: "CREATE", label: "Create", desc: "Create new prefunding rates & initial invoices" },
-  { key: "EDIT", label: "Edit", desc: "Edit prefunding rates, practice setups & invoice drafts" },
+  { key: "CREATE", label: "Create", desc: "Create new prefunding rates" },
+  { key: "EDIT", label: "Edit", desc: "Edit prefunding rates & practice setups" },
   { key: "CALCULATE", label: "Calculate", desc: "Calculate wages, edit drafts & generate invoices" },
   { key: "APPROVE", label: "Approve", desc: "Approve pending prefunding invoices" },
   { key: "POST", label: "Post", desc: "Post & send approved prefunding invoices" },
@@ -1586,6 +1586,10 @@ export default function SettingsPage() {
                                       if (!currentPerms.includes(action.key)) {
                                         currentPerms.push(action.key);
                                       }
+                                      // Auto-select VIEW permission whenever any other permission is given
+                                      if (!currentPerms.includes("VIEW")) {
+                                        currentPerms.push("VIEW");
+                                      }
                                     } else {
                                       const idx = currentPerms.indexOf(action.key);
                                       if (idx >= 0) currentPerms.splice(idx, 1);
@@ -1855,6 +1859,10 @@ export default function SettingsPage() {
                                     if (e.target.checked) {
                                       if (!currentPerms.includes(action.key)) {
                                         currentPerms.push(action.key);
+                                      }
+                                      // Auto-select VIEW permission whenever any other permission is given
+                                      if (!currentPerms.includes("VIEW")) {
+                                        currentPerms.push("VIEW");
                                       }
                                     } else {
                                       const idx = currentPerms.indexOf(action.key);

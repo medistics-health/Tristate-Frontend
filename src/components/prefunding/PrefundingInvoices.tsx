@@ -163,6 +163,7 @@ function formatDisplayDate(dateStr?: string | Date | null): string {
 export default function PrefundingInvoices() {
   const navigate = useNavigate();
   const currentUser = readStoredUser();
+  const canCreate = hasPrefundingPermission(currentUser, "CREATE");
   const canEdit = hasPrefundingPermission(currentUser, "EDIT");
   const canCalculate = hasPrefundingPermission(currentUser, "CALCULATE");
   const canApprove = hasPrefundingPermission(currentUser, "APPROVE");
@@ -763,7 +764,7 @@ export default function PrefundingInvoices() {
               <div className="flex flex-wrap items-center gap-2 border-b border-[#f0ece6] bg-slate-50/60 px-4 py-2.5">
                 {selectedInvoice.status.toLowerCase() === "draft" && (
                   <>
-                    {canEdit && (
+                    {(canEdit && canCreate) && (
                       <button
                         type="button"
                         onClick={() => {
