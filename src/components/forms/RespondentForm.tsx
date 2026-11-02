@@ -62,6 +62,15 @@ export function validateAnswers(form: FormRecord, answers: AnswerMap) {
   return errors;
 }
 
+function errorsForQuestions(form: FormRecord, questions: FormQuestion[], answers: AnswerMap) {
+  const ids = new Set(questions.map((question) => question.id));
+  const errors: Record<string, string> = {};
+  for (const [id, message] of Object.entries(validateAnswers(form, answers))) {
+    if (ids.has(id)) errors[id] = message;
+  }
+  return errors;
+}
+
 function SmoothText({
   value,
   onChange,
@@ -485,6 +494,8 @@ export function RespondentForm({
   const answersRef = useRef<AnswerMap>({});
   const [page, setPage] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [pageChecked, setPageChecked] = useState(false);
+  const pageCheckedRef = useRef(false);
   const [done, setDone] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -502,6 +513,12 @@ export function RespondentForm({
   }, [answers, form]);
 
   const current = pages[Math.min(page, Math.max(pages.length - 1, 0))];
+  const pageQuestions = useMemo(() => {
+    if (!current) return [];
+    return "grouped" in current ? current.grouped.flatMap((group) => group.questions) : current.questions;
+  }, [current]);
+  const pageQuestionsRef = useRef(pageQuestions);
+  pageQuestionsRef.current = pageQuestions;
   const numbers = useMemo(() => {
     const map = new Map<string, number>();
     let next = 1;
@@ -518,14 +535,49 @@ export function RespondentForm({
 
   function setAnswer(id: string, value: string | string[]) {
     answersRef.current = { ...answersRef.current, [id]: value };
+    if (pageCheckedRef.current && form.displayMode === "MULTI_PAGE") {
+      setErrors(errorsForQuestions(form, pageQuestionsRef.current, answersRef.current));
+    }
     startTransition(() => setAnswers(answersRef.current));
+  }
+
+  function revealPageErrors() {
+    const nextErrors = errorsForQuestions(form, pageQuestionsRef.current, answersRef.current);
+    pageCheckedRef.current = true;
+    setPageChecked(true);
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  function goNext() {
+    if (!revealPageErrors()) return;
+    pageCheckedRef.current = false;
+    setPageChecked(false);
+    setErrors({});
+    setPage((value) => value + 1);
   }
 
   function submit() {
     const latest = answersRef.current;
+    if (form.displayMode === "MULTI_PAGE" && !revealPageErrors()) return;
     const nextErrors = validateAnswers(form, latest);
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
+    if (form.displayMode !== "MULTI_PAGE") setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) {
+      if (form.displayMode === "MULTI_PAGE") {
+        const pageIndex = pages.findIndex((item) => {
+          const questions = "grouped" in item ? item.grouped.flatMap((group) => group.questions) : item.questions;
+          return questions.some((question) => nextErrors[question.id]);
+        });
+        if (pageIndex >= 0 && pageIndex !== page) {
+          const questions = "grouped" in pages[pageIndex] ? pages[pageIndex].grouped.flatMap((group) => group.questions) : pages[pageIndex].questions;
+          pageCheckedRef.current = true;
+          setPageChecked(true);
+          setErrors(errorsForQuestions(form, questions, latest));
+          setPage(pageIndex);
+        }
+      }
+      return;
+    }
     if (preview) {
       setDone(true);
       return;
@@ -618,7 +670,7 @@ export function RespondentForm({
                       question={question}
                       number={numbers.get(question.id)}
                       value={answers[question.id]}
-                      error={errors[question.id]}
+                      error={form.displayMode === "MULTI_PAGE" && !pageChecked ? undefined : errors[question.id]}
                       onChange={(value) => setAnswer(question.id, value)}
                       uploadImage={uploadImage}
                     />
@@ -632,7 +684,7 @@ export function RespondentForm({
                   question={question}
                   number={numbers.get(question.id)}
                   value={answers[question.id]}
-                  error={errors[question.id]}
+                  error={form.displayMode === "MULTI_PAGE" && !pageChecked ? undefined : errors[question.id]}
                   onChange={(value) => setAnswer(question.id, value)}
                   uploadImage={uploadImage}
                 />
@@ -643,27 +695,42 @@ export function RespondentForm({
         ) : null}
         <div className="flex items-center justify-between border-t border-[#f0ece6] px-6 py-4 sm:px-8">
           {form.displayMode === "MULTI_PAGE" && page > 0 ? (
-            <button type="button" onClick={() => setPage((value) => value - 1)} className="text-[14px] font-medium text-slate-600">
+            <button
+              type="button"
+              onClick={() => {
+                pageCheckedRef.current = false;
+                setPageChecked(false);
+                setErrors({});
+                setPage((value) => value - 1);
+              }}
+              className="text-[14px] font-medium text-slate-600"
+            >
               Back
             </button>
           ) : (
             <span />
           )}
           {form.displayMode === "MULTI_PAGE" && page < pages.length - 1 ? (
-            <button
-              type="button"
-              onClick={() => setPage((value) => value + 1)}
-              className="rounded-xl bg-[#4f63ea] px-4 py-2.5 text-[14px] font-medium text-white"
-            >
-              Next
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              {pageChecked && Object.keys(errors).length > 0 ? (
+                <p className="text-[13px] text-[#b42318]">Correct the highlighted questions to continue.</p>
+              ) : null}
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={pageChecked && Object.keys(errors).length > 0}
+                className="rounded-xl bg-[#4f63ea] px-4 py-2.5 text-[14px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           ) : (
             <div className="flex flex-col items-end gap-2">
               {submitError ? <p className="text-[13px] text-[#b42318]">{submitError}</p> : null}
               <button
                 type="button"
                 onClick={submit}
-                disabled={submitting}
+                disabled={submitting || (form.displayMode === "MULTI_PAGE" && pageChecked && Object.keys(errors).length > 0)}
                 className="rounded-xl bg-[#4f63ea] px-4 py-2.5 text-[14px] font-medium text-white disabled:opacity-60"
               >
                 {submitting ? "Submitting…" : preview ? "Submit preview" : "Submit"}
