@@ -123,6 +123,81 @@ const EMPLOYEE_PAY_TYPE_OPTIONS = [
   { label: "Annually", value: "Annually" },
 ];
 
+function getNextCycleStartDate(currentDate: Date, cycle: string): Date {
+  const next = new Date(currentDate);
+  if (cycle === "WEEKLY") {
+    next.setDate(next.getDate() + 7);
+  } else if (cycle === "BI_WEEKLY" || cycle === "BIWEEKLY") {
+    next.setDate(next.getDate() + 15);
+  } else if (cycle === "QUARTERLY") {
+    next.setMonth(next.getMonth() + 3);
+  } else if (cycle === "SEMI_ANNUALLY" || cycle === "SEMIANNUALLY") {
+    next.setMonth(next.getMonth() + 6);
+  } else if (cycle === "YEARLY") {
+    next.setFullYear(next.getFullYear() + 1);
+  } else {
+    // Default: MONTHLY (add 1 month from exact start day)
+    next.setMonth(next.getMonth() + 1);
+  }
+  return next;
+}
+
+function getMaxCyclesForType(cycleType?: string | null): number {
+  const c = (cycleType || "MONTHLY").toUpperCase();
+  if (c === "WEEKLY") return 52;
+  if (c === "BI_WEEKLY" || c === "BIWEEKLY") return 24;
+  if (c === "MONTHLY") return 12;
+  if (c === "QUARTERLY") return 4;
+  if (c === "SEMI_ANNUALLY" || c === "SEMIANNUALLY") return 2;
+  if (c === "YEARLY" || c === "ANNUALLY") return 1;
+  return 12;
+}
+
+function calculateCycleCountFromStartDate(startDateStr?: string | null, cycleType?: string | null, targetStartDateStr?: string | null): number {
+  if (!startDateStr || !targetStartDateStr) return 1;
+  const sIso = parseDateStrToISO(startDateStr);
+  const tIso = parseDateStrToISO(targetStartDateStr);
+  if (!sIso || !tIso) return 1;
+
+  const sParts = sIso.split("-").map(Number);
+  const tParts = tIso.split("-").map(Number);
+  const origStart = new Date(Date.UTC(sParts[0], sParts[1] - 1, sParts[2], 12, 0, 0));
+  const targetDate = new Date(Date.UTC(tParts[0], tParts[1] - 1, tParts[2], 12, 0, 0));
+
+  const cycle = (cycleType || "MONTHLY").toUpperCase();
+  const maxCycles = getMaxCyclesForType(cycle);
+
+  // Determine the anniversary year start corresponding to targetDate
+  let yearStart = new Date(origStart);
+  let guard = 0;
+  while (guard < 100) {
+    const nextYear = new Date(yearStart);
+    nextYear.setUTCFullYear(nextYear.getUTCFullYear() + 1);
+    if (targetDate >= yearStart && targetDate < nextYear) {
+      break;
+    }
+    if (targetDate < yearStart) {
+      break;
+    }
+    yearStart = nextYear;
+    guard++;
+  }
+
+  let curr = new Date(yearStart);
+  for (let c = 1; c <= maxCycles; c++) {
+    const next = getNextCycleStartDate(curr, cycle);
+    const end = new Date(next);
+    end.setUTCDate(end.getUTCDate() - 1);
+    end.setUTCHours(23, 59, 59, 999);
+
+    if (targetDate <= end) {
+      return c;
+    }
+    curr = next;
+  }
+  return 1;
+}
+
 function generatePracticeCycles(startDateStr?: string | null, cycleType?: string | null) {
   let baseDate: Date;
   if (startDateStr) {
@@ -135,34 +210,34 @@ function generatePracticeCycles(startDateStr?: string | null, cycleType?: string
   } else {
     baseDate = new Date();
   }
+  baseDate.setHours(0, 0, 0, 0);
 
   const cycle = (cycleType || "MONTHLY").toUpperCase();
   const cycles = [];
+
+  // Align start cycle based on today: start from the active cycle that contains today (or next if today is beyond past cycles)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   let currentStart = new Date(baseDate);
 
-  for (let i = 0; i < 12; i++) {
-    let nextStart: Date;
-    if (cycle === "WEEKLY") {
-      nextStart = new Date(currentStart);
-      nextStart.setDate(nextStart.getDate() + 7);
-    } else if (cycle === "BI_WEEKLY" || cycle === "BIWEEKLY") {
-      nextStart = new Date(currentStart);
-      nextStart.setDate(nextStart.getDate() + 14);
-    } else if (cycle === "QUARTERLY") {
-      nextStart = new Date(currentStart);
-      nextStart.setMonth(nextStart.getMonth() + 3);
-    } else if (cycle === "SEMI_ANNUALLY" || cycle === "SEMIANNUALLY") {
-      nextStart = new Date(currentStart);
-      nextStart.setMonth(nextStart.getMonth() + 6);
-    } else if (cycle === "YEARLY") {
-      nextStart = new Date(currentStart);
-      nextStart.setFullYear(nextStart.getFullYear() + 1);
-    } else {
-      // Default: MONTHLY (add 1 month from exact start day)
-      nextStart = new Date(currentStart);
-      nextStart.setMonth(nextStart.getMonth() + 1);
-    }
+  // If baseDate is before today, advance cycle by cycle until currentEnd >= today
+  let guard = 0;
+  while (guard < 1200) {
+    const nextStart = getNextCycleStartDate(currentStart, cycle);
+    const currentEnd = new Date(nextStart);
+    currentEnd.setDate(currentEnd.getDate() - 1);
+    currentEnd.setHours(23, 59, 59, 999);
 
+    if (today <= currentEnd) {
+      break;
+    }
+    currentStart = nextStart;
+    guard++;
+  }
+
+  for (let i = 0; i < 12; i++) {
+    const nextStart = getNextCycleStartDate(currentStart, cycle);
     const currentEnd = new Date(nextStart);
     currentEnd.setDate(currentEnd.getDate() - 1);
 
@@ -173,6 +248,7 @@ function generatePracticeCycles(startDateStr?: string | null, cycleType?: string
     const endISO = `${currentEnd.getFullYear()}-${String(currentEnd.getMonth() + 1).padStart(2, "0")}-${String(currentEnd.getDate()).padStart(2, "0")}`;
 
     const label = `${startFormatted} - ${endFormatted}`;
+    const cycleCount = calculateCycleCountFromStartDate(startDateStr, cycleType, startISO);
 
     cycles.push({
       label,
@@ -181,6 +257,7 @@ function generatePracticeCycles(startDateStr?: string | null, cycleType?: string
       endDate: endISO,
       formattedStart: startFormatted,
       formattedEnd: endFormatted,
+      cycleCount,
     });
 
     currentStart = nextStart;
@@ -217,16 +294,48 @@ function parseDateStrToISO(str?: string | null): string {
 
 function calculateDueDateFromStartDate(startDateStr?: string | null, dueDays: number = 5): string {
   if (!startDateStr) return "";
-  const parts = startDateStr.split("-").map(Number);
+  const isoStr = parseDateStrToISO(startDateStr);
+  if (!isoStr) return "";
+  const parts = isoStr.split("-").map(Number);
   if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-    const sDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    const sDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
     const due = new Date(sDate.getTime() - dueDays * 24 * 60 * 60 * 1000);
-    const y = due.getFullYear();
-    const m = String(due.getMonth() + 1).padStart(2, "0");
-    const day = String(due.getDate()).padStart(2, "0");
+    const y = due.getUTCFullYear();
+    const m = String(due.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(due.getUTCDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   }
   return "";
+}
+
+function formatCycleLabelFromDates(startDateStr?: string | null, endDateStr?: string | null): string {
+  const startISO = parseDateStrToISO(startDateStr);
+  const endISO = parseDateStrToISO(endDateStr);
+  if (!startISO || !endISO) return "";
+  const sParts = startISO.split("-").map(Number);
+  const eParts = endISO.split("-").map(Number);
+  if (sParts.length !== 3 || eParts.length !== 3) return "";
+  const dStart = new Date(sParts[0], sParts[1] - 1, sParts[2]);
+  const dEnd = new Date(eParts[0], eParts[1] - 1, eParts[2]);
+  if (isNaN(dStart.getTime()) || isNaN(dEnd.getTime())) return "";
+  const startFmt = dStart.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+  const endFmt = dEnd.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+  return `${startFmt} - ${endFmt}`;
+}
+
+function formatDisplayDate(dateStr?: string | Date | null): string {
+  if (!dateStr) return "-";
+  const iso = typeof dateStr === "string" ? parseDateStrToISO(dateStr) : "";
+  if (iso) {
+    const parts = iso.split("-").map(Number);
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+    }
+  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return String(dateStr);
+  return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
 }
 
 function getCycleDefaultWorkingHours(cycleType?: string | null): number {
@@ -311,7 +420,8 @@ export default function CalculatePrefunding() {
   const [selectedCycle, setSelectedCycle] = useState("");
   const [cycleStartDate, setCycleStartDate] = useState("");
   const [cycleEndDate, setCycleEndDate] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState("");
+  const [cycleCount, setCycleCount] = useState<number | string>(1);
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
 
   const [practices, setPractices] = useState<any[]>([]);
@@ -403,6 +513,8 @@ export default function CalculatePrefunding() {
     invoiceNumber: string;
     totalAmount: number;
     cycle: string;
+    cycleCount?: number | string | null;
+    invoiceDate: string;
     dueDate: string;
   } | null>(null);
   const [showGeneratedModal, setShowGeneratedModal] = useState(false);
@@ -457,22 +569,25 @@ export default function CalculatePrefunding() {
             }
 
             if (inv.invoiceDate) {
-              setInvoiceDate(new Date(inv.invoiceDate).toISOString().split("T")[0]);
+              setInvoiceDate(parseDateStrToISO(inv.invoiceDate) || inv.invoiceDate);
             }
             if (inv.dueDate) {
-              setDueDate(new Date(inv.dueDate).toISOString().split("T")[0]);
+              setDueDate(parseDateStrToISO(inv.dueDate) || inv.dueDate);
+            }
+            if (inv.cycleCount !== undefined && inv.cycleCount !== null) {
+              setCycleCount(inv.cycleCount);
             }
 
             // Extract cycle start and end dates from cycle string if present
             if (cycleVal && cycleVal.includes(" - ")) {
               const [startStr, endStr] = cycleVal.split(" - ").map((s: string) => s.trim());
-              const parsedStart = new Date(startStr);
-              const parsedEnd = new Date(endStr);
-              if (!isNaN(parsedStart.getTime())) {
-                setCycleStartDate(parsedStart.toISOString().split("T")[0]);
+              const parsedStartISO = parseDateStrToISO(startStr);
+              const parsedEndISO = parseDateStrToISO(endStr);
+              if (parsedStartISO) {
+                setCycleStartDate(parsedStartISO);
               }
-              if (!isNaN(parsedEnd.getTime())) {
-                setCycleEndDate(parsedEnd.toISOString().split("T")[0]);
+              if (parsedEndISO) {
+                setCycleEndDate(parsedEndISO);
               }
             }
 
@@ -675,7 +790,7 @@ export default function CalculatePrefunding() {
           setCycleEndDate("");
           setDueDate("");
         }
-        setInvoiceDate("");
+        setInvoiceDate(new Date().toISOString().split("T")[0]);
       }
     };
 
@@ -824,14 +939,32 @@ export default function CalculatePrefunding() {
   }, [practices, selectedPractice]);
 
   const availableCycles = useMemo(() => {
+    let list: any[] = [];
     if (!selectedPracticeObj) {
-      return generatePracticeCycles(null, "MONTHLY");
+      list = generatePracticeCycles(null, "MONTHLY");
+    } else {
+      list = generatePracticeCycles(
+        selectedPracticeObj.prefundingStartDate,
+        selectedPracticeObj.prefundingCycle
+      );
     }
-    return generatePracticeCycles(
-      selectedPracticeObj.prefundingStartDate,
-      selectedPracticeObj.prefundingCycle
-    );
-  }, [selectedPracticeObj]);
+
+    // When editing an invoice with an existing cycle, ensure it is included in the dropdown options
+    if (selectedCycle && !list.some((c) => c.value === selectedCycle)) {
+      list = [
+        {
+          label: selectedCycle,
+          value: selectedCycle,
+          startDate: cycleStartDate,
+          endDate: cycleEndDate,
+          formattedStart: formatDisplayDate(cycleStartDate),
+          formattedEnd: formatDisplayDate(cycleEndDate),
+        },
+        ...list,
+      ];
+    }
+    return list;
+  }, [selectedPracticeObj, selectedCycle, cycleStartDate, cycleEndDate]);
 
   const handlePracticeChange = async (practiceId: string) => {
     setSelectedPractice(practiceId);
@@ -844,6 +977,11 @@ export default function CalculatePrefunding() {
         setSelectedCycle(generated[0].value);
         setCycleStartDate(generated[0].startDate);
         setCycleEndDate(generated[0].endDate);
+        if (generated[0].cycleCount !== undefined) {
+          setCycleCount(generated[0].cycleCount);
+        } else {
+          setCycleCount(calculateCycleCountFromStartDate(p.prefundingStartDate, p.prefundingCycle, generated[0].startDate));
+        }
 
         // Calculate Due Date based on Due On (Days before start of cycle)
         if (generated[0].startDate) {
@@ -903,6 +1041,11 @@ export default function CalculatePrefunding() {
       setCycleEndDate((prev) => prev || endISO!);
     }
 
+    if (startISO && selectedPracticeObj) {
+      const cNum = found?.cycleCount ?? calculateCycleCountFromStartDate(selectedPracticeObj.prefundingStartDate, selectedPracticeObj.prefundingCycle, startISO);
+      setCycleCount(cNum);
+    }
+
     if (startISO) {
       const dueDays = selectedPracticeObj?.prefundingDueOn !== undefined && selectedPracticeObj?.prefundingDueOn !== null && selectedPracticeObj?.prefundingDueOn !== ""
         ? Number(selectedPracticeObj.prefundingDueOn)
@@ -931,11 +1074,27 @@ export default function CalculatePrefunding() {
       setCycleEndDate(endISO);
     }
 
+    if (startISO && selectedPracticeObj) {
+      const cNum = found?.cycleCount ?? calculateCycleCountFromStartDate(selectedPracticeObj.prefundingStartDate, selectedPracticeObj.prefundingCycle, startISO);
+      setCycleCount(cNum);
+    }
+
     if (startISO) {
       const dueDays = selectedPracticeObj?.prefundingDueOn !== undefined && selectedPracticeObj?.prefundingDueOn !== null && selectedPracticeObj?.prefundingDueOn !== ""
         ? Number(selectedPracticeObj.prefundingDueOn)
         : 5;
       setDueDate(calculateDueDateFromStartDate(startISO, dueDays));
+    }
+  };
+
+  const handleCycleStartDateChange = (val: string) => {
+    setCycleStartDate(val);
+    if (val) {
+      const dueDays = selectedPracticeObj?.prefundingDueOn !== undefined && selectedPracticeObj?.prefundingDueOn !== null && selectedPracticeObj?.prefundingDueOn !== ""
+        ? Number(selectedPracticeObj.prefundingDueOn)
+        : 5;
+      const calcDue = calculateDueDateFromStartDate(val, dueDays);
+      if (calcDue) setDueDate(calcDue);
     }
   };
 
@@ -1785,19 +1944,43 @@ export default function CalculatePrefunding() {
   const generateInvoice = async () => {
     setSubmitting(true);
     try {
-      // Section 17: Due Date calculation based on Due On (Days before start of cycle)
-      let calculatedDueDate = dueDate ? new Date(dueDate) : (cycleEndDate ? new Date(cycleEndDate) : new Date(new Date().setDate(new Date().getDate() + 30)));
-      if (!dueDate && cycleStartDate) {
-        const startDate = new Date(cycleStartDate);
-        if (!isNaN(startDate.getTime())) {
-          const dueOnDays = selectedPracticeObj?.prefundingDueOn !== undefined && selectedPracticeObj?.prefundingDueOn !== null && selectedPracticeObj?.prefundingDueOn !== ""
-            ? Number(selectedPracticeObj.prefundingDueOn)
-            : 5;
-          calculatedDueDate = new Date(startDate.getTime() - dueOnDays * 24 * 60 * 60 * 1000);
-        }
+      // Due Date calculation: use selected/edited dueDate if set, otherwise calculate from cycleStartDate and prefundingDueOn
+      let calculatedDueDateStr: string = "";
+      if (dueDate) {
+        calculatedDueDateStr = parseDateStrToISO(dueDate) || dueDate;
+      } else if (cycleStartDate) {
+        const dueOnDays = selectedPracticeObj?.prefundingDueOn !== undefined && selectedPracticeObj?.prefundingDueOn !== null && selectedPracticeObj?.prefundingDueOn !== ""
+          ? Number(selectedPracticeObj.prefundingDueOn)
+          : 5;
+        calculatedDueDateStr = calculateDueDateFromStartDate(cycleStartDate, dueOnDays);
+      } else if (cycleEndDate) {
+        calculatedDueDateStr = parseDateStrToISO(cycleEndDate) || cycleEndDate;
       }
 
-      const effectiveInvoiceDate = invoiceDate ? new Date(invoiceDate) : (cycleStartDate ? new Date(cycleStartDate) : new Date());
+      if (!calculatedDueDateStr) {
+        const fallback = new Date();
+        fallback.setDate(fallback.getDate() + 30);
+        calculatedDueDateStr = fallback.toISOString().slice(0, 10);
+      }
+
+      // Invoice Date: Date on which the prefunding was created/generated
+      let effectiveInvoiceDateStr: string = "";
+      if (invoiceDate) {
+        effectiveInvoiceDateStr = parseDateStrToISO(invoiceDate) || invoiceDate;
+      } else {
+        effectiveInvoiceDateStr = new Date().toISOString().slice(0, 10);
+      }
+
+      // Format ISO string to UTC noon to prevent timezone date shifting across client and server
+      const dueParts = calculatedDueDateStr.slice(0, 10).split("-").map(Number);
+      const invParts = effectiveInvoiceDateStr.slice(0, 10).split("-").map(Number);
+      const calculatedDueDate = new Date(Date.UTC(dueParts[0], dueParts[1] - 1, dueParts[2], 12, 0, 0));
+      const effectiveInvoiceDate = new Date(Date.UTC(invParts[0], invParts[1] - 1, invParts[2], 12, 0, 0));
+
+      // Effective Cycle Label: always reflect the selected or changed cycle start & end dates
+      const effectiveCycle = (cycleStartDate && cycleEndDate)
+        ? (formatCycleLabelFromDates(cycleStartDate, cycleEndDate) || selectedCycle)
+        : selectedCycle;
 
       // Build employee breakdown snapshot to persist overrides
       const employeeSnapshot: Record<string, any> = {};
@@ -1817,7 +2000,8 @@ export default function CalculatePrefunding() {
 
       const payload = {
         practiceId: selectedPractice,
-        cycle: selectedCycle,
+        cycle: effectiveCycle,
+        cycleCount: cycleCount !== "" && cycleCount !== null && cycleCount !== undefined ? Number(cycleCount) : undefined,
         invoiceDate: effectiveInvoiceDate.toISOString(),
         dueDate: calculatedDueDate.toISOString(),
         totalAmount: grandTotal,
@@ -1861,6 +2045,13 @@ export default function CalculatePrefunding() {
         ],
       };
 
+      const displayDueDate = dueDate
+        ? formatDisplayDate(dueDate)
+        : formatDisplayDate(calculatedDueDate);
+      const displayInvoiceDate = invoiceDate
+        ? formatDisplayDate(invoiceDate)
+        : formatDisplayDate(effectiveInvoiceDate);
+
       if (editingInvoiceId) {
         const updateRes = await updatePrefundingInvoice(editingInvoiceId, payload);
         const inv = updateRes?.prefundingInvoice || updateRes?.invoice || updateRes;
@@ -1872,8 +2063,10 @@ export default function CalculatePrefunding() {
           id: inv?.id || editingInvoiceId,
           invoiceNumber,
           totalAmount: grandTotal,
-          cycle: selectedCycle,
-          dueDate: dueDate || cycleEndDate || "In 30 days",
+          cycle: effectiveCycle,
+          cycleCount: inv?.cycleCount ?? (cycleCount !== "" ? Number(cycleCount) : undefined),
+          invoiceDate: displayInvoiceDate,
+          dueDate: displayDueDate,
         });
 
         setShowGeneratedModal(true);
@@ -1895,8 +2088,10 @@ export default function CalculatePrefunding() {
           id: inv?.id,
           invoiceNumber,
           totalAmount: grandTotal,
-          cycle: selectedCycle,
-          dueDate: cycleEndDate || "In 30 days",
+          cycle: effectiveCycle,
+          cycleCount: inv?.cycleCount ?? (cycleCount !== "" ? Number(cycleCount) : undefined),
+          invoiceDate: displayInvoiceDate,
+          dueDate: displayDueDate,
         });
 
         setShowGeneratedModal(true);
@@ -2213,7 +2408,7 @@ export default function CalculatePrefunding() {
                           </label>
                           <DatePicker
                             value={cycleStartDate}
-                            onChange={(val) => setCycleStartDate(val)}
+                            onChange={handleCycleStartDateChange}
                             disabled={submitting}
                             placeholder="MM-DD-YYYY"
                           />
@@ -2244,6 +2439,36 @@ export default function CalculatePrefunding() {
                               Calculated as {selectedPracticeObj.prefundingDueOn || 5} days before cycle start date
                             </p>
                           )}
+                        </div>
+                        <div>
+                          <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
+                            Cycle Count <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={getMaxCyclesForType(selectedPracticeObj?.prefundingCycle)}
+                            value={cycleCount}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "") {
+                                setCycleCount("");
+                                return;
+                              }
+                              const num = parseInt(v, 10);
+                              const max = getMaxCyclesForType(selectedPracticeObj?.prefundingCycle);
+                              if (isNaN(num)) return;
+                              if (num < 1) setCycleCount(1);
+                              else if (num > max) setCycleCount(max);
+                              else setCycleCount(num);
+                            }}
+                            disabled={submitting}
+                            className="w-full px-3 py-2 text-xs border border-[#e8e4dc] rounded-lg focus:outline-none focus:border-[#4f63ea] bg-white transition-colors"
+                            placeholder="e.g. 1"
+                          />
+                          <p className="text-[11px] text-slate-400 mt-1">
+                            Cycle number in current billing year (1 to {getMaxCyclesForType(selectedPracticeObj?.prefundingCycle)} for {selectedPracticeObj?.prefundingCycle || "Monthly"})
+                          </p>
                         </div>
                       </>
                     )}
@@ -4310,6 +4535,16 @@ export default function CalculatePrefunding() {
                 <div className="flex justify-between">
                   <span className="text-slate-500">Prefunding Cycle:</span>
                   <span className="font-semibold text-slate-800">{generatedInvoice.cycle}</span>
+                </div>
+                {generatedInvoice.cycleCount !== undefined && generatedInvoice.cycleCount !== null && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Cycle Count:</span>
+                    <span className="font-bold text-[#0f4c81]">#{generatedInvoice.cycleCount}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Invoice Date:</span>
+                  <span className="font-semibold text-slate-800">{generatedInvoice.invoiceDate}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Payment Due Date:</span>
