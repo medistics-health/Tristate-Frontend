@@ -32,6 +32,7 @@ import {
   persistLocalForm,
   saveEditedTemplate,
   saveLocalAsTemplateOnly,
+  setFormTitle,
   moveQuestion,
   publishValidation,
   saveAsTemplate,
@@ -50,7 +51,7 @@ import {
   type FormQuestion,
   type LogicRule,
 } from "./types";
-import { getTemplate, listForms } from "./api";
+import { getTemplate, listForms, renameForm } from "./api";
 
 export default function FormBuilderPage() {
   const { id = "", templateId = "" } = useParams();
@@ -96,6 +97,7 @@ export default function FormBuilderPage() {
   const [errors, setErrors] = useState<{ message: string; target: string }[]>([]);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const [formNameOpen, setFormNameOpen] = useState(false);
   const [formName, setFormName] = useState("");
   const [saveAttempted, setSaveAttempted] = useState(false);
@@ -126,6 +128,31 @@ export default function FormBuilderPage() {
     setSaveAttempted(true);
     if (missingQuestions) return;
     next();
+  }
+
+  async function rename(name: string) {
+    const next = name.trim();
+    if (!next) return editingTemplate ? "Template name is required." : "Form name is required.";
+    if (next === current.title) {
+      setRenameOpen(false);
+      return "";
+    }
+    setSaving(true);
+    try {
+      if (editingTemplate) {
+        await saveEditedTemplate(current.id, next);
+      } else {
+        const updated = await renameForm(current.id, next);
+        setFormTitle(current.id, updated.title || next, updated.lockVersion);
+      }
+      toast.success(editingTemplate ? "Template renamed" : "Form renamed");
+      setRenameOpen(false);
+      return "";
+    } catch (error) {
+      return error instanceof Error ? error.message : "Unable to rename.";
+    } finally {
+      setSaving(false);
+    }
   }
 
   function leave() {
@@ -216,6 +243,9 @@ export default function FormBuilderPage() {
           {editingTemplate ? "Editing template" : creatingTemplate ? "Unsaved template" : unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
         </span>
         <GhostButton onClick={() => setPreview(true)}><Eye className="h-4 w-4" /> Preview</GhostButton>
+        {(editingTemplate && !systemTemplate) || (!unsaved && !creatingTemplate && !editingTemplate) ? (
+          <GhostButton onClick={() => setRenameOpen(true)} disabled={saving}>Rename</GhostButton>
+        ) : null}
         {creatingTemplate || editingTemplate ? null : (
           <GhostButton onClick={() => requestSave(() => setTemplateOpen(true))} disabled={saving}>Save as template</GhostButton>
         )}
@@ -440,6 +470,17 @@ export default function FormBuilderPage() {
             </div>
           </Panel>
         </div>
+      ) : null}
+      {renameOpen ? (
+        <NameModal
+          title={editingTemplate ? "Rename template" : "Rename form"}
+          label={editingTemplate ? "Template name" : "Form name"}
+          initial={current.title}
+          submitLabel="Rename"
+          saving={saving}
+          onClose={() => { if (!saving) setRenameOpen(false); }}
+          onSave={rename}
+        />
       ) : null}
       {nameOpen ? (
         <NameModal

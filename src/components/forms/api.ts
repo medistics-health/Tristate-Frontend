@@ -191,6 +191,11 @@ export async function saveDocument(form: FormRecord) {
   return { ...withoutEmptySections(data.form), detailLoaded: true as const };
 }
 
+export async function renameForm(id: string, title: string) {
+  const data = await request<{ form: { title: string; lockVersion: number } }>("PUT", `/forms/${id}`, { title });
+  return data.form;
+}
+
 export async function createForm(title: string) {
   const data = await request<{ form: { id: string } }>("POST", "/forms", { title });
   return getDocument(data.form.id);
@@ -343,7 +348,7 @@ export async function getTemplate(id: string) {
   } satisfies TemplateDocument;
 }
 
-export async function updateTemplate(id: string, body: { name: string; description?: string; content: unknown }) {
+export async function updateTemplate(id: string, body: { name: string; description?: string; content?: unknown }) {
   await request("PUT", `/forms/templates/${id}`, body);
 }
 
