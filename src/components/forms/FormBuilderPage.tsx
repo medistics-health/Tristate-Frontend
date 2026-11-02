@@ -948,6 +948,7 @@ function NameModal({
 function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { forms, templates } = useFormStore();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("General");
@@ -989,14 +990,33 @@ function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => vo
                   setError("Add at least one question before saving this template.");
                   return;
                 }
+                const templateName = name.trim();
+                if (templates.some((item) => item.name.trim().toLowerCase() === templateName.toLowerCase())) {
+                  setError("A template with this name already exists.");
+                  return;
+                }
                 let id = formId;
                 const wasNew = isUnsavedForm(formId);
+                if (wasNew && nameTakenMessage(formId, current.title)) {
+                  const titles = forms.map((item) => item.title);
+                  const preferred = nameTakenMessage(formId, templateName) ? nextFormName(templateName, titles) : templateName;
+                  if (updateForm(formId, { title: preferred.slice(0, 200) }) === false) {
+                    updateForm(formId, { title: `Draft ${crypto.randomUUID()}` });
+                  }
+                }
                 if (wasNew) {
-                  const saved = await persistLocalForm(formId);
+                  let saved;
+                  try {
+                    saved = await persistLocalForm(formId);
+                  } catch (error) {
+                    if (!(error instanceof Error) || !/form with this name already exists/i.test(error.message)) throw error;
+                    updateForm(formId, { title: `Draft ${crypto.randomUUID()}` });
+                    saved = await persistLocalForm(formId);
+                  }
                   if (!saved) return;
                   id = saved.id;
                 }
-                await saveAsTemplate(id, { name, description, category, visibility });
+                await saveAsTemplate(id, { name: templateName, description, category, visibility });
                 toast.success("Template saved");
                 onClose();
                 if (wasNew) navigate(`/forms/${id}`, { replace: true, state: location.state });
