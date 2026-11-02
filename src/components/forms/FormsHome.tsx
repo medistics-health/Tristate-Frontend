@@ -5,8 +5,9 @@ import { LayoutGrid } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
 import DataTableToolbar from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
-import { listForms } from "./api";
-import { StatusPill, formatDay } from "./chrome";
+import { listForms, renameForm } from "./api";
+import { FieldLabel, GhostButton, Panel, PrimaryButton, StatusPill, TextInput, formatDay } from "./chrome";
+import { setFormTitle } from "./store";
 import type { FormRecord, FormStatus } from "./types";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -24,6 +25,9 @@ export default function FormsHome() {
   const [totalPages, setTotalPages] = useState(1);
 
   const [refreshKey, setRefreshKey] = useState(0);
+  const [rename, setRename] = useState<{ id: string; name: string } | null>(null);
+  const [renameError, setRenameError] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   useEffect(() => {
     const handle = window.setTimeout(() => setDebouncedQuery(query), 300);
@@ -158,6 +162,16 @@ export default function FormsHome() {
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5">{form.responseCount || 0}</td>
                       <td className="border-b border-[#f4f1ec] px-2 py-1.5">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            className="cursor-pointer rounded-lg px-2 py-1 text-[12px] font-medium text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-800"
+                            onClick={() => {
+                              setRenameError("");
+                              setRename({ id: form.id, name: form.title });
+                            }}
+                          >
+                            Rename
+                          </button>
                           {form.status === "DRAFT" ? (
                             <button type="button" className="cursor-pointer rounded-lg px-2 py-1 text-[12px] font-medium text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-800" onClick={() => navigate(`/forms/${form.id}`)}>
                               Edit
@@ -188,6 +202,46 @@ export default function FormsHome() {
           </DataTableToolbar>
         </section>
       </div>
+      {rename ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
+          <Panel className="w-full max-w-md space-y-3 p-5">
+            <h2 className="text-[16px] font-semibold">Rename form</h2>
+            <div>
+              <FieldLabel>Form name</FieldLabel>
+              <TextInput
+                autoFocus
+                value={rename.name}
+                onChange={(event) => {
+                  setRename({ ...rename, name: event.target.value });
+                  setRenameError("");
+                }}
+              />
+              {renameError ? <p className="mt-1 text-[12px] text-[#b42318]">{renameError}</p> : null}
+            </div>
+            <div className="flex justify-end gap-2">
+              <GhostButton onClick={() => setRename(null)} disabled={renaming}>Cancel</GhostButton>
+              <PrimaryButton
+                disabled={!rename.name.trim() || renaming}
+                onClick={() => {
+                  const title = rename.name.trim();
+                  setRenaming(true);
+                  void renameForm(rename.id, title)
+                    .then((updated) => {
+                      setForms((current) => current.map((item) => (item.id === rename.id ? { ...item, title: updated.title || title } : item)));
+                      setFormTitle(rename.id, updated.title || title, updated.lockVersion);
+                      setRename(null);
+                      toast.success("Form renamed");
+                    })
+                    .catch((error: Error) => setRenameError(error.message || "Unable to rename this form."))
+                    .finally(() => setRenaming(false));
+                }}
+              >
+                {renaming ? "Saving…" : "Rename"}
+              </PrimaryButton>
+            </div>
+          </Panel>
+        </div>
+      ) : null}
     </AppLayout>
   );
 }

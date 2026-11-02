@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import { ArrowLeft, Inbox } from "lucide-react";
+import { ArrowLeft, Inbox, Loader2 } from "lucide-react";
 import { FormsLayout, formatWhen } from "./chrome";
 import { getDocument, getResponse, listResponses, type ResponseRow } from "./api";
 import type { FormQuestion } from "./types";
@@ -23,6 +23,29 @@ function initials(name: string) {
     .map((part) => part[0]?.toUpperCase() || "")
     .join("");
   return letters || "?";
+}
+
+type ImageFile = { name: string; url: string };
+
+function fileUrl(url: string) {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  const root = (import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ?? "");
+  return `${root}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
+function imageFiles(answer: ResponseDetail["answers"][number]): ImageFile[] {
+  if (answer.files?.length) {
+    return answer.files.filter((file) => file.name || file.url);
+  }
+  const json = answer.value?.valueJson as { files?: Array<{ name?: string; url?: string; blobName?: string }> } | null;
+  const refs = (answer.value as { fileRefs?: Array<{ name?: string; url?: string; blobName?: string }> } | null)?.fileRefs;
+  const raw = Array.isArray(json?.files) && json.files.length ? json.files : Array.isArray(refs) ? refs : [];
+  return raw.map((file) => {
+    const source = file.blobName || file.url || "";
+    const fallback = source.split("?")[0].split("/").pop()?.replace(/^\d+-/, "") || "Image";
+    return { name: file.name?.trim() || fallback, url: file.url || "" };
+  });
 }
 
 function answerText(value: AnswerValue, display: string | null | undefined, options: { id: string; label: string }[]) {
@@ -57,9 +80,11 @@ export default function FormResponsesPage() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [optionsByQuestion, setOptionsByQuestion] = useState<Record<string, { id: string; label: string }[]>>({});
+  const [questionOrder, setQuestionOrder] = useState<string[]>([]);
   const [rows, setRows] = useState<ResponseRow[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<ResponseDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -70,12 +95,15 @@ export default function FormResponsesPage() {
         if (cancelled) return;
         setTitle(form.title);
         const next: Record<string, { id: string; label: string }[]> = {};
+        const order: string[] = [];
         form.sections.forEach((section) => {
           section.questions.forEach((question: FormQuestion) => {
             next[question.id] = question.options || [];
+            if (question.type !== "content") order.push(question.id);
           });
         });
         setOptionsByQuestion(next);
+        setQuestionOrder(order);
       })
       .catch((error: Error) => {
         if (!cancelled) toast.error(error.message);
@@ -100,15 +128,23 @@ export default function FormResponsesPage() {
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
+      setDetailLoading(false);
       return;
     }
     let cancelled = false;
+    setDetailLoading(true);
     getResponse(id, selectedId)
       .then((response) => {
         if (!cancelled) setDetail(response);
       })
       .catch((error: Error) => {
-        if (!cancelled) toast.error(error.message);
+        if (!cancelled) {
+          setDetail(null);
+          toast.error(error.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
       });
     return () => {
       cancelled = true;
@@ -116,6 +152,14 @@ export default function FormResponsesPage() {
   }, [id, selectedId]);
 
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId]);
+  const orderedAnswers = useMemo(() => {
+    if (!detail) return [];
+    const rank = new Map(questionOrder.map((id, index) => [id, index]));
+    return [...detail.answers].sort(
+      (a, b) => (rank.get(a.questionId) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.questionId) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [detail, questionOrder]);
+  const questionNumber = useMemo(() => new Map(questionOrder.map((id, index) => [id, index + 1])), [questionOrder]);
   const respondent = detail?.respondent || selectedRow?.respondent || "Anonymous";
   const practice = detail?.practice || selectedRow?.practice || "";
   const email = detail?.email || selectedRow?.email || "";
@@ -155,7 +199,11 @@ export default function FormResponsesPage() {
                   <button
                     key={row.id}
                     type="button"
-                    onClick={() => setSelectedId(row.id)}
+                    onClick={() => {
+                      if (row.id === selectedId) return;
+                      setDetailLoading(true);
+                      setSelectedId(row.id);
+                    }}
                     className={`mb-1 flex w-full cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors duration-150 ${
                       active ? "bg-[#f4f6ff]" : "hover:bg-[#fbfaf8]"
                     }`}
@@ -182,7 +230,12 @@ export default function FormResponsesPage() {
           </section>
 
           <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
-            {detail ? (
+            {detailLoading ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+                <Loader2 className="h-6 w-6 animate-spin text-[#4f63ea]" />
+                <p className="text-[13px] text-slate-400">Loading response…</p>
+              </div>
+            ) : detail ? (
               <>
                 <div className="border-b border-[#f0ece6] px-5 py-4">
                   <div className="flex items-center gap-3">
@@ -199,15 +252,36 @@ export default function FormResponsesPage() {
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                   <div className="mx-auto max-w-3xl space-y-3">
-                    {detail.answers.map((answer, index) => {
-                      const raw = answerText(answer.value, answer.display, optionsByQuestion[answer.questionId] || []);
+                    {orderedAnswers.map((answer, index) => {
+                      const files = answer.type === "IMAGE_UPLOAD" || answer.type === "image" ? imageFiles(answer) : [];
+                      const raw = files.length ? "" : answerText(answer.value, answer.display === "file" ? "" : answer.display, optionsByQuestion[answer.questionId] || []);
                       const text = (answer.type === "DATE" || answer.type === "date") && raw ? formatWhen(raw) : raw;
                       return (
                         <div key={answer.questionId} className="rounded-xl border border-[#f0ece6] bg-[#fbfaf8] px-4 py-3">
-                          <p className="text-[12px] text-slate-400">{index + 1}. {answer.label}</p>
-                          <p className={`mt-1 text-[14px] leading-6 ${text ? "text-slate-800" : "text-slate-400"}`}>
-                            {text || "Not answered"}
-                          </p>
+                          <p className="text-[12px] text-slate-400">{questionNumber.get(answer.questionId) ?? index + 1}. {answer.label}</p>
+                          {files.length ? (
+                            <ul className="mt-2 space-y-2">
+                              {files.map((file) => (
+                                <li key={`${file.name}-${file.url}`} className="flex items-center justify-between gap-3">
+                                  <span className="min-w-0 truncate text-[14px] text-slate-800">{file.name}</span>
+                                  {file.url ? (
+                                    <a
+                                      href={fileUrl(file.url)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="shrink-0 text-[13px] font-medium text-[#4f63ea]"
+                                    >
+                                      View
+                                    </a>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className={`mt-1 text-[14px] leading-6 ${text ? "text-slate-800" : "text-slate-400"}`}>
+                              {text || "Not answered"}
+                            </p>
+                          )}
                         </div>
                       );
                     })}
