@@ -926,16 +926,7 @@ export default function PersonsPage() {
       const personData: PersonBody = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        roles: (() => {
-          const originalRoles = Array.isArray(selectedRow.values.rolesArray)
-            ? (selectedRow.values.rolesArray as string[])
-            : [];
-          const hadEmployee = originalRoles.some((r) => r.toUpperCase() === "EMPLOYEE");
-          if (!canViewPrefunding && hadEmployee) {
-            return Array.from(new Set([...formData.roles, "EMPLOYEE"]));
-          }
-          return formData.roles;
-        })(),
+        roles: formData.roles,
         influence: formData.influence as PersonBody["influence"],
         email: formData.email.trim() || undefined,
         phone: trimmedPhone || undefined,

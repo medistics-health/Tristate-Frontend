@@ -87,6 +87,7 @@ import toast from "react-hot-toast";
 import { canBusinessWrite, readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 import {
   getSystemSettingsApi,
+  getAllUsers,
   type SystemSettings,
 } from "../../services/operations/users";
 import {
@@ -276,6 +277,7 @@ export default function AllPracticePage() {
     const [stripeAccountsLoading, setStripeAccountsLoading] = useState(false);
     const [availableRates, setAvailableRates] = useState<{ label: string; value: string }[]>([]);
     const [availablePersons, setAvailablePersons] = useState<{ label: string; value: string }[]>([]);
+    const [teamMemberOptions, setTeamMemberOptions] = useState<{ label: string; value: string }[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
   const [companyTaxIds, setCompanyTaxIds] = useState<TaxIdOption[]>([]);
   const [pagination, setPagination] = useState({
@@ -509,10 +511,11 @@ export default function AllPracticePage() {
 
     async function loadPrefundingDropdowns() {
       try {
-        const [ratesRes, personsList, personsViewRes] = await Promise.all([
+        const [ratesRes, personsList, personsViewRes, usersRes] = await Promise.all([
           getPrefundingRates({ limit: 1000 }),
           getAllPersons({ limit: 1000 }).catch(() => []),
           getPersonsView({ page: 1, limit: 1000 }).catch(() => null),
+          getAllUsers({ limit: 1000 }).catch(() => null),
         ]);
 
         if (ratesRes?.rates) {
@@ -521,6 +524,24 @@ export default function AllPracticePage() {
               label: `${r.name} (${r.pricingModel} - ${r.rate}${r.pricingModel === "Percentage" ? "%" : ""})`,
               value: r.id,
             }))
+          );
+        }
+
+        // Team members (users) for prefunding reminder recipient
+        const rawUsers = Array.isArray(usersRes?.users)
+          ? usersRes.users
+          : (Array.isArray(usersRes) ? usersRes : []);
+        if (rawUsers.length > 0) {
+          setTeamMemberOptions(
+            rawUsers.map((u: any) => {
+              const fullName = u.firstName || u.lastName
+                ? `${u.firstName || ""} ${u.lastName || ""}`.trim()
+                : (u.userName || "Team Member");
+              return {
+                label: `${fullName}${u.email ? ` (${u.email})` : ""}`,
+                value: u.id,
+              };
+            })
           );
         }
 
@@ -2015,13 +2036,13 @@ export default function AllPracticePage() {
                     <Select
                       value={formData.prefundingReminderRecipientId || ""}
                       onChange={(val) => setFormData((prev) => ({ ...prev, prefundingReminderRecipientId: val }))}
-                      options={recipientOptions}
-                      placeholder="Select Prefunding Reminder Recipient"
+                      options={teamMemberOptions.length > 0 ? teamMemberOptions : recipientOptions}
+                      placeholder="Select Team Member"
                       disabled={effectiveReadOnly}
                       className="w-full"
                     />
                     <p className="mt-1 text-[11px] text-slate-400">
-                      Receives upcoming cycle schedule reminders with cycle details.
+                      Team member who receives upcoming prefunding cycle schedule reminders.
                     </p>
                   </div>
                 </>

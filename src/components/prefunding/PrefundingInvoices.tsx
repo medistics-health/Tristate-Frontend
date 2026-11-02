@@ -34,6 +34,7 @@ import {
   Landmark,
   Calendar,
   Info,
+  Hash,
 } from "lucide-react";
 import DataTableToolbar, {
   SortableHeaderCell,
@@ -86,6 +87,7 @@ type Invoice = {
   practiceId: string;
   prefundingCycle?: string;
   cycle?: string;
+  cycleCount?: number | null;
   totalAmount: number;
   subtotalAmount?: number;
   processingFeeAmount?: number;
@@ -144,9 +146,24 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function formatDisplayDate(dateStr?: string | Date | null): string {
+  if (!dateStr) return "-";
+  const s = String(dateStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+    }
+  }
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return String(dateStr);
+  return date.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+}
+
 export default function PrefundingInvoices() {
   const navigate = useNavigate();
   const currentUser = readStoredUser();
+  const canCreate = hasPrefundingPermission(currentUser, "CREATE");
   const canEdit = hasPrefundingPermission(currentUser, "EDIT");
   const canCalculate = hasPrefundingPermission(currentUser, "CALCULATE");
   const canApprove = hasPrefundingPermission(currentUser, "APPROVE");
@@ -413,7 +430,26 @@ export default function PrefundingInvoices() {
             <span>Cycle</span>
           </div>
         ),
-        cell: (info) => <span>{info.getValue() as string}</span>,
+        cell: (info) => <span>{(info.getValue() as string) || "-"}</span>,
+      },
+      {
+        accessorKey: "cycleCount",
+        header: () => (
+          <div className="flex items-center gap-2">
+            <Hash className="h-3.5 w-3.5 text-slate-400" />
+            <span>Cycle Count</span>
+          </div>
+        ),
+        cell: (info) => {
+          const val = info.getValue() as number | undefined | null;
+          return val !== undefined && val !== null ? (
+            <span className="font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-xs">
+              #{val}
+            </span>
+          ) : (
+            <span className="text-slate-400">-</span>
+          );
+        },
       },
       {
         id: "paymentMethod",
@@ -548,7 +584,7 @@ export default function PrefundingInvoices() {
             <span>Due Date</span>
           </div>
         ),
-        cell: (info) => <span>{info.getValue() as string}</span>,
+        cell: (info) => <span>{formatDisplayDate(info.getValue() as string)}</span>,
       },
     ],
     [calculateInvoiceFees]
@@ -728,7 +764,7 @@ export default function PrefundingInvoices() {
               <div className="flex flex-wrap items-center gap-2 border-b border-[#f0ece6] bg-slate-50/60 px-4 py-2.5">
                 {selectedInvoice.status.toLowerCase() === "draft" && (
                   <>
-                    {canEdit && (
+                    {(canEdit && canCreate) && (
                       <button
                         type="button"
                         onClick={() => {
@@ -907,13 +943,17 @@ export default function PrefundingInvoices() {
                             label: "Prefunding Cycle",
                             value: selectedInvoice.prefundingCycle || selectedInvoice.cycle || "-",
                           },
+                          ...(selectedInvoice.cycleCount !== undefined && selectedInvoice.cycleCount !== null ? [{
+                            label: "Cycle Count",
+                            value: `#${selectedInvoice.cycleCount}`,
+                          }] : []),
                           {
                             label: "Invoice Date",
-                            value: selectedInvoice.invoiceDate || "-",
+                            value: formatDisplayDate(selectedInvoice.invoiceDate),
                           },
                           {
                             label: "Due Date",
-                            value: selectedInvoice.dueDate || "-",
+                            value: formatDisplayDate(selectedInvoice.dueDate),
                           },
                           {
                             label: "Recipient",
