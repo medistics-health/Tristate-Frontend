@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import { ArrowLeft, Inbox } from "lucide-react";
+import { ArrowLeft, Inbox, Loader2 } from "lucide-react";
 import { FormsLayout, formatWhen } from "./chrome";
 import { getDocument, getResponse, listResponses, type ResponseRow } from "./api";
 import type { FormQuestion } from "./types";
@@ -61,6 +61,7 @@ export default function FormResponsesPage() {
   const [rows, setRows] = useState<ResponseRow[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<ResponseDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -104,15 +105,23 @@ export default function FormResponsesPage() {
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
+      setDetailLoading(false);
       return;
     }
     let cancelled = false;
+    setDetailLoading(true);
     getResponse(id, selectedId)
       .then((response) => {
         if (!cancelled) setDetail(response);
       })
       .catch((error: Error) => {
-        if (!cancelled) toast.error(error.message);
+        if (!cancelled) {
+          setDetail(null);
+          toast.error(error.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
       });
     return () => {
       cancelled = true;
@@ -167,7 +176,11 @@ export default function FormResponsesPage() {
                   <button
                     key={row.id}
                     type="button"
-                    onClick={() => setSelectedId(row.id)}
+                    onClick={() => {
+                      if (row.id === selectedId) return;
+                      setDetailLoading(true);
+                      setSelectedId(row.id);
+                    }}
                     className={`mb-1 flex w-full cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors duration-150 ${
                       active ? "bg-[#f4f6ff]" : "hover:bg-[#fbfaf8]"
                     }`}
@@ -194,7 +207,12 @@ export default function FormResponsesPage() {
           </section>
 
           <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
-            {detail ? (
+            {detailLoading ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+                <Loader2 className="h-6 w-6 animate-spin text-[#4f63ea]" />
+                <p className="text-[13px] text-slate-400">Loading response…</p>
+              </div>
+            ) : detail ? (
               <>
                 <div className="border-b border-[#f0ece6] px-5 py-4">
                   <div className="flex items-center gap-3">
