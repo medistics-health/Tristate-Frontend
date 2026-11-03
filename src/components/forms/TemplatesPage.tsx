@@ -5,7 +5,7 @@ import { LayoutGrid } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
 import DataTableToolbar from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
-import { createFromTemplate, listForms, listTemplates } from "./api";
+import { createFromTemplate, listForms, listTemplates, updateTemplate } from "./api";
 import { FieldLabel, GhostButton, Panel, PrimaryButton, TextInput, formatDay } from "./chrome";
 import type { FormTemplate } from "./types";
 
@@ -30,6 +30,9 @@ export default function TemplatesPage() {
   const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<{ id: string; name: string } | null>(null);
   const [nameError, setNameError] = useState("");
+  const [rename, setRename] = useState<{ id: string; name: string } | null>(null);
+  const [renameError, setRenameError] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   function load() {
     setLoading(true);
@@ -176,6 +179,18 @@ export default function TemplatesPage() {
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-slate-500">{template.description || "—"}</td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-slate-500">{formatDay(template.lastUsedAt)}</td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-right">
+                        {template.visibility === "SYSTEM" ? null : (
+                          <button
+                            type="button"
+                            className="mr-3 font-medium text-slate-600"
+                            onClick={() => {
+                              setRenameError("");
+                              setRename({ id: template.id, name: template.name });
+                            }}
+                          >
+                            Rename
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="mr-3 font-medium text-slate-600"
@@ -207,6 +222,45 @@ export default function TemplatesPage() {
           </DataTableToolbar>
         </section>
       </div>
+      {rename ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
+          <Panel className="w-full max-w-md space-y-3 p-5">
+            <h2 className="text-[16px] font-semibold">Rename template</h2>
+            <div>
+              <FieldLabel>Template name</FieldLabel>
+              <TextInput
+                autoFocus
+                value={rename.name}
+                onChange={(event) => {
+                  setRename({ ...rename, name: event.target.value });
+                  setRenameError("");
+                }}
+              />
+              {renameError ? <p className="mt-1 text-[12px] text-[#b42318]">{renameError}</p> : null}
+            </div>
+            <div className="flex justify-end gap-2">
+              <GhostButton onClick={() => setRename(null)} disabled={renaming}>Cancel</GhostButton>
+              <PrimaryButton
+                disabled={!rename.name.trim() || renaming}
+                onClick={() => {
+                  const next = rename.name.trim();
+                  setRenaming(true);
+                  void updateTemplate(rename.id, { name: next })
+                    .then(() => {
+                      setTemplates((current) => current.map((item) => (item.id === rename.id ? { ...item, name: next } : item)));
+                      setRename(null);
+                      toast.success("Template renamed");
+                    })
+                    .catch((error: Error) => setRenameError(error.message || "Unable to rename this template."))
+                    .finally(() => setRenaming(false));
+                }}
+              >
+                {renaming ? "Saving…" : "Rename"}
+              </PrimaryButton>
+            </div>
+          </Panel>
+        </div>
+      ) : null}
       {draft ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
           <Panel className="w-full max-w-md space-y-3 p-5">

@@ -612,6 +612,15 @@ export function nameTakenMessage(id: string, title: string) {
   return asTemplate ? "A template with this name already exists." : "A form with this name already exists.";
 }
 
+export function setFormTitle(id: string, title: string, lockVersion?: number) {
+  const form = getForm(id);
+  if (!form) return;
+  form.title = title.slice(0, 200);
+  if (lockVersion) form.lockVersion = lockVersion;
+  savedTitles.set(id, form.title);
+  emit();
+}
+
 export function updateForm(id: string, patch: Partial<FormRecord>) {
   if (patch.publicToken) {
     if (localDraftIds.has(id)) {

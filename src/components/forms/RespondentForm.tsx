@@ -1,6 +1,6 @@
-import { memo, useEffect, useMemo, useRef, useState, startTransition, type ReactNode } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, startTransition, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
-  flattenQuestions,
   isTargetVisible,
   type AnswerMap,
   type FormQuestion,
@@ -60,6 +60,15 @@ export function validateAnswers(form: FormRecord, answers: AnswerMap) {
       errors[question.id] = `Keep this under ${question.config.maxLength} characters.`;
     }
   });
+  return errors;
+}
+
+function errorsForQuestions(form: FormRecord, questions: FormQuestion[], answers: AnswerMap) {
+  const ids = new Set(questions.map((question) => question.id));
+  const errors: Record<string, string> = {};
+  for (const [id, message] of Object.entries(validateAnswers(form, answers))) {
+    if (ids.has(id)) errors[id] = message;
+  }
   return errors;
 }
 
@@ -146,14 +155,50 @@ function MultiSelectDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [panel, setPanel] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+
+  function place() {
+    const button = root.current?.querySelector("button");
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    const gap = 4;
+    const margin = 8;
+    const below = window.innerHeight - rect.bottom - gap - margin;
+    const above = rect.top - gap - margin;
+    const openUp = below < 180 && above > below;
+    const maxHeight = Math.max(96, Math.min(224, openUp ? above : below));
+    setPanel({
+      left: rect.left,
+      width: rect.width,
+      maxHeight,
+      top: openUp ? Math.max(margin, rect.top - gap - maxHeight) : rect.bottom + gap,
+    });
+  }
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+  }, [open, options.length]);
 
   useEffect(() => {
     if (!open) return;
     function close(event: MouseEvent) {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (root.current?.contains(target) || menu.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function reposition() {
+      place();
     }
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
   }, [open]);
 
   const summary = value.length ? value.join(", ") : "Select options";
@@ -168,23 +213,30 @@ function MultiSelectDropdown({
         <span className={`min-w-0 flex-1 truncate ${value.length ? "text-slate-800" : "text-slate-400"}`}>{summary}</span>
         <span className={`text-[10px] text-slate-400 ${open ? "rotate-180" : ""}`}>▼</span>
       </button>
-      {open ? (
-        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[#e4dfd6] bg-white p-1 shadow-sm">
-          {options.map((option) => {
-            const checked = value.includes(option);
-            return (
-              <label key={option} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-[14px] text-slate-700 hover:bg-[#f7f5f1]">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => onChange(checked ? value.filter((item) => item !== option) : [...value, option])}
-                />
-                {option}
-              </label>
-            );
-          })}
-        </div>
-      ) : null}
+      {open && panel
+        ? createPortal(
+            <div
+              ref={menu}
+              style={{ top: panel.top, left: panel.left, width: panel.width, maxHeight: panel.maxHeight }}
+              className="fixed z-50 overflow-y-auto rounded-xl border border-[#e4dfd6] bg-white p-1 shadow-sm"
+            >
+              {options.map((option) => {
+                const checked = value.includes(option);
+                return (
+                  <label key={option} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-[14px] text-slate-700 hover:bg-[#f7f5f1]">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onChange(checked ? value.filter((item) => item !== option) : [...value, option])}
+                    />
+                    {option}
+                  </label>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -213,7 +265,7 @@ const QuestionField = memo(function QuestionField({
   const label = (
     <div className="mb-2">
       <p className="whitespace-pre-wrap text-[15px] font-medium leading-6 text-slate-800">
-        {form.showNumbers && number ? <span className="mr-2 text-slate-400">{number}.</span> : null}
+        {form.showNumbers && question.type !== "content" && number ? <span className="mr-2 text-slate-400">{number}.</span> : null}
         {question.label || "Untitled question"}
         {question.required && question.type !== "content" ? <span className="ml-1 text-[#b42318]">*</span> : null}
       </p>
@@ -486,6 +538,8 @@ export function RespondentForm({
   const answersRef = useRef<AnswerMap>({});
   const [page, setPage] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [pageChecked, setPageChecked] = useState(false);
+  const pageCheckedRef = useRef(false);
   const [done, setDone] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -503,18 +557,71 @@ export function RespondentForm({
   }, [answers, form]);
 
   const current = pages[Math.min(page, Math.max(pages.length - 1, 0))];
-  const numbers = new Map(flattenQuestions(form).map((item, index) => [item.question.id, index + 1]));
+  const pageQuestions = useMemo(() => {
+    if (!current) return [];
+    return "grouped" in current ? current.grouped.flatMap((group) => group.questions) : current.questions;
+  }, [current]);
+  const pageQuestionsRef = useRef(pageQuestions);
+  pageQuestionsRef.current = pageQuestions;
+  const numbers = useMemo(() => {
+    const map = new Map<string, number>();
+    let next = 1;
+    for (const item of pages) {
+      const questions = "grouped" in item ? item.grouped.flatMap((group) => group.questions) : item.questions;
+      for (const question of questions) {
+        if (question.type === "content") continue;
+        map.set(question.id, next);
+        next += 1;
+      }
+    }
+    return map;
+  }, [pages]);
 
   function setAnswer(id: string, value: string | string[]) {
     answersRef.current = { ...answersRef.current, [id]: value };
+    if (pageCheckedRef.current && form.displayMode === "MULTI_PAGE") {
+      setErrors(errorsForQuestions(form, pageQuestionsRef.current, answersRef.current));
+    }
     startTransition(() => setAnswers(answersRef.current));
+  }
+
+  function revealPageErrors() {
+    const nextErrors = errorsForQuestions(form, pageQuestionsRef.current, answersRef.current);
+    pageCheckedRef.current = true;
+    setPageChecked(true);
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  function goNext() {
+    if (!revealPageErrors()) return;
+    pageCheckedRef.current = false;
+    setPageChecked(false);
+    setErrors({});
+    setPage((value) => value + 1);
   }
 
   function submit() {
     const latest = answersRef.current;
+    if (form.displayMode === "MULTI_PAGE" && !revealPageErrors()) return;
     const nextErrors = validateAnswers(form, latest);
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
+    if (form.displayMode !== "MULTI_PAGE") setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) {
+      if (form.displayMode === "MULTI_PAGE") {
+        const pageIndex = pages.findIndex((item) => {
+          const questions = "grouped" in item ? item.grouped.flatMap((group) => group.questions) : item.questions;
+          return questions.some((question) => nextErrors[question.id]);
+        });
+        if (pageIndex >= 0 && pageIndex !== page) {
+          const questions = "grouped" in pages[pageIndex] ? pages[pageIndex].grouped.flatMap((group) => group.questions) : pages[pageIndex].questions;
+          pageCheckedRef.current = true;
+          setPageChecked(true);
+          setErrors(errorsForQuestions(form, questions, latest));
+          setPage(pageIndex);
+        }
+      }
+      return;
+    }
     if (preview) {
       setDone(true);
       return;
@@ -607,7 +714,7 @@ export function RespondentForm({
                       question={question}
                       number={numbers.get(question.id)}
                       value={answers[question.id]}
-                      error={errors[question.id]}
+                      error={form.displayMode === "MULTI_PAGE" && !pageChecked ? undefined : errors[question.id]}
                       onChange={(value) => setAnswer(question.id, value)}
                       uploadImage={uploadImage}
                     />
@@ -621,7 +728,7 @@ export function RespondentForm({
                   question={question}
                   number={numbers.get(question.id)}
                   value={answers[question.id]}
-                  error={errors[question.id]}
+                  error={form.displayMode === "MULTI_PAGE" && !pageChecked ? undefined : errors[question.id]}
                   onChange={(value) => setAnswer(question.id, value)}
                   uploadImage={uploadImage}
                 />
@@ -632,27 +739,42 @@ export function RespondentForm({
         ) : null}
         <div className="flex items-center justify-between border-t border-[#f0ece6] px-6 py-4 sm:px-8">
           {form.displayMode === "MULTI_PAGE" && page > 0 ? (
-            <button type="button" onClick={() => setPage((value) => value - 1)} className="text-[14px] font-medium text-slate-600">
+            <button
+              type="button"
+              onClick={() => {
+                pageCheckedRef.current = false;
+                setPageChecked(false);
+                setErrors({});
+                setPage((value) => value - 1);
+              }}
+              className="text-[14px] font-medium text-slate-600"
+            >
               Back
             </button>
           ) : (
             <span />
           )}
           {form.displayMode === "MULTI_PAGE" && page < pages.length - 1 ? (
-            <button
-              type="button"
-              onClick={() => setPage((value) => value + 1)}
-              className="rounded-xl bg-[#4f63ea] px-4 py-2.5 text-[14px] font-medium text-white"
-            >
-              Next
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              {pageChecked && Object.keys(errors).length > 0 ? (
+                <p className="text-[13px] text-[#b42318]">Correct the highlighted questions to continue.</p>
+              ) : null}
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={pageChecked && Object.keys(errors).length > 0}
+                className="rounded-xl bg-[#4f63ea] px-4 py-2.5 text-[14px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           ) : (
             <div className="flex flex-col items-end gap-2">
               {submitError ? <p className="text-[13px] text-[#b42318]">{submitError}</p> : null}
               <button
                 type="button"
                 onClick={submit}
-                disabled={submitting}
+                disabled={submitting || (form.displayMode === "MULTI_PAGE" && pageChecked && Object.keys(errors).length > 0)}
                 className="rounded-xl bg-[#4f63ea] px-4 py-2.5 text-[14px] font-medium text-white disabled:opacity-60"
               >
                 {submitting ? "Submitting…" : preview ? "Submit preview" : "Submit"}

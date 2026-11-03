@@ -32,6 +32,7 @@ import {
   persistLocalForm,
   saveEditedTemplate,
   saveLocalAsTemplateOnly,
+  setFormTitle,
   moveQuestion,
   publishValidation,
   saveAsTemplate,
@@ -50,7 +51,7 @@ import {
   type FormQuestion,
   type LogicRule,
 } from "./types";
-import { getTemplate, listForms } from "./api";
+import { getTemplate, listForms, renameForm } from "./api";
 
 export default function FormBuilderPage() {
   const { id = "", templateId = "" } = useParams();
@@ -96,6 +97,7 @@ export default function FormBuilderPage() {
   const [errors, setErrors] = useState<{ message: string; target: string }[]>([]);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const [formNameOpen, setFormNameOpen] = useState(false);
   const [formName, setFormName] = useState("");
   const [saveAttempted, setSaveAttempted] = useState(false);
@@ -126,6 +128,31 @@ export default function FormBuilderPage() {
     setSaveAttempted(true);
     if (missingQuestions) return;
     next();
+  }
+
+  async function rename(name: string) {
+    const next = name.trim();
+    if (!next) return editingTemplate ? "Template name is required." : "Form name is required.";
+    if (next === current.title) {
+      setRenameOpen(false);
+      return "";
+    }
+    setSaving(true);
+    try {
+      if (editingTemplate) {
+        await saveEditedTemplate(current.id, next);
+      } else {
+        const updated = await renameForm(current.id, next);
+        setFormTitle(current.id, updated.title || next, updated.lockVersion);
+      }
+      toast.success(editingTemplate ? "Template renamed" : "Form renamed");
+      setRenameOpen(false);
+      return "";
+    } catch (error) {
+      return error instanceof Error ? error.message : "Unable to rename.";
+    } finally {
+      setSaving(false);
+    }
   }
 
   function leave() {
@@ -216,6 +243,9 @@ export default function FormBuilderPage() {
           {editingTemplate ? "Editing template" : creatingTemplate ? "Unsaved template" : unsaved ? "Unsaved draft" : `Last saved ${formatWhen(form.updatedAt)}`}
         </span>
         <GhostButton onClick={() => setPreview(true)}><Eye className="h-4 w-4" /> Preview</GhostButton>
+        {(editingTemplate && !systemTemplate) || (!unsaved && !creatingTemplate && !editingTemplate) ? (
+          <GhostButton onClick={() => setRenameOpen(true)} disabled={saving}>Rename</GhostButton>
+        ) : null}
         {creatingTemplate || editingTemplate ? null : (
           <GhostButton onClick={() => requestSave(() => setTemplateOpen(true))} disabled={saving}>Save as template</GhostButton>
         )}
@@ -259,7 +289,7 @@ export default function FormBuilderPage() {
       ) : null}
       {locked ? (
         <div className="bg-[#fff1bd] px-4 py-2 text-[13px] text-[#8a6800]">
-          Responses exist, so question types, deletions, response mode, and the one-response setting are locked. You can still fix wording and add an optional question at the end.
+          Responses exist, so question types, deletions, response mode, and the one-response setting are locked. You can still fix wording.
         </div>
       ) : null}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
@@ -441,6 +471,17 @@ export default function FormBuilderPage() {
           </Panel>
         </div>
       ) : null}
+      {renameOpen ? (
+        <NameModal
+          title={editingTemplate ? "Rename template" : "Rename form"}
+          label={editingTemplate ? "Template name" : "Form name"}
+          initial={current.title}
+          submitLabel="Rename"
+          saving={saving}
+          onClose={() => { if (!saving) setRenameOpen(false); }}
+          onSave={rename}
+        />
+      ) : null}
       {nameOpen ? (
         <NameModal
           title={creatingTemplate || editingTemplate ? "Save template" : "Save form"}
@@ -566,7 +607,7 @@ function QuestionInspector({
   locked: boolean;
   questionsBefore: { question: FormQuestion }[];
 }) {
-  const index = questionsBefore.findIndex((item) => item.question.id === question.id);
+  const index = questionsBefore.filter((item) => item.question.type !== "content").findIndex((item) => item.question.id === question.id);
   const [rangeError, setRangeError] = useState("");
   const bounded = question.type === "number" || question.type === "price" || question.type === "fees";
 
@@ -595,7 +636,11 @@ function QuestionInspector({
           <Trash2 className="h-3.5 w-3.5" />
         </GhostButton>
       </div>
-      <p className="text-[12px] text-slate-400">Question {index + 1}</p>
+      {question.type === "content" ? (
+        <p className="text-[12px] text-slate-400">Content</p>
+      ) : (
+        <p className="text-[12px] text-slate-400">Question {index + 1}</p>
+      )}
       <FieldLabel>Label</FieldLabel>
       <BufferedTextArea value={question.label} maxLength={500} onCommit={(label) => updateQuestion(formId, question.id, { label })} />
       <FieldLabel>Help text</FieldLabel>
@@ -948,6 +993,7 @@ function NameModal({
 function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { forms, templates } = useFormStore();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("General");
@@ -989,14 +1035,33 @@ function TemplateDialog({ formId, onClose }: { formId: string; onClose: () => vo
                   setError("Add at least one question before saving this template.");
                   return;
                 }
+                const templateName = name.trim();
+                if (templates.some((item) => item.name.trim().toLowerCase() === templateName.toLowerCase())) {
+                  setError("A template with this name already exists.");
+                  return;
+                }
                 let id = formId;
                 const wasNew = isUnsavedForm(formId);
+                if (wasNew && nameTakenMessage(formId, current.title)) {
+                  const titles = forms.map((item) => item.title);
+                  const preferred = nameTakenMessage(formId, templateName) ? nextFormName(templateName, titles) : templateName;
+                  if (updateForm(formId, { title: preferred.slice(0, 200) }) === false) {
+                    updateForm(formId, { title: `Draft ${crypto.randomUUID()}` });
+                  }
+                }
                 if (wasNew) {
-                  const saved = await persistLocalForm(formId);
+                  let saved;
+                  try {
+                    saved = await persistLocalForm(formId);
+                  } catch (error) {
+                    if (!(error instanceof Error) || !/form with this name already exists/i.test(error.message)) throw error;
+                    updateForm(formId, { title: `Draft ${crypto.randomUUID()}` });
+                    saved = await persistLocalForm(formId);
+                  }
                   if (!saved) return;
                   id = saved.id;
                 }
-                await saveAsTemplate(id, { name, description, category, visibility });
+                await saveAsTemplate(id, { name: templateName, description, category, visibility });
                 toast.success("Template saved");
                 onClose();
                 if (wasNew) navigate(`/forms/${id}`, { replace: true, state: location.state });
