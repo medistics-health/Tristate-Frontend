@@ -259,10 +259,10 @@ export function computeTermPreview(
   const config = (term.pricingConfig || {}) as Record<string, any>;
   
   // 1. Calculate client amount
-  const clientMinFee = config.minimumFee !== undefined && config.minimumFee !== null && config.minimumFee !== ""
+  const clientMinFee = config.minimumFee !== undefined && config.minimumFee !== null && config.minimumFee !== "" && Number(config.minimumFee) > 0
     ? Number(config.minimumFee)
     : null;
-  const clientMaxFee = config.maximumFee !== undefined && config.maximumFee !== null && config.maximumFee !== ""
+  const clientMaxFee = config.maximumFee !== undefined && config.maximumFee !== null && config.maximumFee !== "" && Number(config.maximumFee) > 0
     ? Number(config.maximumFee)
     : null;
 
@@ -280,10 +280,10 @@ export function computeTermPreview(
     const vp = config.vendorPricing;
     if (vp && typeof vp === "object" && Object.keys(vp).length > 0) {
       const nestedModel = vp.pricingModel || term.pricingModel;
-      const vendorMinFee = vp.minimumFee !== undefined && vp.minimumFee !== null && vp.minimumFee !== ""
+      const vendorMinFee = vp.minimumFee !== undefined && vp.minimumFee !== null && vp.minimumFee !== "" && Number(vp.minimumFee) > 0
         ? Number(vp.minimumFee)
         : null;
-      const vendorMaxFee = vp.maximumFee !== undefined && vp.maximumFee !== null && vp.maximumFee !== ""
+      const vendorMaxFee = vp.maximumFee !== undefined && vp.maximumFee !== null && vp.maximumFee !== "" && Number(vp.maximumFee) > 0
         ? Number(vp.maximumFee)
         : null;
       vendorAmount = computePricingFromModelClient(nestedModel, vp, inputs, vendorMinFee, vendorMaxFee);

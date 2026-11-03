@@ -471,13 +471,13 @@ export default function CalculatePrefunding() {
   const [newEmployeeLastName, setNewEmployeeLastName] = useState("");
   const [newEmployeeEmail, setNewEmployeeEmail] = useState("");
   const [newEmployeeStorageOption, setNewEmployeeStorageOption] = useState<"permanent" | "onetime">("permanent");
-  const [newEmployeeJobCategory, setNewEmployeeJobCategory] = useState("CLINICAL");
-  const [newEmployeeLocation, setNewEmployeeLocation] = useState("Main Clinic");
-  const [newEmployeeState, setNewEmployeeState] = useState("NY");
-  const [newEmployeeDateOfJoining, setNewEmployeeDateOfJoining] = useState(new Date().toISOString().split("T")[0]);
-  const [newEmployeePayType, setNewEmployeePayType] = useState<"Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually">("Hourly");
-  const [newEmployeePayRate, setNewEmployeePayRate] = useState<number | string>(25);
-  const [newEmployeeBufferPercent, setNewEmployeeBufferPercent] = useState<number | string>(10);
+  const [newEmployeeJobCategory, setNewEmployeeJobCategory] = useState("");
+  const [newEmployeeLocation, setNewEmployeeLocation] = useState("");
+  const [newEmployeeState, setNewEmployeeState] = useState("");
+  const [newEmployeeDateOfJoining, setNewEmployeeDateOfJoining] = useState("");
+  const [newEmployeePayType, setNewEmployeePayType] = useState<"Hourly" | "Weekly" | "Bi-Weekly" | "Monthly" | "Annually" | "">("");
+  const [newEmployeePayRate, setNewEmployeePayRate] = useState<number | string>("");
+  const [newEmployeeBufferPercent, setNewEmployeeBufferPercent] = useState<number | string>("");
   const [isSavingEmployee, setIsSavingEmployee] = useState(false);
   const [employeeModalErrors, setEmployeeModalErrors] = useState<Record<string, string>>({});
 
@@ -1261,7 +1261,8 @@ export default function CalculatePrefunding() {
       const cycleHours = getCycleDefaultWorkingHours(selectedPracticeObj?.prefundingCycle || selectedCycle);
       const workingHours = calculateDefaultWorkingHours(newEmployeeDateOfJoining, cycleHours);
       const buffer = Number(newEmployeeBufferPercent) || 0;
-      const base = calculateBaseWagesForPayType(newEmployeePayType, payRate, workingHours, workingHours);
+      const effectivePayType = newEmployeePayType || "Hourly";
+      const base = calculateBaseWagesForPayType(effectivePayType, payRate, workingHours, workingHours);
       const gross = Math.round((base + base * (buffer / 100)) * 100) / 100;
 
       let employeeId = `adhoc_${Date.now()}`;
@@ -1281,11 +1282,11 @@ export default function CalculatePrefunding() {
           influence: "MEDIUM",
           status: "ACTIVE",
           practiceIds: [selectedPractice],
-          jobCategory: newEmployeeJobCategory,
-          workLocation: newEmployeeLocation.trim() || "Main Clinic",
-          state: newEmployeeState.trim() || "NY",
+          jobCategory: newEmployeeJobCategory || undefined,
+          workLocation: newEmployeeLocation.trim() || undefined,
+          state: newEmployeeState.trim() || undefined,
           dateOfJoining: newEmployeeDateOfJoining ? new Date(newEmployeeDateOfJoining).toISOString().split("T")[0] : undefined,
-          payType: newEmployeePayType,
+          payType: newEmployeePayType || null,
           payRate: payRate,
           budgetedHours: cycleHours,
           bufferPercentage: buffer,
@@ -1301,11 +1302,11 @@ export default function CalculatePrefunding() {
       const newEmp: EmployeeCalculationItem = {
         id: employeeId,
         name: fullName,
-        jobCategory: newEmployeeJobCategory === "CLINICAL" ? "Clinical" : newEmployeeJobCategory === "NON_CLINICAL" ? "Non-Clinical" : (newEmployeeJobCategory.trim() || "Staff"),
-        location: newEmployeeLocation.trim() || "Main Location",
-        state: newEmployeeState.trim() || "NY",
+        jobCategory: newEmployeeJobCategory === "CLINICAL" ? "Clinical" : newEmployeeJobCategory === "NON_CLINICAL" ? "Non-Clinical" : (newEmployeeJobCategory.trim() || "-"),
+        location: newEmployeeLocation.trim() || "-",
+        state: newEmployeeState.trim() || "-",
         joinDate: newEmployeeDateOfJoining ? new Date(newEmployeeDateOfJoining).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-        payType: newEmployeePayType,
+        payType: effectivePayType,
         payRate,
         budgetedHours: cycleHours,
         bufferPercent: buffer,
@@ -1321,13 +1322,13 @@ export default function CalculatePrefunding() {
       setNewEmployeeFirstName("");
       setNewEmployeeLastName("");
       setNewEmployeeEmail("");
-      setNewEmployeeJobCategory("CLINICAL");
-      setNewEmployeeLocation("Main Clinic");
-      setNewEmployeeState("NY");
-      setNewEmployeeDateOfJoining(new Date().toISOString().split("T")[0]);
-      setNewEmployeePayType("Hourly");
-      setNewEmployeePayRate(25);
-      setNewEmployeeBufferPercent(10);
+      setNewEmployeeJobCategory("");
+      setNewEmployeeLocation("");
+      setNewEmployeeState("");
+      setNewEmployeeDateOfJoining("");
+      setNewEmployeePayType("");
+      setNewEmployeePayRate("");
+      setNewEmployeeBufferPercent("");
       setEmployeeModalErrors({});
 
       if (newEmployeeStorageOption === "permanent") {
@@ -2563,7 +2564,20 @@ export default function CalculatePrefunding() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setShowAddEmployeeModal(true)}
+                          onClick={() => {
+                            setNewEmployeeFirstName("");
+                            setNewEmployeeLastName("");
+                            setNewEmployeeEmail("");
+                            setNewEmployeeJobCategory("");
+                            setNewEmployeeLocation("");
+                            setNewEmployeeState("");
+                            setNewEmployeeDateOfJoining("");
+                            setNewEmployeePayType("");
+                            setNewEmployeePayRate("");
+                            setNewEmployeeBufferPercent("");
+                            setEmployeeModalErrors({});
+                            setShowAddEmployeeModal(true);
+                          }}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors shadow-2xs"
                         >
                           <Plus className="h-3.5 w-3.5 text-[#4f63ea]" />
@@ -4062,7 +4076,7 @@ export default function CalculatePrefunding() {
 
             {/* Buffer % */}
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">Buffer % (Default 10%)</label>
+              <label className="block font-semibold text-slate-800 mb-1">Buffer %</label>
               <input
                 type="number"
                 step="0.1"

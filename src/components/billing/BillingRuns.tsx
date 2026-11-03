@@ -2747,43 +2747,55 @@ function BillingRunsPage() {
                                   </span>
                                 </span>
                               )}
-                            {config.minimumFee && (
-                              <span className="text-slate-500">
-                                Min fee:{" "}
-                                <span className="font-semibold text-slate-700">
-                                  {formatMoney(Number(config.minimumFee))}
+                            {config.minimumFee !== undefined &&
+                              config.minimumFee !== null &&
+                              config.minimumFee !== "" &&
+                              Number(config.minimumFee) > 0 && (
+                                <span className="text-slate-500">
+                                  Min fee:{" "}
+                                  <span className="font-semibold text-slate-700">
+                                    {formatMoney(Number(config.minimumFee))}
+                                  </span>
                                 </span>
-                              </span>
-                            )}
-                            {config.maximumFee && (
-                              <span className="text-slate-500">
-                                Max fee:{" "}
-                                <span className="font-semibold text-slate-700">
-                                  {formatMoney(Number(config.maximumFee))}
+                              )}
+                            {config.maximumFee !== undefined &&
+                              config.maximumFee !== null &&
+                              config.maximumFee !== "" &&
+                              Number(config.maximumFee) > 0 && (
+                                <span className="text-slate-500">
+                                  Max fee:{" "}
+                                  <span className="font-semibold text-slate-700">
+                                    {formatMoney(Number(config.maximumFee))}
+                                  </span>
                                 </span>
-                              </span>
-                            )}
+                              )}
 
-                            {config.vendorPricing?.minimumFee && (
-                              <span className="text-slate-500">
-                                Vendor min fee:{" "}
-                                <span className="font-semibold text-slate-700">
-                                  {formatMoney(
-                                    Number(config.vendorPricing.minimumFee),
-                                  )}
+                            {config.vendorPricing?.minimumFee !== undefined &&
+                              config.vendorPricing?.minimumFee !== null &&
+                              config.vendorPricing?.minimumFee !== "" &&
+                              Number(config.vendorPricing.minimumFee) > 0 && (
+                                <span className="text-slate-500">
+                                  Vendor min fee:{" "}
+                                  <span className="font-semibold text-slate-700">
+                                    {formatMoney(
+                                      Number(config.vendorPricing.minimumFee),
+                                    )}
+                                  </span>
                                 </span>
-                              </span>
-                            )}
-                            {config.vendorPricing?.maximumFee && (
-                              <span className="text-slate-500">
-                                Vendor max fee:{" "}
-                                <span className="font-semibold text-slate-700">
-                                  {formatMoney(
-                                    Number(config.vendorPricing.maximumFee),
-                                  )}
+                              )}
+                            {config.vendorPricing?.maximumFee !== undefined &&
+                              config.vendorPricing?.maximumFee !== null &&
+                              config.vendorPricing?.maximumFee !== "" &&
+                              Number(config.vendorPricing.maximumFee) > 0 && (
+                                <span className="text-slate-500">
+                                  Vendor max fee:{" "}
+                                  <span className="font-semibold text-slate-700">
+                                    {formatMoney(
+                                      Number(config.vendorPricing.maximumFee),
+                                    )}
+                                  </span>
                                 </span>
-                              </span>
-                            )}
+                              )}
                           </div>
 
                           {term.pricingModel === "HYBRID" && (

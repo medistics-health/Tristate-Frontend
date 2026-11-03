@@ -1288,15 +1288,49 @@ export default function CRMDashboardPage() {
                         {/* Bars container */}
                         <div className="flex items-end gap-1.5 w-full justify-center h-full">
                           {/* Client Billings Stacked Bar */}
-                          <div className="w-4 rounded-t flex flex-col justify-end overflow-hidden bg-slate-200/50" style={{ height: `${Math.max(10, Math.min(100, ((m.paidAmount + m.dueAmount + m.overdueAmount) / maxVal) * 100))}%` }}>
-                            {overduePct > 0 && <div className="w-full bg-red-500" style={{ height: `${overduePct}%` }} title={`Overdue: ${formatCurrency(m.overdueAmount)}`} />}
-                            {duePct > 0 && <div className="w-full bg-blue-500" style={{ height: `${duePct}%` }} title={`Due: ${formatCurrency(m.dueAmount)}`} />}
-                            {paidPct > 0 && <div className="w-full bg-emerald-500" style={{ height: `${paidPct}%` }} title={`Paid: ${formatCurrency(m.paidAmount)}`} />}
-                            {m.clientBillings === 0 && <div className="w-full bg-slate-300 h-full" title="No billings" />}
-                          </div>
+                          {m.clientBillings > 0 ? (
+                            <div
+                              className="w-4 rounded-t flex flex-col justify-end overflow-hidden bg-slate-100 shadow-xs"
+                              style={{
+                                height: `${Math.min(100, Math.max(6, (m.clientBillings / maxVal) * 100))}%`,
+                              }}
+                            >
+                              {overduePct > 0 && (
+                                <div
+                                  className="w-full bg-red-500 transition-all duration-300"
+                                  style={{ height: `${(m.overdueAmount / m.clientBillings) * 100}%` }}
+                                  title={`Overdue: ${formatCurrency(m.overdueAmount)}`}
+                                />
+                              )}
+                              {duePct > 0 && (
+                                <div
+                                  className="w-full bg-blue-500 transition-all duration-300"
+                                  style={{ height: `${(m.dueAmount / m.clientBillings) * 100}%` }}
+                                  title={`Due: ${formatCurrency(m.dueAmount)}`}
+                                />
+                              )}
+                              {paidPct > 0 && (
+                                <div
+                                  className="w-full bg-emerald-500 transition-all duration-300"
+                                  style={{ height: `${(m.paidAmount / m.clientBillings) * 100}%` }}
+                                  title={`Paid: ${formatCurrency(m.paidAmount)}`}
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <div className="w-4 h-0.5 rounded-full bg-slate-200/60" title="No billings" />
+                          )}
 
                           {/* Vendor Cost Bar */}
-                          <div className="w-4 rounded-t bg-amber-500 hover:bg-amber-600 transition-colors" style={{ height: `${Math.max(8, vendorPct)}%` }} title={`Vendor Cost: ${formatCurrency(m.vendorCost)}`} />
+                          {m.vendorCost > 0 ? (
+                            <div
+                              className="w-4 rounded-t bg-amber-500 hover:bg-amber-600 transition-all duration-300 shadow-xs"
+                              style={{ height: `${Math.min(100, Math.max(6, vendorPct))}%` }}
+                              title={`Vendor Cost: ${formatCurrency(m.vendorCost)}`}
+                            />
+                          ) : (
+                            <div className="w-4 h-0.5 rounded-full bg-slate-200/60" title="No vendor costs" />
+                          )}
                         </div>
 
                         <span className="text-[11px] font-bold text-slate-600 mt-2">{m.label}</span>

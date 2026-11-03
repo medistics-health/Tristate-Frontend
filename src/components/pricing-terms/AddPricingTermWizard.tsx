@@ -122,8 +122,8 @@ function buildMirroredVendorPricing(
     ["PERCENT_COLLECTIONS", "PERCENT_REVENUE", "SUCCESS_FEE"].includes(model)
   ) {
     vendorPricing.percentage = existing?.percentage ?? "0";
-    vendorPricing.minimumFee = existing?.minimumFee ?? "0";
-    vendorPricing.maximumFee = existing?.maximumFee ?? "0";
+    vendorPricing.minimumFee = existing?.minimumFee ?? "";
+    vendorPricing.maximumFee = existing?.maximumFee ?? "";
     return vendorPricing;
   }
 
@@ -137,7 +137,7 @@ function buildMirroredVendorPricing(
     ].includes(model)
   ) {
     vendorPricing.unitRate = existing?.unitRate ?? "0";
-    vendorPricing.minimumFee = existing?.minimumFee ?? "0";
+    vendorPricing.minimumFee = existing?.minimumFee ?? "";
     return vendorPricing;
   }
 
@@ -492,10 +492,20 @@ export default function AddPricingTermWizard({
         errors.vendorPercentage =
           "Vendor percentage is required and must be 0 or greater";
       }
-      if (!isNonNegative(vendorCfg.minimumFee)) {
+      if (
+        vendorCfg.minimumFee !== undefined &&
+        vendorCfg.minimumFee !== null &&
+        vendorCfg.minimumFee !== "" &&
+        !isNonNegative(vendorCfg.minimumFee)
+      ) {
         errors.vendorMinimumFee = "Vendor minimum fee must be 0 or greater";
       }
-      if (!isNonNegative(vendorCfg.maximumFee)) {
+      if (
+        vendorCfg.maximumFee !== undefined &&
+        vendorCfg.maximumFee !== null &&
+        vendorCfg.maximumFee !== "" &&
+        !isNonNegative(vendorCfg.maximumFee)
+      ) {
         errors.vendorMaximumFee = "Vendor maximum fee must be 0 or greater";
       }
     }
@@ -513,7 +523,12 @@ export default function AddPricingTermWizard({
         errors.vendorUnitRate =
           "Vendor unit rate is required and must be 0 or greater";
       }
-      if (!isNonNegative(vendorCfg.minimumFee)) {
+      if (
+        vendorCfg.minimumFee !== undefined &&
+        vendorCfg.minimumFee !== null &&
+        vendorCfg.minimumFee !== "" &&
+        !isNonNegative(vendorCfg.minimumFee)
+      ) {
         errors.vendorMinimumFee = "Vendor minimum fee must be 0 or greater";
       }
     }
@@ -624,48 +639,44 @@ export default function AddPricingTermWizard({
         {
           label: "Percentage",
           client: parseAmount(cfg.percentage),
-          vendor: hasVendor ? parseAmount(vendorCfg.percentage) : 0,
+          vendor: hasVendor ? parseAmount(vendorCfg.percentage) : null,
           isPercent: true,
         },
         {
           label: "Minimum Fee",
           client: parseAmount(cfg.minimumFee),
-          vendor: hasVendor ? parseAmount(vendorCfg.minimumFee) : 0,
+          vendor: hasVendor ? parseAmount(vendorCfg.minimumFee) : null,
           isPercent: false,
         },
         {
           label: "Maximum Fee",
           client: parseAmount(cfg.maximumFee),
-          vendor: hasVendor ? parseAmount(vendorCfg.maximumFee) : 0,
+          vendor: hasVendor ? parseAmount(vendorCfg.maximumFee) : null,
           isPercent: false,
         },
       ];
 
       return rows.map((row) => {
-        const clientValue = row.client ?? 0;
-        const vendorValue = row.vendor ?? 0;
-        const marginValue = clientValue - vendorValue;
+        const clientValue = row.client;
+        const vendorValue = row.vendor;
+        const hasClient = clientValue !== null && clientValue !== undefined;
+        const hasVendorVal = vendorValue !== null && vendorValue !== undefined;
+        const marginValue = hasClient && hasVendorVal ? clientValue - vendorValue : null;
         const marginPct =
-          clientValue > 0
-            ? Number(((marginValue / clientValue) * 100).toFixed(2))
+          hasClient && hasVendorVal && clientValue > 0
+            ? Number(((marginValue! / clientValue) * 100).toFixed(2))
             : undefined;
         return {
           label: row.label,
-          clientValue: formatDisplayValue(
-            row.label,
-            clientValue,
-            row.isPercent,
-          ),
-          vendorValue: formatDisplayValue(
-            row.label,
-            vendorValue,
-            row.isPercent,
-          ),
-          marginValue: formatDisplayValue(
-            row.label,
-            marginValue,
-            row.isPercent,
-          ),
+          clientValue: hasClient
+            ? formatDisplayValue(row.label, clientValue, row.isPercent)
+            : "-",
+          vendorValue: hasVendorVal
+            ? formatDisplayValue(row.label, vendorValue, row.isPercent)
+            : "-",
+          marginValue: marginValue !== null
+            ? formatDisplayValue(row.label, marginValue, row.isPercent)
+            : "-",
           marginPct,
         };
       });
@@ -684,28 +695,30 @@ export default function AddPricingTermWizard({
         {
           label: "Rate per Unit",
           client: parseAmount(cfg.unitRate),
-          vendor: hasVendor ? parseAmount(vendorCfg.unitRate) : 0,
+          vendor: hasVendor ? parseAmount(vendorCfg.unitRate) : null,
         },
         {
           label: "Minimum Fee",
           client: parseAmount(cfg.minimumFee),
-          vendor: hasVendor ? parseAmount(vendorCfg.minimumFee) : 0,
+          vendor: hasVendor ? parseAmount(vendorCfg.minimumFee) : null,
         },
       ];
 
       return rows.map((row) => {
-        const clientValue = row.client ?? 0;
-        const vendorValue = row.vendor ?? 0;
-        const marginValue = clientValue - vendorValue;
+        const clientValue = row.client;
+        const vendorValue = row.vendor;
+        const hasClient = clientValue !== null && clientValue !== undefined;
+        const hasVendorVal = vendorValue !== null && vendorValue !== undefined;
+        const marginValue = hasClient && hasVendorVal ? clientValue - vendorValue : null;
         const marginPct =
-          clientValue > 0
-            ? Number(((marginValue / clientValue) * 100).toFixed(2))
+          hasClient && hasVendorVal && clientValue > 0
+            ? Number(((marginValue! / clientValue) * 100).toFixed(2))
             : undefined;
         return {
           label: row.label,
-          clientValue: formatDisplayValue(row.label, clientValue),
-          vendorValue: formatDisplayValue(row.label, vendorValue),
-          marginValue: formatDisplayValue(row.label, marginValue),
+          clientValue: hasClient ? formatDisplayValue(row.label, clientValue) : "-",
+          vendorValue: hasVendorVal ? formatDisplayValue(row.label, vendorValue) : "-",
+          marginValue: marginValue !== null ? formatDisplayValue(row.label, marginValue) : "-",
           marginPct,
         };
       });
@@ -1322,8 +1335,7 @@ export default function AddPricingTermWizard({
                           Vendor rates follow the selected pricing model
                         </p>
                         <p className="text-[12px] text-slate-400">
-                          Default values start at 0. Existing vendor values stay
-                          read-only.
+                          Existing vendor values stay read-only.
                         </p>
                       </div>
                       <div className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-500">
@@ -1394,7 +1406,8 @@ export default function AddPricingTermWizard({
                             min="0"
                             step="any"
                             readOnly={vendorFieldsReadOnly}
-                            value={vendorCfg.minimumFee ?? "0"}
+                            value={vendorCfg.minimumFee ?? ""}
+                            placeholder="Optional"
                             onChange={(e) =>
                               updateVendorCfg({ minimumFee: e.target.value })
                             }
@@ -1410,7 +1423,8 @@ export default function AddPricingTermWizard({
                             min="0"
                             step="any"
                             readOnly={vendorFieldsReadOnly}
-                            value={vendorCfg.maximumFee ?? "0"}
+                            value={vendorCfg.maximumFee ?? ""}
+                            placeholder="Optional"
                             onChange={(e) =>
                               updateVendorCfg({ maximumFee: e.target.value })
                             }
@@ -1453,7 +1467,8 @@ export default function AddPricingTermWizard({
                             min="0"
                             step="any"
                             readOnly={vendorFieldsReadOnly}
-                            value={vendorCfg.minimumFee ?? "0"}
+                            value={vendorCfg.minimumFee ?? ""}
+                            placeholder="Optional"
                             onChange={(e) =>
                               updateVendorCfg({ minimumFee: e.target.value })
                             }

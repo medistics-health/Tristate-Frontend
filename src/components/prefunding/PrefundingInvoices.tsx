@@ -35,6 +35,7 @@ import {
   Calendar,
   Info,
   Hash,
+  XCircle,
 } from "lucide-react";
 import DataTableToolbar, {
   SortableHeaderCell,
@@ -125,6 +126,7 @@ const INVOICE_STATUS_OPTIONS = [
   { value: "Draft", label: "Draft" },
   { value: "Pending Approval", label: "Pending Approval" },
   { value: "Approved", label: "Approved" },
+  { value: "Rejected", label: "Rejected" },
   { value: "Posted", label: "Posted" },
   { value: "Paid", label: "Paid" },
   { value: "Overdue", label: "Overdue" },
@@ -381,7 +383,7 @@ export default function PrefundingInvoices() {
     let badgeClass = "bg-slate-100 text-slate-700 border border-slate-200";
     if (s.includes("paid")) {
       badgeClass = "bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold";
-    } else if (s.includes("overdue")) {
+    } else if (s.includes("overdue") || s.includes("rejected")) {
       badgeClass = "bg-red-100 text-red-800 border border-red-300 font-semibold";
     } else if (s.includes("posted")) {
       badgeClass = "bg-teal-100 text-teal-800 border border-teal-300 font-semibold";
@@ -794,15 +796,26 @@ export default function PrefundingInvoices() {
                 )}
 
                 {selectedInvoice.status.toLowerCase().includes("pending") && canApprove && (
-                  <button
-                    type="button"
-                    onClick={() => handleStatusChange("Approved")}
-                    disabled={isUpdatingStatus}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#4f63ea] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#3d4ecf] disabled:opacity-50 transition-all cursor-pointer"
-                  >
-                    <CheckCircle className="h-3.5 w-3.5" />
-                    Approve Invoice
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleStatusChange("Approved")}
+                      disabled={isUpdatingStatus}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#4f63ea] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#3d4ecf] disabled:opacity-50 transition-all cursor-pointer"
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Approve Invoice
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleStatusChange("Rejected")}
+                      disabled={isUpdatingStatus}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-red-700 disabled:opacity-50 transition-all cursor-pointer"
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                      Reject Invoice
+                    </button>
+                  </>
                 )}
 
                 {selectedInvoice.status.toLowerCase() === "approved" && canPost && (
