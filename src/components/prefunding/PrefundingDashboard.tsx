@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AppLayout from "../layout/AppLayout";
-import { getStandardNavbarActions } from "../shared/PageComponents";
 import Select from "../shared/Select";
 import DatePicker from "../shared/DatePicker";
 import {
@@ -380,13 +379,11 @@ export default function PrefundingDashboard() {
     );
   };
 
-  const navbarActions = getStandardNavbarActions(() => fetchDashboard(true));
 
   return (
     <AppLayout
       title="Prefunding Dashboard"
       activeModule="Prefunding"
-      navbarActions={navbarActions}
     >
       <div className="app-split font-app-sans">
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-y-auto rounded-2xl bg-[#faf9f7] shadow-xs p-6">

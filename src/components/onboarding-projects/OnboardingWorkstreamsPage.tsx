@@ -385,7 +385,7 @@ export default function OnboardingWorkstreamsPage() {
             const match = practices.find((p) => p.id === filters.practiceId);
             if (!match) return filters.practiceId;
             return match.practiceId != null
-              ? `${match.name} (${match.practiceId})`
+              ? `${match.name} (Practice ID: ${match.practiceId})`
               : match.name;
           })(),
           onClear: () => {
@@ -443,7 +443,7 @@ export default function OnboardingWorkstreamsPage() {
         label: practice.name,
         value: practice.id,
         subLabel:
-          practice.practiceId != null ? `ID: ${practice.practiceId}` : undefined,
+          practice.practiceId != null ? `Practice ID: ${practice.practiceId}` : undefined,
       })),
     );
   }
@@ -474,7 +474,7 @@ export default function OnboardingWorkstreamsPage() {
                 const match = practices.find((p) => p.id === form.practiceId);
                 if (!match) return "";
                 return match.practiceId != null
-                  ? `${match.name} (${match.practiceId})`
+                  ? `${match.name} (Practice ID: ${match.practiceId})`
                   : match.name;
               })()}
               onChange={(value) =>
@@ -647,7 +647,7 @@ export default function OnboardingWorkstreamsPage() {
           {selectedWorkstream
             ? `${
                 selectedWorkstream.practice?.practiceId != null && selectedWorkstream.practice.name
-                  ? `${selectedWorkstream.practice.name} (${selectedWorkstream.practice.practiceId})`
+                  ? `${selectedWorkstream.practice.name} (Practice ID: ${selectedWorkstream.practice.practiceId})`
                   : selectedWorkstream.practice?.name || "Practice"
               } · ${formatPracticeServiceLine(String(selectedWorkstream.serviceLine))}`
             : "Workstream"}
@@ -819,7 +819,7 @@ export default function OnboardingWorkstreamsPage() {
                       );
                       if (!match) return "";
                       return match.practiceId != null
-                        ? `${match.name} (${match.practiceId})`
+                        ? `${match.name} (Practice ID: ${match.practiceId})`
                         : match.name;
                     })()}
                     onChange={(value) =>

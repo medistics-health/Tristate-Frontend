@@ -26,7 +26,6 @@ import {
   UserPlus,
 } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
-import { getStandardNavbarActions } from "../shared/PageComponents";
 import Select from "../shared/Select";
 import DatePicker from "../shared/DatePicker";
 import MultiSelect from "../shared/MultiSelect";
@@ -406,7 +405,6 @@ const getPricingModelColorClass = (val: string) => {
 export default function CalculatePrefunding() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const navbarActions = getStandardNavbarActions(() => {});
 
   const currentUser = readStoredUser();
   const canCalculate = hasPrefundingPermission(currentUser, "CALCULATE");
@@ -2119,7 +2117,7 @@ export default function CalculatePrefunding() {
   };
 
   return (
-    <AppLayout title="Calculate Prefunding" activeModule="Prefunding" navbarActions={navbarActions}>
+    <AppLayout title="Calculate Prefunding" activeModule="Prefunding">
       <div className="app-split font-app-sans">
         <section className="app-panel min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xs">
           {/* Header */}

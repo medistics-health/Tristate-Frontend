@@ -701,33 +701,17 @@ export default function PersonsPage() {
               );
             }
             if (field.id === "practiceNames" && value) {
-              const names = String(value).split(", ").filter(Boolean);
               return (
-                <div className="flex flex-wrap gap-1">
-                  {names.map((name, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex rounded-full bg-[#e8e5f9] px-2 py-0.5 text-xs text-[#4f63ea]"
-                    >
-                      {name}
-                    </span>
-                  ))}
-                </div>
+                <span className="text-[13px] text-slate-700">
+                  {String(value)}
+                </span>
               );
             }
             if (field.id === "companyNames" && value) {
-              const names = String(value).split(", ").filter(Boolean);
               return (
-                <div className="flex flex-wrap gap-1">
-                  {names.map((name, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex rounded-full bg-[#e8f5e9] px-2 py-0.5 text-xs text-[#2e7d32]"
-                    >
-                      {name}
-                    </span>
-                  ))}
-                </div>
+                <span className="text-[13px] text-slate-700">
+                  {String(value)}
+                </span>
               );
             }
             return (

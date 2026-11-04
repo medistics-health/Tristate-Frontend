@@ -392,7 +392,7 @@ function CredentialingDashboardPage() {
           label: item.practice,
           value: item.practice,
           subLabel:
-            item.practiceId != null ? `ID: ${item.practiceId}` : undefined,
+            item.practiceId != null ? `Practice ID: ${item.practiceId}` : undefined,
         }));
     },
     [uniquePractices],
@@ -787,7 +787,7 @@ function CredentialingDashboardPage() {
       const match = uniquePractices.find((p) => p.practice === filters.practice);
       const display =
         match && match.practiceId != null
-          ? `${match.practice} (${match.practiceId})`
+          ? `${match.practice} (Practice ID: ${match.practiceId})`
           : filters.practice;
 
       chips.push({
@@ -894,7 +894,7 @@ function CredentialingDashboardPage() {
             );
             if (!match) return draftFilters.practice;
             return match.practiceId != null
-              ? `${match.practice} (${match.practiceId})`
+              ? `${match.practice} (Practice ID: ${match.practiceId})`
               : match.practice;
           })()}
           onChange={(value) => updateDraftFilter("practice", value)}
