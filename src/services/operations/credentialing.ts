@@ -74,6 +74,7 @@ export type CredentialingListResponse = {
 export type CredentialingOptionRecord = {
   id: string;
   practice: string;
+  practiceId?: number | null;
   provider: string;
   insuranceCompany: string;
   assignedUser: string;
@@ -176,6 +177,7 @@ export async function getCredentialingRequestOptions(
       (record) => ({
         id: record.id,
         practice: record.practice,
+        practiceId: record.practiceDetails?.practiceId ?? null,
         provider: record.provider,
         insuranceCompany: record.insuranceCompany,
         assignedUser: record.assignedUser,

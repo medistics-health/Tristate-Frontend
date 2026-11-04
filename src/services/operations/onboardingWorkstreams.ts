@@ -94,7 +94,7 @@ export type OnboardingWorkstream = {
   totalTasks: number;
   createdAt: string;
   updatedAt: string;
-  practice?: { id: string; name: string };
+  practice?: { id: string; practiceId?: number | null; name: string };
   owner?: WorkstreamOwner | null;
   tasks: WorkstreamTask[];
   milestones: WorkstreamMilestone[];
@@ -157,6 +157,14 @@ function workstreamToRow(workstream: OnboardingWorkstream): WorkstreamRow {
     id: workstream.id,
     values: {
       practiceName: workstream.practice?.name || "",
+      practiceDisplay:
+        workstream.practice?.practiceId != null && workstream.practice.name
+          ? `${workstream.practice.name} (${workstream.practice.practiceId})`
+          : workstream.practice?.name || "",
+      practiceIdNum:
+        workstream.practice?.practiceId != null
+          ? String(workstream.practice.practiceId)
+          : "",
       serviceLine: displayServiceLine,
       rawServiceLine: String(workstream.serviceLine),
       blueprintName: blueprintName,

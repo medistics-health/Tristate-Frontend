@@ -463,10 +463,17 @@ export default function CredentialingModal({
 
         setPracticeOptions(
           practiceView.rows
-            .map((row) => ({
-              label: String(row.values.name || ""),
-              value: String(row.values.id || ""),
-            }))
+            .map((row) => {
+              const name = String(row.values.name || "");
+              const practiceIdVal = row.values.practiceId
+                ? String(row.values.practiceId)
+                : "";
+              return {
+                label: name,
+                value: String(row.values.id || ""),
+                subLabel: practiceIdVal ? `Practice ID: ${practiceIdVal}` : undefined,
+              };
+            })
             .filter((entry) => Boolean(entry.value && entry.label))
             .sort((a, b) => a.label.localeCompare(b.label)),
         );
@@ -505,6 +512,7 @@ export default function CredentialingModal({
       return practiceOptions.filter((option) =>
         normalized
           ? option.label.toLowerCase().includes(normalized) ||
+            option.subLabel?.toLowerCase().includes(normalized) ||
             option.value.toLowerCase().includes(normalized)
           : true,
       );
@@ -907,12 +915,28 @@ export default function CredentialingModal({
                   <FieldLabel required>Practice</FieldLabel>
                   <SearchSelect
                     value={form.practiceId || form.practice}
-                    displayLabel={form.practice}
+                    displayLabel={(() => {
+                      const match = practiceOptions.find(
+                        (opt) => opt.value === form.practiceId,
+                      );
+                      if (match) {
+                        const idStr = match.subLabel
+                          ? match.subLabel.replace(/^Practice ID:\s*/, "")
+                          : "";
+                        return idStr
+                          ? `${match.label} (Practice ID: ${idStr})`
+                          : match.label;
+                      }
+                      if (record?.practiceDetails?.practiceId != null && form.practice) {
+                        return `${form.practice} (Practice ID: ${record.practiceDetails.practiceId})`;
+                      }
+                      return form.practice;
+                    })()}
                     onChange={updatePractice}
                     onSearch={searchPracticeOptions}
                     disabled={isReadOnly}
                     clearable={!isReadOnly}
-                    placeholder="Search practice"
+                    placeholder="Search practice by name or ID"
                   />
                 </label>
 

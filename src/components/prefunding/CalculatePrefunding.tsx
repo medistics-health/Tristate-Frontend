@@ -1244,8 +1244,8 @@ export default function CalculatePrefunding() {
     }
 
     const payRateNum = Number(newEmployeePayRate);
-    if (newEmployeePayRate === "" || isNaN(payRateNum) || payRateNum <= 0) {
-      errors.payRate = "Pay rate must be greater than 0";
+    if (newEmployeePayRate !== "" && !isNaN(payRateNum) && payRateNum < 0) {
+      errors.payRate = "Pay rate cannot be negative";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -1257,7 +1257,7 @@ export default function CalculatePrefunding() {
     setIsSavingEmployee(true);
 
     try {
-      const payRate = payRateNum;
+      const payRate = !isNaN(payRateNum) && payRateNum >= 0 ? payRateNum : 0;
       const cycleHours = getCycleDefaultWorkingHours(selectedPracticeObj?.prefundingCycle || selectedCycle);
       const workingHours = calculateDefaultWorkingHours(newEmployeeDateOfJoining, cycleHours);
       const buffer = Number(newEmployeeBufferPercent) || 0;
@@ -1393,8 +1393,8 @@ export default function CalculatePrefunding() {
     }
 
     const payRateNum = Number(editEmployeePayRate);
-    if (editEmployeePayRate === "" || isNaN(payRateNum) || payRateNum <= 0) {
-      errors.payRate = "Pay rate must be greater than 0";
+    if (editEmployeePayRate !== "" && !isNaN(payRateNum) && payRateNum < 0) {
+      errors.payRate = "Pay rate cannot be negative";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -1406,7 +1406,7 @@ export default function CalculatePrefunding() {
     setIsUpdatingEmployee(true);
 
     try {
-      const payRate = payRateNum;
+      const payRate = !isNaN(payRateNum) && payRateNum >= 0 ? payRateNum : 0;
       const cycleHours = getCycleDefaultWorkingHours(selectedPracticeObj?.prefundingCycle || selectedCycle);
       const workingHours = calculateDefaultWorkingHours(editEmployeeDateOfJoining, cycleHours);
       const buffer = Number(editEmployeeBufferPercent) || 0;
@@ -3442,7 +3442,7 @@ export default function CalculatePrefunding() {
                         </button>
                         <button
                           onClick={generateInvoice}
-                          disabled={submitting || (editingInvoiceId ? (!canCreate || (!canEdit && !canCalculate)) : (!canCreate && !canCalculate))}
+                          disabled={submitting || (editingInvoiceId ? (!canCalculate || (!canEdit && !canCreate)) : (!canCreate && !canCalculate))}
                           className="flex items-center gap-2 px-6 py-2.5 bg-[#4f63ea] hover:bg-[#3d4ecf] text-white rounded-lg text-xs font-semibold transition-colors shadow-xs disabled:opacity-50"
                         >
                           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
@@ -4046,7 +4046,7 @@ export default function CalculatePrefunding() {
             {/* Pay Rate */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
-                Pay Rate ($) <span className="text-red-500">*</span>
+                Pay Rate ($)
               </label>
               <input
                 type="number"
@@ -4390,7 +4390,7 @@ export default function CalculatePrefunding() {
             {/* Pay Rate */}
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
-                Pay Rate ($) <span className="text-red-500">*</span>
+                Pay Rate ($)
               </label>
               <input
                 type="number"

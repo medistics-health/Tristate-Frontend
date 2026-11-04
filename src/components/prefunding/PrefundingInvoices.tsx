@@ -109,6 +109,8 @@ type Invoice = {
   updatedAt?: string | null;
   approvedBy?: string | null;
   approvedAt?: string | null;
+  rejectedBy?: string | null;
+  rejectedAt?: string | null;
   postedDate: string | null;
   postedAt?: string | null;
   paidDate?: string | null;
@@ -766,7 +768,7 @@ export default function PrefundingInvoices() {
               <div className="flex flex-wrap items-center gap-2 border-b border-[#f0ece6] bg-slate-50/60 px-4 py-2.5">
                 {selectedInvoice.status.toLowerCase() === "draft" && (
                   <>
-                    {(canEdit && canCreate) && (
+                    {(canEdit && canCalculate) && (
                       <button
                         type="button"
                         onClick={() => {
@@ -1393,6 +1395,41 @@ export default function PrefundingInvoices() {
                               minute: "2-digit",
                               hour12: true,
                             })}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {(selectedInvoice.rejectedAt || selectedInvoice.rejectedBy) && (
+                      <div className="sm:col-span-2 pt-2 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Rejected By</span>
+                          <span className="font-semibold text-red-600 mt-0.5 block">
+                            {selectedInvoice.rejectedBy || "Administrator"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px] font-medium uppercase tracking-wider">Rejected Date & Time</span>
+                          <span className="font-semibold text-slate-800 mt-0.5 block">
+                            {selectedInvoice.rejectedAt
+                              ? new Date(selectedInvoice.rejectedAt).toLocaleString("en-US", {
+                                  month: "short",
+                                  day: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                })
+                              : (selectedInvoice.updatedAt
+                                  ? new Date(selectedInvoice.updatedAt).toLocaleString("en-US", {
+                                      month: "short",
+                                      day: "2-digit",
+                                      year: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                      hour12: true,
+                                    })
+                                  : "-")}
                           </span>
                         </div>
                       </div>

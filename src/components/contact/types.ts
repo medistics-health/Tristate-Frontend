@@ -1,4 +1,4 @@
-﻿import type { HubLinkedDocument } from "../document-hub/types";
+import type { HubLinkedDocument } from "../document-hub/types";
 
 export type PersonRole =
   | "OWNER"
@@ -61,7 +61,7 @@ export type PersonBody = {
   secondarySpecialty?: string | null;
 };
 
-export type PersonPractice = { id: string; name: string };
+export type PersonPractice = { id: string; name: string; practiceId?: number | null };
 export type PersonCompany = { id: string; name: string };
 
 export type Person = {

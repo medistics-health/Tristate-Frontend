@@ -78,6 +78,13 @@ function isValidPersonPhone(value: string): boolean {
   return /^\d{10}$/.test(stripPhone(value));
 }
 
+function formatPracticeDisplayName(practice?: { name: string; practiceId?: number | null } | null): string {
+  if (!practice) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 function getSignedDocumentUrls(submission: {
   signedDocUrl?: string | null;
   signedDocUrls?: string | null;
@@ -409,9 +416,10 @@ export default function PersonsPage() {
       });
     }
     if (filters.practiceId) {
-      const practiceName =
-        practices.find((practice) => practice.id === filters.practiceId)?.name ||
-        filters.practiceId;
+      const matchedPractice = practices.find((practice) => practice.id === filters.practiceId);
+      const practiceName = matchedPractice
+        ? formatPracticeDisplayName(matchedPractice)
+        : filters.practiceId;
       chips.push({
         key: "practiceId",
         label: "Practice",
@@ -1504,7 +1512,7 @@ export default function PersonsPage() {
                     className="h-4 w-4 rounded border border-[#cec8bf] text-[#4f63ea]"
                   />
                   <span className="text-[13px] text-slate-600">
-                    {practice.name}
+                    {formatPracticeDisplayName(practice)}
                   </span>
                 </label>
               ))}
@@ -1679,7 +1687,7 @@ export default function PersonsPage() {
               value: "",
             },
             ...practices.map((practice) => ({
-              label: practice.name,
+              label: formatPracticeDisplayName(practice),
               value: practice.id,
             })),
           ]}
@@ -2280,7 +2288,7 @@ export default function PersonsPage() {
                               className="h-4 w-4 rounded border border-[#cec8bf] text-[#4f63ea]"
                             />
                             <span className="text-[13px] text-slate-600">
-                              {practice.name}
+                              {formatPracticeDisplayName(practice)}
                             </span>
                           </label>
                         ))
@@ -2296,7 +2304,7 @@ export default function PersonsPage() {
                             key={id}
                             className="inline-flex items-center gap-1 rounded-full bg-[#e8e5f9] px-2 py-0.5 text-xs text-[#4f63ea]"
                           >
-                            {practice.name}
+                            {formatPracticeDisplayName(practice)}
                             <button
                               type="button"
                               onClick={() => handlePracticeToggle(id)}

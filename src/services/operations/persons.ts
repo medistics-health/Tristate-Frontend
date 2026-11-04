@@ -24,7 +24,7 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
 }
 
 export type PersonWithPractices = Omit<Person, "practices" | "companies"> & {
-  practices?: { practice: { id: string; name: string } }[];
+  practices?: { practice: { id: string; name: string; practiceId?: number | null } }[];
   companies?: { company: { id: string; name: string } }[];
   docusealSubmissions?: {
     id: string;
@@ -46,7 +46,13 @@ export type PersonWithPractices = Omit<Person, "practices" | "companies"> & {
 function personToRow(person: PersonWithPractices): PersonRow {
   const practicesList = person.practices?.map((p: any) => p.practice || p) || [];
   const companiesList = person.companies?.map((c: any) => c.company || c) || [];
-  const practiceNames = practicesList.map((p) => p.name).join(", ");
+  const practiceNames = practicesList
+    .map((p) =>
+      p.practiceId != null && String(p.practiceId).trim() !== ""
+        ? `${p.name} (Practice ID: ${p.practiceId})`
+        : p.name,
+    )
+    .join(", ");
   const companyNames = companiesList.map((c) => c.name).join(", ");
   return {
     id: person.id,

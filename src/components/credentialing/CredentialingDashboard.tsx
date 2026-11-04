@@ -355,7 +355,21 @@ function CredentialingDashboardPage() {
   }
 
   const uniquePractices = useMemo(
-    () => Array.from(new Set(records.map((record) => record.practice))).sort(),
+    () => {
+      const practiceMap = new Map<string, { practice: string; practiceId?: number | null }>();
+      records.forEach((record) => {
+        if (!record.practice) return;
+        if (!practiceMap.has(record.practice)) {
+          practiceMap.set(record.practice, {
+            practice: record.practice,
+            practiceId: record.practiceDetails?.practiceId ?? null,
+          });
+        }
+      });
+      return Array.from(practiceMap.values()).sort((a, b) =>
+        a.practice.localeCompare(b.practice),
+      );
+    },
     [records],
   );
   const uniqueProviders = useMemo(
@@ -363,7 +377,24 @@ function CredentialingDashboardPage() {
     [records],
   );
   const searchPractices = useMemo(
-    () => createLocalSearchOptions(uniquePractices),
+    () => async (query: string): Promise<SearchSelectOption[]> => {
+      const normalized = query.trim().toLowerCase();
+      return uniquePractices
+        .filter((item) => {
+          if (!normalized) return true;
+          const nameMatch = item.practice.toLowerCase().includes(normalized);
+          const idMatch =
+            item.practiceId != null &&
+            String(item.practiceId).toLowerCase().includes(normalized);
+          return nameMatch || idMatch;
+        })
+        .map((item) => ({
+          label: item.practice,
+          value: item.practice,
+          subLabel:
+            item.practiceId != null ? `ID: ${item.practiceId}` : undefined,
+        }));
+    },
     [uniquePractices],
   );
   const searchProviders = useMemo(
@@ -753,10 +784,16 @@ function CredentialingDashboardPage() {
   const activeFilterChips = useMemo(() => {
     const chips: ActiveFilterChip[] = [];
     if (filters.practice) {
+      const match = uniquePractices.find((p) => p.practice === filters.practice);
+      const display =
+        match && match.practiceId != null
+          ? `${match.practice} (${match.practiceId})`
+          : filters.practice;
+
       chips.push({
         key: "practice",
         label: "Practice",
-        displayValue: filters.practice,
+        displayValue: display,
         onClear: () => {
           setFilters((curr) => ({ ...curr, practice: "" }));
           setDraftFilters((curr) => ({ ...curr, practice: "" }));
@@ -851,11 +888,20 @@ function CredentialingDashboardPage() {
         </span>
         <SearchSelect
           value={draftFilters.practice}
+          displayLabel={(() => {
+            const match = uniquePractices.find(
+              (p) => p.practice === draftFilters.practice,
+            );
+            if (!match) return draftFilters.practice;
+            return match.practiceId != null
+              ? `${match.practice} (${match.practiceId})`
+              : match.practice;
+          })()}
           onChange={(value) => updateDraftFilter("practice", value)}
           onSearch={searchPractices}
           clearable
           toggleOnSelectSame
-          placeholder="Search practice"
+          placeholder="Search practice by name or ID"
         />
       </label>
 

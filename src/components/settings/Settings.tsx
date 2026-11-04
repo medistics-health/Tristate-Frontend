@@ -1525,7 +1525,7 @@ export default function SettingsPage() {
                       <label className="flex items-center gap-2.5 cursor-pointer shrink-0 self-start sm:self-center px-3 py-1.5 rounded-xl bg-white border border-indigo-200/80 shadow-2xs">
                         <input
                           type="checkbox"
-                          checked={editingUser.role === "ADMIN" ? (editingUser.hasPrefundingAccess !== false) : !!editingUser.hasPrefundingAccess}
+                          checked={!!editingUser.hasPrefundingAccess}
                           onChange={(e) => {
                             const checked = e.target.checked;
                             setEditingUser({
@@ -1545,7 +1545,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* Permissions displayed in a row-wise card list */}
-                    {(editingUser.role === "ADMIN" || editingUser.hasPrefundingAccess) && (
+                    {!!editingUser.hasPrefundingAccess && (
                       <div className="space-y-2.5">
                         <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-900">
                           Action Permissions
@@ -1553,14 +1553,19 @@ export default function SettingsPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {PREFUNDING_ACTION_OPTIONS.map((action) => {
-                            const isChecked = Array.isArray(editingUser.prefundingPermissions) && editingUser.prefundingPermissions.includes(action.key);
+                            const currentPerms = Array.isArray(editingUser.prefundingPermissions) ? editingUser.prefundingPermissions : [];
+                            const isChecked = currentPerms.includes(action.key);
+                            const hasOtherPermissions = currentPerms.some((p) => p !== "VIEW");
+                            const isViewDisabled = action.key === "VIEW" && hasOtherPermissions;
 
                             return (
                               <label
                                 key={action.key}
                                 className={`flex items-start justify-between text-xs px-3 py-2.5 rounded-xl border transition-all ${
-                                  isChecked
-                                    ? "bg-white border-indigo-300 text-indigo-950 shadow-xs"
+                                  isViewDisabled
+                                    ? "bg-indigo-50/50 border-indigo-200 text-indigo-950 opacity-90 cursor-not-allowed"
+                                    : isChecked
+                                    ? "bg-white border-indigo-300 text-indigo-950 shadow-xs cursor-pointer"
                                     : "bg-white/70 border-slate-200/80 text-slate-600 cursor-pointer hover:bg-white hover:border-indigo-200"
                                 }`}
                               >
@@ -1578,25 +1583,31 @@ export default function SettingsPage() {
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
+                                  disabled={isViewDisabled}
                                   onChange={(e) => {
-                                    const currentPerms: string[] = Array.isArray(editingUser.prefundingPermissions)
+                                    if (isViewDisabled) return;
+                                    const nextPerms: string[] = Array.isArray(editingUser.prefundingPermissions)
                                       ? [...editingUser.prefundingPermissions]
                                       : [];
                                     if (e.target.checked) {
-                                      if (!currentPerms.includes(action.key)) {
-                                        currentPerms.push(action.key);
+                                      if (!nextPerms.includes(action.key)) {
+                                        nextPerms.push(action.key);
                                       }
                                       // Auto-select VIEW permission whenever any other permission is given
-                                      if (!currentPerms.includes("VIEW")) {
-                                        currentPerms.push("VIEW");
+                                      if (!nextPerms.includes("VIEW")) {
+                                        nextPerms.push("VIEW");
                                       }
                                     } else {
-                                      const idx = currentPerms.indexOf(action.key);
-                                      if (idx >= 0) currentPerms.splice(idx, 1);
+                                      const idx = nextPerms.indexOf(action.key);
+                                      if (idx >= 0) nextPerms.splice(idx, 1);
                                     }
+                                    const nextHasAccess = action.key === "VIEW" && !e.target.checked
+                                      ? false
+                                      : nextPerms.length > 0;
                                     setEditingUser({
                                       ...editingUser,
-                                      prefundingPermissions: currentPerms,
+                                      hasPrefundingAccess: nextHasAccess,
+                                      prefundingPermissions: nextHasAccess ? nextPerms : [],
                                     });
                                   }}
                                   className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"
@@ -1799,7 +1810,7 @@ export default function SettingsPage() {
                       <label className="flex items-center gap-2.5 cursor-pointer shrink-0 self-start sm:self-center px-3 py-1.5 rounded-xl bg-white border border-indigo-200/80 shadow-2xs">
                         <input
                           type="checkbox"
-                          checked={newUser.role === "ADMIN" ? (newUser.hasPrefundingAccess !== false) : !!newUser.hasPrefundingAccess}
+                          checked={!!newUser.hasPrefundingAccess}
                           onChange={(e) => {
                             const checked = e.target.checked;
                             setNewUser({
@@ -1819,7 +1830,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* Permissions displayed in a row-wise card list */}
-                    {(newUser.role === "ADMIN" || newUser.hasPrefundingAccess) && (
+                    {!!newUser.hasPrefundingAccess && (
                       <div className="space-y-2.5">
                         <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-900">
                           Action Permissions
@@ -1827,14 +1838,19 @@ export default function SettingsPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {PREFUNDING_ACTION_OPTIONS.map((action) => {
-                            const isChecked = Array.isArray(newUser.prefundingPermissions) && newUser.prefundingPermissions.includes(action.key);
+                            const currentPerms = Array.isArray(newUser.prefundingPermissions) ? newUser.prefundingPermissions : [];
+                            const isChecked = currentPerms.includes(action.key);
+                            const hasOtherPermissions = currentPerms.some((p) => p !== "VIEW");
+                            const isViewDisabled = action.key === "VIEW" && hasOtherPermissions;
 
                             return (
                               <label
                                 key={action.key}
                                 className={`flex items-start justify-between text-xs px-3 py-2.5 rounded-xl border transition-all ${
-                                  isChecked
-                                    ? "bg-white border-indigo-300 text-indigo-950 shadow-xs"
+                                  isViewDisabled
+                                    ? "bg-indigo-50/50 border-indigo-200 text-indigo-950 opacity-90 cursor-not-allowed"
+                                    : isChecked
+                                    ? "bg-white border-indigo-300 text-indigo-950 shadow-xs cursor-pointer"
                                     : "bg-white/70 border-slate-200/80 text-slate-600 cursor-pointer hover:bg-white hover:border-indigo-200"
                                 }`}
                               >
@@ -1852,25 +1868,31 @@ export default function SettingsPage() {
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
+                                  disabled={isViewDisabled}
                                   onChange={(e) => {
-                                    const currentPerms: string[] = Array.isArray(newUser.prefundingPermissions)
+                                    if (isViewDisabled) return;
+                                    const nextPerms: string[] = Array.isArray(newUser.prefundingPermissions)
                                       ? [...newUser.prefundingPermissions]
                                       : [];
                                     if (e.target.checked) {
-                                      if (!currentPerms.includes(action.key)) {
-                                        currentPerms.push(action.key);
+                                      if (!nextPerms.includes(action.key)) {
+                                        nextPerms.push(action.key);
                                       }
                                       // Auto-select VIEW permission whenever any other permission is given
-                                      if (!currentPerms.includes("VIEW")) {
-                                        currentPerms.push("VIEW");
+                                      if (!nextPerms.includes("VIEW")) {
+                                        nextPerms.push("VIEW");
                                       }
                                     } else {
-                                      const idx = currentPerms.indexOf(action.key);
-                                      if (idx >= 0) currentPerms.splice(idx, 1);
+                                      const idx = nextPerms.indexOf(action.key);
+                                      if (idx >= 0) nextPerms.splice(idx, 1);
                                     }
+                                    const nextHasAccess = action.key === "VIEW" && !e.target.checked
+                                      ? false
+                                      : nextPerms.length > 0;
                                     setNewUser({
                                       ...newUser,
-                                      prefundingPermissions: currentPerms,
+                                      hasPrefundingAccess: nextHasAccess,
+                                      prefundingPermissions: nextHasAccess ? nextPerms : [],
                                     });
                                   }}
                                   className="h-4 w-4 rounded border-slate-300 text-[#4f63ea] focus:ring-[#4f63ea] disabled:cursor-not-allowed"

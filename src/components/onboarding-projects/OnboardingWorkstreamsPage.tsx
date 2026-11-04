@@ -5,6 +5,7 @@ import AppLayout from "../layout/AppLayout";
 import DataTableToolbar from "../shared/DataTableToolbar";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
 import Select from "../shared/Select";
+import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import { getAllPractices } from "../../services/operations/practices";
 import { getAllUsers } from "../../services/operations/users";
@@ -36,7 +37,7 @@ import {
   type ActivityLogEntry,
 } from "../../utils/activityLogs";
 
-type PracticeOption = { id: string; name: string };
+type PracticeOption = { id: string; name: string; practiceId?: number };
 type UserOption = { id: string; firstName: string; lastName: string; email: string };
 type TemplateOption = { id: string; name: string; serviceLine: string; taskCount: number };
 
@@ -107,7 +108,13 @@ export default function OnboardingWorkstreamsPage() {
   useEffect(() => {
     getAllPractices()
       .then((data) =>
-        setPractices(data.map((practice) => ({ id: practice.id, name: practice.name }))),
+        setPractices(
+          data.map((practice) => ({
+            id: practice.id,
+            name: practice.name,
+            practiceId: practice.practiceId,
+          })),
+        ),
       )
       .catch((err) => console.error("Failed to load practices:", err));
 
@@ -374,9 +381,13 @@ export default function OnboardingWorkstreamsPage() {
       ? {
           key: "practiceId",
           label: "Practice",
-          displayValue:
-            practices.find((practice) => practice.id === filters.practiceId)?.name ||
-            filters.practiceId,
+          displayValue: (() => {
+            const match = practices.find((p) => p.id === filters.practiceId);
+            if (!match) return filters.practiceId;
+            return match.practiceId != null
+              ? `${match.name} (${match.practiceId})`
+              : match.name;
+          })(),
           onClear: () => {
             setFilters((prev) => ({ ...prev, practiceId: "" }));
             setDraftFilters((prev) => ({ ...prev, practiceId: "" }));
@@ -415,6 +426,28 @@ export default function OnboardingWorkstreamsPage() {
     onClear: () => void;
   }>;
 
+  function searchPracticeOptions(query: string): Promise<SearchSelectOption[]> {
+    const normalized = query.trim().toLowerCase();
+    const filtered = practices.filter((practice) => {
+      if (!normalized) return true;
+      const nameMatch = practice.name.toLowerCase().includes(normalized);
+      const idMatch =
+        practice.practiceId != null &&
+        String(practice.practiceId).toLowerCase().includes(normalized);
+      const uuidMatch = practice.id.toLowerCase().includes(normalized);
+      return nameMatch || idMatch || uuidMatch;
+    });
+
+    return Promise.resolve(
+      filtered.map((practice) => ({
+        label: practice.name,
+        value: practice.id,
+        subLabel:
+          practice.practiceId != null ? `ID: ${practice.practiceId}` : undefined,
+      })),
+    );
+  }
+
   function renderFormFields(
     form: typeof emptyForm,
     setForm: React.Dispatch<React.SetStateAction<typeof emptyForm>>,
@@ -435,14 +468,22 @@ export default function OnboardingWorkstreamsPage() {
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
               Practice <span className="text-red-500">*</span>
             </label>
-            <Select
+            <SearchSelect
               value={form.practiceId}
-              onChange={(value) => setForm((prev) => ({ ...prev, practiceId: value }))}
-              options={practices.map((practice) => ({
-                label: practice.name,
-                value: practice.id,
-              }))}
-              placeholder="Select practice"
+              displayLabel={(() => {
+                const match = practices.find((p) => p.id === form.practiceId);
+                if (!match) return "";
+                return match.practiceId != null
+                  ? `${match.name} (${match.practiceId})`
+                  : match.name;
+              })()}
+              onChange={(value) =>
+                setForm((prev) => ({ ...prev, practiceId: value }))
+              }
+              onSearch={searchPracticeOptions}
+              clearable
+              toggleOnSelectSame
+              placeholder="Search practice by name or ID"
             />
           </div>
         ) : null}
@@ -604,7 +645,11 @@ export default function OnboardingWorkstreamsPage() {
         <Circle className="h-4 w-4 text-slate-300" />
         <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
           {selectedWorkstream
-            ? `${selectedWorkstream.practice?.name || "Practice"} · ${formatPracticeServiceLine(String(selectedWorkstream.serviceLine))}`
+            ? `${
+                selectedWorkstream.practice?.practiceId != null && selectedWorkstream.practice.name
+                  ? `${selectedWorkstream.practice.name} (${selectedWorkstream.practice.practiceId})`
+                  : selectedWorkstream.practice?.name || "Practice"
+              } · ${formatPracticeServiceLine(String(selectedWorkstream.serviceLine))}`
             : "Workstream"}
         </span>
       </div>
@@ -766,23 +811,28 @@ export default function OnboardingWorkstreamsPage() {
                   <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
                     Practice
                   </span>
-                  <select
+                  <SearchSelect
                     value={draftFilters.practiceId}
-                    onChange={(event) =>
+                    displayLabel={(() => {
+                      const match = practices.find(
+                        (p) => p.id === draftFilters.practiceId,
+                      );
+                      if (!match) return "";
+                      return match.practiceId != null
+                        ? `${match.name} (${match.practiceId})`
+                        : match.name;
+                    })()}
+                    onChange={(value) =>
                       setDraftFilters((prev) => ({
                         ...prev,
-                        practiceId: event.target.value,
+                        practiceId: value,
                       }))
                     }
-                    className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
-                  >
-                    <option value="">All Practices</option>
-                    {practices.map((practice) => (
-                      <option key={practice.id} value={practice.id}>
-                        {practice.name}
-                      </option>
-                    ))}
-                  </select>
+                    onSearch={searchPracticeOptions}
+                    clearable
+                    toggleOnSelectSame
+                    placeholder="Search practice by name or ID"
+                  />
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
@@ -919,7 +969,14 @@ export default function OnboardingWorkstreamsPage() {
                           }`}
                         >
                           <td className="border-b border-r border-[#f4f1ec] px-4 py-3">
-                            {String(row.values.practiceName || "-")}
+                            <span className="font-medium text-slate-800">
+                              {String(row.values.practiceName || "-")}
+                            </span>
+                            {row.values.practiceIdNum ? (
+                              <span className="ml-1.5 text-xs text-slate-400">
+                                (Practice ID: {String(row.values.practiceIdNum)})
+                              </span>
+                            ) : null}
                           </td>
                           <td className="border-b border-r border-[#f4f1ec] px-4 py-3">
                             {String(row.values.serviceLine || "-")}
