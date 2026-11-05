@@ -41,7 +41,7 @@ import {
   ActivityLogSection,
 } from "../../utils/activityLogs";
 
-type PracticeOption = { id: string; name: string };
+type PracticeOption = { id: string; name: string; practiceId?: number | null };
 type UserOption = { id: string; firstName: string; lastName: string; email: string };
 
 const emptyForm = {
@@ -54,6 +54,13 @@ const emptyForm = {
   ownerUserId: "",
   status: "OPEN",
 };
+
+function formatPracticeDisplayName(practice?: { name: string; practiceId?: number | null } | null): string {
+  if (!practice) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
 
 function ownerLabel(user: UserOption) {
   const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
@@ -98,7 +105,7 @@ export default function OnboardingRisksPage() {
   useEffect(() => {
     getAllPractices()
       .then((data) =>
-        setPractices(data.map((practice) => ({ id: practice.id, name: practice.name }))),
+        setPractices(data.map((practice) => ({ id: practice.id, name: practice.name, practiceId: practice.practiceId }))),
       )
       .catch((err) => console.error("Failed to load practices:", err));
 
@@ -367,9 +374,10 @@ export default function OnboardingRisksPage() {
       ? {
           key: "practiceId",
           label: "Practice",
-          displayValue:
-            practices.find((practice) => practice.id === filters.practiceId)?.name ||
-            filters.practiceId,
+          displayValue: (() => {
+            const matchPractice = practices.find((practice) => practice.id === filters.practiceId);
+            return matchPractice ? formatPracticeDisplayName(matchPractice) : filters.practiceId;
+          })(),
           onClear: () => {
             setFilters((prev) => ({ ...prev, practiceId: "" }));
             setDraftFilters((prev) => ({ ...prev, practiceId: "" }));
@@ -439,7 +447,7 @@ export default function OnboardingRisksPage() {
                 setForm((prev) => ({ ...prev, practiceId: value, workstreamId: "" }))
               }
               options={practices.map((practice) => ({
-                label: practice.name,
+                label: formatPracticeDisplayName(practice),
                 value: practice.id,
               }))}
               placeholder="Select practice"
@@ -727,7 +735,7 @@ export default function OnboardingRisksPage() {
                     <option value="">All Practices</option>
                     {practices.map((practice) => (
                       <option key={practice.id} value={practice.id}>
-                        {practice.name}
+                        {formatPracticeDisplayName(practice)}
                       </option>
                     ))}
                   </select>
@@ -871,7 +879,14 @@ export default function OnboardingRisksPage() {
                             {String(row.values.riskId || "-")}
                           </td>
                           <td className="border-b border-r border-[#f4f1ec] px-4 py-3">
-                            {String(row.values.practiceName || "-")}
+                            <span className="font-medium text-slate-800">
+                              {String(row.values.practiceName || "-")}
+                            </span>
+                            {row.values.practiceIdNum ? (
+                              <span className="ml-1.5 text-xs text-slate-500">
+                                (Practice ID: {String(row.values.practiceIdNum)})
+                              </span>
+                            ) : null}
                           </td>
                           <td className="border-b border-r border-[#f4f1ec] px-4 py-3">
                             {String(row.values.workstream || "-")}

@@ -67,7 +67,7 @@ export type OnboardingRisk = {
   status: RiskStatus | string;
   createdAt: string;
   updatedAt: string;
-  practice?: { id: string; name: string };
+  practice?: { id: string; practiceId?: number | null; name: string };
   workstream?: { id: string; serviceLine: string; status: string } | null;
   owner?: RiskOwner | null;
 };
@@ -157,6 +157,7 @@ function riskToRow(risk: OnboardingRisk): RiskRow {
     values: {
       riskId: `R-${risk.riskNumber}`,
       practiceName: risk.practice?.name || "",
+    practiceIdNum: risk.practice?.practiceId != null ? String(risk.practice.practiceId) : "",
       workstream: risk.workstream
         ? formatPracticeServiceLine(String(risk.workstream.serviceLine))
         : "Practice-wide",

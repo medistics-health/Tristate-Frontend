@@ -37,6 +37,7 @@ export type MilestoneItem = {
   milestoneCode: string;
   description: string;
   practiceName: string;
+  practiceIdNum?: number | string | null;
   serviceLine: string;
   targetWeek: string;
   targetDate: string;
@@ -90,7 +91,15 @@ const SERVICE_LINE_LABEL_MAP: Record<string, string> = {
   CREDIT_CARDS: "Credit Cards",
 };
 
-export function getServiceLineLabel(line?: string): string {
+export function formatMilestonePracticeDisplay(practiceName?: string, practiceIdNum?: number | string | null): string {
+  if (!practiceName) return "";
+  if (practiceIdNum != null && String(practiceIdNum).trim() !== "") {
+    return `${practiceName} (Practice ID: ${practiceIdNum})`;
+  }
+  return practiceName;
+}
+
+function getServiceLineLabel(line?: string): string {
   if (!line) return "";
   return SERVICE_LINE_LABEL_MAP[line] || line;
 }
@@ -159,10 +168,15 @@ export default function OnboardingMilestonesPage() {
         }));
         if (res?.rows && res.rows.length > 0) {
           const formatted = res.rows
-            .map((r) => ({
-              label: String(r.values.name || ""),
-              value: String(r.values.name || ""),
-            }))
+            .map((r) => {
+              const name = String(r.values.name || "");
+              const pId = r.values.practiceId ? String(r.values.practiceId) : "";
+              return {
+                label: name,
+                value: name,
+                subLabel: pId ? `Practice ID: ${pId}` : undefined,
+              };
+            })
             .filter((e) => Boolean(e.value));
           setPracticeOptions(formatted);
         }
@@ -175,8 +189,14 @@ export default function OnboardingMilestonesPage() {
 
   const searchPracticeOptions = useMemo(
     () => async (query: string) => {
-      const q = query.toLowerCase();
-      return practiceOptions.filter((p) => p.label.toLowerCase().includes(q));
+      const q = query.trim().toLowerCase();
+      return practiceOptions.filter((p) =>
+        q
+          ? p.label.toLowerCase().includes(q) ||
+            p.subLabel?.toLowerCase().includes(q) ||
+            p.value.toLowerCase().includes(q)
+          : true,
+      );
     },
     [practiceOptions],
   );
@@ -241,10 +261,13 @@ export default function OnboardingMilestonesPage() {
   const activeFilterChips = useMemo(() => {
     const chips: ActiveFilterChip[] = [];
     if (filters.practiceName) {
+      const matchOpt = practiceOptions.find((opt) => opt.value === filters.practiceName || opt.label === filters.practiceName);
+      const idStr = matchOpt?.subLabel ? matchOpt.subLabel.replace(/^Practice ID:\s*/, "") : "";
+      const chipDisplay = idStr ? `${filters.practiceName} (Practice ID: ${idStr})` : filters.practiceName;
       chips.push({
         key: "practiceName",
         label: "Practice",
-        displayValue: filters.practiceName,
+        displayValue: chipDisplay,
         onClear: () => setFilters((curr) => ({ ...curr, practiceName: "" })),
       });
     }
@@ -425,13 +448,19 @@ export default function OnboardingMilestonesPage() {
         </span>
         <SearchSelect
           value={draftFilters.practiceName}
-          onChange={(val) =>
-            setDraftFilters((curr) => ({ ...curr, practiceName: val }))
+          displayLabel={(() => {
+            const match = practiceOptions.find((opt) => opt.value === draftFilters.practiceName || opt.label === draftFilters.practiceName);
+            if (!match) return draftFilters.practiceName;
+            const idStr = match.subLabel ? match.subLabel.replace(/^Practice ID:\s*/, "") : "";
+            return idStr ? `${match.label} (Practice ID: ${idStr})` : match.label;
+          })()}
+          onChange={(val, opt) =>
+            setDraftFilters((curr) => ({ ...curr, practiceName: opt?.label || val }))
           }
           onSearch={searchPracticeOptions}
           clearable
           toggleOnSelectSame
-          placeholder="Search practice"
+          placeholder="Search practice by name or ID"
         />
       </label>
 
@@ -547,7 +576,7 @@ export default function OnboardingMilestonesPage() {
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="font-semibold text-slate-900">
-                            {m.practiceName}
+                            {formatMilestonePracticeDisplay(m.practiceName, m.practiceIdNum)}
                           </div>
                           <div className="text-[11px] font-medium text-slate-400">
                             {getServiceLineLabel(m.serviceLine)}
@@ -675,9 +704,15 @@ export default function OnboardingMilestonesPage() {
                     <SearchSelect
                       options={practiceOptions}
                       value={formPracticeName}
-                      onChange={(val) => setFormPracticeName(val)}
+                      displayLabel={(() => {
+                        const match = practiceOptions.find((opt) => opt.value === formPracticeName || opt.label === formPracticeName);
+                        if (!match) return formPracticeName;
+                        const idStr = match.subLabel ? match.subLabel.replace(/^Practice ID:\s*/, "") : "";
+                        return idStr ? `${match.label} (Practice ID: ${idStr})` : match.label;
+                      })()}
+                      onChange={(val, opt) => setFormPracticeName(opt?.label || val)}
                       onSearch={searchPracticeOptions}
-                      placeholder="Select Practice"
+                      placeholder="Search practice by name or ID"
                     />
                   </div>
                   <div>
@@ -847,7 +882,7 @@ export default function OnboardingMilestonesPage() {
                         Practice
                       </span>
                       <span className="text-xs font-semibold text-slate-700">
-                        {viewingMilestone.practiceName}
+                        {formatMilestonePracticeDisplay(viewingMilestone.practiceName, viewingMilestone.practiceIdNum)}
                       </span>
                     </div>
                     <div>

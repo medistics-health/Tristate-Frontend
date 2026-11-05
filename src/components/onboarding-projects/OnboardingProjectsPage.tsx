@@ -52,6 +52,7 @@ import type { TaskTemplate } from "./OnboardingTemplatesPage";
 type DashboardProject = {
   id: string;
   practiceName: string;
+  practiceIdNum?: number | string | null;
   status: string;
   percentComplete: number;
   targetDate: string | null;
@@ -121,6 +122,14 @@ function isOverdue(value?: string | null) {
 
 function includesQuery(haystack: string, query: string) {
   return haystack.toLowerCase().includes(query);
+}
+
+function formatProjectPracticeDisplay(practiceName?: string, practiceIdNum?: number | string | null): string {
+  if (!practiceName) return "Practice";
+  if (practiceIdNum != null && String(practiceIdNum).trim() !== "") {
+    return `${practiceName} (Practice ID: ${practiceIdNum})`;
+  }
+  return practiceName;
 }
 
 function personName(
@@ -295,9 +304,12 @@ export default function OnboardingProjectsPage() {
                   )
                 : 0;
 
+          const pIdNum = (project.practice as { practiceId?: number } | undefined)?.practiceId ??
+            (project.practiceIdNum as number | string | undefined) ?? null;
           return {
             id,
             practiceName: practice,
+            practiceIdNum: pIdNum,
             status: String(project.status || "IN_PROGRESS"),
             percentComplete: percent,
             targetDate: (project.targetDate ||
@@ -329,6 +341,7 @@ export default function OnboardingProjectsPage() {
             byPractice.set(key, {
               id: workstream.onboardingProjectId || key,
               practiceName: workstream.practice?.name || "Untitled practice",
+              practiceIdNum: workstream.practice?.practiceId ?? null,
               status: String(workstream.status || "IN_PROGRESS"),
               percentComplete: workstream.percentComplete || 0,
               targetDate: workstream.targetDate || null,
@@ -644,7 +657,7 @@ export default function OnboardingProjectsPage() {
                             </span>
                           </div>
                           <div className="font-bold text-xs text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">
-                            {workstream.practice?.name || "Practice"}
+                            {formatProjectPracticeDisplay(workstream.practice?.name, workstream.practice?.practiceId)}
                           </div>
                         </div>
 
@@ -701,7 +714,7 @@ export default function OnboardingProjectsPage() {
                           </div>
 
                           <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
-                            <span className="truncate">{task.practiceName || "Practice"}</span>
+                            <span className="truncate">{formatProjectPracticeDisplay(task.practiceName, (task as any).practiceIdNum)}</span>
                             <span className={`font-semibold shrink-0 ${isOverdue(task.dueDate) ? "text-rose-600 font-bold" : "text-slate-600"}`}>
                               {formatDisplayDate(task.dueDate)}
                             </span>
@@ -744,7 +757,7 @@ export default function OnboardingProjectsPage() {
                               </span>
                             </div>
                             <div className="text-[11px] text-slate-500">
-                              {milestone.practiceName} · {formatPracticeServiceLine(milestone.serviceLine)} · Target: {formatDisplayDate(milestone.targetDate)}
+                              {formatProjectPracticeDisplay(milestone.practiceName, (milestone as any).practiceIdNum)} · {formatPracticeServiceLine(milestone.serviceLine)} · Target: {formatDisplayDate(milestone.targetDate)}
                             </div>
                           </div>
                           <span
@@ -780,7 +793,7 @@ export default function OnboardingProjectsPage() {
                             {milestone.description}
                           </div>
                           <div className="text-[11px] text-slate-500 mt-0.5">
-                            {milestone.practiceName}
+                            {formatProjectPracticeDisplay(milestone.practiceName, (milestone as any).practiceIdNum)}
                           </div>
                         </div>
                         <span className="shrink-0 rounded-md bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 text-xs font-mono font-bold text-indigo-700">
@@ -825,7 +838,7 @@ export default function OnboardingProjectsPage() {
                         </div>
 
                         <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
-                          <span className="truncate">{risk.practice?.name || "Practice"}</span>
+                          <span className="truncate">{formatProjectPracticeDisplay(risk.practice?.name, risk.practice?.practiceId)}</span>
                           <span className="font-medium text-slate-600">{formatRiskStatus(String(risk.status))}</span>
                         </div>
                       </Link>
@@ -853,7 +866,7 @@ export default function OnboardingProjectsPage() {
                         <div>
                           <div className="flex items-center justify-between gap-2 mb-1.5">
                             <span className="text-[11px] font-semibold text-slate-500 truncate">
-                              {item.practice?.name || "Practice"}
+                              {formatProjectPracticeDisplay(item.practice?.name, item.practice?.practiceId)}
                             </span>
                             <span
                               className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold shadow-2xs ${actionItemStatusClass(String(item.status))}`}
