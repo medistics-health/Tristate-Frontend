@@ -179,6 +179,13 @@ export default function TemplatesPage() {
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-slate-500">{template.description || "—"}</td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-slate-500">{formatDay(template.lastUsedAt)}</td>
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5 text-right">
+                      <button
+                          type="button"
+                          className="mr-3 font-medium text-slate-600"
+                          onClick={() => navigate(`/forms/templates/${template.id}`, { state: { from: "templates" } })}
+                        >
+                          Edit
+                        </button>
                         {template.visibility === "SYSTEM" ? null : (
                           <button
                             type="button"
@@ -191,13 +198,6 @@ export default function TemplatesPage() {
                             Rename
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className="mr-3 font-medium text-slate-600"
-                          onClick={() => navigate(`/forms/templates/${template.id}`, { state: { from: "templates" } })}
-                        >
-                          Edit
-                        </button>
                         <button
                           type="button"
                           disabled={busyId === template.id}
