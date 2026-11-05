@@ -29,6 +29,7 @@ import DataTableToolbar, {
 import Select from "../shared/Select";
 import DatePicker from "../shared/DatePicker";
 import MultiSelect from "../shared/MultiSelect";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import {
   canDocumentHubContent,
@@ -1066,6 +1067,7 @@ function DocumentHubPage() {
             value={source.practiceIds}
             onChange={(value) => setSource({ ...source, practiceIds: value })}
             options={practiceOptions}
+            optionHref={practiceOptionHref}
             disabled={disabled}
             placeholder="Link practices"
           />

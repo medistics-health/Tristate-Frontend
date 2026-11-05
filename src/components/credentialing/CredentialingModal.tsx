@@ -20,6 +20,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import DatePicker from "../shared/DatePicker";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import {
   addDocumentsToForm,
   addFollowUpToForm,
@@ -914,6 +915,7 @@ export default function CredentialingModal({
                 <label className="block">
                   <FieldLabel required>Practice</FieldLabel>
                   <SearchSelect
+                    optionHref={practiceOptionHref}
                     value={form.practiceId || form.practice}
                     displayLabel={(() => {
                       const match = practiceOptions.find(

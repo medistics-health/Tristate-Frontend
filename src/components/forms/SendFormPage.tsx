@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { ArrowLeft, Building2, Check, Search, Users, X } from "lucide-react";
+import { PracticeProfileArrow } from "../shared/practiceProfileLink";
 import { FormsLayout, GhostButton, PrimaryButton } from "./chrome";
 import { getDocument, sendFormEmails } from "./api";
 import { getAllPractices } from "../../services/operations/practices";
@@ -172,6 +173,7 @@ export default function SendFormPage() {
             }}
             onClear={() => setPracticeIds([])}
             empty="No practices match that search."
+            rowHref={(row) => `/practice/${row.id}/profile`}
           />
           <Picker
             title="People"
@@ -225,6 +227,7 @@ function Picker({
   empty,
   loading = false,
   showAvatar = false,
+  rowHref,
 }: {
   title: string;
   icon: ReactNode;
@@ -238,6 +241,7 @@ function Picker({
   empty: string;
   loading?: boolean;
   showAvatar?: boolean;
+  rowHref?: (row: Choice) => string | undefined;
 }) {
   return (
     <section className="flex flex-col overflow-hidden rounded-2xl border border-[#ece8e1] bg-white shadow-sm">
@@ -273,35 +277,44 @@ function Picker({
           const checked = selected.includes(row.id);
           const disabled = row.selectable === false;
           return (
-            <button
+            <div
               key={row.id}
-              type="button"
-              role="checkbox"
-              aria-checked={checked}
-              disabled={disabled}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => onToggle(row.id)}
-              className={`flex w-full items-center gap-3 rounded-xl border px-2.5 py-2 text-left transition-colors duration-150 ${
+              className={`flex w-full items-center gap-1 rounded-xl border px-1 py-1 text-left transition-colors duration-150 ${
                 disabled
-                  ? "cursor-not-allowed border-transparent opacity-50"
+                  ? "border-transparent opacity-50"
                   : checked
-                    ? "cursor-pointer border-[#d9def8] bg-[#f7f8ff]"
-                    : "cursor-pointer border-transparent hover:bg-[#fbfaf8]"
+                    ? "border-[#d9def8] bg-[#f7f8ff]"
+                    : "border-transparent hover:bg-[#fbfaf8]"
               }`}
             >
-              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors duration-150 ${checked ? "border-[#4f63ea] bg-[#4f63ea] text-white" : "border-[#d5cfc6] bg-white"}`}>
-                {checked ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
-              </span>
-              {showAvatar ? (
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f3f0ea] text-[11px] font-semibold text-slate-600">
-                  {initials(row.label)}
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={checked}
+                disabled={disabled}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onToggle(row.id)}
+                className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1.5 py-1 text-left ${
+                  disabled ? "cursor-not-allowed" : "cursor-pointer"
+                }`}
+              >
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors duration-150 ${checked ? "border-[#4f63ea] bg-[#4f63ea] text-white" : "border-[#d5cfc6] bg-white"}`}>
+                  {checked ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
                 </span>
+                {showAvatar ? (
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f3f0ea] text-[11px] font-semibold text-slate-600">
+                    {initials(row.label)}
+                  </span>
+                ) : null}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium text-slate-800">{row.label}</span>
+                  {row.detail ? <span className="block truncate text-[12px] text-slate-400">{row.detail}</span> : null}
+                </span>
+              </button>
+              {rowHref?.(row) ? (
+                <PracticeProfileArrow href={rowHref(row)} label={row.label} />
               ) : null}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-slate-800">{row.label}</span>
-                {row.detail ? <span className="block truncate text-[12px] text-slate-400">{row.detail}</span> : null}
-              </span>
-            </button>
+            </div>
           );
         })}
         {!loading && rows.length === 0 ? <p className="px-3 py-10 text-center text-[13px] text-slate-400">{empty}</p> : null}

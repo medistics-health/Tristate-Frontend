@@ -10,6 +10,7 @@ import AppLayout from "../layout/AppLayout";
 import Select from "../shared/Select";
 import DatePicker from "../shared/DatePicker";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import { practiceProfilePath } from "../shared/practiceProfileLink";
 import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
@@ -162,6 +163,7 @@ export default function OnboardingMilestonesPage() {
             .map((r) => ({
               label: String(r.values.name || ""),
               value: String(r.values.name || ""),
+              href: r.id ? practiceProfilePath(r.id) : undefined,
             }))
             .filter((e) => Boolean(e.value));
           setPracticeOptions(formatted);

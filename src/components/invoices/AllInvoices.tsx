@@ -30,6 +30,7 @@ import DataTableToolbar, {
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import DatePicker from "../shared/DatePicker";
 import { getAllPractices } from "../../services/operations/practices";
 import {
@@ -1373,25 +1374,22 @@ function AllInvoicePage() {
                 Loading...
               </div>
             ) : (
-              <select
+              <Select
                 value={createForm.practiceId}
-                onChange={(event) =>
+                onChange={(value) =>
                   setCreateForm((prev) => ({
                     ...prev,
-                    practiceId: event.target.value,
+                    practiceId: value,
                     agreementId: "",
                   }))
                 }
-                className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                required
-              >
-                <option value="">Select Practice</option>
-                {practices.map((practice) => (
-                  <option key={practice.id} value={practice.id}>
-                    {practice.name}
-                  </option>
-                ))}
-              </select>
+                optionHref={practiceOptionHref}
+                placeholder="Select Practice"
+                options={practices.map((practice) => ({
+                  label: practice.name,
+                  value: practice.id,
+                }))}
+              />
             )}
           </div>
 
@@ -1551,6 +1549,7 @@ function AllInvoicePage() {
             setDraftFilters((prev) => ({ ...prev, practiceId: val }))
           }
           onSearch={searchPractices}
+          optionHref={practiceOptionHref}
           clearable
           toggleOnSelectSame
           placeholder="Search practice"

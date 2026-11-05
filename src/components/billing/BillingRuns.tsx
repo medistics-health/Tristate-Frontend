@@ -49,6 +49,7 @@ import DataTableToolbar, {
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import DatePicker from "../shared/DatePicker";
 import {
   getAllInvoices,
@@ -2302,26 +2303,23 @@ function BillingRunsPage() {
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
               Practice <span className="text-red-500">*</span>
             </label>
-            <select
+            <Select
               value={createForm.practiceId}
-              onChange={(event) => {
+              onChange={(value) => {
                 setCreateForm((prev) => ({
                   ...prev,
-                  practiceId: event.target.value,
+                  practiceId: value,
                   agreementIds: [],
                   termInputs: {},
                 }));
               }}
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-              required
-            >
-              <option value="">Select Practice</option>
-              {practices.map((practice) => (
-                <option key={practice.id} value={practice.id}>
-                  {practice.name}
-                </option>
-              ))}
-            </select>
+              optionHref={practiceOptionHref}
+              placeholder="Select Practice"
+              options={practices.map((practice) => ({
+                label: practice.name,
+                value: practice.id,
+              }))}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -3622,25 +3620,22 @@ function BillingRunsPage() {
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
               Practice <span className="text-red-500">*</span>
             </label>
-            <select
+            <Select
               value={paymentForm.practiceId}
-              onChange={(event) =>
+              onChange={(value) =>
                 setPaymentForm((prev) => ({
                   ...prev,
-                  practiceId: event.target.value,
+                  practiceId: value,
                   allocations: [{ invoiceId: "", allocatedAmount: "" }],
                 }))
               }
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-              required
-            >
-              <option value="">Select Practice</option>
-              {practices.map((practice) => (
-                <option key={practice.id} value={practice.id}>
-                  {practice.name}
-                </option>
-              ))}
-            </select>
+              optionHref={practiceOptionHref}
+              placeholder="Select Practice"
+              options={practices.map((practice) => ({
+                label: practice.name,
+                value: practice.id,
+              }))}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -3848,6 +3843,7 @@ function BillingRunsPage() {
             setDraftFilters((prev) => ({ ...prev, practiceId: val }))
           }
           onSearch={searchPractices}
+          optionHref={practiceOptionHref}
           clearable
           toggleOnSelectSame
           placeholder="Search practice"

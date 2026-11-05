@@ -53,6 +53,7 @@ import {
 } from "../../services/operations/agreements";
 import AddPricingTermWizard from "./AddPricingTermWizard";
 import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -1071,6 +1072,7 @@ export default function PricingEnginePage() {
                   setPagination((prev) => ({ ...prev, page: 1 }));
                 }}
                 placeholder="1. Select Practice"
+                optionHref={practiceOptionHref}
                 options={practices.map((p) => ({ label: p.name, value: p.id }))}
               />
             </div>
