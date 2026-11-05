@@ -162,7 +162,12 @@ export default function FormsHome() {
                       <td className="border-b border-[#f4f1ec] px-3 py-2.5">{form.responseCount || 0}</td>
                       <td className="border-b border-[#f4f1ec] px-2 py-1.5">
                         <div className="flex items-center justify-end gap-1">
-                          <button
+                          {form.status === "DRAFT" ? (
+                            <button type="button" className="cursor-pointer rounded-lg px-2 py-1 text-[12px] font-medium text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-800" onClick={() => navigate(`/forms/${form.id}`)}>
+                              Edit
+                            </button>
+                          ) : null}
+                           <button
                             type="button"
                             className="cursor-pointer rounded-lg px-2 py-1 text-[12px] font-medium text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-800"
                             onClick={() => {
@@ -172,11 +177,6 @@ export default function FormsHome() {
                           >
                             Rename
                           </button>
-                          {form.status === "DRAFT" ? (
-                            <button type="button" className="cursor-pointer rounded-lg px-2 py-1 text-[12px] font-medium text-slate-500 transition-colors duration-150 hover:bg-[#f7f5f1] hover:text-slate-800" onClick={() => navigate(`/forms/${form.id}`)}>
-                              Edit
-                            </button>
-                          ) : null}
                           <button type="button" className="cursor-pointer rounded-lg px-2 py-1 text-[12px] font-medium text-slate-500 transition-colors duration-150 hover:bg-[#f4f2fe] hover:text-[#3144c4]" onClick={() => navigate(`/forms/${form.id}/responses`)}>
                             Responses
                           </button>
