@@ -99,6 +99,14 @@ function isContracted(status?: string | null) {
   );
 }
 
+function formatPracticeNameWithId(name?: string | null, practiceId?: number | string | null): string {
+  if (!name) return "-";
+  if (practiceId != null && String(practiceId).trim() !== "") {
+    return `${name} (Practice ID: ${practiceId})`;
+  }
+  return name;
+}
+
 function isOpenRequest(status: string) {
   return [
     "Not Started",
@@ -568,6 +576,7 @@ function CredentialingDashboardPage() {
     const grouped = new Map<
       string,
       {
+        practiceId: number | null;
         total: number;
         contracted: number;
         inProcess: number;
@@ -578,12 +587,17 @@ function CredentialingDashboardPage() {
 
     dashboardFilteredRecords.forEach((record) => {
       const entry = grouped.get(record.practice) || {
+        practiceId: record.practiceDetails?.practiceId ?? null,
         total: 0,
         contracted: 0,
         inProcess: 0,
         oon: 0,
         lastActivityDate: "",
       };
+
+      if (!entry.practiceId && record.practiceDetails?.practiceId != null) {
+        entry.practiceId = record.practiceDetails.practiceId;
+      }
 
       entry.total += 1;
       if (isContracted(record.status)) entry.contracted += 1;
@@ -708,6 +722,7 @@ function CredentialingDashboardPage() {
           record.activity.slice(0, 2).map((entry) => ({
             ...entry,
             practice: record.practice,
+            practiceId: record.practiceDetails?.practiceId ?? null,
             provider: record.provider,
             payer: formatPayerDisplayLabel(
               record.insuranceCompany,
@@ -1606,7 +1621,9 @@ function CredentialingDashboardPage() {
                                       <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                                         <td className="px-4 py-3">
                                           <div className="font-bold text-slate-800">{r.provider}</div>
-                                          <div className="text-[11px] text-slate-500">{r.practice}</div>
+                                          <div className="text-[11px] text-slate-500">
+                                            {formatPracticeNameWithId(r.practice, r.practiceDetails?.practiceId)}
+                                          </div>
                                         </td>
                                         <td className="px-4 py-3 font-semibold text-slate-700">
                                           {r.insuranceCompany}
@@ -1893,7 +1910,7 @@ function CredentialingDashboardPage() {
                                     className="text-[13px] text-slate-600"
                                   >
                                     <td className="border-b border-[#f4f1ec] px-5 py-3 font-medium text-slate-700">
-                                      {row.practice}
+                                      {formatPracticeNameWithId(row.practice, row.practiceId)}
                                       <div className="mt-1 text-[11px] text-slate-400">
                                         {row.contractedRate}% contracted
                                       </div>
@@ -2039,7 +2056,7 @@ function CredentialingDashboardPage() {
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
                                     <div className="text-[13px] font-medium text-slate-700">
-                                      {record.practice}
+                                      {formatPracticeNameWithId(record.practice, record.practiceDetails?.practiceId)}
                                     </div>
                                     <div className="mt-1 text-[12px] text-slate-500">
                                       {record.provider || "Practice-level"} ·{" "}
@@ -2142,7 +2159,7 @@ function CredentialingDashboardPage() {
                                           record.insuranceCompany,
                                           record.payerProviderId,
                                         )}{" "}
-                                        · {record.practice}
+                                        · {formatPracticeNameWithId(record.practice, record.practiceDetails?.practiceId)}
                                       </div>
                                     </div>
                                     <span
@@ -2195,7 +2212,7 @@ function CredentialingDashboardPage() {
                                     </div>
                                   </div>
                                   <div className="mt-1 text-[12px] text-slate-500">
-                                    {entry.practice} ·{" "}
+                                    {formatPracticeNameWithId(entry.practice, entry.practiceId)} ·{" "}
                                     {entry.provider || "Practice-level"} ·{" "}
                                     {entry.payer}
                                   </div>
