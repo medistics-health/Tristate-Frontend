@@ -14,6 +14,8 @@ import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import type { NavbarAction } from "../layout/Navbar";
 import DataTableToolbar from "../shared/DataTableToolbar";
+import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import {
   createAssessmentApi,
@@ -409,21 +411,18 @@ function AssessmentsPage() {
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
               Practice <span className="text-red-500">*</span>
             </label>
-            <select
+            <Select
               value={createForm.practiceId}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, practiceId: event.target.value }))
+              onChange={(value) =>
+                setCreateForm((prev) => ({ ...prev, practiceId: value }))
               }
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-              required
-            >
-              <option value="">Select Practice</option>
-              {practices.map((practice) => (
-                <option key={practice.id} value={practice.id}>
-                  {practice.name}
-                </option>
-              ))}
-            </select>
+              optionHref={practiceOptionHref}
+              placeholder="Select Practice"
+              options={practices.map((practice) => ({
+                label: practice.name,
+                value: practice.id,
+              }))}
+            />
           </div>
 
           <div>
@@ -538,20 +537,21 @@ function AssessmentsPage() {
                 <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
                   Practice
                 </span>
-                <select
+                <Select
                   value={draftFilters.practiceId}
-                  onChange={(e) =>
-                    setDraftFilters((prev) => ({ ...prev, practiceId: e.target.value }))
+                  onChange={(value) =>
+                    setDraftFilters((prev) => ({ ...prev, practiceId: value }))
                   }
-                  className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
-                >
-                  <option value="">All Practices</option>
-                  {practices.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                  optionHref={practiceOptionHref}
+                  placeholder="All Practices"
+                  options={[
+                    { label: "All Practices", value: "" },
+                    ...practices.map((p) => ({
+                      label: p.name,
+                      value: p.id,
+                    })),
+                  ]}
+                />
               </label>
             }
             addNewLabel={canManageAssessments ? "New record" : undefined}

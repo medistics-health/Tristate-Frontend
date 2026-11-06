@@ -85,6 +85,7 @@ import {
 import { getTemplatesApi } from "../../services/operations/onboardingProjects";
 import type { Service } from "../services/types";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import MultiSelect from "../shared/MultiSelect";
 import Select from "../shared/Select";
 import DatePicker from "../shared/DatePicker";
@@ -2331,6 +2332,7 @@ function CreateLeadPage() {
                         value={form.selectedPracticeId}
                         onChange={(val, opt) => handlePracticeSelect(val, opt)}
                         onSearch={handleSearchPractices}
+                        optionHref={practiceOptionHref}
                         placeholder={
                           form.selectedCompanyId
                             ? "Search all lead practices..."
@@ -2869,6 +2871,7 @@ function CreateLeadPage() {
                       value=""
                       onChange={(val, opt) => addContactPracticeId(val, opt)}
                       onSearch={handleSearchAllPractices}
+                      optionHref={practiceOptionHref}
                       placeholder="Search and select practices..."
                       clearOnSelect
                     />

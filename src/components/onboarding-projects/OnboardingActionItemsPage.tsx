@@ -5,6 +5,7 @@ import AppLayout from "../layout/AppLayout";
 import DataTableToolbar from "../shared/DataTableToolbar";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
 import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import { getAllPractices } from "../../services/operations/practices";
 import { getAllUsers } from "../../services/operations/users";
@@ -480,6 +481,7 @@ export default function OnboardingActionItemsPage() {
               onChange={(value) =>
                 setForm((prev) => ({ ...prev, practiceId: value, taskId: "" }))
               }
+              optionHref={practiceOptionHref}
               options={practices.map((practice) => ({
                 label: formatPracticeDisplayName(practice),
                 value: practice.id,
@@ -697,14 +699,24 @@ export default function OnboardingActionItemsPage() {
                   <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
                     Practice
                   </span>
-                  <select
+                  <Select
                     value={draftFilters.practiceId}
-                    onChange={(event) =>
+                    onChange={(value) =>
                       setDraftFilters((prev) => ({
                         ...prev,
-                        practiceId: event.target.value,
+                        practiceId: value,
                       }))
                     }
+                    optionHref={practiceOptionHref}
+                    placeholder="All Practices"
+                    options={[
+                      { label: "All Practices", value: "" },
+                      ...practices.map((practice) => ({
+                        label: practice.name,
+                        value: practice.id,
+                      })),
+                    ]}
+                  />
                     className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
                   >
                     <option value="">All Practices</option>

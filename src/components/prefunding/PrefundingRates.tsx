@@ -22,6 +22,7 @@ import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
 import DataTableToolbar, { SortableHeaderCell, type ActiveFilterChip } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
 import MultiSelect from "../shared/MultiSelect";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
 import {
@@ -521,6 +522,7 @@ export default function PrefundingRates() {
         <MultiSelect
           placeholder="Select practices"
           options={practices.map((p) => ({ value: p.id, label: p.name }))}
+          optionHref={practiceOptionHref}
           value={formData.practiceIds}
           onChange={(val) => setFormData((prev) => ({ ...prev, practiceIds: val }))}
           disabled={!showCreateForm && !isEditing}
@@ -622,6 +624,7 @@ export default function PrefundingRates() {
         <Select
           value={draftFilters.practiceId}
           onChange={(val) => setDraftFilters((prev) => ({ ...prev, practiceId: val }))}
+          optionHref={practiceOptionHref}
           options={[{ value: "", label: "All Practices" }, ...practices.map(p => ({ value: p.id, label: p.name }))]}
         />
       </label>

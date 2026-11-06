@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 import type { SelectOption } from "./Select";
+import { PracticeProfileArrow } from "./practiceProfileLink";
 
 type MultiSelectProps = {
   value: string[];
@@ -12,6 +13,7 @@ type MultiSelectProps = {
   disabled?: boolean;
   placement?: "auto" | "top" | "bottom";
   clearable?: boolean;
+  optionHref?: (option: SelectOption) => string | undefined;
 };
 
 export default function MultiSelect({
@@ -23,6 +25,7 @@ export default function MultiSelect({
   disabled = false,
   placement = "auto",
   clearable = false,
+  optionHref,
 }: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -127,22 +130,28 @@ export default function MultiSelect({
         ) : (
           options.map((opt) => {
             const isSelected = value.includes(opt.value);
+            const href = optionHref?.(opt) || opt.href;
             return (
-              <button
+              <div
                 key={opt.value}
-                type="button"
-                onClick={() => toggleValue(opt.value)}
-                className={`flex w-full items-center justify-between px-3 py-2 text-left text-[13px] transition-colors ${
+                className={`flex w-full items-center ${
                   isSelected
                     ? "bg-[#f0f2fe] font-medium text-[#4f63ea]"
                     : "text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                <span className="truncate">{opt.label}</span>
-                {isSelected ? (
-                  <Check className="h-4 w-4 shrink-0 text-[#4f63ea]" />
-                ) : null}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => toggleValue(opt.value)}
+                  className="flex min-w-0 flex-1 items-center justify-between px-3 py-2 text-left text-[13px] transition-colors"
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {isSelected ? (
+                    <Check className="h-4 w-4 shrink-0 text-[#4f63ea]" />
+                  ) : null}
+                </button>
+                {href ? <PracticeProfileArrow href={href} label={opt.label} /> : null}
+              </div>
             );
           })
         )}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AppLayout from "../layout/AppLayout";
 import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import DatePicker from "../shared/DatePicker";
 import {
   TrendingUp,
@@ -454,6 +455,7 @@ export default function PrefundingDashboard() {
                   value={filterPractice}
                   onChange={setFilterPractice}
                   options={practiceOptions}
+                  optionHref={practiceOptionHref}
                   className="w-full text-xs"
                 />
               </div>

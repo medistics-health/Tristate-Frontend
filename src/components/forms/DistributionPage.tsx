@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { FieldLabel, FormsLayout, GhostButton, Panel, PrimaryButton, RecipientPill, BufferedInput, BufferedTextArea, TextArea, TextInput, formatWhen } from "./chrome";
 import { loadFormDocument, makeRecipient, publishForm, sendReminder, sendTestEmail, setRecipients, updateForm, updateRecipient, useFormStore } from "./store";
 import { getAllPractices } from "../../services/operations/practices";
+import { PracticeProfileArrow } from "../shared/practiceProfileLink";
 import { apiConnector } from "../../services/apiConnector";
 import type { FormRecipient, RecipientSource } from "./types";
 
@@ -156,15 +157,18 @@ export default function DistributionPage() {
               </label>
               <div className="mt-2 space-y-1">
                 {practiceOptions.filter((item) => item.name.toLowerCase().includes(practiceQuery.toLowerCase())).map((practice) => (
-                  <label key={practice.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] hover:bg-[#f7f5f1]">
-                    <input
-                      type="checkbox"
-                      checked={selectedPractices.includes(practice.id)}
-                      onChange={(event) => setSelectedPractices((current) => event.target.checked ? [...current, practice.id] : current.filter((item) => item !== practice.id))}
-                    />
-                    {practice.name}
-                    <span className="text-slate-400">{practice.email}</span>
-                  </label>
+                  <div key={practice.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] hover:bg-[#f7f5f1]">
+                    <label className="flex min-w-0 flex-1 items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedPractices.includes(practice.id)}
+                        onChange={(event) => setSelectedPractices((current) => event.target.checked ? [...current, practice.id] : current.filter((item) => item !== practice.id))}
+                      />
+                      <span className="truncate">{practice.name}</span>
+                      <span className="text-slate-400">{practice.email}</span>
+                    </label>
+                    <PracticeProfileArrow practiceId={practice.id} label={practice.name} />
+                  </div>
                 ))}
               </div>
               <label className="mt-3 flex items-center gap-2 text-[13px]">

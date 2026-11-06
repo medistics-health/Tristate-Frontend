@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
+import { PracticeProfileArrow } from "./practiceProfileLink";
 
 export type SearchSelectOption = {
   label: string;
   value: string;
   subLabel?: string;
+  href?: string;
 };
 
 type SearchSelectProps = {
@@ -19,6 +21,7 @@ type SearchSelectProps = {
   clearOnSelect?: boolean;
   clearable?: boolean;
   toggleOnSelectSame?: boolean;
+  optionHref?: (option: SearchSelectOption) => string | undefined;
 };
 
 export default function SearchSelect({
@@ -32,6 +35,7 @@ export default function SearchSelect({
   clearOnSelect = false,
   clearable = false,
   toggleOnSelectSame = false,
+  optionHref,
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -166,39 +170,45 @@ export default function SearchSelect({
         ) : (
           options.map((opt) => {
             const isSelected = opt.value === value;
+            const href = optionHref?.(opt) || opt.href;
             return (
-              <button
+              <div
                 key={opt.value}
-                type="button"
-                onClick={() => handleSelect(opt)}
-                className={`flex w-full flex-col items-start border-b border-slate-50 px-3 py-2.5 text-left transition-colors last:border-0 ${
+                className={`flex items-start border-b border-slate-50 last:border-0 ${
                   isSelected
                     ? "bg-[#f0f2fe] text-[#4f63ea]"
                     : "text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                <div className="flex w-full items-center justify-between">
-                  <span
-                    className={`text-[13px] ${
-                      isSelected ? "font-semibold" : "font-medium"
-                    }`}
-                  >
-                    {opt.label}
-                  </span>
-                  {isSelected ? (
-                    <Check className="h-3.5 w-3.5 shrink-0 text-[#4f63ea]" />
+                <button
+                  type="button"
+                  onClick={() => handleSelect(opt)}
+                  className="flex min-w-0 flex-1 flex-col items-start px-3 py-2.5 text-left transition-colors"
+                >
+                  <div className="flex w-full items-center justify-between gap-2">
+                    <span
+                      className={`truncate text-[13px] ${
+                        isSelected ? "font-semibold" : "font-medium"
+                      }`}
+                    >
+                      {opt.label}
+                    </span>
+                    {isSelected ? (
+                      <Check className="h-3.5 w-3.5 shrink-0 text-[#4f63ea]" />
+                    ) : null}
+                  </div>
+                  {opt.subLabel ? (
+                    <span
+                      className={`mt-0.5 text-[11px] ${
+                        isSelected ? "text-[#4f63ea]/70" : "text-slate-400"
+                      }`}
+                    >
+                      {opt.subLabel}
+                    </span>
                   ) : null}
-                </div>
-                {opt.subLabel ? (
-                  <span
-                    className={`mt-0.5 text-[11px] ${
-                      isSelected ? "text-[#4f63ea]/70" : "text-slate-400"
-                    }`}
-                  >
-                    {opt.subLabel}
-                  </span>
-                ) : null}
-              </button>
+                </button>
+                {href ? <div className="mt-1.5 pr-1"><PracticeProfileArrow href={href} label={opt.label} /></div> : null}
+              </div>
             );
           })
         )}

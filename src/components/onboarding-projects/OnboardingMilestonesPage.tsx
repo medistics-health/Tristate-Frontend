@@ -10,6 +10,7 @@ import AppLayout from "../layout/AppLayout";
 import Select from "../shared/Select";
 import DatePicker from "../shared/DatePicker";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import { practiceProfilePath } from "../shared/practiceProfileLink";
 import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
@@ -168,6 +169,11 @@ export default function OnboardingMilestonesPage() {
         }));
         if (res?.rows && res.rows.length > 0) {
           const formatted = res.rows
+            .map((r) => ({
+              label: String(r.values.name || ""),
+              value: String(r.values.name || ""),
+              href: r.id ? practiceProfilePath(r.id) : undefined,
+            }))
             .map((r) => {
               const name = String(r.values.name || "");
               const pId = r.values.practiceId ? String(r.values.practiceId) : "";
