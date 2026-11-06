@@ -66,7 +66,7 @@ export type OnboardingActionItem = {
   loggedAt: string;
   createdAt: string;
   updatedAt: string;
-  practice?: { id: string; name: string };
+  practice?: { id: string; practiceId?: number | null; name: string };
   task?: ActionItemTask | null;
   responsibleUser?: ActionItemUser | null;
   loggedByUser?: ActionItemUser | null;
@@ -136,6 +136,7 @@ function actionItemToRow(item: OnboardingActionItem): ActionItemRow {
     values: {
       loggedAt: item.loggedAt,
       practiceName: item.practice?.name || "",
+    practiceIdNum: item.practice?.practiceId != null ? String(item.practice.practiceId) : "",
       relatedTo: relatedToLabel(item),
       note: item.note,
       status: String(item.status),

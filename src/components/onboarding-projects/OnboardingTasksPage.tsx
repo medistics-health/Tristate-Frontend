@@ -80,6 +80,7 @@ export type TaskItem = {
   name: string;
   practiceId?: string;
   practiceName: string;
+  practiceIdNum?: number | string | null;
   workstreamId?: string;
   serviceLine: ServiceLine;
   phase: TaskPhase;
@@ -221,7 +222,15 @@ const SERVICE_LINE_LABEL_MAP: Record<string, string> = {
   CREDIT_CARDS: "Credit Cards",
 };
 
-export function getServiceLineLabel(line?: string): string {
+export function formatTaskPracticeDisplay(practiceName?: string, practiceIdNum?: number | string | null): string {
+  if (!practiceName) return "";
+  if (practiceIdNum != null && String(practiceIdNum).trim() !== "") {
+    return `${practiceName} (Practice ID: ${practiceIdNum})`;
+  }
+  return practiceName;
+}
+
+function getServiceLineLabel(line?: string): string {
   if (!line) return "";
   if (SERVICE_LINE_LABEL_MAP[line]) return SERVICE_LINE_LABEL_MAP[line];
   return line
@@ -455,10 +464,15 @@ export default function OnboardingTasksPage() {
 
         if (practicesRes?.rows && practicesRes.rows.length > 0) {
           const formattedPractices: SearchSelectOption[] = practicesRes.rows
-            .map((row) => ({
-              label: String(row.values.name || ""),
-              value: String(row.values.id || row.values.name || ""),
-            }))
+            .map((row) => {
+              const name = String(row.values.name || "");
+              const pId = row.values.practiceId ? String(row.values.practiceId) : "";
+              return {
+                label: name,
+                value: String(row.values.id || row.values.name || ""),
+                subLabel: pId ? `Practice ID: ${pId}` : undefined,
+              };
+            })
             .filter((e) => Boolean(e.value && e.label))
             .sort((a, b) => a.label.localeCompare(b.label));
 
@@ -586,6 +600,7 @@ export default function OnboardingTasksPage() {
       return practiceOptions.filter((option) =>
         normalized
           ? option.label.toLowerCase().includes(normalized) ||
+            option.subLabel?.toLowerCase().includes(normalized) ||
             option.value.toLowerCase().includes(normalized)
           : true,
       );
@@ -1004,10 +1019,13 @@ export default function OnboardingTasksPage() {
   const activeFilterChips = useMemo(() => {
     const chips: ActiveFilterChip[] = [];
     if (filters.practiceName || filters.practiceId) {
+      const matchOpt = practiceOptions.find((opt) => opt.value === filters.practiceId || opt.label === filters.practiceName);
+      const idStr = matchOpt?.subLabel ? matchOpt.subLabel.replace(/^Practice ID:\s*/, "") : "";
+      const chipDisplay = idStr ? `${filters.practiceName || matchOpt?.label} (Practice ID: ${idStr})` : (filters.practiceName || filters.practiceId);
       chips.push({
         key: "practice",
         label: "Practice",
-        displayValue: filters.practiceName || filters.practiceId,
+        displayValue: chipDisplay,
         onClear: () => {
           setFilters((curr) => ({ ...curr, practiceId: "", practiceName: "" }));
           setDraftFilters((curr) => ({
@@ -1107,7 +1125,12 @@ export default function OnboardingTasksPage() {
         <SearchSelect
           optionHref={practiceOptionHref}
           value={draftFilters.practiceId}
-          displayLabel={draftFilters.practiceName}
+          displayLabel={(() => {
+            const match = practiceOptions.find((opt) => opt.value === draftFilters.practiceId || opt.label === draftFilters.practiceName);
+            if (!match) return draftFilters.practiceName;
+            const idStr = match.subLabel ? match.subLabel.replace(/^Practice ID:\s*/, "") : "";
+            return idStr ? `${match.label} (Practice ID: ${idStr})` : match.label;
+          })()}
           onChange={(val, opt) => {
             setDraftFilters((curr) => ({
               ...curr,
@@ -1118,7 +1141,7 @@ export default function OnboardingTasksPage() {
           onSearch={searchPracticeOptions}
           clearable
           toggleOnSelectSame
-          placeholder="Search practice"
+          placeholder="Search practice by name or ID"
         />
       </label>
 
@@ -1604,7 +1627,7 @@ export default function OnboardingTasksPage() {
                               {t.name}
                             </div>
                             <div className="text-xs text-slate-500">
-                              {t.practiceName}
+                              {formatTaskPracticeDisplay(t.practiceName, t.practiceIdNum)}
                             </div>
                           </td>
                           <td className="px-4 py-3.5">
@@ -1829,7 +1852,7 @@ export default function OnboardingTasksPage() {
                               {t.name}
                             </h4>
                             <p className="text-xs text-slate-500">
-                              {t.practiceName}
+                              {formatTaskPracticeDisplay(t.practiceName, t.practiceIdNum)}
                             </p>
 
                             <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
@@ -2000,7 +2023,7 @@ export default function OnboardingTasksPage() {
                     {selectedTask.name}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {selectedTask.practiceName}
+                    {formatTaskPracticeDisplay(selectedTask.practiceName, selectedTask.practiceIdNum)}
                   </p>
                 </div>
                 <button
@@ -2281,7 +2304,12 @@ export default function OnboardingTasksPage() {
                     <SearchSelect
                       optionHref={practiceOptionHref}
                       value={newTaskPracticeId}
-                      displayLabel={newTaskPracticeName}
+                      displayLabel={(() => {
+                        const match = practiceOptions.find((opt) => opt.value === newTaskPracticeId || opt.label === newTaskPracticeName);
+                        if (!match) return newTaskPracticeName;
+                        const idStr = match.subLabel ? match.subLabel.replace(/^Practice ID:\s*/, "") : "";
+                        return idStr ? `${match.label} (Practice ID: ${idStr})` : match.label;
+                      })()}
                       onChange={(val, opt) => {
                         setNewTaskPracticeId(val);
                         setNewTaskPracticeName(opt?.label || val);
@@ -2291,7 +2319,7 @@ export default function OnboardingTasksPage() {
                       onSearch={searchPracticeOptions}
                       clearable
                       toggleOnSelectSame
-                      placeholder="Search practice"
+                      placeholder="Search practice by name or ID"
                     />
                   </div>
                   <div>
@@ -2449,7 +2477,12 @@ export default function OnboardingTasksPage() {
                     <SearchSelect
                       optionHref={practiceOptionHref}
                       value={editTaskPracticeId}
-                      displayLabel={editTaskPracticeName}
+                      displayLabel={(() => {
+                        const match = practiceOptions.find((opt) => opt.value === editTaskPracticeId || opt.label === editTaskPracticeName);
+                        if (!match) return editTaskPracticeName;
+                        const idStr = match.subLabel ? match.subLabel.replace(/^Practice ID:\s*/, "") : "";
+                        return idStr ? `${match.label} (Practice ID: ${idStr})` : match.label;
+                      })()}
                       onChange={(val, opt) => {
                         setEditTaskPracticeId(val);
                         setEditTaskPracticeName(opt?.label || val);
@@ -2459,7 +2492,7 @@ export default function OnboardingTasksPage() {
                       onSearch={searchPracticeOptions}
                       clearable
                       toggleOnSelectSame
-                      placeholder="Search practice"
+                      placeholder="Search practice by name or ID"
                     />
                   </div>
                   <div>
