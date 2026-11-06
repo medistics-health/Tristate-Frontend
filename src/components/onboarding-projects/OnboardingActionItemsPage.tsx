@@ -712,20 +712,11 @@ export default function OnboardingActionItemsPage() {
                     options={[
                       { label: "All Practices", value: "" },
                       ...practices.map((practice) => ({
-                        label: practice.name,
+                        label: formatPracticeDisplayName(practice),
                         value: practice.id,
                       })),
                     ]}
                   />
-                    className="w-full rounded-md border border-[#ece8e1] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[#4f63ea]"
-                  >
-                    <option value="">All Practices</option>
-                    {practices.map((practice) => (
-                      <option key={practice.id} value={practice.id}>
-                        {formatPracticeDisplayName(practice)}
-                      </option>
-                    ))}
-                  </select>
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">
