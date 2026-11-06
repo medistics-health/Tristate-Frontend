@@ -121,6 +121,13 @@ const agreementStatusOptions = [
 
 const agreementTypeOptions = ["MSA", "SOW", "RENEWAL", "ADDENDUM"];
 
+const partyTitleOptions = [
+  { label: "Owner", value: "Owner" },
+  { label: "Doctor (Dr.)", value: "Dr." },
+  { label: "Practice Manager", value: "Practice Manager" },
+  { label: "Office Manager", value: "Office Manager" },
+];
+
 const approvalStatusOptions = [
   "PENDING_APPROVAL",
   "APPROVED",
@@ -163,6 +170,8 @@ type AgreementFormState = {
   docusealFieldValues: Record<string, Record<string, string>>;
   serviceIds: string[];
   signingOrder: SigningOrder;
+  firstPartyTitle: string;
+  secondPartyTitle: string;
 };
 
 const initialFormState: AgreementFormState = {
@@ -178,6 +187,8 @@ const initialFormState: AgreementFormState = {
   docusealFieldValues: {},
   serviceIds: [],
   signingOrder: TRISTATE_FIRST_ORDER,
+  firstPartyTitle: "",
+  secondPartyTitle: "",
 };
 
 function formatStatusLabel(status: string) {
@@ -226,9 +237,38 @@ function formatDateForInput(value?: string | null) {
   return date.toISOString().slice(0, 10);
 }
 
+function partyTitleForTemplateField(
+  field: DocusealField,
+  template: DocusealTemplate,
+  form: Pick<AgreementFormState, "firstPartyTitle" | "secondPartyTitle">,
+) {
+  const fieldName = (field.name || "").trim().toLowerCase();
+  const submitterName = (
+    template.submitters?.find(
+      (submitter) => submitter.uuid === field.submitter_uuid,
+    )?.name || ""
+  )
+    .trim()
+    .toLowerCase();
+  const isTitleField = fieldName === "title";
+  const isFirstPartyTitle =
+    (isTitleField && submitterName === "first party") ||
+    (fieldName.includes("first party") && fieldName.includes("title"));
+  const isSecondPartyTitle =
+    (isTitleField && submitterName === "second party") ||
+    (fieldName.includes("second party") && fieldName.includes("title"));
+
+  if (isFirstPartyTitle) return form.firstPartyTitle || "";
+  if (isSecondPartyTitle) return form.secondPartyTitle || "";
+  return null;
+}
+
 function buildCreateFormDocusealPrefillValues(
   template: DocusealTemplate | undefined,
-  form: Pick<AgreementFormState, "practiceId" | "effectiveDate">,
+  form: Pick<
+    AgreementFormState,
+    "practiceId" | "effectiveDate" | "firstPartyTitle" | "secondPartyTitle"
+  >,
   practices: Practice[],
 ) {
   const values: Record<string, string> = {};
@@ -239,6 +279,14 @@ function buildCreateFormDocusealPrefillValues(
 
   for (const field of template.fields || []) {
     if (!isEditableDocusealField(field)) continue;
+
+    const partyTitle = partyTitleForTemplateField(field, template, form);
+    if (partyTitle !== null) {
+      if (partyTitle) {
+        values[field.uuid] = partyTitle;
+      }
+      continue;
+    }
 
     const fieldName = (field.name || "").toLowerCase();
     let value = "";
@@ -303,6 +351,8 @@ function buildFormState(agreement?: Agreement | null): AgreementFormState {
     docusealFieldValues,
     serviceIds: agreement.services?.map((s) => s.id) || [],
     signingOrder: signingOrderFromAgreement(agreement),
+    firstPartyTitle: "",
+    secondPartyTitle: "",
   };
 }
 
@@ -1247,6 +1297,23 @@ function AllAgreementsPage() {
           }
         }
 
+        for (const field of template.fields || []) {
+          const selectedTitle = partyTitleForTemplateField(field, template, prev);
+          if (selectedTitle === null) continue;
+
+          const currentValue = updatedValues[field.uuid] || "";
+          const previousValue = previousAutoFilled[field.uuid] || "";
+          if (selectedTitle) {
+            if (currentValue !== selectedTitle) {
+              updatedValues[field.uuid] = selectedTitle;
+              hasChanges = true;
+            }
+          } else if (previousValue && currentValue === previousValue) {
+            updatedValues[field.uuid] = "";
+            hasChanges = true;
+          }
+        }
+
         nextFieldValues[templateId] = updatedValues;
         nextAutoFilledValues[templateId] = nextAutoFilled;
       }
@@ -1265,6 +1332,8 @@ function AllAgreementsPage() {
   }, [
     createForm.practiceId,
     createForm.effectiveDate,
+    createForm.firstPartyTitle,
+    createForm.secondPartyTitle,
     createForm.docusealTemplates,
     docusealTemplates,
     practices,
@@ -2464,6 +2533,52 @@ function AllAgreementsPage() {
               className="app-control w-full rounded-md px-3 py-2 text-[13px]"
             />
           </div>*/}
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              First Party Title
+            </label>
+            <select
+              value={createForm.firstPartyTitle}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  firstPartyTitle: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            >
+              <option value="">Select title</option>
+              {partyTitleOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-slate-700">
+              Second Party Title
+            </label>
+            <select
+              value={createForm.secondPartyTitle}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  secondPartyTitle: event.target.value,
+                }))
+              }
+              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+            >
+              <option value="">Select title</option>
+              {partyTitleOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div>
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
