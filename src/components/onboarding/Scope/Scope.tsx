@@ -21,6 +21,15 @@ import type { Practice } from "../../practices/types";
 
 type Option = { label: string; value: string };
 
+function formatPracticeSelectLabel(practice: {
+  name: string;
+  practiceId?: number | null;
+}) {
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 type ScopeFormState = Pick<
   OnboardingBody,
   | "requestedServices"
@@ -482,7 +491,7 @@ export default function Scope() {
                     : "Select practice"
                 }
                 options={availableScopePractices.map((practice) => ({
-                  label: practice.name,
+                  label: formatPracticeSelectLabel(practice),
                   value: practice.id,
                 }))}
               />

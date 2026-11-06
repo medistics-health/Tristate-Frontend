@@ -324,6 +324,15 @@ type AgreementRow = {
   values: Record<string, string | number | null>;
 };
 
+function formatPracticeSelectLabel(practice: {
+  name: string;
+  practiceId?: number | null;
+}) {
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 function AllAgreementsPage() {
   const currentRole = readStoredUser()?.role as string | undefined;
   const isAdmin = hasAdminAccess(currentRole);
@@ -1360,9 +1369,12 @@ function AllAgreementsPage() {
       });
     }
     if (filters.practiceId) {
-      const practiceName =
-        practices.find((practice) => practice.id === filters.practiceId)?.name ||
-        filters.practiceId;
+      const practice = practices.find(
+        (item) => item.id === filters.practiceId,
+      );
+      const practiceName = practice
+        ? formatPracticeSelectLabel(practice)
+        : filters.practiceId;
       chips.push({
         key: "practiceId",
         label: "Practice",
@@ -1456,7 +1468,7 @@ function AllAgreementsPage() {
               value: "",
             },
             ...practices.map((practice) => ({
-              label: practice.name,
+              label: formatPracticeSelectLabel(practice),
               value: practice.id,
             })),
           ]}
@@ -2214,7 +2226,7 @@ function AllAgreementsPage() {
                 optionHref={practiceOptionHref}
                 placeholder="Select Practice"
                 options={practices.map((practice) => ({
-                  label: practice.name,
+                  label: formatPracticeSelectLabel(practice),
                   value: practice.id,
                 }))}
               />
