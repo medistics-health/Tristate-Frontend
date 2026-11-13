@@ -57,6 +57,13 @@ function formatDateTime(value?: string | null) {
   return date.toLocaleString();
 }
 
+function formatPracticeDisplayName(practice?: { name?: string | null; practiceId?: number | null } | null): string {
+  if (!practice || !practice.name) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
@@ -278,7 +285,7 @@ function BillingStatusBoardPage() {
               </button>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[14px] font-medium text-slate-700">
-                  {selectedRun.practice?.name || "Billing Run"}
+                  {formatPracticeDisplayName(selectedRun.practice) || "Billing Run"}
                 </div>
                 <div className="text-[12px] text-slate-400">
                   {formatDateTime(selectedRun.periodStart).split(",")[0]} - {formatDateTime(selectedRun.periodEnd).split(",")[0]}
@@ -365,7 +372,7 @@ function BillingStatusBoardPage() {
                     <div className="text-slate-700">{formatStatusLabel(selectedRun.status)}</div>
 
                     <div className="text-slate-400">Practice</div>
-                    <div className="text-slate-700">{selectedRun.practice?.name || "-"}</div>
+                    <div className="text-slate-700">{formatPracticeDisplayName(selectedRun.practice) || "-"}</div>
 
 
 

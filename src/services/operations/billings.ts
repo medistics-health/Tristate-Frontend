@@ -87,7 +87,7 @@ export type BillingRunListItem = {
   createdAt: string;
   updatedAt: string;
   notes?: string | null;
-  practice?: { id: string; name: string } | null;
+  practice?: { id: string; practiceId?: number | null; name: string } | null;
   createdByUser?: {
     id: string;
     firstName?: string | null;
@@ -359,7 +359,11 @@ function toBillingRunRow(run: BillingRunListItem): BillingRunRow {
   return {
     id: run.id,
     values: {
-      practiceName: run.practice?.name || "-",
+      practiceName: run.practice?.name
+        ? run.practice.practiceId != null && String(run.practice.practiceId).trim() !== ""
+          ? `${run.practice.name} (Practice ID: ${run.practice.practiceId})`
+          : run.practice.name
+        : "-",
       createdBy: createdByName,
       status: run.status,
       period: `${formatDate(run.periodStart)} - ${formatDate(run.periodEnd)}`,

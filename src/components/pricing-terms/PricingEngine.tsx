@@ -122,6 +122,13 @@ function fmtModelValue(
   return fmtMoney(n);
 }
 
+function formatPracticeDisplayName(practice?: { name: string; practiceId?: number | null } | null): string {
+  if (!practice) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 function pickDefaultSignerEmail(practice?: Practice) {
   const people = practice?.persons ?? [];
   const rolePriority = [
@@ -1071,7 +1078,7 @@ export default function PricingEnginePage() {
                   setPagination((prev) => ({ ...prev, page: 1 }));
                 }}
                 placeholder="1. Select Practice"
-                options={practices.map((p) => ({ label: p.name, value: p.id }))}
+                options={practices.map((p) => ({ label: formatPracticeDisplayName(p), value: p.id }))}
               />
             </div>
 

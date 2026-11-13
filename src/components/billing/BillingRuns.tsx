@@ -272,6 +272,13 @@ function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
 
+function formatPracticeDisplayName(practice?: { name?: string | null; practiceId?: number | null } | null): string {
+  if (!practice || !practice.name) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
@@ -392,10 +399,10 @@ function BillingRunsPage() {
     filters.dateTo,
   ].filter(Boolean).length;
 
-  const practiceFilterLabel = useMemo(
-    () => practices.find((p) => p.id === filters.practiceId)?.name || filters.practiceId,
-    [practices, filters.practiceId],
-  );
+  const practiceFilterLabel = useMemo(() => {
+    const p = practices.find((item) => item.id === filters.practiceId);
+    return p ? formatPracticeDisplayName(p) : filters.practiceId;
+  }, [practices, filters.practiceId]);
 
   const activeFilterChips = useMemo(() => {
     const chips: ActiveFilterChip[] = [];
@@ -1623,7 +1630,7 @@ function BillingRunsPage() {
         </button>
         <Circle className="h-4 w-4 text-slate-300" />
         <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-700">
-          {selectedRun?.practice?.name || "Billing Run"}
+          {formatPracticeDisplayName(selectedRun?.practice) || "Billing Run"}
         </span>
       </div>
 
@@ -1710,7 +1717,7 @@ function BillingRunsPage() {
 
           <div className="flex-1 overflow-auto p-4">
             <DetailCard
-              title={selectedRun?.practice?.name || "Billing Run"}
+              title={formatPracticeDisplayName(selectedRun?.practice) || "Billing Run"}
               badge={
                 selectedRun?.status
                   ? {
@@ -2318,7 +2325,7 @@ function BillingRunsPage() {
               <option value="">Select Practice</option>
               {practices.map((practice) => (
                 <option key={practice.id} value={practice.id}>
-                  {practice.name}
+                  {formatPracticeDisplayName(practice)}
                 </option>
               ))}
             </select>
@@ -3637,7 +3644,7 @@ function BillingRunsPage() {
               <option value="">Select Practice</option>
               {practices.map((practice) => (
                 <option key={practice.id} value={practice.id}>
-                  {practice.name}
+                  {formatPracticeDisplayName(practice)}
                 </option>
               ))}
             </select>
@@ -3829,8 +3836,17 @@ function BillingRunsPage() {
     const list = practices.length > 0 ? practices : await getAllPractices();
     const q = query.trim().toLowerCase();
     return list
-      .filter((p) => !q || p.name.toLowerCase().includes(q))
-      .map((p) => ({ label: p.name, value: p.id }));
+      .filter((p) => {
+        if (!q) return true;
+        const nameMatch = p.name.toLowerCase().includes(q);
+        const idMatch = p.practiceId != null && String(p.practiceId).toLowerCase().includes(q);
+        return nameMatch || idMatch;
+      })
+      .map((p) => ({
+        label: p.name,
+        value: p.id,
+        subLabel: p.practiceId != null ? `Practice ID: ${p.practiceId}` : undefined,
+      }));
   };
 
   const filterFieldsModal = (
@@ -3841,16 +3857,17 @@ function BillingRunsPage() {
         </span>
         <SearchSelect
           value={draftFilters.practiceId}
-          displayLabel={
-            practices.find((p) => p.id === draftFilters.practiceId)?.name || ""
-          }
+          displayLabel={(() => {
+            const p = practices.find((item) => item.id === draftFilters.practiceId);
+            return p ? formatPracticeDisplayName(p) : "";
+          })()}
           onChange={(val) =>
             setDraftFilters((prev) => ({ ...prev, practiceId: val }))
           }
           onSearch={searchPractices}
           clearable
           toggleOnSelectSame
-          placeholder="Search practice"
+          placeholder="Search practice by name or ID"
         />
       </label>
 
