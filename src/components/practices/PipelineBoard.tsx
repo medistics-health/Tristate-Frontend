@@ -20,6 +20,7 @@ import {
   type Practice,
   type PracticeBody,
 } from "../../services/operations/practices";
+import { activatePracticeWithAgreementEmail } from "../../services/operations/practiceActivation";
 
 type PipelineContractsStatus =
   | "scheduled"
@@ -92,6 +93,8 @@ function mapPracticeStatusToLane(status: string): PipelineContractsStatus {
   switch (status) {
     case "LEAD":
       return "scheduled";
+    case "AGREEMENT_SENT":
+      return "in-progress";
     case "ACTIVE":
       return "in-progress";
     case "INACTIVE":
@@ -233,13 +236,28 @@ function PipelineBoardPage() {
 
     setIsSaving(true);
     try {
-      await updatePracticeApi(selectedPracticeId, buildPayload(editForm));
+      const willSendAgreement =
+        editForm.status === "AGREEMENT_SENT" &&
+        selectedPractice?.status !== "AGREEMENT_SENT";
+
+      if (willSendAgreement) {
+        await activatePracticeWithAgreementEmail(
+          selectedPracticeId,
+          buildPayload(editForm),
+        );
+      } else {
+        await updatePracticeApi(selectedPracticeId, buildPayload(editForm));
+      }
       const practices = await getAllPractices();
       const nextCards = practices.map(mapPracticeToCard);
       setCards(nextCards);
       const updated = await getPractice(selectedPracticeId);
       setSelectedPractice(updated);
-      toast.success("Practice updated successfully");
+      toast.success(
+        willSendAgreement
+          ? "Agreement sent. Practice will become Active after every agreement is signed."
+          : "Practice updated successfully",
+      );
     } catch (error) {
       const message =
         error instanceof Error
@@ -325,7 +343,13 @@ function PipelineBoardPage() {
     },
   ];
 
-  const practiceStatusOptions = ["LEAD", "ACTIVE", "INACTIVE", "CLOSED"] as const;
+  const practiceStatusOptions = [
+    "LEAD",
+    "AGREEMENT_SENT",
+    "ACTIVE",
+    "INACTIVE",
+    "CLOSED",
+  ] as const;
   const practiceSourceOptions = [
     "DIRECT",
     "REFERRAL",
@@ -543,8 +567,14 @@ function PipelineBoardPage() {
                         required
                       >
                         {practiceStatusOptions.map((status) => (
-                          <option key={status} value={status}>
-                            {formatStatusLabel(status)}
+                          <option
+                            key={status}
+                            value={status}
+                            disabled={status === "ACTIVE"}
+                          >
+                            {status === "AGREEMENT_SENT"
+                              ? "Agreement Sent"
+                              : formatStatusLabel(status)}
                           </option>
                         ))}
                       </select>

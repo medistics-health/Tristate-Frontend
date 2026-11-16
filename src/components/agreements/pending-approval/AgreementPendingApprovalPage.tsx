@@ -225,7 +225,9 @@ function AgreementPendingApprovalPage() {
         });
       }
       const willAutoSendToPractice =
-        isAdmin && selectedPracticeStatus === "ACTIVE";
+        isAdmin &&
+        (selectedPracticeStatus === "ACTIVE" ||
+          selectedPracticeStatus === "AGREEMENT_SENT");
       toast.success(
         nextStatus === "APPROVED"
           ? willAutoSendToPractice
@@ -557,13 +559,25 @@ function AgreementPendingApprovalPage() {
               </div>
 
               <div className="space-y-3 border-t border-[#f0ece6] px-5 py-4">
-                {isAdmin && selectedPracticeStatus === "ACTIVE" && (
+                {isAdmin &&
+                  (selectedPracticeStatus === "ACTIVE" ||
+                    selectedPracticeStatus === "AGREEMENT_SENT") && (
                   <div className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-blue-800">
                     <Info className="mt-0.5 h-4 w-4 shrink-0" />
                     <p className="text-[12px] leading-relaxed">
-                      This practice is already <strong>active</strong>.
-                      Approving this agreement will automatically send it to
-                      the practice contact for signature.
+                      {selectedPracticeStatus === "AGREEMENT_SENT" ? (
+                        <>
+                          This practice is in <strong>Agreement Sent</strong>.
+                          Approving this agreement will automatically send it
+                          to the practice contact for signature.
+                        </>
+                      ) : (
+                        <>
+                          This practice is already <strong>active</strong>.
+                          Approving this agreement will automatically send it
+                          to the practice contact for signature.
+                        </>
+                      )}
                     </p>
                   </div>
                 )}
