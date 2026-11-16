@@ -2456,7 +2456,11 @@ export default function AllPracticePage() {
                   key={status}
                   value={status}
                   // disabled={status === "ACTIVE"}
-                  disabled={formData.status === status}
+                  disabled={
+                    formData.status === status ||
+                    (status === "AGREEMENT_SENT" &&
+                      String(selectedRow?.values.status) === "ACTIVE")
+                  }
                 >
                   {practiceStatusLabel(status)}
                 </option>
@@ -3126,7 +3130,11 @@ export default function AllPracticePage() {
                         <option
                           key={status}
                           value={status}
-                          disabled={status === "ACTIVE"}
+                          disabled={
+                            status === "ACTIVE" ||
+                            (status === "AGREEMENT_SENT" &&
+                              String(selectedRow?.values.status) === "ACTIVE")
+                          }
                         >
                           {practiceStatusLabel(status)}
                         </option>
