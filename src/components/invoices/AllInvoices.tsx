@@ -114,6 +114,13 @@ function parseCurrencyToNumber(value?: string | number | null) {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function formatPracticeDisplayName(practice?: { name?: string | null; practiceId?: number | null } | null): string {
+  if (!practice || !practice.name) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 function formatStatusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
@@ -241,10 +248,10 @@ function AllInvoicePage() {
     filters.dateTo,
   ].filter(Boolean).length;
 
-  const practiceFilterLabel = useMemo(
-    () => practices.find((p) => p.id === filters.practiceId)?.name || filters.practiceId,
-    [practices, filters.practiceId],
-  );
+  const practiceFilterLabel = useMemo(() => {
+    const p = practices.find((item) => item.id === filters.practiceId);
+    return p ? formatPracticeDisplayName(p) : filters.practiceId;
+  }, [practices, filters.practiceId]);
 
   const activeFilterChips = useMemo(() => {
     const chips: ActiveFilterChip[] = [];
@@ -365,8 +372,12 @@ function AllInvoicePage() {
           id: "practiceName",
           accessorFn: (row: InvoiceRow) => row.values.practiceName,
           header: () => "Practice",
-          cell: ({ row }: { row: { original: InvoiceRow } }) =>
-            String(row.original.values.practiceName || "-"),
+          cell: ({ row }: { row: { original: InvoiceRow } }) => (
+            <span className="font-medium text-slate-800 whitespace-nowrap">
+              {String(row.original.values.practiceName || "-")}
+            </span>
+          ),
+          size: 260,
         },
         {
           id: "createdBy",
@@ -1530,8 +1541,17 @@ function AllInvoicePage() {
     const list = practices.length > 0 ? practices : await getAllPractices();
     const q = query.trim().toLowerCase();
     return list
-      .filter((p) => !q || p.name.toLowerCase().includes(q))
-      .map((p) => ({ label: p.name, value: p.id }));
+      .filter((p) => {
+        if (!q) return true;
+        const nameMatch = p.name.toLowerCase().includes(q);
+        const idMatch = p.practiceId != null && String(p.practiceId).toLowerCase().includes(q);
+        return nameMatch || idMatch;
+      })
+      .map((p) => ({
+        label: p.name,
+        value: p.id,
+        subLabel: p.practiceId != null ? `Practice ID: ${p.practiceId}` : undefined,
+      }));
   };
 
   const filterFieldsModal = (
@@ -1542,9 +1562,10 @@ function AllInvoicePage() {
         </span>
         <SearchSelect
           value={draftFilters.practiceId}
-          displayLabel={
-            practices.find((p) => p.id === draftFilters.practiceId)?.name || ""
-          }
+          displayLabel={(() => {
+            const p = practices.find((item) => item.id === draftFilters.practiceId);
+            return p ? formatPracticeDisplayName(p) : "";
+          })()}
           onChange={(val) =>
             setDraftFilters((prev) => ({ ...prev, practiceId: val }))
           }
@@ -1552,7 +1573,7 @@ function AllInvoicePage() {
           optionHref={practiceOptionHref}
           clearable
           toggleOnSelectSame
-          placeholder="Search practice"
+          placeholder="Search practice by name or ID"
         />
       </label>
 
@@ -1755,7 +1776,7 @@ function AllInvoicePage() {
                         {headerGroup.headers.map((header) => (
                           <th
                             key={header.id}
-                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
+                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium whitespace-nowrap last:border-r-0"
                           >
                             <SortableHeaderCell header={header} />
                           </th>
@@ -1777,7 +1798,7 @@ function AllInvoicePage() {
                           {row.getVisibleCells().map((cell) => (
                             <td
                               key={cell.id}
-                              className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-4 py-3 last:border-r-0"
+                              className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-4 py-3 whitespace-nowrap last:border-r-0"
                             >
                               {flexRender(
                                 cell.column.columnDef.cell,

@@ -60,10 +60,18 @@ const initialFormState: FormState = {
   totalPrice: "",
 };
 
+function formatPracticeDisplayName(practice?: { name?: string | null; practiceId?: number | null } | null): string {
+  if (!practice || !practice.name) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 function getInvoiceLabel(invoice: Invoice) {
+  const practiceFormatted = invoice.practice ? formatPracticeDisplayName(invoice.practice) : "Invoice";
   return (
     invoice.invoiceNumber ||
-    `${invoice.practice?.name || "Invoice"} - ${invoice.id.slice(0, 8).toUpperCase()}`
+    `${practiceFormatted} - ${invoice.id.slice(0, 8).toUpperCase()}`
   );
 }
 
@@ -151,43 +159,67 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
           id: "invoiceLabel",
           accessorFn: (row: InvoiceLineItemRow) => row.values.invoiceLabel,
           header: () => "Invoice",
-          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-            String(row.original.values.invoiceLabel || "-"),
+          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) => (
+            <span className="font-medium text-slate-800 whitespace-nowrap">
+              {String(row.original.values.invoiceLabel || "-")}
+            </span>
+          ),
+          size: 260,
         },
         {
           id: "serviceName",
           accessorFn: (row: InvoiceLineItemRow) => row.values.serviceName,
           header: () => "Service",
-          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-            String(row.original.values.serviceName || "-"),
+          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) => (
+            <span className="whitespace-nowrap">
+              {String(row.original.values.serviceName || "-")}
+            </span>
+          ),
+          size: 180,
         },
         {
           id: "description",
           accessorFn: (row: InvoiceLineItemRow) => row.values.description,
           header: () => "Description",
-          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-            String(row.original.values.description || "-"),
+          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) => (
+            <span className="whitespace-nowrap">
+              {String(row.original.values.description || "-")}
+            </span>
+          ),
+          size: 220,
         },
         {
           id: "quantity",
           accessorFn: (row: InvoiceLineItemRow) => row.values.quantity,
           header: () => "Quantity",
-          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-            String(row.original.values.quantity ?? "-"),
+          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) => (
+            <span className="whitespace-nowrap">
+              {String(row.original.values.quantity ?? "-")}
+            </span>
+          ),
+          size: 90,
         },
         {
           id: "unitPrice",
           accessorFn: (row: InvoiceLineItemRow) => row.values.unitPrice,
           header: () => (isTristate ? "Client Unit Price" : "Unit Price"),
-          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-            String(row.original.values.unitPrice || "-"),
+          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) => (
+            <span className="whitespace-nowrap">
+              {String(row.original.values.unitPrice || "-")}
+            </span>
+          ),
+          size: 130,
         },
         {
           id: "totalPrice",
           accessorFn: (row: InvoiceLineItemRow) => row.values.totalPrice,
           header: () => (isTristate ? "Client Total Price" : "Total Price"),
-          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-            String(row.original.values.totalPrice || "-"),
+          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) => (
+            <span className="whitespace-nowrap">
+              {String(row.original.values.totalPrice || "-")}
+            </span>
+          ),
+          size: 130,
         },
         ...(isTristate
           ? [
@@ -196,24 +228,36 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
                 accessorFn: (row: InvoiceLineItemRow) =>
                   row.values.externalUnitPrice,
                 header: () => "Tristate Unit Price",
-                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-                  String(row.original.values.externalUnitPrice || "-"),
+                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) => (
+                  <span className="whitespace-nowrap">
+                    {String(row.original.values.externalUnitPrice || "-")}
+                  </span>
+                ),
+                size: 140,
               },
               {
                 id: "externalTotalPrice",
                 accessorFn: (row: InvoiceLineItemRow) =>
                   row.values.externalTotalPrice,
                 header: () => "Tristate Total Price",
-                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-                  String(row.original.values.externalTotalPrice || "-"),
+                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) => (
+                  <span className="whitespace-nowrap">
+                    {String(row.original.values.externalTotalPrice || "-")}
+                  </span>
+                ),
+                size: 140,
               },
               {
                 id: "companyFeeDeductionAmount",
                 accessorFn: (row: InvoiceLineItemRow) =>
                   row.values.companyFeeDeductionAmount,
                 header: () => "Company Absorbed",
-                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-                  String(row.original.values.companyFeeDeductionAmount || "-"),
+                cell: ({ row }: { row: { original: InvoiceLineItemRow } }) => (
+                  <span className="whitespace-nowrap">
+                    {String(row.original.values.companyFeeDeductionAmount || "-")}
+                  </span>
+                ),
+                size: 140,
               },
             ]
           : []),
@@ -221,8 +265,12 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
           id: "creationDate",
           accessorFn: (row: InvoiceLineItemRow) => row.values.creationDate,
           header: () => "Created",
-          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) =>
-            String(row.original.values.creationDate),
+          cell: ({ row }: { row: { original: InvoiceLineItemRow } }) => (
+            <span className="whitespace-nowrap">
+              {String(row.original.values.creationDate)}
+            </span>
+          ),
+          size: 160,
         },
       ] as ColumnDef<InvoiceLineItemRow>[],
     [isTristate],
@@ -499,14 +547,17 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
       const qLower = q.toLowerCase();
       return list
         .filter(
-          (inv) =>
-            !qLower ||
-            (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(qLower)) ||
-            (inv.practice?.name && inv.practice.name.toLowerCase().includes(qLower)),
+          (inv) => {
+            if (!qLower) return true;
+            const invNum = inv.invoiceNumber ? inv.invoiceNumber.toLowerCase() : "";
+            const practiceName = inv.practice?.name ? inv.practice.name.toLowerCase() : "";
+            const practiceId = inv.practice?.practiceId != null ? String(inv.practice.practiceId).toLowerCase() : "";
+            return invNum.includes(qLower) || practiceName.includes(qLower) || practiceId.includes(qLower);
+          },
         )
         .map((inv) => ({
           label: inv.invoiceNumber || getInvoiceLabel(inv),
-          subLabel: inv.practice?.name,
+          subLabel: inv.practice ? formatPracticeDisplayName(inv.practice) : undefined,
           value: inv.id,
         }));
     }
@@ -792,21 +843,28 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
               setPagination((prev) => ({ ...prev, limit: newSize, page: 1 }));
             }}
           >
-            <div className="flex-1 h-full overflow-y-auto custom-scrollbar">
+            <div className="min-h-0 flex-1 overflow-auto custom-scrollbar">
               {rows.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full gap-3 py-16 text-slate-400">
-                  <EmptyStateIllustration />
-                  <p className="text-[14px]">No invoice line items found.</p>
+                <div className="relative flex min-h-[400px] items-center justify-center">
+                  <div className="flex max-w-md flex-col items-center px-6 text-center">
+                    <EmptyStateIllustration />
+                    <h2 className="mt-4 text-[15px] font-semibold text-slate-700">
+                      No invoice line items found
+                    </h2>
+                    <p className="mt-2 text-[14px] text-slate-400">
+                      No line items available for the selected criteria.
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <table className="w-full text-[13px]">
+                <table className="min-w-full border-separate border-spacing-0">
                   <thead className="sticky top-0 z-10 bg-white text-[12px] uppercase tracking-wide text-slate-400">
                     {table.getHeaderGroups().map((headerGroup) => (
-                      <tr key={headerGroup.id} className="border-b border-[#f0ece6] bg-[#faf9f7]">
+                      <tr key={headerGroup.id}>
                         {headerGroup.headers.map((header) => (
                           <th
                             key={header.id}
-                            className="px-4 py-3 text-left font-medium text-slate-500"
+                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium whitespace-nowrap last:border-r-0"
                           >
                             <SortableHeaderCell header={header} />
                           </th>
@@ -821,12 +879,15 @@ function AllInvoiceLineItems({ viewMode = "client" }: AllInvoiceLineItemsProps) 
                         <tr
                           key={row.id}
                           onClick={() => handleRowClick(row.original.id)}
-                          className={`cursor-pointer border-b border-[#f0ece6] transition-colors ${
-                            isSelected ? "bg-[#fcfbf9]" : "hover:bg-[#faf9f7]"
+                          className={`cursor-pointer text-[13px] text-slate-600 transition-colors ${
+                            isSelected ? "bg-[#fcfbf9]" : "bg-white hover:bg-[#faf9f7]"
                           }`}
                         >
                           {row.getVisibleCells().map((cell) => (
-                            <td key={cell.id} className="px-4 py-3 text-slate-600">
+                            <td
+                              key={cell.id}
+                              className="border-b border-[#f4f1ec] border-r border-[#f6f2ec] px-4 py-3 whitespace-nowrap last:border-r-0"
+                            >
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
                             </td>
                           ))}

@@ -53,7 +53,7 @@ export type Invoice = {
   dueDate?: string | null;
   createdAt: string;
   updatedAt: string;
-  practice?: { id: string; name: string };
+  practice?: { id: string; practiceId?: number | null; name: string };
   agreement?: {
     id: string;
     type?: string;
@@ -249,7 +249,11 @@ function invoiceToRow(invoice: Invoice): InvoiceRow {
     values: {
       id: invoice.id,
       practiceId: invoice.practiceId,
-      practiceName: invoice.practice?.name || "-",
+      practiceName: invoice.practice?.name
+        ? invoice.practice.practiceId != null && String(invoice.practice.practiceId).trim() !== ""
+          ? `${invoice.practice.name} (Practice ID: ${invoice.practice.practiceId})`
+          : invoice.practice.name
+        : "-",
       createdBy: createdByName,
       agreementLabel,
       agreementId: invoice.agreementId || "",

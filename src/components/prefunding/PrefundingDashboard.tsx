@@ -111,6 +111,7 @@ interface DashboardData {
   }>;
   availablePractices: Array<{
     id: string;
+    practiceId?: number | null;
     name: string;
     cycle?: string | null;
   }>;
@@ -303,7 +304,11 @@ export default function PrefundingDashboard() {
     const list = [{ label: "All Practices", value: "all" }];
     if (data?.availablePractices) {
       data.availablePractices.forEach((p) => {
-        list.push({ label: p.name, value: p.id });
+        const label =
+          p.practiceId != null && String(p.practiceId).trim() !== ""
+            ? `${p.name} (Practice ID: ${p.practiceId})`
+            : p.name;
+        list.push({ label, value: p.id });
       });
     }
     return list;
@@ -1008,28 +1013,28 @@ export default function PrefundingDashboard() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="min-w-full text-left border-collapse whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-[#ece8e1] bg-[#faf9f7]">
-                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
                       Invoice #
                     </th>
-                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
                       Practice
                     </th>
-                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
                       Cycle
                     </th>
-                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
                       Due Date
                     </th>
-                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
                       Amount
                     </th>
-                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
                       Status
                     </th>
-                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 text-right">
+                    <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 text-right whitespace-nowrap">
                       Actions
                     </th>
                   </tr>
@@ -1038,25 +1043,25 @@ export default function PrefundingDashboard() {
                   {data?.recentInvoices && data.recentInvoices.length > 0 ? (
                     data.recentInvoices.map((inv) => (
                       <tr key={inv.id} className="hover:bg-[#faf9f7] transition">
-                        <td className="py-3 px-3 font-semibold text-slate-900">
+                        <td className="py-3 px-3 font-semibold text-slate-900 whitespace-nowrap">
                           {inv.invoiceNumber}
                         </td>
-                        <td className="py-3 px-3 text-slate-700 font-medium">
+                        <td className="py-3 px-3 text-slate-700 font-medium whitespace-nowrap">
                           {inv.practiceName}
                         </td>
-                        <td className="py-3 px-3 text-slate-600 text-xs">
+                        <td className="py-3 px-3 text-slate-600 text-xs whitespace-nowrap">
                           {inv.cycle}
                         </td>
-                        <td className="py-3 px-3 text-slate-600 text-xs">
+                        <td className="py-3 px-3 text-slate-600 text-xs whitespace-nowrap">
                           {formatDate(inv.dueDate)}
                         </td>
-                        <td className="py-3 px-3 font-bold text-slate-900">
+                        <td className="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">
                           {formatCurrency(inv.totalAmount)}
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 whitespace-nowrap">
                           {getStatusBadge(inv.status)}
                         </td>
-                        <td className="py-3 px-3 text-right">
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               type="button"

@@ -109,6 +109,13 @@ function formatCurrency(amount: string | number) {
   }).format(numericAmount);
 }
 
+function formatPracticeDisplayName(practice?: { name?: string | null; practiceId?: number | null } | null): string {
+  if (!practice || !practice.name) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 function getInvoiceLabel(
   invoice?: InvoiceLineItem["invoice"],
   invoiceId?: string,
@@ -118,8 +125,8 @@ function getInvoiceLabel(
   }
 
   const shortId = (invoice?.id || invoiceId || "").slice(0, 8).toUpperCase();
-  const practiceName = invoice?.practice?.name || "Invoice";
-  return shortId ? `${practiceName} - ${shortId}` : practiceName;
+  const practiceFormatted = invoice?.practice ? formatPracticeDisplayName(invoice.practice) : "Invoice";
+  return shortId ? `${practiceFormatted} - ${shortId}` : practiceFormatted;
 }
 
 function lineItemToRow(lineItem: InvoiceLineItem): InvoiceLineItemRow {
