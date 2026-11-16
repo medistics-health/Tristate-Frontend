@@ -6,6 +6,7 @@ import DataTableToolbar from "../shared/DataTableToolbar";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import { getAllPractices } from "../../services/operations/practices";
 import { getAllUsers } from "../../services/operations/users";
@@ -469,6 +470,7 @@ export default function OnboardingWorkstreamsPage() {
               Practice <span className="text-red-500">*</span>
             </label>
             <SearchSelect
+              optionHref={practiceOptionHref}
               value={form.practiceId}
               displayLabel={(() => {
                 const match = practices.find((p) => p.id === form.practiceId);
@@ -812,6 +814,7 @@ export default function OnboardingWorkstreamsPage() {
                     Practice
                   </span>
                   <SearchSelect
+                    optionHref={practiceOptionHref}
                     value={draftFilters.practiceId}
                     displayLabel={(() => {
                       const match = practices.find(

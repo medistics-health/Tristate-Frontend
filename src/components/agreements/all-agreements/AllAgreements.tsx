@@ -43,6 +43,7 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../../shared/DataTableToolbar";
 import Select from "../../shared/Select";
+import { practiceOptionHref } from "../../shared/practiceProfileLink";
 import {
   createAgreementApi,
   createDocusealSubmissionApi,
@@ -1440,6 +1441,7 @@ function AllAgreementsPage() {
         </span>
         <Select
           value={filters.practiceId}
+          optionHref={practiceOptionHref}
           onChange={(val) => {
             setFilters((prev) => ({ ...prev, practiceId: val }));
             setPagination((prev) => ({ ...prev, page: 1 }));
@@ -2200,25 +2202,22 @@ function AllAgreementsPage() {
                 Loading...
               </div>
             ) : (
-              <select
+              <Select
                 value={createForm.practiceId}
-                onChange={(event) => {
+                onChange={(value) => {
                   setCreateForm((prev) => ({
                     ...prev,
-                    practiceId: event.target.value,
+                    practiceId: value,
                     dealId: "",
                   }));
                 }}
-                className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                required
-              >
-                <option value="">Select Practice</option>
-                {practices.map((practice) => (
-                  <option key={practice.id} value={practice.id}>
-                    {practice.name}
-                  </option>
-                ))}
-              </select>
+                optionHref={practiceOptionHref}
+                placeholder="Select Practice"
+                options={practices.map((practice) => ({
+                  label: practice.name,
+                  value: practice.id,
+                }))}
+              />
             )}
             {willAutoSendCreatedAgreement && (
               <div className="mt-2 flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-blue-800">

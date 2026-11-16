@@ -24,6 +24,7 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import { EmptyStateIllustration } from "../shared/tablePageUtils";
 import { getAllPractices } from "../../services/operations/practices";
 import { getAllCompanies } from "../../services/operations/companies";
@@ -282,11 +283,10 @@ function DealFormFields({
         <label className="mb-1 block text-[13px] font-medium text-slate-700">
           Practice <span className="text-red-500">*</span>
         </label>
-        <select
+        <Select
           value={form.practiceId}
           disabled={readOnly}
-          onChange={(event) => {
-            const nextPracticeId = event.target.value;
+          onChange={(nextPracticeId) => {
             const practice = practices.find((item) => item.id === nextPracticeId);
             setForm((prev) => ({
               ...prev,
@@ -295,16 +295,13 @@ function DealFormFields({
               primaryContactId: "",
             }));
           }}
-          className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-          required
-        >
-          <option value="">Select Practice</option>
-          {practices.map((practice) => (
-            <option key={practice.id} value={practice.id}>
-              {practice.name}
-            </option>
-          ))}
-        </select>
+          optionHref={practiceOptionHref}
+          placeholder="Select Practice"
+          options={practices.map((practice) => ({
+            label: practice.name,
+            value: practice.id,
+          }))}
+        />
       </div>
 
       <div>
@@ -963,6 +960,7 @@ function DealsPage() {
             setFilters((prev) => ({ ...prev, practiceId: val }));
             setPagination((prev) => ({ ...prev, page: 1 }));
           }}
+          optionHref={practiceOptionHref}
           options={[
             { label: "All Practices", value: "" },
             ...practices.map((practice) => ({

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import AppLayout from "../layout/AppLayout";
 import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import DatePicker from "../shared/DatePicker";
 import MultiSelect from "../shared/MultiSelect";
 import ConfirmModal from "../shared/ConfirmModal";
@@ -2359,6 +2360,7 @@ export default function CalculatePrefunding() {
                         options={practices}
                         value={selectedPractice}
                         onChange={handlePracticeChange}
+                        optionHref={practiceOptionHref}
                         placeholder="Choose a practice with prefunding..."
                         disabled={submitting}
                       />

@@ -31,6 +31,7 @@ import DataTableToolbar, {
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import DatePicker from "../shared/DatePicker";
 import { getAllPractices } from "../../services/operations/practices";
 import type { NavbarAction } from "../layout/Navbar";
@@ -539,6 +540,7 @@ function OverdueInvoicePage() {
             setDraftFilters((prev) => ({ ...prev, practiceId: val }))
           }
           onSearch={searchPractices}
+          optionHref={practiceOptionHref}
           clearable
           toggleOnSelectSame
           placeholder="Search practice"

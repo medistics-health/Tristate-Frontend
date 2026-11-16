@@ -42,6 +42,7 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import ConfirmModal from "../shared/ConfirmModal";
 import toast from "react-hot-toast";
 import {
@@ -656,6 +657,7 @@ export default function PrefundingInvoices() {
         <Select
           value={draftFilters.practiceId}
           onChange={(val) => setDraftFilters((prev) => ({ ...prev, practiceId: val }))}
+          optionHref={practiceOptionHref}
           options={[
             { value: "", label: "All Practices" },
             ...practices.map((p) => ({ value: p.id, label: p.name })),

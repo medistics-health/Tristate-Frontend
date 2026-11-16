@@ -36,6 +36,10 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import {
+  PracticeProfileArrow,
+  practiceOptionHref,
+} from "../shared/practiceProfileLink";
 import DatePicker from "../shared/DatePicker";
 import MultiSelect from "../shared/MultiSelect";
 import { getResponsivePageSize } from "../shared/TablePagination";
@@ -1485,20 +1489,26 @@ export default function PersonsPage() {
           ) : (
             <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-[#e5e2d9] bg-white p-2">
               {practices.map((practice) => (
-                <label
+                <div
                   key={practice.id}
-                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-[#f7f5f1]"
+                  className="flex items-center gap-2 rounded px-2 py-1 hover:bg-[#f7f5f1]"
                 >
-                  <input
-                    type="checkbox"
-                    checked={formData.practiceIds.includes(practice.id)}
-                    onChange={() => handlePracticeToggle(practice.id)}
-                    className="h-4 w-4 rounded border border-[#cec8bf] text-[#4f63ea]"
+                  <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.practiceIds.includes(practice.id)}
+                      onChange={() => handlePracticeToggle(practice.id)}
+                      className="h-4 w-4 rounded border border-[#cec8bf] text-[#4f63ea]"
+                    />
+                    <span className="text-[13px] text-slate-600">
+                      {formatPracticeDisplayName(practice)}
+                    </span>
+                  </label>
+                  <PracticeProfileArrow
+                    practiceId={practice.id}
+                    label={practice.name}
                   />
-                  <span className="text-[13px] text-slate-600">
-                    {formatPracticeDisplayName(practice)}
-                  </span>
-                </label>
+                </div>
               ))}
             </div>
           )}
@@ -1665,6 +1675,7 @@ export default function PersonsPage() {
             setDraftFilters((prev) => ({ ...prev, practiceId: val }))
           }
           disabled={practicesLoading}
+          optionHref={practiceOptionHref}
           options={[
             {
               label: practicesLoading ? "Loading practices..." : "All Practices",
@@ -2259,22 +2270,28 @@ export default function PersonsPage() {
                         </div>
                       ) : (
                         practices.map((practice) => (
-                          <label
+                          <div
                             key={practice.id}
-                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-[#f7f5f1]"
+                            className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-[#f7f5f1]"
                           >
-                            <input
-                              type="checkbox"
-                              checked={formData.practiceIds.includes(
-                                practice.id,
-                              )}
-                              onChange={() => handlePracticeToggle(practice.id)}
-                              className="h-4 w-4 rounded border border-[#cec8bf] text-[#4f63ea]"
+                            <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={formData.practiceIds.includes(
+                                  practice.id,
+                                )}
+                                onChange={() => handlePracticeToggle(practice.id)}
+                                className="h-4 w-4 rounded border border-[#cec8bf] text-[#4f63ea]"
+                              />
+                              <span className="text-[13px] text-slate-600">
+                                {formatPracticeDisplayName(practice)}
+                              </span>
+                            </label>
+                            <PracticeProfileArrow
+                              practiceId={practice.id}
+                              label={practice.name}
                             />
-                            <span className="text-[13px] text-slate-600">
-                              {formatPracticeDisplayName(practice)}
-                            </span>
-                          </label>
+                          </div>
                         ))
                       )}
                     </div>

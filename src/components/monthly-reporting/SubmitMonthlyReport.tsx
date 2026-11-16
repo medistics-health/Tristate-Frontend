@@ -8,6 +8,8 @@ import {
   getMonthlyReport,
 } from "../../services/operations/monthlyReports";
 import { getAllPractices } from "../../services/operations/practices";
+import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import { getAllServices } from "../../services/operations/services";
 import type { Practice } from "../practices/types";
 import type { Service } from "../services/types";
@@ -220,19 +222,17 @@ function SubmitMonthlyReport() {
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                   Practice <span className="text-red-500">*</span>
                 </label>
-                <select
+                <Select
                   value={practice}
-                  onChange={(e) => setPractice(e.target.value)}
-                  className="app-control w-full rounded-md px-3 py-2 text-[13px]"
+                  onChange={setPractice}
                   disabled={isEditMode}
-                >
-                  <option value="">Select practice</option>
-                  {practices.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                  optionHref={practiceOptionHref}
+                  placeholder="Select practice"
+                  options={practices.map((p) => ({
+                    label: p.name,
+                    value: p.id,
+                  }))}
+                />
               </div>
 
               <div>

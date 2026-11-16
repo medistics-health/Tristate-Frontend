@@ -16,6 +16,8 @@ import toast from "react-hot-toast";
 import AppLayout from "../layout/AppLayout";
 import type { NavbarAction } from "../layout/Navbar";
 import { DetailCard, EmptyStateIllustration } from "../shared/tablePageUtils";
+import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import {
   createAssessmentApi,
   deleteAssessmentApi,
@@ -505,21 +507,18 @@ function AssessmentProgressPage() {
             <label className="mb-1 block text-[13px] font-medium text-slate-700">
               Practice <span className="text-red-500">*</span>
             </label>
-            <select
+            <Select
               value={createForm.practiceId}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, practiceId: event.target.value }))
+              onChange={(value) =>
+                setCreateForm((prev) => ({ ...prev, practiceId: value }))
               }
-              className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-              required
-            >
-              <option value="">Select Practice</option>
-              {practices.map((practice) => (
-                <option key={practice.id} value={practice.id}>
-                  {practice.name}
-                </option>
-              ))}
-            </select>
+              optionHref={practiceOptionHref}
+              placeholder="Select Practice"
+              options={practices.map((practice) => ({
+                label: practice.name,
+                value: practice.id,
+              }))}
+            />
           </div>
 
           <div>

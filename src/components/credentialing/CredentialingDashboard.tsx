@@ -22,6 +22,7 @@ import AppLayout from "../layout/AppLayout";
 import DatePicker from "../shared/DatePicker";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
@@ -364,13 +365,14 @@ function CredentialingDashboardPage() {
 
   const uniquePractices = useMemo(
     () => {
-      const practiceMap = new Map<string, { practice: string; practiceId?: number | null }>();
+      const practiceMap = new Map<string, { practice: string; practiceId?: number | null; id?: string }>();
       records.forEach((record) => {
         if (!record.practice) return;
         if (!practiceMap.has(record.practice)) {
           practiceMap.set(record.practice, {
             practice: record.practice,
             practiceId: record.practiceDetails?.practiceId ?? null,
+            id: record.practiceId,
           });
         }
       });
@@ -401,6 +403,7 @@ function CredentialingDashboardPage() {
           value: item.practice,
           subLabel:
             item.practiceId != null ? `Practice ID: ${item.practiceId}` : undefined,
+          href: practiceOptionHref({ value: item.id }),
         }));
     },
     [uniquePractices],

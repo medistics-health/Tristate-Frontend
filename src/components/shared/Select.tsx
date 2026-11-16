@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
+import { PracticeProfileArrow } from "./practiceProfileLink";
 
 export type SelectOption = {
   label: string;
   value: string;
   disabled?: boolean;
+  href?: string;
 };
 
 type SelectProps = {
@@ -16,6 +18,7 @@ type SelectProps = {
   className?: string;
   disabled?: boolean;
   placement?: "auto" | "top" | "bottom";
+  optionHref?: (option: SelectOption) => string | undefined;
 };
 
 export default function Select({
@@ -26,6 +29,7 @@ export default function Select({
   className = "",
   disabled = false,
   placement = "auto",
+  optionHref,
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -103,27 +107,35 @@ export default function Select({
         options.map((opt) => {
           const isSelected = opt.value === value;
           const isDisabled = !!opt.disabled;
+          const href = optionHref?.(opt) || opt.href;
           return (
-            <button
+            <div
               key={opt.value}
-              type="button"
-              disabled={isDisabled}
-              onClick={() => {
-                if (isDisabled) return;
-                onChange(opt.value);
-                setIsOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3 py-2 text-left text-[13px] transition-colors ${
+              className={`flex w-full items-center ${
                 isDisabled
-                  ? "text-slate-400 bg-slate-50 opacity-60 cursor-not-allowed"
+                  ? "text-slate-400 bg-slate-50 opacity-60"
                   : isSelected
                   ? "bg-[#f0f2fe] text-[#4f63ea] font-medium"
                   : "text-slate-700 hover:bg-slate-50"
               }`}
             >
-              <span className="truncate">{opt.label}</span>
-              {isSelected && <Check className="h-4 w-4 shrink-0 text-[#4f63ea]" />}
-            </button>
+              <button
+                type="button"
+                disabled={isDisabled}
+                onClick={() => {
+                  if (isDisabled) return;
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+                className={`flex min-w-0 flex-1 items-center justify-between px-3 py-2 text-left text-[13px] transition-colors ${
+                  isDisabled ? "cursor-not-allowed" : ""
+                }`}
+              >
+                <span className="truncate">{opt.label}</span>
+                {isSelected && <Check className="h-4 w-4 shrink-0 text-[#4f63ea]" />}
+              </button>
+              {href ? <PracticeProfileArrow href={href} label={opt.label} /> : null}
+            </div>
           );
         })
       )}

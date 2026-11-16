@@ -26,6 +26,7 @@ import DataTableToolbar, {
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
 import SearchSelect, { type SearchSelectOption } from "../shared/SearchSelect";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import DatePicker from "../shared/DatePicker";
 import { TableSkeletonLoader, CardGridSkeletonLoader } from "../shared/tablePageUtils";
 import {
@@ -1122,6 +1123,7 @@ export default function OnboardingTasksPage() {
           Practice
         </span>
         <SearchSelect
+          optionHref={practiceOptionHref}
           value={draftFilters.practiceId}
           displayLabel={(() => {
             const match = practiceOptions.find((opt) => opt.value === draftFilters.practiceId || opt.label === draftFilters.practiceName);
@@ -2300,6 +2302,7 @@ export default function OnboardingTasksPage() {
                       Practice
                     </label>
                     <SearchSelect
+                      optionHref={practiceOptionHref}
                       value={newTaskPracticeId}
                       displayLabel={(() => {
                         const match = practiceOptions.find((opt) => opt.value === newTaskPracticeId || opt.label === newTaskPracticeName);
@@ -2472,6 +2475,7 @@ export default function OnboardingTasksPage() {
                       Practice
                     </label>
                     <SearchSelect
+                      optionHref={practiceOptionHref}
                       value={editTaskPracticeId}
                       displayLabel={(() => {
                         const match = practiceOptions.find((opt) => opt.value === editTaskPracticeId || opt.label === editTaskPracticeName);

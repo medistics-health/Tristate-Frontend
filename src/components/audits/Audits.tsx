@@ -23,6 +23,7 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import { getResponsivePageSize } from "../shared/TablePagination";
 import type { AuditRow, Audit } from "./types";
 import {
@@ -527,6 +528,7 @@ function AuditListView({
           onChange={(val) =>
             setDraftFilters((prev) => ({ ...prev, practiceId: val }))
           }
+          optionHref={practiceOptionHref}
           options={[
             { label: "All Practices", value: "" },
             ...practices.map((p) => ({ label: p.name, value: p.id })),
@@ -871,24 +873,21 @@ function AuditListView({
                       Loading...
                     </div>
                   ) : (
-                    <select
+                    <Select
                       value={formData.practiceId}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         setFormData((prev) => ({
                           ...prev,
-                          practiceId: e.target.value,
+                          practiceId: value,
                         }))
                       }
-                      className="app-control w-full rounded-md px-3 py-2 text-[13px]"
-                      required
-                    >
-                      <option value="">Select Practice</option>
-                      {practices.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      optionHref={practiceOptionHref}
+                      placeholder="Select Practice"
+                      options={practices.map((p) => ({
+                        label: p.name,
+                        value: p.id,
+                      }))}
+                    />
                   )}
                 </div>
 

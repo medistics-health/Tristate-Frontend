@@ -15,6 +15,8 @@ import {
 import { getAllVendorsApi } from "../../../services/operations/vendors";
 import type { Vendor } from "../../vendors/types";
 import AppLayout from "../../layout/AppLayout";
+import Select from "../../shared/Select";
+import { practiceOptionHref } from "../../shared/practiceProfileLink";
 import type { Practice } from "../../practices/types";
 
 type Option = { label: string; value: string };
@@ -466,26 +468,24 @@ export default function Scope() {
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Practice *
               </label>
-              <select
+              <Select
                 value={selectedPracticeId}
-                onChange={(event) => {
-                  setSelectedPracticeId(event.target.value);
+                onChange={(value) => {
+                  setSelectedPracticeId(value);
                   setSelectedPersonId("");
                 }}
                 disabled={isLoadingSignedPractices}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">
-                  {isLoadingSignedPractices
+                optionHref={practiceOptionHref}
+                placeholder={
+                  isLoadingSignedPractices
                     ? "Loading practices..."
-                    : "Select practice"}
-                </option>
-                {availableScopePractices.map((practice) => (
-                  <option key={practice.id} value={practice.id}>
-                    {practice.name}
-                  </option>
-                ))}
-              </select>
+                    : "Select practice"
+                }
+                options={availableScopePractices.map((practice) => ({
+                  label: practice.name,
+                  value: practice.id,
+                }))}
+              />
               {!isLoadingSignedPractices && !availableScopePractices.length ? (
                 <p className="mt-1.5 text-xs text-amber-700">
                   No practices found with a signed agreement.

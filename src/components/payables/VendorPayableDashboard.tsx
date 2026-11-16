@@ -26,6 +26,7 @@ import DataTableToolbar, {
   type ActiveFilterChip,
 } from "../shared/DataTableToolbar";
 import Select from "../shared/Select";
+import { practiceOptionHref } from "../shared/practiceProfileLink";
 import { getResponsivePageSize } from "../shared/TablePagination";
 
 export default function VendorPayableDashboard() {
@@ -427,6 +428,7 @@ export default function VendorPayableDashboard() {
           onChange={(val) =>
             setDraftFilters((prev) => ({ ...prev, practiceId: val }))
           }
+          optionHref={practiceOptionHref}
           options={[
             { label: "All Practices", value: "" },
             ...practices.map((p) => ({ label: p.name, value: p.id })),
