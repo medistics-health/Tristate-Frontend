@@ -76,9 +76,6 @@ import { getTemplatesApi } from "../../services/operations/onboardingProjects";
 import {
   getAgreementsByPractice,
   type Agreement,
-  createDocusealSubmissionApi,
-  sendAgreementEmail,
-  getAgreementDocusealId,
 } from "../../services/operations/agreements";
 import { activatePracticeWithAgreementEmail } from "../../services/operations/practiceActivation";
 import type { Company } from "../companies/types";
@@ -151,19 +148,6 @@ function toDateInput(value?: string | null) {
   return `${year}-${month}-${day}`;
 }
 
-function buildFieldValuesByTemplateId(
-  agreement: Agreement,
-): Record<string, Record<string, string>> {
-  return (agreement.docusealSubmissions || []).reduce<
-    Record<string, Record<string, string>>
-  >((acc, submission) => {
-    if (submission.templateId) {
-      acc[String(submission.templateId)] = submission.fieldValues || {};
-    }
-    return acc;
-  }, {});
-}
-
 type TaxIdOption = {
   id: string;
   taxIdNumber: string;
@@ -229,7 +213,25 @@ const initialFormData: PracticeFormData = {
   goLiveTarget: "",
 };
 
-const statusOptions = ["LEAD", "ACTIVE", "INACTIVE", "CLOSED"];
+const statusOptions = [
+  "LEAD",
+  "AGREEMENT_SENT",
+  "ACTIVE",
+  "INACTIVE",
+  "CLOSED",
+];
+
+function practiceStatusLabel(status: string) {
+  return status === "AGREEMENT_SENT" ? "AGREEMENT SENT" : status;
+}
+
+const practiceStatusColors: Record<string, string> = {
+  LEAD: "bg-yellow-100 text-yellow-700",
+  AGREEMENT_SENT: "bg-amber-100 text-amber-800",
+  ACTIVE: "bg-green-100 text-green-700",
+  INACTIVE: "bg-gray-100 text-gray-700",
+  CLOSED: "bg-red-100 text-red-700",
+};
 const sourceOptions = [
   "DIRECT",
   "REFERRAL",
@@ -857,17 +859,11 @@ export default function AllPracticePage() {
               );
             }
             if (field.id === "status") {
-              const statusColors: Record<string, string> = {
-                LEAD: "bg-yellow-100 text-yellow-700",
-                ACTIVE: "bg-green-100 text-green-700",
-                INACTIVE: "bg-gray-100 text-gray-700",
-                CLOSED: "bg-red-100 text-red-700",
-              };
               return (
                 <span
-                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[String(value)] || ""}`}
+                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${practiceStatusColors[String(value)] || ""}`}
                 >
-                  {String(value)}
+                  {practiceStatusLabel(String(value))}
                 </span>
               );
             }
@@ -922,17 +918,11 @@ export default function AllPracticePage() {
     const value = row.values[columnId];
     const field = visibleFields.find((f) => f.id === columnId);
     if (field?.id === "status") {
-      const statusColors: Record<string, string> = {
-        LEAD: "bg-yellow-100 text-yellow-700",
-        ACTIVE: "bg-green-100 text-green-700",
-        INACTIVE: "bg-gray-100 text-gray-700",
-        CLOSED: "bg-red-100 text-red-700",
-      };
       return (
         <span
-          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[String(value)] || ""}`}
+          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${practiceStatusColors[String(value)] || ""}`}
         >
-          {String(value)}
+          {practiceStatusLabel(String(value))}
         </span>
       );
     }
@@ -1220,7 +1210,12 @@ export default function AllPracticePage() {
       const practiceData = {
         name: formData.name.trim(),
         npi: formData.npi.trim() || undefined,
-        status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
+        status: formData.status as
+          | "LEAD"
+          | "AGREEMENT_SENT"
+          | "ACTIVE"
+          | "INACTIVE"
+          | "CLOSED",
         groupNpis: groupNpiEntries.map((entry) => ({
           ...entry,
           groupNpiNumber: normalizeNpiInput(entry.groupNpiNumber),
@@ -1271,75 +1266,13 @@ export default function AllPracticePage() {
       closeCreateForm();
       toast.success("Practice created successfully");
 
-      if (practiceData.status === "ACTIVE") {
+      if (practiceData.status === "AGREEMENT_SENT") {
         const newPractice = data.rows.find(
           (row) => row.values.name === practiceData.name,
         );
         if (newPractice) {
-          const fullPractice = await getPractice(newPractice.id);
-          const hasAdminWithEmail = fullPractice.persons?.some(
-            (person) => person.roles?.includes("ADMIN") && person.email,
-          );
-
-          if (!hasAdminWithEmail) {
-            toast.error(
-              "Practice must have at least one ADMIN person with email to set status to ACTIVE",
-            );
-            return;
-          }
-
-          const agreements = await getAgreementsByPractice(newPractice.id);
-          if (agreements.length > 0) {
-            const agreement = agreements[0];
-            const docusealId = getAgreementDocusealId(agreement);
-            if (docusealId) {
-              const person = fullPractice?.persons?.find(
-                (p) => p.roles?.includes("ADMIN") && p.email,
-              );
-              await createDocusealSubmissionApi({
-                agreementId: agreement.id,
-                personId: person?.id ?? "",
-                templateId: docusealId,
-                fieldValuesByTemplateId:
-                  buildFieldValuesByTemplateId(agreement),
-              });
-            }
-            await sendAgreementEmail({
-              agreementId: agreement.id,
-              personId: newPractice.id,
-            });
-            toast.success("Agreement email sent successfully");
-          }
-        }
-      }
-
-      if (practiceData.status === "ACTIVE") {
-        const newPractice = data.rows.find(
-          (row) => row.values.name === practiceData.name,
-        );
-        if (newPractice) {
-          const agreements = await getAgreementsByPractice(newPractice.id);
-          if (agreements.length > 0) {
-            const agreement = agreements[0];
-            const docusealId = getAgreementDocusealId(agreement);
-            if (docusealId) {
-              const person = fullPractice?.persons?.find(
-                (p) => p.roles?.includes("ADMIN") && p.email,
-              );
-              await createDocusealSubmissionApi({
-                agreementId: agreement.id,
-                personId: person?.id ?? "",
-                templateId: docusealId,
-                fieldValuesByTemplateId:
-                  buildFieldValuesByTemplateId(agreement),
-              });
-            }
-            await sendAgreementEmail({
-              agreementId: agreement.id,
-              personId: newPractice.id,
-            });
-            toast.success("Agreement email sent successfully");
-          }
+          await activatePracticeWithAgreementEmail(newPractice.id, practiceData);
+          toast.success("Agreement email sent successfully");
         }
       }
     } catch (err) {
@@ -1378,24 +1311,23 @@ export default function AllPracticePage() {
       return;
     }
 
-    const wasActive = String(selectedRow.values.status) === "ACTIVE";
-    const willBecomeActive = formData.status === "ACTIVE" && !wasActive;
+    const wasAgreementSent =
+      String(selectedRow.values.status) === "AGREEMENT_SENT";
+    const willSendAgreement =
+      formData.status === "AGREEMENT_SENT" && !wasAgreementSent;
 
-    if (willBecomeActive) {
+    if (willSendAgreement) {
       try {
         const fullPractice = await getPractice(selectedRow.id);
 
-        console.log(fullPractice);
         const eligiblePerson = (fullPractice.persons ?? []).find(
           (p) =>
-            // (p.person.role === "ADMIN" || p.person.role === "OWNER") &&
-            // !!p.person.email,
             (p.roles?.includes("ADMIN") || p.roles?.includes("OWNER")) && !!p.email,
         );
 
         if (!eligiblePerson) {
           toast.error(
-            "Practice must have at least one ADMIN/OWNER person with email to set status to ACTIVE",
+            "Practice must have at least one ADMIN/OWNER person with email to set status to Agreement Sent",
           );
           return;
         }
@@ -1411,7 +1343,12 @@ export default function AllPracticePage() {
         const practiceData = {
           name: formData.name.trim(),
           npi: formData.npi.trim() || undefined,
-          status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
+          status: formData.status as
+          | "LEAD"
+          | "AGREEMENT_SENT"
+          | "ACTIVE"
+          | "INACTIVE"
+          | "CLOSED",
           groupNpis: groupNpiEntries.map((entry) => ({
             ...entry,
             groupNpiNumber: normalizeNpiInput(entry.groupNpiNumber),
@@ -1471,7 +1408,12 @@ export default function AllPracticePage() {
       const practiceData = {
         name: formData.name.trim(),
         npi: formData.npi.trim() || undefined,
-        status: formData.status as "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED",
+        status: formData.status as
+          | "LEAD"
+          | "AGREEMENT_SENT"
+          | "ACTIVE"
+          | "INACTIVE"
+          | "CLOSED",
         groupNpis: groupNpiEntries.map((entry) => ({
           ...entry,
           groupNpiNumber: normalizeNpiInput(entry.groupNpiNumber),
@@ -1590,7 +1532,7 @@ export default function AllPracticePage() {
       setRows(refreshedData.rows);
       setPagination(refreshedData.pagination);
       setIsEditing(false);
-      toast.success("Practice activated & agreement email sent successfully");
+      toast.success("Agreement sent. Practice will become Active after every agreement is signed.");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to activate practice";
@@ -2516,7 +2458,7 @@ export default function AllPracticePage() {
                   // disabled={status === "ACTIVE"}
                   disabled={formData.status === status}
                 >
-                  {status}
+                  {practiceStatusLabel(status)}
                 </option>
               ))}
             </select>
@@ -2732,7 +2674,7 @@ export default function AllPracticePage() {
           options={[
             { label: "All Statuses", value: "" },
             ...statusOptions.map((status) => ({
-              label: status,
+              label: practiceStatusLabel(status),
               value: status,
             })),
           ]}
@@ -3051,12 +2993,7 @@ export default function AllPracticePage() {
 
             <div className="flex-1 overflow-auto p-4">
               {(() => {
-                const stColors: Record<string, string> = {
-                  LEAD: "bg-yellow-100 text-yellow-700",
-                  ACTIVE: "bg-green-100 text-green-700",
-                  INACTIVE: "bg-gray-100 text-gray-700",
-                  CLOSED: "bg-red-100 text-red-700",
-                };
+                const stColors = practiceStatusColors;
                 const status = String(selectedRow.values.status || "");
                 return (
                   <div className="mb-5 rounded-2xl border border-[#eadfcd] bg-gradient-to-br from-[#f9f4ec] via-white to-[#f4f7fb] p-4">
@@ -3083,7 +3020,7 @@ export default function AllPracticePage() {
                               stColors[status] || "bg-gray-100 text-gray-700"
                             }`}
                           >
-                            {status}
+                            {practiceStatusLabel(status)}
                           </span>
                         ) : null}
 
@@ -3191,7 +3128,7 @@ export default function AllPracticePage() {
                           value={status}
                           disabled={status === "ACTIVE"}
                         >
-                          {status}
+                          {practiceStatusLabel(status)}
                         </option>
                       ))}
                     </select>
@@ -3409,24 +3346,27 @@ export default function AllPracticePage() {
           setPendingActivationData(null);
         }}
         onConfirm={handleConfirmActivation}
-        title="Confirm Practice Activation"
-        confirmLabel="Activate & Send Agreement"
+        title="Confirm Agreement Sent"
+        confirmLabel="Send Agreement"
         type="primary"
       >
         <div className="space-y-4">
           <p className="text-[14px] text-slate-500 leading-relaxed">
             {activationClientFirst ? (
               <>
-                This practice will be set to <strong>ACTIVE</strong> and an
-                agreement will be sent to the following admin person first. The
-                Authorized Signer will complete the Internal Signing Process
-                after the client signs.
+                This practice will be set to <strong>Agreement Sent</strong> and
+                an agreement will be sent to the following admin person first.
+                The Authorized Signer will complete the Internal Signing Process
+                after the client signs. The practice becomes{" "}
+                <strong>ACTIVE</strong> after every agreement is signed.
               </>
             ) : (
               <>
-                This practice will be set to <strong>ACTIVE</strong> and an
-                agreement will be sent to the following admin person after
-                Internal Signing Process is completed by Authorized Signer.
+                This practice will be set to <strong>Agreement Sent</strong> and
+                an agreement will be sent to the following admin person after
+                Internal Signing Process is completed by Authorized Signer. The
+                practice becomes <strong>ACTIVE</strong> after every agreement
+                is signed.
               </>
             )}
           </p>

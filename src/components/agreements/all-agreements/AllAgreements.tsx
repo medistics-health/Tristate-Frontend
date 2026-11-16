@@ -1061,7 +1061,9 @@ function AllAgreementsPage() {
       (item) => item.id === createForm.practiceId,
     );
     const willAutoSendToPractice =
-      isAdmin && selectedPractice?.status === "ACTIVE";
+      isAdmin &&
+      (selectedPractice?.status === "ACTIVE" ||
+        selectedPractice?.status === "AGREEMENT_SENT");
 
     setSigningOrderPromptOpen(false);
     setIsSubmitting(true);
@@ -2252,7 +2254,9 @@ function AllAgreementsPage() {
     (item) => item.id === createForm.practiceId,
   );
   const willAutoSendCreatedAgreement =
-    isAdmin && selectedCreatePractice?.status === "ACTIVE";
+    isAdmin &&
+    (selectedCreatePractice?.status === "ACTIVE" ||
+      selectedCreatePractice?.status === "AGREEMENT_SENT");
 
   const createPanel = (
     <aside className="app-panel app-detail-panel flex w-full max-w-full lg:w-[400px] flex-col overflow-hidden rounded-2xl border border-[#f0ece6] bg-white shadow-sm">

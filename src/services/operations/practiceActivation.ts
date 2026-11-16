@@ -4,8 +4,8 @@ import {
   getAgreementDocusealId,
   getAgreementsByPractice,
   sendAgreementEmailApi,
+  type Agreement,
 } from "./agreements";
-import { updateCompanyApi } from "./companies";
 import { getPractice, updatePracticeApi } from "./practices";
 
 type PracticePersonLike = {
@@ -24,11 +24,12 @@ function getEligiblePerson(persons: PracticePersonLike[] = []) {
     .map((entry) => entry.person ?? entry)
     .find(
       (person) =>
-        (person.roles?.includes("ADMIN") || person.roles?.includes("OWNER")) && !!person.email,
+        (person.roles?.includes("ADMIN") || person.roles?.includes("OWNER")) &&
+        !!person.email,
     );
 }
 
-export async function validatePracticeActivation(practiceId: string) {
+export async function validatePracticeAgreementSend(practiceId: string) {
   const fullPractice = await getPractice(practiceId);
   const eligiblePerson = getEligiblePerson(
     (fullPractice.persons as PracticePersonLike[] | undefined) ?? [],
@@ -36,20 +37,24 @@ export async function validatePracticeActivation(practiceId: string) {
 
   if (!eligiblePerson?.id) {
     throw new Error(
-      "Practice must have at least one ADMIN/OWNER person with email to set status to ACTIVE",
+      "Practice must have at least one ADMIN/OWNER person with email to set status to Agreement Sent",
     );
   }
 
   const agreementResponse = await getAgreementsByPractice(practiceId);
   const agreements = agreementResponse.filter(
-    (init: any) => init.practiceId === practiceId && init.status !== "SIGNED",
+    (init: Agreement) =>
+      init.practiceId === practiceId &&
+      !["SIGNED", "ACTIVE", "INACTIVE", "EXPIRED", "TERMINATED"].includes(
+        init.status,
+      ),
   );
   if (agreements.length === 0) {
     throw new Error("This practice has no agreement, please create agreement");
   }
 
   return {
-    agreement: agreements[0],
+    agreements,
     eligiblePerson,
     practice: fullPractice,
   };
@@ -57,46 +62,49 @@ export async function validatePracticeActivation(practiceId: string) {
 
 export async function activatePracticeWithAgreementEmail(
   practiceId: string,
-  practiceData: Partial<PracticeBody> = { status: "ACTIVE" },
+  practiceData: Partial<PracticeBody> = { status: "AGREEMENT_SENT" },
 ): Promise<void> {
-  const { agreement, eligiblePerson, practice } =
-    await validatePracticeActivation(practiceId);
+  const { agreements, eligiblePerson } =
+    await validatePracticeAgreementSend(practiceId);
 
-  const documentApprovalStatus = agreement.docusealSubmissions?.find(
-    (init: any) => init.approval_status === "PENDING_APPROVAL",
+  const needsApproval = agreements.some((agreement) =>
+    agreement.docusealSubmissions?.some(
+      (submission) => submission.approval_status === "PENDING_APPROVAL",
+    ),
   );
 
-  if (documentApprovalStatus) {
+  if (needsApproval) {
     throw new Error("This practice agreement needs admin approval");
   }
-  const docusealIds = getAgreementDocusealId(agreement);
-  const fieldValuesByTemplateId = (agreement.docusealSubmissions || []).reduce<
-    Record<string, Record<string, string>>
-  >((acc, submission) => {
-    if (submission.templateId) {
-      acc[String(submission.templateId)] = submission.fieldValues || {};
-    }
-    return acc;
-  }, {});
 
-  if (docusealIds?.length) {
-    await createDocusealSubmissionApi({
+  for (const agreement of agreements) {
+    const docusealIds = getAgreementDocusealId(agreement);
+    const fieldValuesByTemplateId = (agreement.docusealSubmissions || []).reduce<
+      Record<string, Record<string, string>>
+    >((acc, submission) => {
+      if (submission.templateId) {
+        acc[String(submission.templateId)] = submission.fieldValues || {};
+      }
+      return acc;
+    }, {});
+
+    if (docusealIds?.length) {
+      await createDocusealSubmissionApi({
+        agreementId: agreement.id,
+        personId: eligiblePerson.id,
+        templateId: docusealIds,
+        fieldValuesByTemplateId,
+      });
+    }
+
+    await sendAgreementEmailApi({
       agreementId: agreement.id,
       personId: eligiblePerson.id,
-      templateId: docusealIds,
-      fieldValuesByTemplateId,
     });
   }
 
-  await sendAgreementEmailApi({
-    agreementId: agreement.id,
-    personId: eligiblePerson.id,
-  });
-
   await updatePracticeApi(practiceId, {
     ...practiceData,
-    status: "ACTIVE",
+    status: "AGREEMENT_SENT",
   });
-
-
 }

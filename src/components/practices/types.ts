@@ -1,7 +1,12 @@
 import type { PracticeServiceLine } from "./serviceLines";
 import type { HubLinkedDocument } from "../document-hub/types";
 
-export type PracticeStatus = "LEAD" | "ACTIVE" | "INACTIVE" | "CLOSED";
+export type PracticeStatus =
+  | "LEAD"
+  | "AGREEMENT_SENT"
+  | "ACTIVE"
+  | "INACTIVE"
+  | "CLOSED";
 
 export type PracticeSource = "DIRECT" | "REFERRAL" | "CHANNEL_PARTNER" | "OUTBOUND" | "INBOUND";
 
