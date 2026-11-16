@@ -261,6 +261,7 @@ export default function Scope() {
       setPracticeServiceVendors({});
       setSelectedAgreementId("");
       setPracticeAgreements([]);
+      setScope((prev) => ({ ...prev, requestedServices: [] }));
       return;
     }
 
@@ -277,50 +278,12 @@ export default function Scope() {
           (a) => a.status === "SIGNED",
         );
         setPracticeAgreements(signedAgreements);
-
-        if (signedAgreements.length === 1) {
-          setSelectedAgreementId(signedAgreements[0].id);
-        } else {
-          setSelectedAgreementId("");
-        }
-
-        const signedAgreement = [...agreements]
-          .sort(
-            (a, b) =>
-              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-          )
-          .find((agreement) => agreement.status === "SIGNED");
-
-        if (signedAgreement?.services?.length) {
-          const matchedValues: string[] = [];
-          const vendorMap: Record<string, { vendorId: string | null }> = {};
-
-          for (const svc of signedAgreement.services) {
-            const lowerName = svc.name.toLowerCase();
-            const matchedOpt = serviceOptions.find(
-              (opt) => opt.label.toLowerCase() === lowerName,
-            );
-            const serviceValue = matchedOpt ? matchedOpt.value : svc.name;
-            matchedValues.push(serviceValue);
-            vendorMap[serviceValue] = {
-              vendorId: (svc as any).vendorId ?? null,
-            };
-          }
-
-          setPracticeAgreementServiceValues(matchedValues);
-          setPracticeServiceVendors(vendorMap);
-          setScope((prev) => ({
-            ...prev,
-            requestedServices: matchedValues,
-          }));
-        } else {
-          setPracticeAgreementServiceValues([]);
-          setPracticeServiceVendors({});
-          setScope((prev) => ({
-            ...prev,
-            requestedServices: [],
-          }));
-        }
+        setSelectedAgreementId(
+          signedAgreements.length === 1 ? signedAgreements[0].id : "",
+        );
+        setPracticeAgreementServiceValues([]);
+        setPracticeServiceVendors({});
+        setScope((prev) => ({ ...prev, requestedServices: [] }));
       } catch (error) {
         if (!active) return;
         toast.error(
@@ -335,6 +298,45 @@ export default function Scope() {
       active = false;
     };
   }, [selectedPracticeId]);
+
+  useEffect(() => {
+    if (!selectedAgreementId) {
+      setPracticeAgreementServiceValues([]);
+      setPracticeServiceVendors({});
+      setScope((prev) => ({ ...prev, requestedServices: [] }));
+      return;
+    }
+
+    const selectedAgreement = practiceAgreements.find(
+      (agreement) => agreement.id === selectedAgreementId,
+    );
+
+    if (selectedAgreement?.services?.length) {
+      const matchedValues: string[] = [];
+      const vendorMap: Record<string, { vendorId: string | null }> = {};
+
+      for (const svc of selectedAgreement.services) {
+        const lowerName = svc.name.toLowerCase();
+        const matchedOpt = serviceOptions.find(
+          (opt) => opt.label.toLowerCase() === lowerName,
+        );
+        const serviceValue = matchedOpt ? matchedOpt.value : svc.name;
+        matchedValues.push(serviceValue);
+        vendorMap[serviceValue] = {
+          vendorId: (svc as any).vendorId ?? null,
+        };
+      }
+
+      setPracticeAgreementServiceValues(matchedValues);
+      setPracticeServiceVendors(vendorMap);
+      setScope((prev) => ({ ...prev, requestedServices: matchedValues }));
+      return;
+    }
+
+    setPracticeAgreementServiceValues([]);
+    setPracticeServiceVendors({});
+    setScope((prev) => ({ ...prev, requestedServices: [] }));
+  }, [selectedAgreementId, practiceAgreements]);
 
   function validateScope() {
     return true;
@@ -590,8 +592,8 @@ export default function Scope() {
             ) : null}
           </div>
 
-          {selectedPracticeId && practiceAgreementServiceValues.length > 0 ? (
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+          {selectedAgreementId && practiceAgreementServiceValues.length > 0 ? (
+            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 max-h-[300px] overflow-y-auto">
               <div className="flex items-center justify-between bg-slate-50 px-4 py-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Service
@@ -646,9 +648,11 @@ export default function Scope() {
             </div>
           ) : (
             <p className="mt-4 text-sm text-slate-500">
-              {selectedPracticeId
-                ? "No services found in the practice's signed agreement."
-                : "Select a practice above to see its agreement services."}
+              {!selectedPracticeId
+                ? "Select a practice above to see its agreement services."
+                : !selectedAgreementId
+                  ? "Select an agreement to view its services."
+                  : "No services found in the selected agreement."}
             </p>
           )}
 
