@@ -850,8 +850,12 @@ function BillingRunsPage() {
           id: "practiceName",
           accessorFn: (row: BillingRunRow) => row.values.practiceName,
           header: () => "Practice",
-          cell: ({ row }: { row: { original: BillingRunRow } }) =>
-            row.original.values.practiceName,
+          cell: ({ row }: { row: { original: BillingRunRow } }) => (
+            <span className="font-medium text-slate-800 whitespace-nowrap">
+              {row.original.values.practiceName}
+            </span>
+          ),
+          size: 260,
         },
         {
           id: "createdBy",
@@ -4064,7 +4068,7 @@ function BillingRunsPage() {
                         {headerGroup.headers.map((header) => (
                           <th
                             key={header.id}
-                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
+                            className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium whitespace-nowrap last:border-r-0"
                           >
                             <SortableHeaderCell header={header} />
                           </th>
@@ -4084,7 +4088,7 @@ function BillingRunsPage() {
                           {row.getVisibleCells().map((cell) => (
                             <td
                               key={cell.id}
-                              className="border-b border-[#f4f4ec] border-r border-[#f6f2ec] px-4 py-3 last:border-r-0"
+                              className="border-b border-[#f4f4ec] border-r border-[#f6f2ec] px-4 py-3 whitespace-nowrap last:border-r-0"
                             >
                               {flexRender(
                                 cell.column.columnDef.cell,

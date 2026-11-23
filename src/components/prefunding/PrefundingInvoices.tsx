@@ -67,6 +67,13 @@ import {
   type BillingPaymentMethod,
 } from "../../utils/processingFeeConfig";
 
+function formatPracticeDisplayName(practice?: { name?: string | null; practiceId?: number | null } | null): string {
+  if (!practice || !practice.name) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 type InvoiceStatus = "Draft" | "Pending Approval" | "Approved" | "Posted";
 
 type InvoiceLineItem = {
@@ -425,7 +432,14 @@ export default function PrefundingInvoices() {
             <span>Practice</span>
           </div>
         ),
-        cell: (info) => <span>{info.getValue() as string}</span>,
+        cell: (info) => {
+          const inv = info.row.original;
+          const matchedPractice = practices.find((p) => p.id === inv.practiceId);
+          const display = matchedPractice
+            ? formatPracticeDisplayName(matchedPractice)
+            : (info.getValue() as string);
+          return <span className="font-medium text-slate-800 whitespace-nowrap">{display}</span>;
+        },
       },
       {
         accessorKey: "prefundingCycle",
@@ -618,7 +632,8 @@ export default function PrefundingInvoices() {
     });
   }
   if (filters.practiceId) {
-    const practiceName = practices.find((p) => p.id === filters.practiceId)?.name || filters.practiceId;
+    const practice = practices.find((p) => p.id === filters.practiceId);
+    const practiceName = practice ? formatPracticeDisplayName(practice) : filters.practiceId;
     activeFilterChips.push({
       key: "practiceId",
       label: "Practice",
@@ -652,7 +667,7 @@ export default function PrefundingInvoices() {
           options={[{ value: "", label: "All Statuses" }, ...INVOICE_STATUS_OPTIONS]}
         />
       </label>
-      <label className="block mt-4">
+      <label className="block">
         <span className="mb-1.5 block text-[12px] font-semibold text-slate-700">Practice</span>
         <Select
           value={draftFilters.practiceId}
@@ -660,7 +675,7 @@ export default function PrefundingInvoices() {
           optionHref={practiceOptionHref}
           options={[
             { value: "", label: "All Practices" },
-            ...practices.map((p) => ({ value: p.id, label: p.name })),
+            ...practices.map((p) => ({ value: p.id, label: formatPracticeDisplayName(p) })),
           ]}
         />
       </label>
@@ -712,7 +727,7 @@ export default function PrefundingInvoices() {
                             {headerGroup.headers.map((header) => (
                               <th
                                 key={header.id}
-                                className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0"
+                                className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium whitespace-nowrap last:border-r-0"
                               >
                                 {header.isPlaceholder ? null : <SortableHeaderCell header={header} />}
                               </th>
@@ -732,7 +747,7 @@ export default function PrefundingInvoices() {
                             {row.getVisibleCells().map((cell) => (
                               <td
                                 key={cell.id}
-                                className="border-b border-[#f0ece6] border-r border-[#fcfaf8] px-4 py-3 text-[13px] text-slate-700 last:border-r-0"
+                                className="border-b border-[#f0ece6] border-r border-[#fcfaf8] px-4 py-3 text-[13px] text-slate-700 whitespace-nowrap last:border-r-0"
                               >
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </td>
@@ -954,7 +969,12 @@ export default function PrefundingInvoices() {
                     <>
                       {/* 1. Detail Card: Practice & Core Invoice Details */}
                       <DetailCard
-                        title={selectedInvoice.practice}
+                        title={(() => {
+                          const matchedPractice = practices.find((p) => p.id === selectedInvoice.practiceId);
+                          return matchedPractice
+                            ? formatPracticeDisplayName(matchedPractice)
+                            : selectedInvoice.practice;
+                        })()}
                         infoRows={[
                           {
                             label: "Prefunding Cycle",

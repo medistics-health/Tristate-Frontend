@@ -39,6 +39,13 @@ import { createPersonApi, updatePersonApi, deletePersonApi, getPerson } from "..
 import { openPrefundingInvoicePdf, getPrefundingInvoice, updatePrefundingInvoice, validatePracticeForPrefunding } from "../../services/operations/prefundingInvoices";
 import { readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 
+function formatPracticeDisplayName(practice?: { name?: string | null; practiceId?: number | null } | null): string {
+  if (!practice || !practice.name) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 // Types
 export type EmployeeCalculationItem = {
   id: string;
@@ -528,7 +535,9 @@ export default function CalculatePrefunding() {
           const prefundingPractices = dataList.filter((p: any) => p.isPrefundingEnabled);
           setPractices(
             prefundingPractices.map((p: any) => ({
-              label: p.name,
+              label: formatPracticeDisplayName(p),
+              rawName: p.name,
+              practiceId: p.practiceId,
               value: p.id,
               prefundingCycle: p.prefundingCycle,
               prefundingStartDate: p.prefundingStartDate,

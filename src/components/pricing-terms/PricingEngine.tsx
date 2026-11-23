@@ -1069,7 +1069,7 @@ export default function PricingEnginePage() {
             </div>
 
             {/* Dropdown 1: Practice Selection */}
-            <div className="w-64">
+            <div className="w-80 md:w-96 min-w-[280px]">
               <Select
                 value={selectedPracticeId}
                 onChange={(value) => {
@@ -1085,7 +1085,7 @@ export default function PricingEnginePage() {
             </div>
 
             {/* Dropdown 2: Agreement Selection */}
-            <div className="w-64">
+            <div className="w-72 md:w-80 min-w-[240px]">
               <Select
                 value={selectedAgreementId}
                 disabled={!selectedPracticeId || agreements.length === 0}

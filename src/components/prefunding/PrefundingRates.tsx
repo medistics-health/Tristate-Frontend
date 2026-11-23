@@ -34,6 +34,13 @@ import {
 import { getAllPractices, type Practice } from "../../services/operations/practices";
 import { readStoredUser, hasPrefundingPermission } from "../../utils/auth";
 
+function formatPracticeDisplayName(practice?: { name?: string | null; practiceId?: number | null } | null): string {
+  if (!practice || !practice.name) return "";
+  return practice.practiceId != null && String(practice.practiceId).trim() !== ""
+    ? `${practice.name} (Practice ID: ${practice.practiceId})`
+    : practice.name;
+}
+
 type PrefundingRate = {
   id: string;
   name: string;
@@ -284,9 +291,9 @@ export default function PrefundingRates() {
               return (
                 <span
                   key={id}
-                  className="inline-flex rounded-full bg-[#e8e5f9] px-2 py-0.5 text-xs text-[#4f63ea]"
+                  className="inline-flex rounded-full bg-[#e8e5f9] px-2 py-0.5 text-xs text-[#4f63ea] whitespace-nowrap"
                 >
-                  {practice?.name || id}
+                  {practice ? formatPracticeDisplayName(practice) : id}
                 </span>
               );
             })}
@@ -521,7 +528,7 @@ export default function PrefundingRates() {
         <label className="mb-1 block text-[13px] font-medium text-slate-700">Practices</label>
         <MultiSelect
           placeholder="Select practices"
-          options={practices.map((p) => ({ value: p.id, label: p.name }))}
+          options={practices.map((p) => ({ value: p.id, label: formatPracticeDisplayName(p) }))}
           optionHref={practiceOptionHref}
           value={formData.practiceIds}
           onChange={(val) => setFormData((prev) => ({ ...prev, practiceIds: val }))}
@@ -584,7 +591,8 @@ export default function PrefundingRates() {
     });
   }
   if (filters.practiceId) {
-    const practiceName = practices.find(p => p.id === filters.practiceId)?.name || filters.practiceId;
+    const practice = practices.find(p => p.id === filters.practiceId);
+    const practiceName = practice ? formatPracticeDisplayName(practice) : filters.practiceId;
     activeFilterChips.push({
       key: "practiceId",
       label: "Practice",
@@ -625,7 +633,7 @@ export default function PrefundingRates() {
           value={draftFilters.practiceId}
           onChange={(val) => setDraftFilters((prev) => ({ ...prev, practiceId: val }))}
           optionHref={practiceOptionHref}
-          options={[{ value: "", label: "All Practices" }, ...practices.map(p => ({ value: p.id, label: p.name }))]}
+          options={[{ value: "", label: "All Practices" }, ...practices.map(p => ({ value: p.id, label: formatPracticeDisplayName(p) }))]}
         />
       </label>
     </>
@@ -666,7 +674,7 @@ export default function PrefundingRates() {
                       {table.getHeaderGroups().map((headerGroup) => (
                         <tr key={headerGroup.id}>
                           {headerGroup.headers.map((header) => (
-                            <th key={header.id} className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium last:border-r-0">
+                            <th key={header.id} className="border-b border-[#f0ece6] border-r border-[#f4f1ec] px-4 py-3 text-left font-medium whitespace-nowrap last:border-r-0">
                               {header.isPlaceholder ? null : <SortableHeaderCell header={header} />}
                             </th>
                           ))}
@@ -682,7 +690,7 @@ export default function PrefundingRates() {
                             className={`cursor-pointer transition-colors ${selectedRowId === row.original.id ? 'bg-[#f0f4f8]' : 'hover:bg-[#fcfaf8]'}`}
                           >
                             {row.getVisibleCells().map((cell) => (
-                              <td key={cell.id} className="border-b border-[#f0ece6] border-r border-[#fcfaf8] px-4 py-3 text-[13px] text-slate-700 last:border-r-0">
+                              <td key={cell.id} className="border-b border-[#f0ece6] border-r border-[#fcfaf8] px-4 py-3 text-[13px] text-slate-700 whitespace-nowrap last:border-r-0">
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </td>
                             ))}
